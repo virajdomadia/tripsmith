@@ -19,7 +19,8 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4) — the landing page
 api/        FastAPI backend — folder structure only until the build starts
   app/core · routers · models · schemas · services
   tests/
-PRD.md      product requirements (v0, being refined)
+PRD.md      product requirements (v1 locked; v1-v4 versions, costs, add-ons)
+docs/       lifecycle outputs (steps 3-7): requirements v1-v4, user flows, technical design, architecture, data + API, plan
 mockups/    landing.html — the design source the web/ page was ported from
 brand/      logo, mark and favicon
 ```
