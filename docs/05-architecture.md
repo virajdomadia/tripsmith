@@ -32,7 +32,7 @@ flowchart LR
   GH -->|deploy previews, run tests| APP
 ```
 
-External systems in v1: **five** (Neon, Blob, Upstash, Resend, Sentry), all free tier. v2 adds Razorpay; v3 adds one AI provider behind an abstraction.
+External systems in v1: **five** (Neon, Blob, Upstash, Resend, Sentry), all free tier. v2 adds Razorpay; v3 adds one AI provider behind an abstraction; v4 adds no external system — it makes Tripsmith *itself* a service (MCP) that external assistants call.
 
 ## 2. One app, three faces
 
@@ -200,6 +200,7 @@ Admin <GalleryUploader> → server action getUploadToken() (requireOwner, valida
 |---|---|
 | `lib/booking` (quote, holds, state machine), `lib/payments` (Razorpay adapter in `lib/infra/razorpay.ts`), `app/api/webhooks/razorpay` | new domain modules + one infra adapter; `catalog` unchanged |
 | `lib/ai` (provider, tools, guardrails), `app/api/chat`, `components/site/Concierge` | tools call `catalog.searchPackages`, `booking.quote`, `enquiry.submit` — existing domain functions, no new data paths |
+| v4 `app/api/mcp` (MCP server) | imports the same `lib/ai/tools.ts` definitions as the chat route; resources read `lib/catalog`; one new table `mcp_requests` |
 | Customer accounts | Better Auth already present; `users.role` column exists from v1 |
 | Add-ons (storyboard, best-time strip, trip hub, split pay) | read `itinerary_days.location`, `climate[]`, `booking` — all designed in v1/v2 schema |
 

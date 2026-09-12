@@ -1,4 +1,4 @@
-# Tripsmith — Database + API Design (whole app: v1, v2, v3, add-ons)
+# Tripsmith — Database + API Design (whole app: v1, v2, v3, v4, add-ons)
 
 **Lifecycle step:** 6 of 17 · **Written:** 2026-09-12
 **Inputs:** [03-requirements.md](03-requirements.md), [04-technical-design.md](04-technical-design.md), [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md), [05-architecture.md](05-architecture.md)
@@ -169,6 +169,9 @@ Indexes: `(departure_id, status)`, `(user_id, created_at desc)`, `(status, hold_
 **`departure_alerts`** — id, email, package_id FK null, destination_id FK null, token text unique (unsubscribe), created_at, unsubscribed_at null. Check: exactly one of package_id/destination_id.
 **`ai_generations`** (add-on A audit) — id, kind (`package_draft` | `packing_list`), brief text, output jsonb, provider, model, created_at.
 
+### A7b. MCP — v4
+**`mcp_requests`** — id, client_name text null, client_version text null, method text (`tools/call` | `resources/read` | `prompts/get`), name text (tool/resource/prompt), args jsonb (PII-stripped), latency_ms integer, ok boolean, error text null, ip_hash text, created_at. Index `(created_at desc)`, `(name, created_at)`.
+
 ### A8. Add-on tables
 | Table | Columns | Add-on |
 |---|---|---|
@@ -211,7 +214,8 @@ erDiagram
 | `0001_v1` | enums (all v1 + ⏩ values), auth tables + role, catalog, enquiries, notes, views, `departure_availability` v1 view |
 | `0002_v2` | booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view |
 | `0003_v3` | conversations, messages, departure_alerts, ai_generations; FK `enquiries.conversation_id` becomes enforced |
-| `0004+_addons` | one migration per add-on table group, only when built |
+| `0004_v4` | `mcp_requests` |
+| `0005+_addons` | one migration per add-on table group, only when built |
 
 ---
 
@@ -330,6 +334,25 @@ export default definePackage({
 | `GET /api/cron/departure-alerts` | daily; departures created in last 24 h → email matching subscribers |
 | `listConversations` / `getConversation` (admin reads) | outcome, counts, transcript with tool calls |
 | `generatePackageDraft { brief, destinationSlug }` (admin action, add-on A) | `generateObject(packageDraftSchema)` with the destination's live packages as style examples → returns draft JSON for the form; logs to `ai_generations`; never writes `packages` |
+
+### C8. v4 — MCP server
+**`POST /api/mcp`** (node, Streamable HTTP, stateless). Also `GET /api/mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
+
+| MCP surface | Name | Maps to |
+|---|---|---|
+| tool | `searchPackages` | same definition as C6 (shared `lib/ai/tools.ts`) |
+| tool | `checkAvailability` | same |
+| tool | `startBooking` | same — returns `{ checkoutUrl, totalPaise }` |
+| tool | `createEnquiry` | same — `type: 'chat-handoff'`, `summary` required, ≤ 5/day/IP |
+| tool (stretch, auth) | `myBookings`, `getVoucher` | v2 `listMyBookings`, voucher URL (signed, 10 min) |
+| resource | `tripsmith://packages` | list of live packages (slug, name, from-price) |
+| resource | `tripsmith://packages/{slug}` | `catalog.getPackage` → markdown |
+| resource | `tripsmith://destinations/{slug}` | `catalog.getDestination` → markdown |
+| prompt | `plan-a-trip` | args destination?, month?, budget?, party? |
+
+Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `mcp-enquiry:{ip}:{day}` ≤ 5. Errors: MCP tool error content with a short message; zod issues are summarised, never raw.
+
+**`GET /developers`** — static page: what it is, install config blocks, tool list, limits, privacy.
 
 ### C7. Add-on endpoints
 | Add-on | Endpoints |

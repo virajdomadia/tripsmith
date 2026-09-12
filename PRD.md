@@ -1,9 +1,9 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · lifecycle steps 1–7 complete for v1, v2, v3 (2026-09-12) — see [docs/](docs/) · next: step 8 Project Setup, milestone 1.0
+**Status:** v1 · lifecycle steps 1–7 complete for v1–v4 (2026-09-12) — see [docs/](docs/) · next: step 8 Project Setup, milestone 1.0
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
-**Slot:** #1 · Budget ~60 h · Build first
+**Slot:** #1 · Budget ~60 h (v1–v3) + ~6 h v4 · Build first
 
 ## One-liner
 A travel-agency website where a customer can browse holiday packages, pay online, and — the wow — chat with an AI concierge that plans an itinerary and starts the booking for them.
@@ -31,14 +31,15 @@ Travel sites come in four species. Tripsmith is the first one, deliberately:
 
 Why not the others: an OTA can't be built honestly without live inventory APIs; a marketplace's hard part (suppliers, payouts) is already covered by Skillroom (project 5). The package agency is the only species that can be made **completely real** — real itineraries, real prices, real owner dashboard, real checkout — and it's the best host for an AI concierge (tool calling over a closed catalog never hallucinates). Not to be re-opened.
 
-### 2. Versions: v1 agency website → v2 booking engine → v3 AI concierge
-Three major versions, each with one new hard thing and one demo. All three are specified through lifecycle step 7 up front (requirements, design, schema, API, plan); v2 and v3 each begin with a short step-3 re-validation before coding. Inside a major, minor releases (1.0, 1.1 …) are deployable milestones defined in step 7. v1 alone is already a complete agency website.
+### 2. Versions: v1 agency website → v2 booking engine → v3 AI concierge → v4 MCP server
+Four major versions, each with one new hard thing and one demo. All three are specified through lifecycle step 7 up front (requirements, design, schema, API, plan); v2 and v3 each begin with a short step-3 re-validation before coding. Inside a major, minor releases (1.0, 1.1 …) are deployable milestones defined in step 7. v1 alone is already a complete agency website.
 
 | Version | Ships | Proves | ~Hours |
 |---|---|---|---|
 | **v1 Agency website** | Catalog, search, package pages, enquiry + WhatsApp, itinerary PDF, single-owner admin, SEO | A complete, live, real agency site | 32 |
 | **v2 Booking engine** | Book now → Razorpay → confirmation, my bookings, admin bookings | Payments, webhooks, idempotency | 15 |
 | **v3 AI concierge** | Chat with `searchPackages` / `checkAvailability` / `startBooking` tools | Tool-calling agent over a real catalog | 15 |
+| **v4 Tripsmith anywhere** | Remote MCP server exposing the same tools, resources and a planning prompt to Claude Desktop / ChatGPT / Cursor | The domain layer is a reusable core; MCP integration | 6 |
 
 ### 3. Identity
 **Tripsmith is the agency.** The site is Tripsmith Holidays itself — one name everywhere, no "platform + demo agency" layer to explain, and the brand kit already exists.
@@ -146,6 +147,21 @@ The wow. Feature list locked 2026-09-12; acceptance criteria in [docs/03-require
 | **"Notify me" for new departures** | Email capture the concierge can offer when nothing fits |
 | **Admin: conversation log** | Owner sees chats, which packages were suggested, and drop-offs |
 
+## v4 — "Tripsmith anywhere": MCP server (~6 h) — added 2026-09-12, the capstone
+The agency lives inside the customer's own assistant. Feature list locked; acceptance criteria in [docs/03-requirements-v4.md](docs/03-requirements-v4.md).
+
+| Feature | What it is |
+|---|---|
+| **Remote MCP server** | `POST /api/mcp` (Streamable HTTP) — add it to Claude Desktop, ChatGPT, Cursor or any MCP client |
+| **Tools** | the v3 tools re-exposed unchanged: `searchPackages`, `checkAvailability`, `startBooking` (checkout URL, never pays), `createEnquiry` |
+| **Resources** | `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` as markdown — read a package without a tool call |
+| **Prompt** | `plan-a-trip` guided planning prompt |
+| **Guardrails & logging** | catalog-only rules, per-client rate limits, `mcp_requests` log, dashboard tile "trips planned via MCP" |
+| **Developer page + proof** | `/developers` with one-line install config; README GIF of Claude Desktop planning a Goa trip |
+| **Stretch: authenticated tools** | MCP OAuth via Better Auth → `myBookings`, `getVoucher` (~3 h) |
+
+Why last: it needs v3's tools and v2's checkout to exist, and it's the sentence that ends the case study — "add our travel agency to your AI".
+
 ## Nice-to-have (only if hours remain)
 
 ### Unique features — what would make Tripsmith stand out (added 2026-09-12)
@@ -186,6 +202,7 @@ Chat plans a real trip from real packages and pre-fills the booking — no forms
 |---|---|---|
 | AI (v3 concierge, evals, owner-side drafting, packing list) | Anthropic / OpenAI pay-per-token | **Gemini Flash free tier** (~1,500 req/day, tool calling included) behind the Vercel AI SDK provider abstraction; `AI_PROVIDER` env var swaps to Claude. Evals on a small fixed set; public chat rate-limited per IP. Free-tier data may be used by Google for training — acceptable because the catalog is fictional |
 | WhatsApp button / share | WhatsApp Business API (rejected) | Plain `wa.me` click-to-chat links |
+| MCP server (v4) | — | Streamable HTTP on a Vercel route handler; `@modelcontextprotocol/sdk` is free |
 | Payments (v2) | 2% per live transaction | Razorpay **test mode forever** |
 | Customer login (v2) | SMS OTP (~₹0.20/SMS) | **Email OTP / magic link** via Resend |
 | Maps (contact page, storyboard, route map) | Google Maps Platform billing account | Contact: Google Maps embed iframe (no key). Storyboard/route: **MapLibre + OpenFreeMap tiles** |

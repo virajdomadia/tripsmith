@@ -1,7 +1,7 @@
 # Tripsmith — Development Plan
 
 **Lifecycle step:** 7 of 17 · **Written:** 2026-09-12
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 32 h · v2 ≈ 15 h · v3 ≈ 15 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 32 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
 How the lifecycle maps onto milestones: step 8 (setup) is milestone 1.0's first task; steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
@@ -137,10 +137,25 @@ Starts with a step-3 re-validation (30 min): confirm the provider/free-tier situ
 |---|---|---|
 | 3.3.1 | Quota-exhausted UX, reduced-motion, error states, bundle check | 0.5 h |
 | 3.3.2 | Security pass on chat inputs/tools (zod on every tool, caps, PII audit) → `docs/12-security-performance.md` v3 section | 0.5 h |
-| 3.3.3 | Post-launch review (`docs/17-post-launch.md`), README "how the agent works" with diagram, portfolio case study — **final portfolio version** | 1 h |
+| 3.3.3 | Post-launch review (`docs/17-post-launch.md`), README "how the agent works" with diagram, portfolio case study update | 1 h |
 | Stretch | Owner-side AI drafting (A, 4 h) → trip-hub packing list (2 h) | |
 
 **v3 total: ≈ 15 h** (6 + 3 + 4 + 2).
+
+## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
+Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape.
+
+### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| 4.0.1 | Migration `0004_v4` (`mcp_requests`); refactor v3 tools into shared `lib/ai/tools.ts` (name, description, schema, execute) consumed by both `/api/chat` and MCP | 1 h | chat unchanged; unit tests still green |
+| 4.0.2 | `app/api/mcp/route.ts` with `mcp-handler`: register 4 tools, rate limits, request logging, error mapping; MCP Inspector smoke test script | 1.5 h | Inspector lists and calls all tools against local |
+| 4.0.3 | Resources (`packages`, `packages/{slug}`, `destinations/{slug}`) via `lib/catalog/markdown.ts`; `plan-a-trip` prompt | 1 h | a client reads a package and quotes its price |
+| 4.0.4 | Dashboard tile "trips planned via MCP" + top tools; evals MCP driver running the 20 conversations against preview; Inspector smoke test in CI | 1 h | evals pass via MCP |
+| 4.0.5 | `/developers` page with install configs; README section + 30 s GIF from Claude Desktop; post-launch review; case study final | 1.5 h | a stranger installs it in < 1 min |
+| Stretch | R38 authenticated tools via MCP OAuth (Better Auth as AS) — `myBookings`, `getVoucher` | 3 h | |
+
+**v4 total: ≈ 6 h.**
 
 ## Whole-product summary
 | Version | Milestones | Hours | Cumulative |
@@ -148,9 +163,10 @@ Starts with a step-3 re-validation (30 min): confirm the provider/free-tier situ
 | v1 | 1.0 – 1.4 | 32 | 32 |
 | v2 | 2.0 – 2.3 | 15 | 47 |
 | v3 | 3.0 – 3.3 | 15 | 62 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 29 | up to 91 |
+| v4 | 4.0 | 6 | 68 |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 100 |
 
-The PRD budget is ~60 h. v1–v3 fit in 62 h; add-ons are taken only from time saved.
+The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (68 h). Add-ons are taken only from time saved.
 
 ---
 

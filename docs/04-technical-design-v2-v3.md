@@ -1,4 +1,4 @@
-# Tripsmith — Technical Design for v2, v3, and add-ons
+# Tripsmith — Technical Design for v2, v3, v4, and add-ons
 
 **Lifecycle step:** 4 of 17 (forward design) · **Written:** 2026-09-12
 **Companion to:** [04-technical-design.md](04-technical-design.md) (v1). Same stack, same conventions.
@@ -108,6 +108,37 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 
 ---
 
+## v4 — "Tripsmith anywhere" (MCP server)
+
+### 1. Transport & hosting
+- `app/api/mcp/route.ts` using `mcp-handler` (Vercel's adapter over `@modelcontextprotocol/sdk`), **Streamable HTTP**, stateless per request (no SSE session store needed; Vercel Hobby has no long-lived processes). Node runtime, `maxDuration 30`.
+- Server metadata: name `tripsmith`, version from `package.json`, instructions string = the v3 system prompt's catalog-only rules.
+
+### 2. Tools, resources, prompts
+- Tools are registered from the **same tool definitions as v3** (`lib/ai/tools.ts` exports `{ name, description, inputSchema, execute }`; both the AI SDK route and the MCP route import them). One definition, two transports.
+- Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `lib/catalog/markdown.ts` (also reusable for the PDF text and the concierge context).
+- Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns a single user message that steers the client into the two-question flow.
+
+### 3. Guardrails, limits, logging
+- zod on every tool input (same schemas); tool errors returned as `isError: true` content, never thrown.
+- `lib/ratelimit`: `mcp:{ip}:{hour}` ≤ 60 calls; `mcp-enquiry:{ip}:{day}` ≤ 5.
+- `mcp_requests` row per call: client name/version captured from `initialize` (stateless transport → clients resend it; fall back to `User-Agent`), method, tool/resource name, args with `phone`/`name` stripped, latency ms, `ok`.
+- Dashboard tile reads `mcp_requests` (7 / 30 days, top tools, `startBooking` count = "trips planned via MCP").
+
+### 4. Auth (stretch R38)
+- MCP authorization spec: Better Auth as the OAuth 2.1 authorization server (PKCE), `/.well-known/oauth-authorization-server` metadata, bearer tokens checked in the MCP handler; `myBookings` and `getVoucher` tools registered only when a valid token is present.
+
+### 5. Evals & proof
+- `evals/` gains an MCP driver: the same 20 conversations executed by a small MCP client harness against a preview deployment; assertions unchanged.
+- `/developers` page (static) with copy-paste config blocks for Claude Desktop (`claude_desktop_config.json` remote server entry), Cursor, ChatGPT connectors; README GIF recorded from Claude Desktop.
+
+### 6. Risks
+| Risk | Mitigation |
+|---|---|
+| Stateless transport loses `initialize` client info | log `User-Agent` as fallback; correctness of tools does not depend on it |
+| Abuse via `createEnquiry` | daily per-IP cap, honeypot-equivalent (reject empty summaries), owner can block by IP hash |
+| MCP spec drift | pin `@modelcontextprotocol/sdk` version; Inspector run in CI as a smoke test |
+
 ## Add-ons (unique nice-to-haves)
 
 ### A. Owner-side AI: draft a package (v3 stretch)
@@ -136,6 +167,7 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ---
 
 ## Environment variables added later
+v4: `MCP_PUBLIC_URL` (defaults to `NEXT_PUBLIC_SITE_URL`), stretch: OAuth issuer settings via Better Auth.
 v2: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`.
 v3: `AI_PROVIDER` (`google` | `anthropic`), `AI_MODEL`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY` (optional), `CHAT_GLOBAL_DAILY_LIMIT`.
 
