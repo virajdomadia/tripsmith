@@ -53,6 +53,11 @@
 
 **Rule (Viraj, 2026-09-12): mockups show v1 only** — no concierge, no accounts / "My Trips", no AI copy. The search is structured (where / when / budget); the human promise (2-hour callback, WhatsApp, itinerary PDF) takes the place the concierge would have. The showcase was updated to the same rule. v3 screens get the concierge when v3 is designed.
 
+### Directions III — real photography, travel vibes (2026-09-12)
+`mockups/directions-3.html` (published: https://claude.ai/code/artifact/2f00395c-5211-4972-b549-99e281c73207). Viraj's verdict on everything before this: *"none are giving a travel website vibes."* Root cause: the artifact sandbox blocks external images, so every earlier mockup used painted gradients instead of photographs. Fixed by sourcing CC-licensed photos from Wikimedia Commons (credits in `mockups/img/CREDITS.md`) and building around the patterns travellers already trust:
+- **I Sunlit** — white / sea-teal / coral, DM Sans; full-bleed beach hero, search widget (destination · month · travellers · budget), theme chips with icons, photo destination cards with "starting ₹", package cards with stars + inclusion icons (hotel, breakfast, transfers, sightseeing), trust strip, reviews, "talk to a travel expert" band with callback form, WhatsApp button
+- **J Postcard** — cream / marigold / brand teal, Fraunces; framed hero photo with postmark stamp, polaroid destination cards, postcard package cards with "Filling fast" stamps, notepaper reviews
+
 ## Screen index status
 | Screens | Status |
 |---|---|

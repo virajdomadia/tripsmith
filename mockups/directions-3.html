@@ -1,0 +1,419 @@
+<title>Tripsmith Directions III</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+  :root { color-scheme: light; --ease: cubic-bezier(.22,1,.36,1); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #E9E6E0; color: #1C1C1A; font: 15px/1.5 "Instrument Sans", system-ui, sans-serif; }
+  .chrome { position: sticky; top: 0; z-index: 60; background: #1C1C1A; color: #EDEAE3; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+  .chrome h1 { font: 600 14px/1 "Instrument Sans", sans-serif; margin: 0; }
+  .chrome .grp { display: flex; gap: 4px; align-items: center; }
+  .chrome .grp span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-right: 6px; }
+  .chrome button { background: transparent; color: inherit; border: 1px solid #4A4A46; border-radius: 6px; padding: 5px 11px; font: 600 13px "Instrument Sans", sans-serif; cursor: pointer; }
+  .chrome button[aria-pressed="true"] { background: #EDEAE3; color: #1C1C1A; border-color: #EDEAE3; }
+  .chrome button:focus-visible { outline: 2px solid #F2A93B; outline-offset: 2px; }
+  .note { max-width: 1100px; margin: 14px auto 0; padding: 0 16px; }
+  .note p { margin: 0; background: #FFFDF8; border-left: 4px solid #1C1C1A; padding: 12px 16px; font-size: 14px; }
+  .stage { padding: 14px 16px 60px; }
+  .frame { margin: 0 auto; max-width: 1360px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.18); overflow: clip; border-radius: 6px; }
+  .site { container-type: inline-size; position: relative; }
+  .site * { box-sizing: border-box; }
+  .site h1, .site h2, .site h3 { margin: 0; text-wrap: balance; }
+  .site a { color: inherit; }
+  .site img { display: block; max-width: 100%; }
+  .num { font-variant-numeric: tabular-nums; }
+  .ph { position: relative; overflow: hidden; background: #DDE3E6; }
+  .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--ease); }
+  .wrap { width: min(1220px, 100% - 48px); margin-inline: auto; }
+  :focus-visible { outline: 2px solid #F2A93B; outline-offset: 3px; }
+  .ic { width: 18px; height: 18px; flex: none; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; line-height: 1.2; }
+
+  /* ================= I · SUNLIT ================= */
+  .vi { --bg: #FFFFFF; --bg2: #F5F8FA; --ink: #14202A; --mute: #5E6B76; --line: #E3E8EC; --sea: #0E7C86; --sea-ink: #0A5F67; --coral: #FF6B4A; --coral-ink: #E6532F; --sun: #F2A93B; --ok: #1F7A4D;
+        background: var(--bg); color: var(--ink); font: 15px/1.5 "DM Sans", system-ui, sans-serif; }
+  .vi ::selection { background: var(--sea); color: #fff; }
+  .vi h1, .vi h2, .vi h3 { font-family: "DM Sans", system-ui, sans-serif; font-weight: 800; letter-spacing: -.03em; }
+  .vi .top { display: flex; align-items: center; gap: 26px; padding: 14px 0; }
+  .vi .logo { display: flex; align-items: center; gap: 10px; font: 800 20px "DM Sans", sans-serif; letter-spacing: -.03em; color: var(--sea); text-decoration: none; }
+  .vi nav { display: flex; gap: 22px; margin-left: auto; font-weight: 600; font-size: 14px; }
+  .vi nav a { text-decoration: none; }
+  .vi .phone { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--sea); text-decoration: none; }
+  .vi .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font: 700 14px "DM Sans", sans-serif; text-decoration: none; border: 0; cursor: pointer; background: var(--coral); color: #fff; transition: transform .35s var(--ease), box-shadow .35s var(--ease), background .25s; box-shadow: 0 8px 20px -10px rgba(255,107,74,.7); }
+  .vi .btn:hover { background: var(--coral-ink); transform: translateY(-2px); box-shadow: 0 14px 26px -10px rgba(255,107,74,.7); }
+  .vi .btn.sea { background: var(--sea); box-shadow: 0 8px 20px -10px rgba(14,124,134,.6); }
+  .vi .btn.sea:hover { background: var(--sea-ink); }
+  .vi .btn.line { background: #fff; color: var(--ink); border: 1.5px solid var(--line); box-shadow: none; }
+  .vi .btn.line:hover { border-color: var(--ink); background: #fff; }
+  .vi .btn.wa { background: #25D366; box-shadow: 0 8px 20px -10px rgba(37,211,102,.7); }
+  .vi .hero { position: relative; height: 620px; border-radius: 0; overflow: hidden; }
+  .vi .hero .ph { position: absolute; inset: 0; }
+  .vi .hero .ph img { animation: kb 30s var(--ease) infinite alternate; }
+  @keyframes kb { from { transform: scale(1) } to { transform: scale(1.08) } }
+  .vi .hero .ph::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(10,30,40,.35), rgba(10,30,40,.05) 40%, rgba(10,30,40,.55) 100%); }
+  .vi .hero .copy { position: absolute; left: 0; right: 0; top: 96px; text-align: center; color: #fff; text-shadow: 0 2px 24px rgba(0,0,0,.35); }
+  .vi .hero h1 { font-size: clamp(40px, 5.6vw, 72px); line-height: 1.02; max-width: 16ch; margin: 0 auto; }
+  .vi .hero p { font-size: 18px; font-weight: 500; margin: 14px auto 0; max-width: 560px; opacity: .95; }
+  .vi .search { position: relative; z-index: 3; margin: -72px auto 0; width: min(1080px, 100% - 48px); background: #fff; border-radius: 18px; padding: 10px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr auto; gap: 6px; box-shadow: 0 30px 60px -24px rgba(20,32,42,.35), 0 1px 0 rgba(0,0,0,.04); }
+  .vi .fld { padding: 10px 14px; border-right: 1px solid var(--line); display: flex; gap: 10px; align-items: center; cursor: pointer; border-radius: 10px; transition: background .2s; }
+  .vi .fld:hover { background: var(--bg2); }
+  .vi .fld:nth-last-child(2) { border-right: 0; }
+  .vi .fld .ic { color: var(--sea); }
+  .vi .fld label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); font-weight: 700; cursor: pointer; }
+  .vi .fld .v { font-weight: 700; font-size: 15px; }
+  .vi .search .btn { padding: 0 26px; border-radius: 12px; font-size: 15px; }
+  .vi .themes { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .vi .theme { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: #fff; font-weight: 600; font-size: 14px; text-decoration: none; transition: border-color .25s, transform .3s var(--ease), background .25s; }
+  .vi .theme:hover { border-color: var(--sea); color: var(--sea); transform: translateY(-2px); }
+  .vi .theme .ic { color: var(--sea); }
+  .vi .trust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 44px; }
+  .vi .trust div { display: flex; gap: 12px; align-items: center; background: var(--bg2); border-radius: 14px; padding: 14px 16px; font-size: 14px; }
+  .vi .trust .ic { color: var(--sea); width: 22px; height: 22px; }
+  .vi .trust b { display: block; font-weight: 800; }
+  .vi .trust span { color: var(--mute); }
+  .vi section { padding: 64px 0 0; }
+  .vi .sechead { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+  .vi .sechead h2 { font-size: clamp(26px, 3.2vw, 38px); }
+  .vi .sechead p { margin: 4px 0 0; color: var(--mute); }
+  .vi .sechead a { font-weight: 700; color: var(--sea); text-decoration: none; white-space: nowrap; }
+  .vi .dests { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .vi .dest { position: relative; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; text-decoration: none; color: #fff; }
+  .vi .dest .ph { position: absolute; inset: 0; }
+  .vi .dest .ph::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,20,30,.8), transparent 55%); }
+  .vi .dest:hover .ph img { transform: scale(1.06); }
+  .vi .dest .t { position: absolute; left: 14px; right: 14px; bottom: 14px; }
+  .vi .dest b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+  .vi .dest small { font-size: 12px; font-weight: 600; opacity: .95; }
+  .vi .dest .n { position: absolute; top: 12px; left: 12px; background: rgba(255,255,255,.92); color: var(--ink); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+  .vi .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .vi .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; text-decoration: none; display: grid; grid-template-rows: auto 1fr; transition: transform .45s var(--ease), box-shadow .45s var(--ease); }
+  .vi .card:hover { transform: translateY(-4px); box-shadow: 0 30px 50px -30px rgba(20,32,42,.35); }
+  .vi .card .ph { aspect-ratio: 16 / 10; }
+  .vi .card:hover .ph img { transform: scale(1.05); }
+  .vi .card .bd { position: absolute; top: 12px; left: 12px; }
+  .vi .card .fav { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; color: var(--ink); }
+  .vi .card .body { padding: 16px 18px 18px; display: grid; gap: 8px; align-content: start; }
+  .vi .card .top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--mute); font-weight: 600; }
+  .vi .card .stars { color: var(--sun); letter-spacing: 1px; }
+  .vi .card h3 { font-size: 20px; line-height: 1.2; }
+  .vi .card .inc { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .vi .card .inc span { display: inline-flex; align-items: center; gap: 5px; }
+  .vi .card .inc .ic { width: 15px; height: 15px; color: var(--sea); }
+  .vi .card .foot { display: flex; justify-content: space-between; align-items: end; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  .vi .card .price small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .vi .card .price b { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+  .vi .card .price b i { font-style: normal; font-size: 13px; font-weight: 600; color: var(--mute); }
+  .vi .card .foot .btn { padding: 9px 14px; font-size: 13px; border-radius: 10px; }
+  .vi .badge.fill { background: #FFF1DD; color: #B5541E; } .vi .badge.sure { background: #E3F0EA; color: var(--ok); }
+  .vi .why { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .vi .why div { border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .vi .why .ic { width: 28px; height: 28px; color: var(--coral); margin-bottom: 12px; }
+  .vi .why b { display: block; font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+  .vi .why p { margin: 0; color: var(--mute); font-size: 14px; }
+  .vi .reviews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .vi .review { background: var(--bg2); border-radius: 16px; padding: 22px; display: grid; gap: 10px; }
+  .vi .review .who { display: flex; align-items: center; gap: 12px; }
+  .vi .review .av { width: 42px; height: 42px; border-radius: 50%; background: var(--sea); color: #fff; display: grid; place-items: center; font-weight: 800; }
+  .vi .review .who b { display: block; }
+  .vi .review .who small { color: var(--mute); }
+  .vi .review .stars { color: var(--sun); letter-spacing: 2px; font-size: 13px; }
+  .vi .review p { margin: 0; font-size: 15px; }
+  .vi .band { margin-top: 72px; background: linear-gradient(120deg, var(--sea-ink), var(--sea)); color: #fff; border-radius: 22px; padding: 44px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; }
+  .vi .band h2 { font-size: clamp(26px, 3vw, 36px); }
+  .vi .band p { opacity: .9; margin: 10px 0 0; font-size: 16px; }
+  .vi .band form { display: grid; gap: 8px; background: #fff; color: var(--ink); border-radius: 16px; padding: 14px; }
+  .vi .band input { border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 500 15px "DM Sans", sans-serif; width: 100%; }
+  .vi .band input:focus { outline: 2px solid var(--sea); outline-offset: 1px; border-color: transparent; }
+  .vi .band .row { display: flex; gap: 8px; }
+  .vi footer { margin-top: 72px; background: var(--ink); color: #B7C0C8; padding: 48px 0 24px; font-size: 14px; }
+  .vi footer .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 28px; }
+  .vi footer b { color: #fff; display: block; margin-bottom: 10px; font-weight: 700; }
+  .vi footer a { text-decoration: none; display: block; margin-bottom: 6px; }
+  .vi footer .fine { border-top: 1px solid #2A3944; margin-top: 32px; padding-top: 18px; font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .vi .wa-fab { position: absolute; right: 22px; bottom: 22px; z-index: 5; }
+  @container (max-width: 900px) {
+    .vi nav, .vi .phone { display: none; }
+    .vi .search { grid-template-columns: 1fr 1fr; }
+    .vi .fld { border-right: 0; }
+    .vi .search .btn { grid-column: span 2; padding: 14px; }
+    .vi .trust, .vi .why { grid-template-columns: 1fr 1fr; }
+    .vi .dests { grid-template-columns: repeat(3, 1fr); }
+    .vi .cards, .vi .reviews { grid-template-columns: 1fr 1fr; }
+    .vi .band { grid-template-columns: 1fr; padding: 28px; }
+    .vi footer .cols { grid-template-columns: 1fr 1fr; }
+  }
+  @container (max-width: 600px) {
+    .vi .hero { height: 520px; }
+    .vi .hero .copy { top: 60px; }
+    .vi .hero h1 { font-size: 36px; }
+    .vi .search { grid-template-columns: 1fr; margin-top: -40px; }
+    .vi .search .btn { grid-column: auto; }
+    .vi .trust, .vi .why, .vi .cards, .vi .reviews { grid-template-columns: 1fr; }
+    .vi .dests { grid-template-columns: 1fr 1fr; }
+    .vi footer .cols { grid-template-columns: 1fr; }
+  }
+
+  /* ================= J · POSTCARD ================= */
+  .vj { --bg: #F6F1E7; --bg2: #FFFDF8; --ink: #22201C; --mute: #6E675B; --line: #E4DCCB; --acc: #D9861A; --acc-ink: #B96E0E; --teal: #0F4C5C; --ok: #2F7A56;
+        background: var(--bg); color: var(--ink); font: 16px/1.55 "Instrument Sans", system-ui, sans-serif; }
+  .vj ::selection { background: var(--acc); color: #fff; }
+  .vj h1, .vj h2, .vj h3 { font-family: "Fraunces", Georgia, serif; font-weight: 500; letter-spacing: -.02em; }
+  .vj .top { display: flex; align-items: center; gap: 26px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .vj .logo { display: flex; align-items: center; gap: 10px; font: 600 24px "Fraunces", serif; color: var(--teal); text-decoration: none; }
+  .vj nav { display: flex; gap: 22px; margin-left: auto; font-weight: 600; font-size: 14px; }
+  .vj nav a { text-decoration: none; }
+  .vj .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 6px; font: 600 14px "Instrument Sans", sans-serif; text-decoration: none; border: 1.5px solid transparent; cursor: pointer; background: var(--acc); color: #fff; transition: transform .35s var(--ease), background .25s; }
+  .vj .btn:hover { background: var(--acc-ink); transform: translateY(-2px); }
+  .vj .btn.teal { background: var(--teal); }
+  .vj .btn.line { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .vj .btn.line:hover { background: var(--ink); color: #fff; }
+  .vj .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; padding: 48px 0 0; }
+  .vj .hero h1 { font-size: clamp(42px, 5.6vw, 76px); line-height: 1; }
+  .vj .hero h1 em { font-style: italic; color: var(--acc); }
+  .vj .hero p { font-size: 18px; color: var(--mute); margin: 18px 0 0; max-width: 46ch; }
+  .vj .hero .art { position: relative; }
+  .vj .hero .art .ph { aspect-ratio: 4 / 3; border-radius: 4px; box-shadow: 0 30px 60px -30px rgba(34,32,28,.5); border: 10px solid #fff; }
+  .vj .hero .art .ph img { animation: kb 30s var(--ease) infinite alternate; }
+  .vj .stamp { position: absolute; width: 118px; height: 118px; border-radius: 50%; border: 2px dashed var(--acc); color: var(--acc); display: grid; place-items: center; text-align: center; font: 600 10px/1.2 "Instrument Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; transform: rotate(-12deg); background: rgba(246,241,231,.85); }
+  .vj .stamp b { display: block; font: 500 24px "Fraunces", serif; letter-spacing: 0; text-transform: none; }
+  .vj .hero .stamp { right: -26px; top: -26px; }
+  .vj .search { margin-top: 36px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 4px; box-shadow: 0 20px 50px -30px rgba(34,32,28,.4); }
+  .vj .fld { padding: 10px 14px; border-right: 1px solid var(--line); cursor: pointer; }
+  .vj .fld:nth-last-child(2) { border-right: 0; }
+  .vj .fld label { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-weight: 600; cursor: pointer; }
+  .vj .fld .v { font-weight: 600; }
+  .vj .themes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .vj .theme { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); font-weight: 600; font-size: 13px; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+  .vj .theme .ic { width: 14px; height: 14px; color: var(--teal); }
+  .vj section { padding: 80px 0 0; }
+  .vj .sechead { text-align: center; margin-bottom: 30px; }
+  .vj .sechead h2 { font-size: clamp(32px, 4vw, 48px); }
+  .vj .sechead p { color: var(--mute); margin: 8px 0 0; }
+  .vj .polas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; }
+  .vj .pola { background: #fff; padding: 10px 10px 14px; border-radius: 3px; box-shadow: 0 14px 30px -18px rgba(34,32,28,.45); text-decoration: none; transition: transform .5s var(--ease), box-shadow .5s var(--ease); }
+  .vj .pola:nth-child(odd) { transform: rotate(-1.5deg); } .vj .pola:nth-child(even) { transform: rotate(1.2deg); }
+  .vj .pola:hover { transform: rotate(0) translateY(-6px) scale(1.03); box-shadow: 0 30px 50px -24px rgba(34,32,28,.5); z-index: 2; position: relative; }
+  .vj .pola .ph { aspect-ratio: 1; }
+  .vj .pola b { display: block; font: 500 20px "Fraunces", serif; margin-top: 10px; }
+  .vj .pola small { color: var(--mute); font-size: 12px; font-weight: 600; }
+  .vj .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .vj .card { background: var(--bg2); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; text-decoration: none; display: grid; grid-template-rows: auto 1fr; position: relative; transition: transform .45s var(--ease), box-shadow .45s var(--ease); }
+  .vj .card:hover { transform: translateY(-4px); box-shadow: 0 30px 50px -30px rgba(34,32,28,.4); }
+  .vj .card .ph { aspect-ratio: 16 / 10; }
+  .vj .card:hover .ph img { transform: scale(1.05); }
+  .vj .card .stamp { width: 88px; height: 88px; right: 12px; top: 12px; font-size: 9px; background: rgba(255,253,248,.9); }
+  .vj .card .stamp b { font-size: 16px; }
+  .vj .card .body { padding: 18px 20px 20px; display: grid; gap: 8px; }
+  .vj .card .top { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+  .vj .card h3 { font-size: 24px; }
+  .vj .card p { margin: 0; color: var(--mute); font-size: 14px; }
+  .vj .card .inc { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .vj .card .inc span { display: inline-flex; gap: 5px; align-items: center; }
+  .vj .card .inc .ic { width: 14px; height: 14px; color: var(--teal); }
+  .vj .card .foot { display: flex; justify-content: space-between; align-items: end; border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 4px; }
+  .vj .card .price small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .vj .card .price b { font: 500 26px "Fraunces", serif; }
+  .vj .card .foot .btn { padding: 9px 14px; font-size: 13px; }
+  .vj .badge.fill { background: #FBE7C6; color: #8A5410; } .vj .badge.sure { background: #E3F0EA; color: var(--ok); }
+  .vj .why { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .vj .why div { padding: 28px 22px; border-right: 1px solid var(--line); }
+  .vj .why div:last-child { border-right: 0; }
+  .vj .why .ic { width: 26px; height: 26px; color: var(--acc); margin-bottom: 12px; }
+  .vj .why b { display: block; font: 500 21px "Fraunces", serif; margin-bottom: 6px; }
+  .vj .why p { margin: 0; color: var(--mute); font-size: 14px; }
+  .vj .reviews { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .vj .review { background: #fff; padding: 22px; border-radius: 3px; box-shadow: 0 14px 30px -18px rgba(34,32,28,.35); transform: rotate(-.6deg); }
+  .vj .review:nth-child(2) { transform: rotate(.8deg); }
+  .vj .review p { font: italic 400 20px/1.4 "Fraunces", serif; margin: 0 0 12px; }
+  .vj .review small { color: var(--mute); font-weight: 600; }
+  .vj .review .stars { color: var(--acc); letter-spacing: 2px; font-size: 13px; display: block; margin-bottom: 8px; }
+  .vj .band { margin-top: 80px; border: 1px solid var(--line); background: var(--bg2); border-radius: 8px; padding: 40px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; position: relative; }
+  .vj .band h2 { font-size: clamp(28px, 3.2vw, 40px); }
+  .vj .band p { color: var(--mute); margin: 10px 0 0; }
+  .vj .band form { display: grid; gap: 8px; }
+  .vj .band input { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 12px 14px; font: 500 15px "Instrument Sans", sans-serif; width: 100%; }
+  .vj .band input:focus { outline: 2px solid var(--acc); outline-offset: 1px; }
+  .vj .band .row { display: flex; gap: 8px; }
+  .vj footer { margin-top: 80px; border-top: 1px solid var(--line); padding: 44px 0 24px; font-size: 14px; color: var(--mute); }
+  .vj footer .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 28px; }
+  .vj footer b { color: var(--ink); display: block; margin-bottom: 10px; font-weight: 600; }
+  .vj footer a { text-decoration: none; display: block; margin-bottom: 6px; }
+  .vj footer .fine { margin-top: 32px; font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .vj .wa-fab { position: absolute; right: 22px; bottom: 22px; z-index: 5; }
+  @container (max-width: 900px) {
+    .vj nav { display: none; }
+    .vj .hero { grid-template-columns: 1fr; }
+    .vj .hero .stamp { right: 6px; top: -20px; }
+    .vj .search { grid-template-columns: 1fr 1fr; }
+    .vj .fld { border-right: 0; }
+    .vj .search .btn { grid-column: span 2; }
+    .vj .polas { grid-template-columns: repeat(3, 1fr); }
+    .vj .cards, .vj .reviews, .vj .why { grid-template-columns: 1fr 1fr; }
+    .vj .why div:nth-child(2n) { border-right: 0; }
+    .vj .band { grid-template-columns: 1fr; padding: 26px; }
+    .vj footer .cols { grid-template-columns: 1fr 1fr; }
+  }
+  @container (max-width: 600px) {
+    .vj .hero h1 { font-size: 40px; }
+    .vj .search { grid-template-columns: 1fr; }
+    .vj .search .btn { grid-column: auto; }
+    .vj .polas { grid-template-columns: 1fr 1fr; }
+    .vj .cards, .vj .reviews, .vj .why { grid-template-columns: 1fr; }
+    .vj .why div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .vj footer .cols { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .vi .hero .ph img, .vj .hero .art .ph img { animation: none !important; } }
+</style>
+
+<div class="chrome">
+  <h1>Tripsmith · directions III — real photos, travel vibes</h1>
+  <div class="grp" role="group" aria-label="Variant"><span>Variant</span>
+    <button data-v="i" aria-pressed="true">I · Sunlit</button>
+    <button data-v="j" aria-pressed="false">J · Postcard</button>
+  </div>
+  <span style="font-size:12px;opacity:.7">v1 scope · Home page · real CC-licensed photography · resize for mobile</span>
+</div>
+<div class="note"><p id="tradeoff"></p></div>
+<div class="stage"><div class="frame" id="frame"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+/* ---------- content ---------- */
+const IMG = {
+  hero:'img/hero-2.jpg',
+  goa:['img/goa-5.jpg','img/goa-3.jpg','img/goa-2.jpg'], kerala:['img/kerala-2.jpg','img/kerala-1.jpg','img/munnar-1.jpg','img/munnar-2.jpg'],
+  himachal:['img/himachal-6.jpg','img/himachal-5.jpg','img/himachal-1.jpg'], rajasthan:['img/rajasthan-1.jpg','img/udaipur-1.jpg','img/rajasthan-2.jpg'],
+  andaman:['img/andaman-1.jpg','img/andaman-2.jpg'], ladakh:['img/ladakh-2.jpg','img/ladakh-1.jpg'],
+};
+const DEST = [
+  { slug:'goa', name:'Goa', tag:'Beaches & Portuguese lanes', from:14999, best:'Nov – Feb', n:2 },
+  { slug:'kerala', name:'Kerala', tag:'Backwaters & tea hills', from:21999, best:'Sep – Mar', n:2 },
+  { slug:'himachal', name:'Himachal', tag:'Snow, pines & Parvati valley', from:18499, best:'Mar – Jun', n:2 },
+  { slug:'rajasthan', name:'Rajasthan', tag:'Forts, lakes & the Thar', from:19499, best:'Oct – Mar', n:2 },
+  { slug:'andaman', name:'Andaman', tag:'Radhanagar sands & reefs', from:32999, best:'Nov – Apr', n:2 },
+  { slug:'ladakh', name:'Ladakh', tag:'Passes, lakes & monasteries', from:27499, best:'Jun – Sep', n:2 },
+];
+const PKGS = [
+  { dest:'goa', i:0, name:'North Goa Beaches', n:3, from:14999, stars:4, hotel:'Lemon Tree Amarante, Candolim', hl:'Aguada & Chapora forts · Anjuna · Mandovi sunset cruise', badge:'fill', next:'14 Nov' },
+  { dest:'kerala', i:0, name:'Munnar & Alleppey Houseboat', n:4, from:21999, stars:4, hotel:'Tea estate stay + private houseboat', hl:'Eravikulam park · tea trails · a night on the backwaters', badge:'sure', next:'7 Nov' },
+  { dest:'himachal', i:0, name:'Shimla–Manali Classic', n:4, from:18499, stars:3, hotel:'Mall Road & Old Manali stays', hl:'Kufri · Solang valley · Hadimba temple', badge:'fill', next:'21 Nov' },
+  { dest:'rajasthan', i:1, name:'Jaipur · Jodhpur · Udaipur', n:5, from:26499, stars:4, hotel:'Heritage havelis', hl:'Amber by jeep · Mehrangarh at dusk · Lake Pichola boat', badge:'sure', next:'28 Nov' },
+  { dest:'andaman', i:0, name:'Port Blair · Havelock · Neil', n:5, from:32999, stars:4, hotel:'Beachfront cottages, Havelock', hl:'Radhanagar beach · Elephant beach snorkel · Cellular jail', badge:'fill', next:'5 Dec' },
+  { dest:'ladakh', i:0, name:'Leh · Nubra · Pangong', n:6, from:29999, stars:3, hotel:'Leh hotel + Pangong camp', hl:'Khardung La · Hunder dunes · Pangong lakeside camp', badge:'sure', next:'12 Jun' },
+];
+const WHY = [
+  ['shield','Real departures, real seats','Every date on the site is a departure we run — with live seat counts.'],
+  ['phone','A person calls within 2 hours','Enquire and someone from our Bengaluru office calls you, 10 am – 8 pm.'],
+  ['file','Itinerary you can forward','Download the PDF, send it to the family group, decide together.'],
+  ['bed','Hotels we have stayed in','Every property checked by us. No surprises on arrival.'],
+];
+const REVIEWS = [
+  ['PR','Priya & Rahul','Pune · Kerala, Oct 2026','The houseboat night was exactly as the PDF promised — even the dinner. Rohan called the evening before every transfer.'],
+  ['AS','Anirudh S','Bengaluru · Himachal, May 2026','Booked Shimla–Manali for my parents. Zero stress; they were called at every step and the hotel was better than the photos.'],
+  ['MT','Meghna T','Hyderabad · Goa, Dec 2025','Goa with two kids under 8 and it just worked. The coach timing, the resort, the cruise — everything on time.'],
+];
+const BADGE = { fill:'Filling fast', sure:'Guaranteed departure' };
+const inr = n => '₹' + n.toLocaleString('en-IN');
+const badge = b => b ? `<span class="badge ${b}">${BADGE[b]}</span>` : '';
+const dn = p => `${p.n}N / ${p.n+1}D`;
+const destName = s => DEST.find(d => d.slug === s).name;
+const ph = (src, alt, cls = '') => `<div class="ph ${cls}"><img src="${src}" alt="${alt}" loading="lazy"></div>`;
+const ICONS = {
+  pin:'<path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5a5 5 0 0 1 6 5"/>',
+  rupee:'<path d="M7 4h10M7 9h10M7 4c5 0 7 2 7 5s-2 5-7 5l7 6"/>',
+  beach:'<path d="M3 20h18M4 11a8 8 0 0 1 16 0"/><path d="M12 3v17"/>',
+  hills:'<path d="M3 20l6-10 4 6 3-4 5 8z"/>',
+  heart:'<path d="M12 21s-7-4.6-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.4-9.5 9-9.5 9z"/>',
+  family:'<circle cx="8" cy="7" r="3"/><circle cx="16" cy="8" r="2.5"/><path d="M2 21a6 6 0 0 1 12 0M13 21a4.5 4.5 0 0 1 9 0"/>',
+  bolt:'<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  fort:'<path d="M3 21V9l3-3 3 3v3h6V9l3-3 3 3v12z"/>',
+  bed:'<path d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7M3 21v-3h18v3M7 9V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/>',
+  meal:'<path d="M5 3v18M5 3c0 4 3 4 3 8M9 3c0 4-3 4-3 8M17 3c-2 0-3 3-3 7h3v11"/>',
+  car:'<path d="M5 17h14M6 17l1.5-6h9L18 17M3 17v3h3v-3M18 17v3h3v-3"/><circle cx="8" cy="17" r="1"/><circle cx="16" cy="17" r="1"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  file:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/>',
+  wa:'<path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z"/><path d="M9 8.5c0 3 3.5 6.5 6.5 6.5l1-1.5-2-1-1 1a5 5 0 0 1-2.5-2.5l1-1-1-2z"/>',
+  star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+};
+const ic = (n, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const THEMES = [['beach','Beach'],['hills','Hills'],['heart','Honeymoon'],['family','Family'],['bolt','Adventure'],['fort','Heritage']];
+const INC = `<span>${ic('bed')}Hotel</span><span>${ic('meal')}Breakfast</span><span>${ic('car')}Transfers</span><span>${ic('camera')}Sightseeing</span>`;
+const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+const CREDITS = 'Photos: Wikimedia Commons contributors, CC BY / CC BY-SA — Vagator (Goa), Palolem, Alleppey backwaters, Munnar, Solang valley, Jaisalmer fort, Udaipur, Radhanagar beach, Pangong lake, Varkala. Mockup only; licensed photography for the live site.';
+
+/* ---------- I · Sunlit ---------- */
+const I = {
+  note: '<b>I · Sunlit.</b> The travel-site shape people already trust — full-bleed beach hero, a real search widget (destination · month · travellers · budget), theme chips, photo-first destination cards with “starting ₹”, package cards with stars and inclusion icons, trust strip, reviews, a “talk to a travel expert” band and a WhatsApp button — done with a premium hand: white ground, sea-teal + coral, DM Sans, 16–18px corners, no clutter. This is the direction most likely to convert an Indian family; the trade-off is that it looks like a category, so the photography and the details have to carry the brand.',
+  html() { return `<div class="site vi">
+    <div class="wrap top"><a class="logo" href="#"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0E7C86"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#fff"/></svg>Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Holiday packages</a><a href="#">About</a><a href="#">Contact</a></nav><a class="phone" href="#">${ic('phone')}+91 98450 12345</a><a class="btn" href="#">Enquire</a></div>
+    <div class="hero">${ph(IMG.hero, 'Varkala beach, Kerala')}<div class="copy"><h1>Holidays across India, planned by people who’ve been.</h1><p>Twelve trips we run ourselves. Real dates, real hotels, real seats — and a person who calls you back.</p></div></div>
+    <form class="search" onsubmit="return false"><div class="fld">${ic('pin')}<div><label>Where to</label><div class="v">Anywhere in India</div></div></div><div class="fld">${ic('cal')}<div><label>Travel month</label><div class="v">November 2026</div></div></div><div class="fld">${ic('users')}<div><label>Travellers</label><div class="v">2 adults</div></div></div><div class="fld">${ic('rupee')}<div><label>Budget / person</label><div class="v">Up to ₹25,000</div></div></div><button class="btn" type="button">Search trips</button></form>
+    <div class="wrap">
+      <div class="themes">${THEMES.map(t => `<a class="theme" href="#">${ic(t[0])}${t[1]}</a>`).join('')}</div>
+      <div class="trust">${[['cal','41 departures','this season, live seats'],['phone','2-hour callback','10 am – 8 pm, every day'],['bed','Hotels we’ve stayed in','checked by us'],['file','Itinerary PDF','forward it to the family']].map(t => `<div>${ic(t[0])}<div><b>${t[1]}</b><span>${t[2]}</span></div></div>`).join('')}</div>
+      <section><div class="sechead"><div><h2>Trending destinations</h2><p>Where our travellers are going this season.</p></div><a href="#">All destinations →</a></div>
+        <div class="dests">${DEST.map(d => `<a class="dest" href="#">${ph(IMG[d.slug][0], d.name)}<span class="n">${d.n} trips</span><div class="t"><b>${d.name}</b><small>starting ${inr(d.from)}</small></div></a>`).join('')}</div></section>
+      <section><div class="sechead"><div><h2>Handpicked holiday packages</h2><p>Every package with a hotel we know and a departure you can count on.</p></div><a href="#">All 12 packages →</a></div>
+        <div class="cards">${PKGS.map(p => `<a class="card" href="#"><div style="position:relative">${ph(IMG[p.dest][p.i], p.name)}<span class="bd">${badge(p.badge)}</span><span class="fav">${ic('heart')}</span></div><div class="body"><div class="top"><span>${destName(p.dest)} · ${dn(p)}</span><span class="stars">${stars(p.stars)}</span></div><h3>${p.name}</h3><div style="font-size:13px;color:var(--mute)">${p.hotel}</div><div class="inc">${INC}</div><div class="foot"><div class="price"><small>Next departure ${p.next}</small><b class="num">${inr(p.from)} <i>/ person</i></b></div><span class="btn sea">View & enquire</span></div></div></a>`).join('')}</div></section>
+      <section><div class="sechead"><div><h2>Why book with Tripsmith</h2></div></div><div class="why">${WHY.map(w => `<div>${ic(w[0])}<b>${w[1]}</b><p>${w[2]}</p></div>`).join('')}</div></section>
+      <section><div class="sechead"><div><h2>Travellers say</h2><p>Real trips, real names, real dates.</p></div></div><div class="reviews">${REVIEWS.map(r => `<div class="review"><div class="who"><span class="av">${r[0]}</span><div><b>${r[1]}</b><small>${r[2]}</small></div></div><span class="stars">★★★★★</span><p>“${r[3]}”</p></div>`).join('')}</div></section>
+      <div class="band"><div><h2>Not sure where to go? Talk to a travel expert.</h2><p>Tell us your dates and budget. A person from our Bengaluru office calls you back within two hours, 10 am – 8 pm.</p><div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap"><a class="btn wa" href="#">${ic('wa')}WhatsApp us</a><a class="btn line" href="#">${ic('phone')}+91 98450 12345</a></div></div>
+        <form onsubmit="return false"><label class="sr" for="nm" style="position:absolute;left:-9999px">Name</label><input id="nm" placeholder="Your name"><input id="phn" placeholder="Mobile number" inputmode="tel"><div class="row"><input id="mo" placeholder="Travel month" style="flex:1"><input id="bg" placeholder="Budget / person" style="flex:1"></div><button class="btn" type="button">Request a callback</button><small style="color:var(--mute);text-align:center">No spam. We call once, when it suits you.</small></form></div>
+    </div>
+    <footer><div class="wrap"><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a href="#">About</a><a href="#">Contact</a><a href="#">Why Tripsmith</a></div><div><b>Policies</b><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia · Demo login: owner@tripsmith.in / demo1234</span><span style="max-width:520px">${CREDITS}</span></div></div></footer>
+    <a class="btn wa wa-fab" href="#">${ic('wa')}WhatsApp</a>
+  </div>`; },
+  motion(root) { if (!window.gsap || reduced) return;
+    gsap.from(root.querySelectorAll('.hero .copy > *'), { y: 24, opacity: 0, duration: 1, stagger: .12, ease: 'expo.out', delay: .15 });
+    gsap.from(root.querySelector('.search'), { y: 30, opacity: 0, duration: 1, ease: 'expo.out', delay: .5 });
+    gsap.from(root.querySelectorAll('.theme'), { y: 12, opacity: 0, duration: .7, stagger: .05, ease: 'expo.out', delay: .8 });
+    ScrollTrigger.batch(root.querySelectorAll('.trust div, .dest, .card, .why div, .review'), { start: 'top 88%', once: true, onEnter: els => gsap.from(els, { y: 26, opacity: 0, duration: .9, stagger: .07, ease: 'expo.out', overwrite: true }) });
+  }
+};
+
+/* ---------- J · Postcard ---------- */
+const J = {
+  note: '<b>J · Postcard.</b> Same content and the same real photos, but warmer and more editorial: cream paper, Fraunces serif headlines, a framed hero photo with a postmark stamp, destinations as tilted polaroids, packages as postcards with a “Filling fast” stamp, reviews on notepaper. Feels like a boutique agency that has actually been to these places — the “premium travel” half of your brief. Trade-off: it is a little slower to scan than I on a phone, and the tilt/stamp motifs must stay light or it turns kitsch.',
+  html() { return `<div class="site vj"><div class="wrap">
+    <div class="top"><a class="logo" href="#"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0F4C5C"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F2E8D5" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#F2E8D5"/></svg>Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Holiday packages</a><a href="#">About</a><a href="#">Contact</a></nav><a class="btn teal" href="#">Enquire</a></div>
+    <div class="hero"><div><h1>Short Indian holidays, <em>planned by people who’ve been.</em></h1><p>Six destinations. Twelve trips we run ourselves, with real dates, hotels we have slept in, and a person who calls you back within two hours.</p>
+      <form class="search" onsubmit="return false"><div class="fld"><label>Where to</label><div class="v">Anywhere in India</div></div><div class="fld"><label>Month</label><div class="v">November</div></div><div class="fld"><label>Budget / person</label><div class="v">Up to ₹25,000</div></div><button class="btn" type="button">Find trips</button></form>
+      <div class="themes">${THEMES.map(t => `<a class="theme" href="#">${ic(t[0])}${t[1]}</a>`).join('')}</div></div>
+      <div class="art">${ph(IMG.kerala[0], 'Houseboat on the Alleppey backwaters')}<div class="stamp">Tripsmith<b>2026</b>Bengaluru · India</div></div></div>
+    <section><div class="sechead"><h2>Where would you like to go?</h2><p>Six places we know like the back of our hand.</p></div><div class="polas">${DEST.map(d => `<a class="pola" href="#">${ph(IMG[d.slug][0], d.name)}<b>${d.name}</b><small>from ${inr(d.from)} · best ${d.best}</small></a>`).join('')}</div></section>
+    <section><div class="sechead"><h2>This season’s trips</h2><p>Every one with a departure you can count on.</p></div><div class="cards">${PKGS.map(p => `<a class="card" href="#">${ph(IMG[p.dest][p.i], p.name)}${p.badge ? `<div class="stamp">${p.badge === 'fill' ? 'Filling<b>fast</b>seats left' : 'Departure<b>✓</b>guaranteed'}</div>` : ''}<div class="body"><div class="top"><span>${destName(p.dest)} · ${dn(p)}</span><span>Next ${p.next}</span></div><h3>${p.name}</h3><p>${p.hl}</p><div class="inc">${INC}</div><div class="foot"><div class="price"><small>per person, double sharing</small><b class="num">${inr(p.from)}</b></div><span class="btn line">View trip</span></div></div></a>`).join('')}</div></section>
+    <section><div class="why">${WHY.map(w => `<div>${ic(w[0])}<b>${w[1]}</b><p>${w[2]}</p></div>`).join('')}</div></section>
+    <section><div class="sechead"><h2>Postcards back</h2><p>Real trips, real names, real dates.</p></div><div class="reviews">${REVIEWS.map(r => `<div class="review"><span class="stars">★★★★★</span><p>“${r[3]}”</p><small>${r[1]} · ${r[2]}</small></div>`).join('')}</div></section>
+    <div class="band"><div><h2>Tell us the trip. We’ll call within two hours.</h2><p>Or WhatsApp us — 10 am to 8 pm, every day. Every itinerary comes as a PDF you can forward.</p><div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap"><a class="btn teal" href="#">${ic('wa')}WhatsApp us</a><a class="btn line" href="#">${ic('phone')}+91 98450 12345</a></div></div>
+      <form onsubmit="return false"><input placeholder="Your name"><input placeholder="Mobile number" inputmode="tel"><div class="row"><input placeholder="Travel month" style="flex:1"><input placeholder="Budget / person" style="flex:1"></div><button class="btn" type="button">Request a callback</button></form></div>
+    <footer><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a href="#">About</a><a href="#">Contact</a><a href="#">Why Tripsmith</a></div><div><b>Policies</b><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia · Demo login: owner@tripsmith.in / demo1234</span><span style="max-width:520px">${CREDITS}</span></div></footer>
+    </div><a class="btn teal wa-fab" href="#">${ic('wa')}WhatsApp</a></div>`; },
+  motion(root) { if (!window.gsap || reduced) return;
+    gsap.from(root.querySelectorAll('.hero > div:first-child > *'), { y: 24, opacity: 0, duration: 1, stagger: .1, ease: 'expo.out', delay: .1 });
+    gsap.from(root.querySelector('.hero .art'), { y: 30, opacity: 0, rotate: 2, duration: 1.2, ease: 'expo.out', delay: .3 });
+    gsap.from(root.querySelector('.hero .stamp'), { scale: 0, rotate: -40, duration: .7, ease: 'back.out(2)', delay: 1.1 });
+    ScrollTrigger.batch(root.querySelectorAll('.pola, .card, .why div, .review'), { start: 'top 88%', once: true, onEnter: els => gsap.from(els, { y: 26, opacity: 0, duration: .9, stagger: .07, ease: 'expo.out', overwrite: true }) });
+  }
+};
+
+/* ---------- switcher ---------- */
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const V = { i:I, j:J };
+let cur = 'i'; try { cur = localStorage.getItem('ts-dir3') || 'i'; } catch (e) {}
+if (window.gsap) gsap.registerPlugin(ScrollTrigger);
+function render() {
+  if (window.gsap) { ScrollTrigger.getAll().forEach(t => t.kill()); gsap.globalTimeline.clear(); }
+  const frame = document.getElementById('frame'); frame.innerHTML = V[cur].html();
+  document.getElementById('tradeoff').innerHTML = V[cur].note;
+  document.querySelectorAll('.chrome button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
+  window.scrollTo({ top: 0 }); V[cur].motion(frame);
+  if (window.gsap) requestAnimationFrame(() => ScrollTrigger.refresh());
+  try { localStorage.setItem('ts-dir3', cur); } catch (e) {}
+}
+document.querySelector('.chrome').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (!b) return; cur = b.dataset.v; render(); });
+render();
+</script>
