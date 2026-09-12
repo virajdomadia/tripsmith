@@ -77,12 +77,15 @@
 - **J Postcard** — cream / marigold / brand teal, Fraunces; framed hero photo with postmark stamp, polaroid destination cards, postcard package cards with "Filling fast" stamps, notepaper reviews
 
 ## Screen index status
+**All v1 screens are built** in `mockups/screens.html` (published: https://claude.ai/code/artifact/5b88ec78-0f58-4ecd-8d38-9302f9e2f67b) — one page with a screen switcher, desktop + 390 px phone, real photos, K · Ocean + Marigold system. In-mockup links work (cards → package page, Enquire → form, admin sidebar).
+
 | Screens | Status |
 |---|---|
-| S1 Home, S5 Package | **done — showcase** (`mockups/showcase.html`) |
-| S2–S4, S6–S13 (rest of v1 public) | next, in the chosen direction |
-| A1–A7 (v1 admin) | next |
-| S14–S22, A8–A12 (v2) · S23–S26, A13–A14 (v3) · S27 (v4) | after v1 screens |
+| S1 Home · S2 Destinations · S3 Destination page · S4 Listing + S4b empty state · S5 Package page · S6 Enquiry form · S7 Thanks · S8 About · S9 Contact · S10–S12 policies · S13 404 | **done** |
+| A1 Login · A2 Dashboard · A3 Packages list · A4 Package form · A5 Destinations · A6 Enquiries inbox · A7 Enquiry detail | **done** |
+| S14–S22, A8–A12 (v2) · S23–S26, A13–A14 (v3) · S27 (v4) | when those versions start (same system) |
+
+Step 4 (UI mockups) is complete for v1. The mockup's CSS block is the token source for `web/` (Tailwind theme) and its components map 1:1 to `web/components/site` and `web/components/admin`.
 
 ## Mockup conventions
 - Photos are colour-field placeholders labelled by place until the seed photos exist (1.0.5).

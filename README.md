@@ -22,7 +22,7 @@ api/        Hono (TypeScript) REST API — folder structure only until milestone
 shared/     zod schemas + TS types shared by web and api (created in 1.0)
 PRD.md      product requirements (v1 locked; v1-v4 versions, costs, add-ons)
 docs/       lifecycle outputs (steps 3-7): requirements v1-v4, user flows, technical design, architecture, data + API, plan
-mockups/    directions-3.html — travel-vibe homes with real photos (I Sunlit, J Postcard) + img/ (CC photos, CREDITS.md); showcase.html — Home + Package with motion; directions-2.html (E–H) and direction-variants.html (A–D) — earlier explorations; landing.html — old dummy
+mockups/    screens.html — ALL v1 screens (S1–S13, A1–A7) in the final K · Ocean + Marigold system; directions-3.html — the direction/palette explorations that led to it; img/ (CC photos, CREDITS.md); showcase.html — Home + Package with motion; directions-2.html (E–H) and direction-variants.html (A–D) — earlier explorations; landing.html — old dummy
 brand/      logo, mark and favicon
 ```
 
