@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tripsmith — trips planned in a chat</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230F4C5C'/%3E%3Cpath d='M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22' fill='none' stroke='%23F2E8D5' stroke-width='4' stroke-linecap='round' stroke-dasharray='6 6'/%3E%3Ccircle cx='50' cy='22' r='6' fill='%23F2A93B'/%3E%3Ccircle cx='14' cy='44' r='4' fill='%23F2E8D5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sea:#0F4C5C; --sea-deep:#093644; --ground:#E6EFEA; --sand:#F2E8D5; --sand-2:#E8DCC3; --saffron:#F2A93B; --ink:#17252A; --white:#FFFDF8;
+  --serif:'Newsreader',Georgia,serif; --sans:'Public Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{width:min(1180px,100% - 48px);margin-inline:auto}
+h1,h2,h3{font-family:var(--serif);font-weight:500;letter-spacing:-.02em;margin:0}
+p{margin:0}
+:focus-visible{outline:3px solid var(--saffron);outline-offset:3px}
+
+/* nav */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+.logo{display:flex;align-items:center;gap:12px;text-decoration:none;font-family:var(--serif);font-weight:600;font-size:24px;color:var(--sea)}
+.logo svg{width:36px;height:36px}
+.nav ul{display:flex;gap:28px;list-style:none;margin:0;padding:0;font-weight:500;font-size:15px}
+.nav ul a{text-decoration:none;opacity:.8}
+.nav ul a:hover{opacity:1}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;border:1.5px solid transparent;cursor:pointer;font-family:var(--sans)}
+.btn-sea{background:var(--sea);color:var(--sand)}
+.btn-sea:hover{background:var(--sea-deep)}
+.btn-ghost{border-color:var(--sea);color:var(--sea);background:transparent}
+.btn-saffron{background:var(--saffron);color:var(--ink)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding:56px 0 80px}
+.hero h1{font-size:clamp(44px,6vw,76px);line-height:1.02}
+.hero h1 em{font-style:italic;font-weight:400}
+.hero .lede{font-size:20px;max-width:34ch;margin-top:22px;color:#2f4046}
+.hero .cta{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap}
+.hero .note{margin-top:18px;font-size:14px;color:#3b4a4f}
+
+/* chat panel */
+.chat{background:var(--white);border-radius:24px;box-shadow:0 30px 60px -30px rgba(9,54,68,.45),0 1px 0 rgba(23,37,42,.06);overflow:hidden;border:1px solid rgba(15,76,92,.12)}
+.chat-top{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid rgba(15,76,92,.1);font-size:14px;font-weight:600;color:var(--sea)}
+.chat-top .dot{width:8px;height:8px;border-radius:50%;background:#2fb573;box-shadow:0 0 0 3px rgba(47,181,115,.18)}
+.chat-body{padding:18px;display:flex;flex-direction:column;gap:12px;min-height:420px}
+.msg{max-width:88%;padding:12px 14px;border-radius:16px;font-size:15px;line-height:1.45;opacity:0;transform:translateY(8px);animation:pop .5s ease forwards}
+.msg.user{align-self:flex-end;background:var(--sea);color:var(--sand);border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:var(--sand);border-bottom-left-radius:4px}
+.msg:nth-child(1){animation-delay:.3s}.msg:nth-child(2){animation-delay:1.1s}.msg:nth-child(3){animation-delay:2s}.msg:nth-child(4){animation-delay:2.9s}.msg:nth-child(5){animation-delay:4.2s}
+.itin{background:var(--white);border:1px solid rgba(15,76,92,.18);border-radius:14px;padding:12px 14px;margin-top:8px;font-size:14px}
+.itin .t{font-family:var(--serif);font-size:18px;color:var(--sea);margin-bottom:6px}
+.itin ol{margin:0;padding-left:18px;display:grid;gap:4px}
+.itin .price{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(15,76,92,.25);font-weight:600}
+.itin .price span{color:var(--sea)}
+.book{display:inline-block;margin-top:10px;padding:9px 14px;border-radius:999px;background:var(--saffron);font-weight:600;font-size:14px;text-decoration:none;color:var(--ink)}
+.chat-input{display:flex;align-items:center;gap:10px;margin:0 18px 18px;padding:10px 10px 10px 16px;border:1.5px solid rgba(15,76,92,.25);border-radius:999px;font-size:14px;color:#485a60}
+.chat-input .send{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--sea);display:grid;place-items:center;color:var(--sand)}
+@keyframes pop{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.msg{animation:none;opacity:1;transform:none}}
+
+/* destinations */
+.dest{padding:48px 0 72px}
+.dest h2{font-size:clamp(30px,3.6vw,44px);max-width:20ch}
+.dest .sub{color:#3b4a4f;margin-top:10px;max-width:52ch}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px}
+.card{position:relative;background:var(--sea);aspect-ratio:4/5;border-radius:20px;overflow:hidden;color:var(--white);padding:18px;display:flex;flex-direction:column;justify-content:flex-end;text-decoration:none;isolation:isolate}
+.card::before{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(9,54,68,.85),rgba(9,54,68,0) 60%);z-index:-1}
+.card .bg{position:absolute;inset:0;z-index:-2}
+.card h3{font-size:26px;font-weight:500}
+.card .meta{display:flex;justify-content:space-between;font-size:14px;margin-top:6px;opacity:.9}
+.card .tag{position:absolute;top:14px;left:14px;background:var(--white);color:var(--sea);font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px}
+.g1{background:radial-gradient(120% 80% at 20% 90%,#f7c56b 0%,#e98f3d 35%,#0F4C5C 100%)}
+.g2{background:radial-gradient(90% 90% at 80% 20%,#8fd3c3 0%,#2a8a7a 40%,#093644 100%)}
+.g3{background:radial-gradient(100% 70% at 50% 100%,#dfe8ef 0%,#7fa7c9 35%,#2b4b6f 100%)}
+.g4{background:radial-gradient(100% 100% at 0% 0%,#f4d6a8 0%,#c9884b 40%,#5b3a1e 100%)}
+
+/* how it works */
+.how{background:var(--sea);color:var(--sand);padding:72px 0;border-radius:36px 36px 0 0}
+.how h2{font-size:clamp(30px,3.6vw,44px)}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;margin-top:40px;counter-reset:step}
+.step{border-top:1px solid rgba(242,232,213,.25);padding-top:18px;counter-increment:step}
+.step::before{content:counter(step);font-family:var(--serif);font-size:44px;color:var(--saffron);display:block;line-height:1;margin-bottom:12px}
+.step h3{font-size:24px;margin-bottom:8px}
+.step p{opacity:.92;max-width:34ch}
+
+/* owner strip */
+.owner{padding:72px 0}
+.owner-in{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+.owner h2{font-size:clamp(30px,3.6vw,44px)}
+.owner p{color:#3b4a4f;margin-top:14px;max-width:48ch}
+.owner ul{margin:20px 0 0;padding:0;list-style:none;display:grid;gap:10px}
+.owner li{display:flex;gap:10px;align-items:flex-start}
+.owner li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--saffron);margin-top:9px;flex:none}
+.table{background:var(--white);border-radius:20px;border:1px solid rgba(15,76,92,.12);overflow:hidden;font-size:14px}
+.table .row{display:grid;grid-template-columns:1.4fr 1fr .8fr .7fr;padding:12px 16px;border-bottom:1px solid rgba(15,76,92,.08);align-items:center}
+.table .row.head{font-weight:600;color:var(--sea);background:var(--ground)}
+.pill{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:#e3f4ea;color:#1d6b3f;justify-self:start}
+.pill.wait{background:#fff0d6;color:#8a5a00}
+
+/* cta + footer */
+.cta{padding:32px 0 96px}
+.cta-box{background:var(--white);border:1px solid rgba(15,76,92,.14);border-radius:28px;padding:56px;text-align:center}
+.cta h2{font-size:clamp(30px,4vw,52px)}
+.cta p{color:#3b4a4f;margin:12px auto 26px;max-width:44ch}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:24px 0 40px;font-size:14px;color:#3b4a4f;border-top:1px solid rgba(15,76,92,.15)}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;padding-top:24px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr;gap:28px}
+  .owner-in{grid-template-columns:1fr}
+  .nav ul{display:none}
+  .cta-box{padding:36px 22px}
+  .table .row{grid-template-columns:1.4fr 1fr .8fr}
+  .table .row > :nth-child(4){display:none}
+}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <nav class="nav" aria-label="Main">
+    <a class="logo" href="#"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0F4C5C"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F2E8D5" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#F2E8D5"/></svg>Tripsmith</a>
+    <ul><li><a href="#trips">Trips</a></li><li><a href="#how">How it works</a></li><li><a href="#agency">For agencies</a></li></ul>
+    <a class="btn btn-ghost" href="#">Sign in</a>
+  </nav>
+</header>
+
+<main>
+<section class="wrap hero">
+  <div>
+    <h1>Tell it where you want to go.<br><em>It books the rest.</em></h1>
+    <p class="lede">Chat with a concierge that knows every package we run — dates, prices, what's included — and books the one that fits your budget.</p>
+    <div class="cta">
+      <a class="btn btn-sea" href="#">Plan a trip in chat</a>
+      <a class="btn btn-ghost" href="#trips">Browse packages</a>
+    </div>
+    <p class="note">Domestic holidays across India. Pay with UPI, cards or netbanking.</p>
+  </div>
+
+  <div class="chat" aria-label="Example conversation with the concierge">
+    <div class="chat-top"><span class="dot"></span> Tripsmith concierge</div>
+    <div class="chat-body">
+      <div class="msg user">3 days in Goa under ₹15k for two, next weekend</div>
+      <div class="msg bot">Got it. Beach side or old-town side? And do you want breakfast included?</div>
+      <div class="msg user">North Goa, breakfast yes</div>
+      <div class="msg bot">Two packages fit. This one leaves the most room in your budget:
+        <div class="itin">
+          <div class="t">Goa Coast &amp; Cafés · 3 days</div>
+          <ol>
+            <li>Arrive, check in at Anjuna guesthouse, sunset at Vagator</li>
+            <li>Breakfast, Chapora fort, kayak at Baga, night market</li>
+            <li>Breakfast, Panjim Latin quarter walk, drop to airport</li>
+          </ol>
+          <div class="price">2 travellers · 19–21 Sep <span>₹13,400</span></div>
+          <a class="book" href="#">Book this trip</a>
+        </div>
+      </div>
+      <div class="msg user">Book it</div>
+    </div>
+    <div class="chat-input">Ask anything about your trip <span class="send" aria-hidden="true">↑</span></div>
+  </div>
+</section>
+
+<section class="wrap dest" id="trips">
+  <h2>Twelve packages. All real, all bookable.</h2>
+  <p class="sub">The concierge only suggests trips from this list — no invented hotels, no surprise prices at checkout.</p>
+  <div class="grid">
+    <a class="card" href="#"><span class="bg g1"></span><span class="tag">Most booked</span><h3>Goa</h3><div class="meta"><span>3 days</span><span>from ₹6,700 pp</span></div></a>
+    <a class="card" href="#"><span class="bg g2"></span><h3>Kerala backwaters</h3><div class="meta"><span>4 days</span><span>from ₹11,200 pp</span></div></a>
+    <a class="card" href="#"><span class="bg g3"></span><h3>Manali</h3><div class="meta"><span>5 days</span><span>from ₹9,800 pp</span></div></a>
+    <a class="card" href="#"><span class="bg g4"></span><h3>Jaisalmer</h3><div class="meta"><span>3 days</span><span>from ₹8,400 pp</span></div></a>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="wrap">
+    <h2>From "where should we go" to a confirmed booking</h2>
+    <div class="steps">
+      <div class="step"><h3>Say what you want</h3><p>Budget, dates, how many people, what kind of place. Plain language, in English or Hinglish.</p></div>
+      <div class="step"><h3>Get a real itinerary</h3><p>The concierge searches live packages and availability, then lays out the days and the exact price.</p></div>
+      <div class="step"><h3>Pay and you're done</h3><p>Razorpay checkout, confirmation on email, and the booking shows up in your account.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap owner" id="agency">
+  <div class="owner-in">
+    <div>
+      <h2>Run your agency from one screen</h2>
+      <p>Add packages, set dates and prices, and watch bookings and payments land. The concierge reads from the same data, so what you publish is what it sells.</p>
+      <ul>
+        <li>Packages with itineraries, inclusions and date-wise pricing</li>
+        <li>Bookings list with payment status straight from Razorpay</li>
+        <li>Confirmation emails sent for you</li>
+      </ul>
+    </div>
+    <div class="table" role="table" aria-label="Recent bookings">
+      <div class="row head" role="row"><span>Trip</span><span>Traveller</span><span>Dates</span><span>Status</span></div>
+      <div class="row" role="row"><span>Goa Coast &amp; Cafés</span><span>Ananya R.</span><span>19–21 Sep</span><span class="pill">Paid</span></div>
+      <div class="row" role="row"><span>Kerala backwaters</span><span>Rohit &amp; Meera</span><span>3–6 Oct</span><span class="pill">Paid</span></div>
+      <div class="row" role="row"><span>Manali long weekend</span><span>Karan S.</span><span>10–14 Oct</span><span class="pill wait">Awaiting payment</span></div>
+      <div class="row" role="row"><span>Jaisalmer desert</span><span>Priya D.</span><span>24–26 Oct</span><span class="pill">Paid</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap cta">
+  <div class="cta-box">
+    <h2>Your next long weekend, sorted in a chat</h2>
+    <p>Start with a budget and a rough idea. The concierge does the comparing.</p>
+    <a class="btn btn-saffron" href="#">Plan a trip in chat</a>
+  </div>
+</section>
+</main>
+
+<footer class="wrap foot">
+  <span>Tripsmith · a portfolio project by Viraj Domadia</span>
+  <span>tripsmith.virajdomadia.com</span>
+</footer>
+</body>
+</html>

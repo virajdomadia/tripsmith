@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+.pnpm-store/
+# next.js
+.next/
+out/
+# env
+.env
+.env*.local
+# testing / tooling
+coverage/
+playwright-report/
+test-results/
+.vercel
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
