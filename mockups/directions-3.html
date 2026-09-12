@@ -261,6 +261,28 @@
     .vj .why div { border-right: 0; border-bottom: 1px solid var(--line); }
     .vj footer .cols { grid-template-columns: 1fr; }
   }
+  /* ================= K · SUNLIT + POSTCARD TOUCHES ================= */
+  .vk .stampb { position: absolute; top: 10px; right: 10px; width: 84px; height: 84px; border-radius: 50%; border: 2px dashed currentColor; display: grid; place-items: center; text-align: center; font: 700 9px/1.15 "DM Sans", sans-serif; letter-spacing: .12em; text-transform: uppercase; transform: rotate(-12deg); background: rgba(255,255,255,.92); box-shadow: 0 6px 16px -8px rgba(0,0,0,.35); transition: transform .5s var(--ease); }
+  .vk .stampb b { display: block; font: 800 15px "DM Sans", sans-serif; letter-spacing: -.01em; text-transform: none; }
+  .vk .stampb.fill { color: #B5541E; } .vk .stampb.sure { color: #1F7A4D; }
+  .vk .card:hover .stampb { transform: rotate(-4deg) scale(1.06); }
+  .vk .about { display: grid; grid-template-columns: 1fr 1.1fr; gap: 44px; align-items: center; margin-top: 72px; }
+  .vk .about .frame-ph { position: relative; }
+  .vk .about .frame-ph .ph { aspect-ratio: 4 / 3; border: 10px solid #fff; border-radius: 4px; box-shadow: 0 30px 60px -30px rgba(20,32,42,.5); transform: rotate(-1.5deg); }
+  .vk .about .frame-ph .ph2 { position: absolute; right: -24px; bottom: -34px; width: 42%; aspect-ratio: 1; border: 8px solid #fff; border-radius: 4px; box-shadow: 0 20px 40px -20px rgba(20,32,42,.5); transform: rotate(4deg); }
+  .vk .about .pm { position: absolute; left: -22px; top: -22px; width: 108px; height: 108px; border-radius: 50%; border: 2px dashed var(--coral); color: var(--coral); display: grid; place-items: center; text-align: center; font: 700 9px/1.2 "DM Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; background: rgba(255,255,255,.9); transform: rotate(-10deg); }
+  .vk .about .pm b { display: block; font: 800 22px "DM Sans", sans-serif; letter-spacing: -.02em; text-transform: none; }
+  .vk .about h2 { font-size: clamp(26px, 3.2vw, 38px); }
+  .vk .about p { color: var(--mute); font-size: 16px; margin: 12px 0 0; max-width: 52ch; }
+  .vk .about .facts { display: flex; gap: 24px; margin-top: 22px; flex-wrap: wrap; }
+  .vk .about .facts b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+  .vk .about .facts small { color: var(--mute); font-weight: 600; }
+  .vk .reviews .review { background: #fff; border: 1px solid var(--line); box-shadow: 0 16px 34px -22px rgba(20,32,42,.35); transform: rotate(-.6deg); position: relative; }
+  .vk .reviews .review:nth-child(2) { transform: rotate(.7deg); }
+  .vk .reviews .review::before { content: ""; position: absolute; top: -10px; left: 50%; width: 70px; height: 22px; margin-left: -35px; background: rgba(242,169,59,.45); transform: rotate(-3deg); border-radius: 2px; }
+  .vk .reviews .review p { font-size: 15.5px; }
+  .vk .reviews .review .trip { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 700; color: var(--sea); background: var(--bg2); border-radius: 999px; padding: 4px 10px; }
+  @container (max-width: 900px) { .vk .about { grid-template-columns: 1fr; } .vk .about .frame-ph { margin-right: 24px; } }
   @media (prefers-reduced-motion: reduce) { .vi .hero .ph img, .vj .hero .art .ph img { animation: none !important; } }
 </style>
 
@@ -269,6 +291,7 @@
   <div class="grp" role="group" aria-label="Variant"><span>Variant</span>
     <button data-v="i" aria-pressed="true">I · Sunlit</button>
     <button data-v="j" aria-pressed="false">J · Postcard</button>
+    <button data-v="k" aria-pressed="false">K · Sunlit + Postcard touches (proposed)</button>
   </div>
   <span style="font-size:12px;opacity:.7">v1 scope · Home page · real CC-licensed photography · resize for mobile</span>
 </div>
@@ -400,10 +423,31 @@ const J = {
   }
 };
 
+/* ---------- K · Sunlit base + Postcard touches ---------- */
+const K = {
+  note: '<b>K · Sunlit + Postcard touches — the proposal.</b> Everything from I (the hero, the search widget, theme chips, trust strip, destination and package cards with inclusion icons, the callback band) plus three borrowed from J: the “Filling fast / Guaranteed” badges become <b>postmark stamps</b> on the package cards, an <b>About Tripsmith</b> section with framed, slightly tilted photos and a stamp, and the reviews sit on <b>notepaper</b> pinned with tape. Same fonts, same colours as I — J’s warmth without J’s slower scan. This is the system the full v1 screen set would be built in.',
+  html() {
+    let h = I.html().replace('class="site vi"', 'class="site vi vk"');
+    // stamps instead of pill badges on package cards
+    h = h.replace(/<span class="bd"><span class="badge (fill|sure)">[^<]+<\/span><\/span>/g, (m, b) => b === 'fill' ? '<div class="stampb fill">Filling<b>fast</b>few seats</div>' : '<div class="stampb sure">Departure<b>✓</b>guaranteed</div>');
+    // about section before "Why book"
+    const about = `<section class="about"><div class="frame-ph">${ph(IMG.kerala[0], 'Our team on the Alleppey backwaters')}<div class="ph2 ph"><img src="${IMG.himachal[1]}" alt="Solang valley, Himachal" loading="lazy"></div><div class="pm">Tripsmith<b>2026</b>Bengaluru · India</div></div><div><h2>A small team that has actually been.</h2><p>Tripsmith is four people in Bengaluru who plan short Indian holidays the way we would for our own families — the same hotels we have slept in, departures we run ourselves, and a phone that gets answered. No call centre, no “subject to availability”.</p><div class="facts"><div><b class="num">12</b><small>trips we run</small></div><div><b class="num">6</b><small>destinations we know</small></div><div><b class="num">2 h</b><small>callback promise</small></div><div><b class="num">2019</b><small>first departure</small></div></div><div style="margin-top:22px"><a class="btn sea" href="#">About Tripsmith</a></div></div></section>`;
+    h = h.replace('<section><div class="sechead"><div><h2>Why book with Tripsmith</h2>', about + '<section><div class="sechead"><div><h2>Why book with Tripsmith</h2>');
+    // reviews with a trip chip
+    h = h.replace(/<span class="stars">★★★★★<\/span><p>“([^”]+)”<\/p><\/div>/g, (m, t) => `<span class="stars">★★★★★</span><p>“${t}”</p><span class="trip">${ic('pin')}Verified traveller</span></div>`);
+    return h;
+  },
+  motion(root) { I.motion(root); if (!window.gsap || reduced) return;
+    gsap.from(root.querySelectorAll('.stampb'), { scale: 0, rotate: -40, duration: .7, ease: 'back.out(2)', stagger: .08, scrollTrigger: { trigger: root.querySelector('.cards'), start: 'top 85%', once: true } });
+    gsap.from(root.querySelector('.about .pm'), { scale: 0, rotate: -40, duration: .7, ease: 'back.out(2)', scrollTrigger: { trigger: root.querySelector('.about'), start: 'top 75%', once: true } });
+  }
+};
+
 /* ---------- switcher ---------- */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const V = { i:I, j:J };
-let cur = 'i'; try { cur = localStorage.getItem('ts-dir3') || 'i'; } catch (e) {}
+const V = { i:I, j:J, k:K };
+let cur = 'k'; try { cur = localStorage.getItem('ts-dir3') || 'k'; } catch (e) {}
+if (!V[cur]) cur = 'k';
 if (window.gsap) gsap.registerPlugin(ScrollTrigger);
 function render() {
   if (window.gsap) { ScrollTrigger.getAll().forEach(t => t.kill()); gsap.globalTimeline.clear(); }
