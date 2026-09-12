@@ -176,10 +176,23 @@ Flights / hotels APIs · multi-currency · loyalty points · newsletter · visa 
 Chat plans a real trip from real packages and pre-fills the booking — no forms.
 
 ## Tech notes (to discuss)
-- AI: Vercel AI SDK, streaming, tool calling (`searchPackages`, `checkAvailability`, `startBooking`); guardrails so it only recommends real packages
+- AI: Vercel AI SDK, streaming, tool calling (`searchPackages`, `checkAvailability`, `startBooking`); guardrails so it only recommends real packages. **Provider is swappable via one env var** — Gemini Flash (free tier) by default, Claude opt-in for the case study
 - Payments: Razorpay Checkout + webhook verification, idempotent booking creation
 - Email: Resend
 - SEO: destination and package pages statically generated, JSON-LD for TouristTrip/Offer
+
+## Costs (locked 2026-09-12) — the whole product runs on ₹0 beyond the domain
+| Need | Paid trap | Free route we take |
+|---|---|---|
+| AI (v3 concierge, evals, owner-side drafting, packing list) | Anthropic / OpenAI pay-per-token | **Gemini Flash free tier** (~1,500 req/day, tool calling included) behind the Vercel AI SDK provider abstraction; `AI_PROVIDER` env var swaps to Claude. Evals on a small fixed set; public chat rate-limited per IP. Free-tier data may be used by Google for training — acceptable because the catalog is fictional |
+| WhatsApp button / share | WhatsApp Business API (rejected) | Plain `wa.me` click-to-chat links |
+| Payments (v2) | 2% per live transaction | Razorpay **test mode forever** |
+| Customer login (v2) | SMS OTP (~₹0.20/SMS) | **Email OTP / magic link** via Resend |
+| Maps (contact page, storyboard, route map) | Google Maps Platform billing account | Contact: Google Maps embed iframe (no key). Storyboard/route: **MapLibre + OpenFreeMap tiles** |
+| Weather (trip hub) | Paid weather APIs | Open-Meteo (free, no key) |
+| Images, email, OG, PDF, rate limiting, DB, hosting, errors, uptime | — | Vercel Blob / Cloudinary free tier, Resend free, `@vercel/og`, `@react-pdf/renderer`, Upstash free, Neon free, Vercel Hobby, Sentry dev, UptimeRobot |
+
+Fixed: `virajdomadia.com` domain (~₹1,000/yr); subdomain free.
 
 ## Success criteria
 - A stranger can go from landing page → chat → paid booking (test mode) in under 3 minutes
