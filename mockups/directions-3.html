@@ -282,6 +282,19 @@
   .vk .reviews .review::before { content: ""; position: absolute; top: -10px; left: 50%; width: 70px; height: 22px; margin-left: -35px; background: rgba(242,169,59,.45); transform: rotate(-3deg); border-radius: 2px; }
   .vk .reviews .review p { font-size: 15.5px; }
   .vk .reviews .review .trip { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 700; color: var(--sea); background: var(--bg2); border-radius: 999px; padding: 4px 10px; }
+  /* K palettes — primary (sea) + action (coral) + stamp/accent (sun) */
+  .vk[data-pal="ocean"]   { --sea: #1B4FD8; --sea-ink: #143EAD; --coral: #F2A93B; --coral-ink: #D98F1F; --bg2: #F3F6FC; }
+  .vk[data-pal="forest"]  { --sea: #1F6F50; --sea-ink: #17573E; --coral: #D9622B; --coral-ink: #B84E1E; --bg2: #F3F7F3; }
+  .vk[data-pal="indigo"]  { --sea: #2B2D6B; --sea-ink: #1F2152; --coral: #F28C28; --coral-ink: #D3741A; --bg2: #F4F4F9; }
+  .vk[data-pal="brand"]   { --sea: #0F4C5C; --sea-ink: #0A3742; --coral: #F2A93B; --coral-ink: #D98F1F; --bg2: #F2F6F7; }
+  .vk[data-pal="sunset"]  { --sea: #B23A48; --sea-ink: #8F2C38; --coral: #F2A93B; --coral-ink: #D98F1F; --bg2: #FBF3F2; }
+  .vk[data-pal="ocean"] .btn, .vk[data-pal="brand"] .btn, .vk[data-pal="sunset"] .btn { color: #14202A; }
+  .vk[data-pal="ocean"] .btn.sea, .vk[data-pal="brand"] .btn.sea, .vk[data-pal="sunset"] .btn.sea, .vk .btn.wa, .vk .btn.line { color: #fff; }
+  .vk .btn.line { color: var(--ink); }
+  .vk .logo svg rect { fill: var(--sea); }
+  .vk .btn { box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--coral) 70%, transparent); }
+  .vk .btn.sea { box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--sea) 60%, transparent); }
+  .vk .about .pm { border-color: var(--coral); color: var(--coral); }
   @container (max-width: 900px) { .vk .about { grid-template-columns: 1fr; } .vk .about .frame-ph { margin-right: 24px; } }
   @media (prefers-reduced-motion: reduce) { .vi .hero .ph img, .vj .hero .art .ph img { animation: none !important; } }
 </style>
@@ -293,7 +306,7 @@
     <button data-v="j" aria-pressed="false">J · Postcard</button>
     <button data-v="k" aria-pressed="false">K · Sunlit + Postcard touches (proposed)</button>
   </div>
-  <span style="font-size:12px;opacity:.7">v1 scope · Home page · real CC-licensed photography · resize for mobile</span>
+  <div class="grp" id="pals" role="group" aria-label="Palette (K)"><span>Colours</span><button data-pal="sea" aria-pressed="true">Sea + Coral</button><button data-pal="ocean" aria-pressed="false">Ocean + Marigold</button><button data-pal="brand" aria-pressed="false">Brand teal + Marigold</button><button data-pal="forest" aria-pressed="false">Forest + Terracotta</button><button data-pal="indigo" aria-pressed="false">Indigo + Saffron</button><button data-pal="sunset" aria-pressed="false">Sunset red + Marigold</button></div>
 </div>
 <div class="note"><p id="tradeoff"></p></div>
 <div class="stage"><div class="frame" id="frame"></div></div>
@@ -372,7 +385,7 @@ const CREDITS = 'Photos: Wikimedia Commons contributors, CC BY / CC BY-SA — Va
 const I = {
   note: '<b>I · Sunlit.</b> The travel-site shape people already trust — full-bleed beach hero, a real search widget (destination · month · travellers · budget), theme chips, photo-first destination cards with “starting ₹”, package cards with stars and inclusion icons, trust strip, reviews, a “talk to a travel expert” band and a WhatsApp button — done with a premium hand: white ground, sea-teal + coral, DM Sans, 16–18px corners, no clutter. This is the direction most likely to convert an Indian family; the trade-off is that it looks like a category, so the photography and the details have to carry the brand.',
   html() { return `<div class="site vi">
-    <div class="wrap top"><a class="logo" href="#"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0E7C86"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#fff"/></svg>Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Holiday packages</a><a href="#">About</a><a href="#">Contact</a></nav><a class="phone" href="#">${ic('phone')}+91 98450 12345</a><a class="btn" href="#">Enquire</a></div>
+    <div class="wrap top"><a class="logo" href="#"><svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0E7C86" class="lg"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#fff"/></svg>Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Holiday packages</a><a href="#">About</a><a href="#">Contact</a></nav><a class="phone" href="#">${ic('phone')}+91 98450 12345</a><a class="btn" href="#">Enquire</a></div>
     <div class="hero">${ph(IMG.hero, 'Varkala beach, Kerala')}<div class="copy"><h1>Holidays across India, planned by people who’ve been.</h1><p>Twelve trips we run ourselves. Real dates, real hotels, real seats — and a person who calls you back.</p></div></div>
     <form class="search" onsubmit="return false"><div class="fld">${ic('pin')}<div><label>Where to</label><div class="v">Anywhere in India</div></div></div><div class="fld">${ic('cal')}<div><label>Travel month</label><div class="v">November 2026</div></div></div><div class="fld">${ic('users')}<div><label>Travellers</label><div class="v">2 adults</div></div></div><div class="fld">${ic('rupee')}<div><label>Budget / person</label><div class="v">Up to ₹25,000</div></div></div><button class="btn" type="button">Search trips</button></form>
     <div class="wrap">
@@ -425,7 +438,7 @@ const J = {
 
 /* ---------- K · Sunlit base + Postcard touches ---------- */
 const K = {
-  note: '<b>K · Sunlit + Postcard touches — the proposal.</b> Everything from I (the hero, the search widget, theme chips, trust strip, destination and package cards with inclusion icons, the callback band) plus three borrowed from J: the “Filling fast / Guaranteed” badges become <b>postmark stamps</b> on the package cards, an <b>About Tripsmith</b> section with framed, slightly tilted photos and a stamp, and the reviews sit on <b>notepaper</b> pinned with tape. Same fonts, same colours as I — J’s warmth without J’s slower scan. This is the system the full v1 screen set would be built in.',
+  note: '<b>K · Sunlit + Postcard touches — the proposal.</b> Everything from I (the hero, the search widget, theme chips, trust strip, destination and package cards with inclusion icons, the callback band) plus three borrowed from J: the “Filling fast / Guaranteed” badges become <b>postmark stamps</b> on the package cards, an <b>About Tripsmith</b> section with framed, slightly tilted photos and a stamp, and the reviews sit on <b>notepaper</b> pinned with tape. Same fonts, same colours as I — J’s warmth without J’s slower scan. This is the system the full v1 screen set would be built in. Use the <b>Colours</b> switcher above to compare palettes: primary (nav, icons, secondary buttons) + action (main buttons) + marigold stamps.',
   html() {
     let h = I.html().replace('class="site vi"', 'class="site vi vk"');
     // stamps instead of pill badges on package cards
@@ -446,7 +459,7 @@ const K = {
 /* ---------- switcher ---------- */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const V = { i:I, j:J, k:K };
-let cur = 'k'; try { cur = localStorage.getItem('ts-dir3') || 'k'; } catch (e) {}
+let cur = 'k', pal = 'sea'; try { cur = localStorage.getItem('ts-dir3') || 'k'; pal = localStorage.getItem('ts-pal') || 'sea'; } catch (e) {}
 if (!V[cur]) cur = 'k';
 if (window.gsap) gsap.registerPlugin(ScrollTrigger);
 function render() {
@@ -454,10 +467,11 @@ function render() {
   const frame = document.getElementById('frame'); frame.innerHTML = V[cur].html();
   document.getElementById('tradeoff').innerHTML = V[cur].note;
   document.querySelectorAll('.chrome button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
-  window.scrollTo({ top: 0 }); V[cur].motion(frame);
+  applyPal(); window.scrollTo({ top: 0 }); V[cur].motion(frame);
   if (window.gsap) requestAnimationFrame(() => ScrollTrigger.refresh());
   try { localStorage.setItem('ts-dir3', cur); } catch (e) {}
 }
-document.querySelector('.chrome').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (!b) return; cur = b.dataset.v; render(); });
+function applyPal() { const site = document.querySelector('.vk'); document.getElementById('pals').style.display = cur === 'k' ? '' : 'none'; if (site) site.dataset.pal = pal; document.querySelectorAll('#pals button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pal === pal))); try { localStorage.setItem('ts-pal', pal); } catch (e) {} }
+document.querySelector('.chrome').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) { cur = b.dataset.v; render(); return; } const pb = e.target.closest('button[data-pal]'); if (pb) { pal = pb.dataset.pal; applyPal(); } });
 render();
 </script>

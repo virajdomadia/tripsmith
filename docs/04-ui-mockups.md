@@ -33,7 +33,7 @@
 - **A Editorial** · **B Search-first** · **C Brochure** — the three exploratory directions
 - **D Editorial + SaaS** — the brief above, implemented line for line. **Recommended.**
 
-**Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". I Sunlit vs J Postcard: see the decision below. Earlier note kept for history:
+**Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". Decision: **K = I Sunlit base + three Postcard touches** (stamp badges on package cards, framed-photo About section with a stamp, notepaper reviews) — approved 2026-09-12 ("done"). Colour palette: being chosen from six options on the K palette switcher (Sea + Coral · Ocean + Marigold · Brand teal + Marigold · Forest + Terracotta · Indigo + Saffron · Sunset red + Marigold). Earlier note kept for history:
 
 ~~**Chosen direction:** D, rebuilt as a showcase~~ — `mockups/showcase.html` (published: https://claude.ai/code/artifact/42912aa9-92f9-4ce8-b653-5126ba72654e). The four layout variants were rejected on 2026-09-12 as too basic to show frontend skill; the showcase is the reference from here on.
 
