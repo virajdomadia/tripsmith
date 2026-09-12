@@ -457,7 +457,14 @@
     .search { grid-template-columns: 1fr; margin-top: -40px; }
     .search .btn { grid-column: auto; }
     .trust, .why, .cards, .reviews, .listing .cards, .hl, .incl, .steps, .team { grid-template-columns: 1fr; }
-    .dests, .dests.big { grid-template-columns: 1fr 1fr; }
+    .dests { grid-template-columns: 1fr 1fr; }
+    .dests.big { grid-template-columns: 1fr; gap: 12px; }
+    .dests.big .dest { aspect-ratio: 16 / 9; }
+    .dests.big .dest b { font-size: 24px; }
+    .dest b { font-size: 18px; }
+    .dest .t { left: 12px; right: 12px; bottom: 12px; }
+    .dest .t small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+    .dest .n { font-size: 11px; padding: 3px 8px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     footer .cols { grid-template-columns: 1fr; }
     .phero .ph { aspect-ratio: 4 / 5; }
     .phero .cap { flex-direction: column; align-items: start; padding: 20px; }
