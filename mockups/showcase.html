@@ -351,8 +351,45 @@
     footer .cols { grid-template-columns: 1fr; }
     footer .fine { flex-direction: column; }
   }
+  /* ---------- intro, wipe, lightbox, subnav, tilt, seat bars ---------- */
+  html.lenis, html.lenis body { height: auto; }
+  .lenis.lenis-smooth { scroll-behavior: auto !important; }
+  #intro { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: grid; place-items: center; }
+  #intro svg { width: 120px; height: 120px; }
+  #intro .rt { fill: none; stroke: var(--acc); stroke-width: 4; stroke-linecap: round; }
+  #intro .sun { fill: var(--sun); }
+  #intro .st { fill: var(--acc); }
+  #intro .word { position: absolute; bottom: 12vh; font: 600 12px var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--mute); }
+  #wipe { position: fixed; inset: 0; z-index: 90; background: var(--ink); transform: translateY(101%); pointer-events: none; display: grid; place-items: center; }
+  #wipe svg { width: 64px; height: 64px; }
+  .card { transform-style: preserve-3d; perspective: 1000px; }
+  .card .scene { transform: translateZ(0); }
+  .card .scene canvas { will-change: transform; }
+  .subnav { position: sticky; top: 68px; z-index: 20; margin: 28px 0 0; background: rgba(247,244,238,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+  .subnav .in { display: flex; gap: 4px; position: relative; padding: 8px 0; overflow-x: auto; scrollbar-width: none; }
+  .subnav .in::-webkit-scrollbar { display: none; }
+  .subnav a { position: relative; z-index: 1; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--mute); text-decoration: none; white-space: nowrap; transition: color .25s; }
+  .subnav a.on { color: #fff; }
+  .subnav .ind { position: absolute; top: 8px; left: 0; height: calc(100% - 16px); width: 0; background: var(--ink); border-radius: 999px; transition: transform .45s var(--ease), width .45s var(--ease); }
+  .seat { display: inline-flex; align-items: center; gap: 8px; }
+  .seat i { width: 60px; height: 4px; border-radius: 999px; background: var(--bg3); overflow: hidden; display: inline-block; }
+  .seat i b { display: block; height: 100%; background: var(--acc); border-radius: 999px; transform-origin: left; }
+  .seat.low i b { background: var(--warn); }
+  #lightbox { position: fixed; inset: 0; z-index: 80; background: rgba(20,24,28,.92); display: grid; place-items: center; opacity: 0; pointer-events: none; }
+  #lightbox.open { opacity: 1; pointer-events: auto; }
+  #lightbox .scene { position: absolute; border-radius: 12px; overflow: hidden; }
+  #lightbox .x { position: absolute; top: 20px; right: 22px; color: #fff; font: 500 14px var(--sans); background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+  #lightbox .cap { position: absolute; left: 24px; bottom: 22px; color: #fff; font: 500 18px var(--serif); }
+  .map .marker { fill: #fff; stroke: var(--acc); stroke-width: 3; filter: drop-shadow(0 2px 6px rgba(26,75,214,.5)); }
+  .map path.road { fill: none; stroke: #fff; stroke-width: 1.2; opacity: .8; }
+  .map path.wave { fill: none; stroke: #fff; stroke-width: .8; opacity: .5; }
+  .map text.place { font: 500 8px var(--sans); fill: #6B7A6B; }
+  .map .stop text { paint-order: stroke; stroke: #E9EEE6; stroke-width: 3px; }
+  .hero .art { will-change: transform; }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
+    #intro, #wipe { display: none; }
+    .subnav .ind { transition: none; }
     .scene.kb canvas, .marquee .track, .fab .dot, .btn .dot { animation: none !important; }
     .ask .type::after { animation: none; }
     .msg, .mini a { opacity: 1; transform: none; }
@@ -369,11 +406,16 @@
   </div>
 </header>
 
+<div id="intro" aria-hidden="true"><svg viewBox="0 0 64 64"><path class="rt" id="intro-rt" d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22"/><circle class="st" cx="14" cy="44" r="4"/><circle class="sun" id="intro-sun" cx="50" cy="22" r="6"/></svg><span class="word">Tripsmith</span></div>
+<div id="wipe" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F7F4EE" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/></svg></div>
+<div id="lightbox" role="dialog" aria-label="Photo" aria-hidden="true"><button class="x" type="button">Close ✕</button><div class="cap"></div></div>
 <main id="view"></main>
 <a class="fab" href="#"><span class="dot"></span>Ask the concierge</a>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
 <script>
 /* ============ content (locked seed) ============ */
 const DEST = [
@@ -484,23 +526,24 @@ const HOME = () => `
 
 const FOOT = () => `<footer><div class="wrap"><p class="big" aria-hidden="true">Tripsmith</p><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a class="ln" href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a class="ln" href="#">About</a><a class="ln" href="#">Contact</a><a class="ln" href="#">Developers</a></div><div><b>Policies</b><a class="ln" href="#">Terms</a><a class="ln" href="#">Privacy</a><a class="ln" href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia</span><span>Demo login: owner@tripsmith.in / demo1234</span></div></div></footer>`;
 
-const MAP = `<svg viewBox="0 0 300 240" aria-label="Route map: Candolim, Aguada, Anjuna, Old Goa, Panjim"><path class="sea" d="M0 0H300V240H0Z"/><path class="land" d="M70 0 C 60 60, 110 90, 90 140 S 130 220, 100 240 L300 240 L300 0Z"/><path class="route" id="route" d="M 78 62 C 92 96, 128 90, 140 46 S 210 100, 226 128 S 200 176, 168 178"/><g class="stop" data-i="0"><circle cx="78" cy="62" r="6"/><text x="88" y="58">Candolim</text></g><g class="stop" data-i="1"><circle cx="140" cy="46" r="6"/><text x="150" y="42">Aguada · Anjuna</text></g><g class="stop" data-i="2"><circle cx="226" cy="128" r="6"/><text x="150" y="150">Old Goa</text></g><g class="stop end" data-i="3"><circle cx="168" cy="178" r="6"/><text x="178" y="196">Panjim · cruise</text></g></svg>`;
+const MAP = `<svg viewBox="0 0 300 240" aria-label="Route map: Candolim, Aguada, Anjuna, Old Goa, Panjim"><defs><clipPath id="mapclip"><rect width="300" height="240" rx="6"/></clipPath></defs><g clip-path="url(#mapclip)"><rect class="sea" width="300" height="240"/>${[30,70,110,150,190,230].map(y=>`<path class="wave" d="M-10 ${y} q 15 -6 30 0 t 30 0 t 30 0 t 30 0"/>`).join('')}<path class="land" d="M82 -10 C 70 30, 96 52, 78 78 C 62 100, 104 118, 96 146 C 90 170, 128 196, 112 250 L 310 250 L 310 -10 Z"/><path class="land" d="M60 210 C 90 200, 130 214, 150 250 L 40 250 Z" opacity=".7"/><path class="road" d="M92 40 C 120 60, 150 70, 186 90 S 240 150, 230 200"/><path class="road" d="M120 20 C 150 40, 170 30, 220 60"/><path class="road" d="M150 250 C 160 200, 200 170, 240 150"/><text class="place" x="200" y="34">Mapusa</text><text class="place" x="238" y="96">Ponda</text><text class="place" x="132" y="226">Vasco</text><text class="place" x="20" y="120" transform="rotate(-70 20 120)" style="font-size:9px;letter-spacing:.2em">ARABIAN SEA</text><path class="route" id="route" d="M 78 62 C 92 96, 128 90, 140 46 S 210 100, 226 128 S 200 176, 168 178"/><g class="stop" data-i="0"><circle cx="78" cy="62" r="6"/><text x="88" y="58">Candolim</text></g><g class="stop" data-i="1"><circle cx="140" cy="46" r="6"/><text x="150" y="42">Aguada · Anjuna</text></g><g class="stop" data-i="2"><circle cx="226" cy="128" r="6"/><text x="150" y="152">Old Goa</text></g><g class="stop end" data-i="3"><circle cx="168" cy="178" r="6"/><text x="178" y="196">Panjim · cruise</text></g><circle class="marker" id="marker" cx="78" cy="62" r="5"/></g></svg>`;
 
 const PKGV = () => `
   <section class="phero"><div class="wrap">
     <div class="crumbs"><a class="ln" href="#" data-go="home">Explore</a><span>›</span><a class="ln" href="#">Goa</a><span>›</span><span>${PKG.name}</span></div>
     ${scene('goa', '', `<div class="cap"><div><h1>${PKG.name}</h1><div class="sub"><span>${PKG.n}N / ${PKG.n+1}D</span><span>${PKG.city}</span><span>Beach & family</span></div></div><div class="share"><a class="btn" href="#">Share</a><a class="btn" href="#">Download itinerary</a></div></div>`)}
     <div class="facts"><div><small>Duration</small><b>${PKG.n}N / ${PKG.n+1}D</b></div><div><small>From</small><b class="num">${inr(PKG.from)}</b></div><div><small>Departs</small><b>Mumbai</b></div><div><small>Stay</small><b>4★ Candolim</b></div><div><small>Next date</small><b>14 Nov</b></div></div>
+    <nav class="subnav" aria-label="On this page"><div class="wrap in"><span class="ind" id="ind"></span><a href="#s-over" class="on">Overview</a><a href="#s-days">Itinerary</a><a href="#s-photos">Photos</a><a href="#s-price">What’s in the price</a><a href="#s-dates">Dates & prices</a><a href="#s-faq">Questions</a></div></nav>
     <div class="pgrid"><main>
-      <p class="lede">${PKG.summary}</p>
+      <p class="lede" id="s-over">${PKG.summary}</p>
       <h2>Highlights</h2><ul class="hl">${PKG.hls.map(h => `<li>${h}</li>`).join('')}</ul>
-      <h2>The journey, day by day</h2>
+      <h2 id="s-days">The journey, day by day</h2>
       <div class="story"><div class="days" id="days">${PKG.days.map(d => `<div class="tday" data-i="${Math.min(d.d-1,3)}"><div class="n">Day ${d.d}</div><h3>${d.t}</h3><p>${d.p}</p><div class="tags"><span>${d.meals}</span><span>Stay · ${d.stay}</span></div></div>`).join('')}</div><div class="map" id="map">${MAP}<div class="lg"><span>Route from the itinerary stops</span><b id="mapday">Day 1</b></div></div></div>
-      <h2>Photos</h2><div class="gallery">${['goa','goa','goa','andaman','goa'].map(k => scene(k)).join('')}</div>
-      <h2>What’s in the price</h2><div class="incl"><div><h3>Included</h3><ul>${PKG.incl.map(i => `<li>${i}</li>`).join('')}</ul></div><div class="no"><h3>Not included</h3><ul>${PKG.excl.map(i => `<li>${i}</li>`).join('')}</ul></div></div>
+      <h2 id="s-photos">Photos</h2><div class="gallery">${[['goa','Candolim beach at 6 pm'],['goa','Fort Aguada lighthouse'],['andaman','Anjuna, low tide'],['kerala','Fontainhas lanes'],['goa','Mandovi cruise']].map(([k,c]) => `<div class="scene" data-kind="${k}" data-cap="${c}" role="button" tabindex="0" aria-label="Open photo: ${c}"></div>`).join('')}</div>
+      <h2 id="s-price">What’s in the price</h2><div class="incl"><div><h3>Included</h3><ul>${PKG.incl.map(i => `<li>${i}</li>`).join('')}</ul></div><div class="no"><h3>Not included</h3><ul>${PKG.excl.map(i => `<li>${i}</li>`).join('')}</ul></div></div>
       <h2>Where you stay</h2><div class="hotel">${scene('goa')}<div><b>${PKG.hotel.name}</b><span>${PKG.hotel.city} · ${PKG.hotel.stars} · ${PKG.hotel.nights}</span></div></div>
-      <h2>Dates & prices</h2><table><thead><tr><th>Departure</th><th>Per person</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>${PKG.deps.map(d => `<tr><td>${d.date}</td><td class="num">${inr(d.price)}</td><td class="num">${d.seats ? d.seats + ' left' : '—'}</td><td>${badge(d.badge)}</td><td style="text-align:right">${d.seats ? '<a class="btn line" href="#">Enquire</a>' : ''}</td></tr>`).join('')}</tbody></table>
-      <h2>Questions</h2><div class="faq">${PKG.faq.map(f => `<details><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
+      <h2 id="s-dates">Dates & prices</h2><table><thead><tr><th>Departure</th><th>Per person</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>${PKG.deps.map(d => `<tr><td>${d.date}</td><td class="num">${inr(d.price)}</td><td class="num"><span class="seat ${d.seats && d.seats <= 4 ? 'low' : ''}"><i><b style="transform:scaleX(${d.seats/20})"></b></i>${d.seats ? d.seats + ' left' : 'sold out'}</span></td><td>${badge(d.badge)}</td><td style="text-align:right">${d.seats ? '<a class="btn line" href="#">Enquire</a>' : ''}</td></tr>`).join('')}</tbody></table>
+      <h2 id="s-faq">Questions</h2><div class="faq">${PKG.faq.map(f => `<details><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
     </main><aside><div class="box"><div class="from">From<b class="num">${inr(PKG.from)}</b>per person, double sharing</div><div class="fld"><label>Departure</label><div class="v"><span>Sat 14 Nov 2026</span><span class="num">6 seats</span></div></div><div class="fld"><label>Travellers</label><div class="v"><span>2 adults</span><span>Change</span></div></div><a class="btn acc" href="#"><span class="dot"></span>Enquire about this trip</a><div class="row"><a class="btn line" href="#">Customise</a><a class="btn line" href="#">WhatsApp</a></div><div class="occ">${PKG.occ.map(o => `<div><span>${o[0]}</span><span class="num">${o[1]}</span></div>`).join('')}</div><div class="call">A person calls you back within 2 hours, 10 am – 8 pm IST. No payment until you say so.</div></div></aside></div>
     <div class="cta-mobile"><div class="price"><b class="num">${inr(PKG.from)}</b><small>per person</small></div><a class="btn line" href="#">PDF</a><a class="btn acc" href="#">Enquire</a></div>
     <section class="related"><div class="sechead"><h2>More journeys like this</h2></div><div class="rail">${[PKGS[6], PKGS[1], PKGS[4]].map(card).join('')}</div></section>
@@ -556,8 +599,55 @@ function paintAll() { document.querySelectorAll('.scene').forEach(paint); }
 
 /* ============ motion ============ */
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let typeTimer;
-function killMotion() { if (window.ScrollTrigger) ScrollTrigger.getAll().forEach(t => t.kill()); if (window.gsap) gsap.globalTimeline.clear(); clearTimeout(typeTimer); }
+const hasGsap = !!window.gsap;
+if (hasGsap) gsap.registerPlugin(ScrollTrigger, ...(window.MotionPathPlugin ? [MotionPathPlugin] : []));
+let typeTimer, lenis = null, cleanup = [];
+function killMotion() { if (hasGsap) { ScrollTrigger.getAll().forEach(t => t.kill()); gsap.globalTimeline.clear(); } clearTimeout(typeTimer); cleanup.forEach(f => f()); cleanup = []; }
+
+/* smooth scroll */
+if (hasGsap && !reduced && window.Lenis) {
+  lenis = new Lenis({ lerp: .11, wheelMultiplier: 1, smoothWheel: true });
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add(t => lenis.raf(t * 1000)); gsap.ticker.lagSmoothing(0);
+}
+const scrollTop = () => lenis ? lenis.scrollTo(0, { immediate: true }) : window.scrollTo({ top: 0, behavior: 'instant' });
+
+/* intro: the mark draws itself once */
+function intro(done) {
+  const el = document.getElementById('intro');
+  if (reduced || !hasGsap || sessionStorage.getItem('ts-intro')) { el.remove(); done(); return; }
+  sessionStorage.setItem('ts-intro', '1');
+  const rt = document.getElementById('intro-rt'), L = rt.getTotalLength();
+  gsap.set(rt, { strokeDasharray: L, strokeDashoffset: L }); gsap.set('#intro-sun', { scale: 0, transformOrigin: 'center' });
+  gsap.timeline({ onComplete: () => { el.remove(); done(); } })
+    .to(rt, { strokeDashoffset: 0, duration: .9, ease: 'power2.inOut' })
+    .to('#intro-sun', { scale: 1, duration: .35, ease: 'back.out(3)' }, '-=.1')
+    .to('#intro .word', { opacity: 0, y: -6, duration: .3 }, '+=.15')
+    .to(el, { clipPath: 'inset(0 0 100% 0)', duration: .7, ease: 'expo.inOut' }, '-=.1');
+}
+
+/* pointer helpers */
+function tilt(sel) {
+  if (reduced || !hasGsap || matchMedia('(hover: none)').matches) return;
+  document.querySelectorAll(sel).forEach(card => {
+    const cv = card.querySelector('.scene canvas');
+    const move = e => { const r = card.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+      gsap.to(card, { rotateY: x * 8, rotateX: -y * 8, duration: .6, ease: 'power2.out', transformPerspective: 900 });
+      if (cv) gsap.to(cv, { x: -x * 14, y: -y * 14, duration: .6, ease: 'power2.out' }); };
+    const leave = () => { gsap.to(card, { rotateY: 0, rotateX: 0, duration: .8, ease: 'expo.out' }); if (cv) gsap.to(cv, { x: 0, y: 0, duration: .8, ease: 'expo.out' }); };
+    card.addEventListener('mousemove', move); card.addEventListener('mouseleave', leave);
+    cleanup.push(() => { card.removeEventListener('mousemove', move); card.removeEventListener('mouseleave', leave); });
+  });
+}
+function magnetic(sel) {
+  if (reduced || !hasGsap || matchMedia('(hover: none)').matches) return;
+  document.querySelectorAll(sel).forEach(b => {
+    const move = e => { const r = b.getBoundingClientRect(); gsap.to(b, { x: (e.clientX - r.left - r.width / 2) * .22, y: (e.clientY - r.top - r.height / 2) * .35, duration: .5, ease: 'power2.out' }); };
+    const leave = () => gsap.to(b, { x: 0, y: 0, duration: .7, ease: 'elastic.out(1, .5)' });
+    b.addEventListener('mousemove', move); b.addEventListener('mouseleave', leave);
+    cleanup.push(() => { b.removeEventListener('mousemove', move); b.removeEventListener('mouseleave', leave); });
+  });
+}
 
 function motionHome() {
   const h1 = document.getElementById('h1');
@@ -568,30 +658,32 @@ function motionHome() {
   if (reduced) { type.textContent = 'Where do you want to go?'; }
   else {
     let pi = 0;
-    const run = () => { const s = prompts[pi % prompts.length]; let i = 0; type.textContent = '';
-      const tick = () => { type.textContent = s.slice(0, ++i); if (i < s.length) typeTimer = setTimeout(tick, 34 + Math.random() * 40); else typeTimer = setTimeout(() => { pi++; run(); }, 2400); };
+    const run = () => { const str = prompts[pi % prompts.length]; let i = 0; type.textContent = '';
+      const tick = () => { type.textContent = str.slice(0, ++i); if (i < str.length) typeTimer = setTimeout(tick, 34 + Math.random() * 40); else typeTimer = setTimeout(() => { pi++; run(); }, 2400); };
       typeTimer = setTimeout(tick, 200); };
     run();
   }
-  if (reduced || !window.gsap) return;
-  gsap.registerPlugin(ScrollTrigger);
+  if (reduced || !hasGsap) { staticChat(); return; }
   const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
   tl.from('#h1 .w > span', { yPercent: 110, duration: 1.1, stagger: .08 })
     .from('.hero .lead, .ask, .chips', { y: 18, opacity: 0, duration: .9, stagger: .1 }, '-=.7')
     .from('.hero .art', { clipPath: 'inset(0 0 100% 0 round 14px)', duration: 1.3, ease: 'expo.inOut' }, '-=1.1')
     .from('.hero .art .tag', { y: 14, opacity: 0, duration: .7 }, '-=.5');
-  const rh = document.getElementById('rh'); if (rh) { const L = rh.getTotalLength(); gsap.set(rh, { strokeDasharray: `6 7`, strokeDashoffset: 0 }); gsap.fromTo('#route-hero', { opacity: 0 }, { opacity: 1, duration: .6, delay: .9 }); gsap.fromTo(rh, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.8, ease: 'power2.inOut', delay: .9, onComplete: () => gsap.set(rh, { strokeDasharray: '6 7' }) }); gsap.from('#route-hero .end', { scale: 0, transformOrigin: 'center', duration: .5, ease: 'back.out(2)', delay: 2.5 }); }
-  // featured parallax
+  const rh = document.getElementById('rh');
+  if (rh) { const L = rh.getTotalLength(); gsap.fromTo('#route-hero', { opacity: 0 }, { opacity: 1, duration: .6, delay: .9 }); gsap.fromTo(rh, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.8, ease: 'power2.inOut', delay: .9, onComplete: () => gsap.set(rh, { strokeDasharray: '6 7' }) }); gsap.from('#route-hero .end', { scale: 0, transformOrigin: 'center', duration: .5, ease: 'back.out(2)', delay: 2.5 }); }
+  // mouse parallax on the hero
+  if (!matchMedia('(hover: none)').matches) {
+    const hero = document.querySelector('.hero'), art = document.querySelector('.hero .art'), route = document.getElementById('route-hero');
+    const mv = e => { const x = e.clientX / innerWidth - .5, y = e.clientY / innerHeight - .5; gsap.to(art, { x: x * 14, y: y * 10, duration: 1.2, ease: 'power2.out' }); if (route) gsap.to(route, { x: x * -8, y: y * -6, duration: 1.2, ease: 'power2.out' }); };
+    hero.addEventListener('mousemove', mv); cleanup.push(() => hero.removeEventListener('mousemove', mv));
+  }
   gsap.to('.feature .scene canvas', { yPercent: 9, ease: 'none', scrollTrigger: { trigger: '.feature', start: 'top bottom', end: 'bottom top', scrub: true } });
-  // horizontal journeys (desktop)
   const rail = document.getElementById('rail'), wrap = document.getElementById('rail-wrap');
   if (rail && wrap && innerWidth > 1000) {
     const dist = () => Math.max(0, rail.scrollWidth - wrap.clientWidth);
     gsap.to(rail, { x: () => -dist(), ease: 'none', scrollTrigger: { trigger: '.journeys', start: 'top 12%', end: () => '+=' + (dist() + 200), pin: true, scrub: .6, invalidateOnRefresh: true, anticipatePin: 1 } });
   }
-  // reveals from visible defaults (only translate, never park at opacity 0 before viewport)
   ScrollTrigger.batch('.why .row, .quote, .concierge .pts li', { start: 'top 88%', once: true, onEnter: els => gsap.from(els, { y: 22, opacity: 0, duration: .9, ease: 'expo.out', stagger: .08, overwrite: true }) });
-  // concierge conversation types itself
   ScrollTrigger.create({ trigger: '#chat', start: 'top 75%', once: true, onEnter: () => {
     const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'), m3 = document.getElementById('m3');
     const u = '3 days in Goa under ₹15k for 2 of us, mid-November'; let i = 0; m1.classList.add('show');
@@ -601,42 +693,74 @@ function motionHome() {
       t2(); };
     setTimeout(t1, 200);
   }});
-  if (reduced) return;
+  tilt('.card'); magnetic('.btn.acc');
 }
 function staticChat() { const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'); if (!m1) return; m1.textContent = '3 days in Goa under ₹15k for 2 of us, mid-November'; m1.classList.add('show'); m2.textContent = 'Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left. South Goa Quiet Escape is ₹17,499, a little over budget. Want me to check dates?'; m2.classList.add('show'); document.querySelectorAll('#m3 a').forEach(a => a.classList.add('show')); }
 
 function motionPkg() {
   const route = document.getElementById('route'), stops = [...document.querySelectorAll('.map .stop')], days = [...document.querySelectorAll('.tday')], lbl = document.getElementById('mapday');
-  const setDay = i => { days.forEach((d, k) => d.classList.toggle('on', k === i)); stops.forEach(s => s.classList.toggle('on', +s.dataset.i <= i)); lbl.textContent = 'Day ' + (i + 1); };
-  if (reduced || !window.gsap) { setDay(3); if (route) route.style.strokeDasharray = '5 6'; return; }
-  gsap.registerPlugin(ScrollTrigger);
+  const setDay = i => { days.forEach((d, k) => d.classList.toggle('on', k === i)); stops.forEach(st => st.classList.toggle('on', +st.dataset.i <= i)); lbl.textContent = 'Day ' + (i + 1); };
+  // subnav scroll-spy
+  const links = [...document.querySelectorAll('.subnav a')], ind = document.getElementById('ind');
+  const place = a => { if (!a) return; ind.style.width = a.offsetWidth + 'px'; ind.style.transform = `translateX(${a.offsetLeft}px)`; };
+  const activate = a => { links.forEach(l => l.classList.toggle('on', l === a)); place(a); };
+  activate(links[0]); requestAnimationFrame(() => place(links[0]));
+  links.forEach(a => { const h = e => { e.preventDefault(); const t = document.querySelector(a.getAttribute('href')); if (!t) return; const y = t.getBoundingClientRect().top + scrollY - 130; lenis ? lenis.scrollTo(y) : window.scrollTo({ top: y, behavior: reduced ? 'auto' : 'smooth' }); }; a.addEventListener('click', h); cleanup.push(() => a.removeEventListener('click', h)); });
+  // gallery lightbox (manual FLIP)
+  const lb = document.getElementById('lightbox');
+  const open = el => { const r = el.getBoundingClientRect(); lb.querySelectorAll('.scene').forEach(x => x.remove()); const c = el.cloneNode(true); c.removeAttribute('role'); c.removeAttribute('tabindex'); lb.prepend(c); lb.querySelector('.cap').textContent = el.dataset.cap || ''; lb.classList.add('open'); lb.setAttribute('aria-hidden', 'false');
+    const W = Math.min(innerWidth * .9, 1100), H = Math.min(innerHeight * .8, W * .66);
+    if (reduced || !hasGsap) { Object.assign(c.style, { left: (innerWidth - W) / 2 + 'px', top: (innerHeight - H) / 2 + 'px', width: W + 'px', height: H + 'px' }); paint(c); return; }
+    gsap.set(c, { left: r.left, top: r.top, width: r.width, height: r.height }); paint(c);
+    gsap.to(c, { left: (innerWidth - W) / 2, top: (innerHeight - H) / 2, width: W, height: H, duration: .7, ease: 'expo.inOut', onComplete: () => paint(c) });
+    lenis && lenis.stop(); };
+  const close = () => { lb.classList.remove('open'); lb.setAttribute('aria-hidden', 'true'); lenis && lenis.start(); };
+  const galleryEls = document.querySelectorAll('.gallery .scene');
+  galleryEls.forEach(el => { const k = e => { if (e.type === 'click' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(el); } }; el.addEventListener('click', k); el.addEventListener('keydown', k); cleanup.push(() => { el.removeEventListener('click', k); el.removeEventListener('keydown', k); }); });
+  const lbClick = e => { if (e.target === lb || e.target.closest('.x')) close(); }, esc = e => { if (e.key === 'Escape') close(); };
+  lb.addEventListener('click', lbClick); document.addEventListener('keydown', esc); cleanup.push(() => { lb.removeEventListener('click', lbClick); document.removeEventListener('keydown', esc); close(); });
+
+  if (reduced || !hasGsap) { setDay(3); if (route) route.style.strokeDasharray = '5 6'; return; }
   gsap.from('.phero .scene', { clipPath: 'inset(0 0 100% 0 round 14px)', duration: 1.3, ease: 'expo.inOut' });
   gsap.from('.phero h1, .phero .sub, .phero .share', { y: 20, opacity: 0, duration: .9, stagger: .08, delay: .5, ease: 'expo.out' });
   gsap.from('.facts div', { y: 14, opacity: 0, duration: .7, stagger: .06, delay: .8, ease: 'expo.out' });
   gsap.to('.phero .scene canvas', { yPercent: 8, ease: 'none', scrollTrigger: { trigger: '.phero .scene', start: 'top top', end: 'bottom top', scrub: true } });
   const L = route.getTotalLength(); gsap.set(route, { strokeDasharray: L, strokeDashoffset: L });
-  gsap.to(route, { strokeDashoffset: 0, ease: 'none', scrollTrigger: { trigger: '#days', start: 'top 60%', end: 'bottom 60%', scrub: .4, onUpdate: self => setDay(Math.min(3, Math.floor(self.progress * 4))) } });
+  const st = { trigger: '#days', start: 'top 60%', end: 'bottom 60%', scrub: .4 };
+  gsap.to(route, { strokeDashoffset: 0, ease: 'none', scrollTrigger: { ...st, onUpdate: self => setDay(Math.min(3, Math.floor(self.progress * 4))) } });
+  if (window.MotionPathPlugin) gsap.to('#marker', { motionPath: { path: '#route', align: '#route', alignOrigin: [.5, .5] }, ease: 'none', scrollTrigger: st });
   setDay(0);
+  // scroll-spy
+  [['#s-over', 0], ['#s-days', 1], ['#s-photos', 2], ['#s-price', 3], ['#s-dates', 4], ['#s-faq', 5]].forEach(([sel, i]) => ScrollTrigger.create({ trigger: sel, start: 'top 140px', end: () => `+=${document.querySelector(sel).nextElementSibling ? document.querySelector(sel).nextElementSibling.offsetHeight + 60 : 400}`, onEnter: () => activate(links[i]), onEnterBack: () => activate(links[i]) }));
   ScrollTrigger.batch('.hl li, .incl li, .gallery .scene, tbody tr', { start: 'top 90%', once: true, onEnter: els => gsap.from(els, { y: 16, opacity: 0, duration: .8, ease: 'expo.out', stagger: .05, overwrite: true }) });
+  gsap.from('tbody .seat i b', { scaleX: 0, duration: 1, ease: 'expo.out', stagger: .08, scrollTrigger: { trigger: 'table', start: 'top 85%', once: true } });
+  tilt('.related .card'); magnetic('aside .btn.acc, .cta-mobile .btn.acc');
 }
 
-/* ============ router ============ */
+/* ============ router with curtain transition ============ */
 const view = document.getElementById('view');
-let current = 'home';
-function go(p) {
+let current = null;
+function mount(p) {
   current = p; killMotion();
   view.innerHTML = p === 'home' ? HOME() : PKGV();
   document.querySelectorAll('.switch button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.go === p)));
-  window.scrollTo({ top: 0, behavior: 'instant' });
-  paintAll();
-  if (p === 'home') { motionHome(); if (reduced) staticChat(); } else motionPkg();
-  if (window.ScrollTrigger) requestAnimationFrame(() => ScrollTrigger.refresh());
+  scrollTop(); paintAll();
+  if (p === 'home') motionHome(); else motionPkg();
+  if (hasGsap) requestAnimationFrame(() => ScrollTrigger.refresh());
   try { localStorage.setItem('ts-showcase', p); } catch (e) {}
+}
+function go(p) {
+  if (p === current) return;
+  if (reduced || !hasGsap || current === null) { mount(p); return; }
+  const w = document.getElementById('wipe');
+  gsap.timeline()
+    .to(w, { yPercent: -101, duration: .55, ease: 'expo.inOut', onComplete: () => mount(p) })
+    .to(w, { yPercent: -202, duration: .55, ease: 'expo.inOut', delay: .08, onComplete: () => gsap.set(w, { yPercent: 0 }) });
 }
 document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (!a) return; e.preventDefault(); go(a.dataset.go); });
 addEventListener('scroll', () => document.getElementById('top').classList.toggle('scrolled', scrollY > 8), { passive: true });
-let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(paintAll, 150); });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { paintAll(); if (hasGsap) ScrollTrigger.refresh(); }, 150); });
 let start = 'home'; try { start = localStorage.getItem('ts-showcase') || 'home'; } catch (e) {}
-document.fonts && document.fonts.ready.then(() => window.ScrollTrigger && ScrollTrigger.refresh());
-go(start);
+document.fonts && document.fonts.ready.then(() => hasGsap && ScrollTrigger.refresh());
+intro(() => mount(start));
 </script>
