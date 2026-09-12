@@ -22,7 +22,7 @@ api/        Hono (TypeScript) REST API — folder structure only until milestone
 shared/     zod schemas + TS types shared by web and api (created in 1.0)
 PRD.md      product requirements (v1 locked; v1-v4 versions, costs, add-ons)
 docs/       lifecycle outputs (steps 3-7): requirements v1-v4, user flows, technical design, architecture, data + API, plan
-mockups/    landing.html — the design source the web/ page was ported from
+mockups/    direction-variants.html — four visual directions (D = the locked brief); landing.html — old chat-first dummy, superseded
 brand/      logo, mark and favicon
 ```
 

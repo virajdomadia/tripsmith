@@ -114,8 +114,8 @@ The definitive v1 feature list with acceptance criteria is **[docs/03-requiremen
 - Enquiries inbox: list, status (new / contacted / converted / closed), notes, CSV export
 - Dashboard: enquiries this week, top packages, upcoming departures
 
-### Look & feel
-Warm, editorial, photo-led — large imagery, serif headings (Newsreader, per the brand kit), generous whitespace, one accent colour. Airbnb's calm, not MakeMyTrip's density. Mobile-first: most enquiries come from phones.
+### Look & feel (brief locked 2026-09-12 — see docs/04-ui-mockups.md)
+**Premium travel editorial + modern booking SaaS** — the most visually impressive marketing/product hybrid of the six. Large destination photography, editorial typography (Newsreader + Instrument Sans), cream/off-white ground with deep dark text, one strong accent, large cards that are not overly rounded, maps and itinerary timelines, a floating AI concierge. Home: "Travel, intelligently." → one question ("Where do you want to go?") → destination chips → one large image → popular journeys → the concierge. Must feel like a real travel company, not an AI demo. Mobile-first.
 
 ## v2 — Booking engine (~15 h)
 The site starts taking money. Feature list locked 2026-09-12; acceptance criteria in [docs/03-requirements-v2.md](docs/03-requirements-v2.md).
