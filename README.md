@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 3 of 17 (Requirements & Scope) done; next step 4 (Technical Design) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). Will go live at `tripsmith.virajdomadia.com`.
+> Status: step 3 of 17 (Requirements & Scope) done; next step 4 (Technical Design) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
 
 ## What it proves
 AI agent with tool calling · Razorpay payments · SEO content site
