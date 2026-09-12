@@ -2,7 +2,7 @@
 
 **Lifecycle step:** 4 of 17 (forward design) · **Written:** 2026-09-12
 **Companion to:** [04-technical-design.md](04-technical-design.md) (v1). Same stack, same conventions.
-**Status:** design-level. Each of v2 / v3 re-enters the lifecycle at step 3 and refines this into requirements with acceptance criteria; the purpose of writing it now is to make sure **v1 decisions leave every later feature additive** (see §0).
+**Status:** approved. Requirements with acceptance criteria: [03-requirements-v2.md](03-requirements-v2.md), [03-requirements-v3.md](03-requirements-v3.md). §0 lists the v1 decisions that keep every later feature additive.
 
 ---
 

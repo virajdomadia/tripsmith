@@ -1,6 +1,6 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · lifecycle step 6 (Database + API Design) complete 2026-09-12 — see [docs/](docs/) · next: step 7 Development Plan
+**Status:** v1 · lifecycle steps 1–7 complete for v1, v2, v3 (2026-09-12) — see [docs/](docs/) · next: step 8 Project Setup, milestone 1.0
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
 **Slot:** #1 · Budget ~60 h · Build first
@@ -32,7 +32,7 @@ Travel sites come in four species. Tripsmith is the first one, deliberately:
 Why not the others: an OTA can't be built honestly without live inventory APIs; a marketplace's hard part (suppliers, payouts) is already covered by Skillroom (project 5). The package agency is the only species that can be made **completely real** — real itineraries, real prices, real owner dashboard, real checkout — and it's the best host for an AI concierge (tool calling over a closed catalog never hallucinates). Not to be re-opened.
 
 ### 2. Versions: v1 agency website → v2 booking engine → v3 AI concierge
-Three major versions, each with one new hard thing and one demo, each a full pass through the lifecycle (v2/v3 re-enter at step 3). Inside a major, minor releases (1.0, 1.1 …) are deployable milestones defined in step 7. v1 alone is already a complete agency website.
+Three major versions, each with one new hard thing and one demo. All three are specified through lifecycle step 7 up front (requirements, design, schema, API, plan); v2 and v3 each begin with a short step-3 re-validation before coding. Inside a major, minor releases (1.0, 1.1 …) are deployable milestones defined in step 7. v1 alone is already a complete agency website.
 
 | Version | Ships | Proves | ~Hours |
 |---|---|---|---|
@@ -117,7 +117,7 @@ The definitive v1 feature list with acceptance criteria is **[docs/03-requiremen
 Warm, editorial, photo-led — large imagery, serif headings (Newsreader, per the brand kit), generous whitespace, one accent colour. Airbnb's calm, not MakeMyTrip's density. Mobile-first: most enquiries come from phones.
 
 ## v2 — Booking engine (~15 h)
-The site starts taking money. Feature list locked 2026-09-12; acceptance criteria written when v2 enters step 3.
+The site starts taking money. Feature list locked 2026-09-12; acceptance criteria in [docs/03-requirements-v2.md](docs/03-requirements-v2.md).
 
 | Feature | What it is |
 |---|---|
@@ -133,7 +133,7 @@ The site starts taking money. Feature list locked 2026-09-12; acceptance criteri
 | **Reviews** | Customers with a completed booking can leave a rating + photo; shown on the package page |
 
 ## v3 — AI concierge (~15 h)
-The wow. Feature list locked 2026-09-12; acceptance criteria written when v3 enters step 3.
+The wow. Feature list locked 2026-09-12; acceptance criteria in [docs/03-requirements-v3.md](docs/03-requirements-v3.md).
 
 | Feature | What it is |
 |---|---|
