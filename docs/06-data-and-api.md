@@ -1,15 +1,16 @@
 # Tripsmith — Database + API Design (whole app: v1, v2, v3, v4, add-ons)
 
-**Lifecycle step:** 6 of 17 · **Written:** 2026-09-12
+**Lifecycle step:** 6 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI
 **Inputs:** [03-requirements.md](03-requirements.md), [04-technical-design.md](04-technical-design.md), [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md), [05-architecture.md](05-architecture.md)
-**Scope:** every table and every endpoint the product will ever have, tagged with the version that introduces it. **Revised 2026-09-12:** all of Part C is served by `api/` (Hono) as REST endpoints; `web/` calls them via the `/api/*` rewrite. The "action" names in the tables are the api handler names; their HTTP routes are in §C-REST. v1 builds only the v1-tagged tables **plus the forward-compat columns marked ⏩** (nullable, unused by v1 UI) so v2/v3 need no destructive migrations.
+**Scope:** every table and every endpoint the product will ever have, tagged with the version that introduces it. **Revised 2026-09-12:** all of Part C is served by `api/` as REST endpoints; `web/` calls them via the `/api/*` rewrite. **Revised 2026-09-13:** `api/` is FastAPI (Python) — SQLAlchemy models, Alembic migrations, pydantic schemas; the auth tables are our own (§A2); image upload is a server-side proxy; `GET /meta` added. The "action" names in the tables are the api service-function names (written here in the camelCase the API contract uses; the Python functions are the snake_case equivalents); their HTTP routes are in §C-REST. v1 builds only the v1-tagged tables **plus the forward-compat columns marked ⏩** (nullable, unused by v1 UI) so v2/v3 need no destructive migrations.
 
 ## Conventions
-- IDs: `text` primary keys, cuid2 (`createId()`); human refs (`TS-7F3K2Q`) for enquiries and bookings.
+- IDs: `text` primary keys, cuid2 (`cuid2` PyPI package, `cuid_wrapper()`); human refs (`TS-7F3K2Q`) for enquiries and bookings.
 - Money: **integer paise** (`_paise` suffix), INR only. Never floats.
 - Time: `timestamptz`; departure dates are `date`.
 - Slugs: `text unique`, lowercase-kebab, immutable after publish.
-- Enums: Postgres enums via Drizzle `pgEnum`.
+- Enums: Postgres enums via SQLAlchemy `Enum(..., native_enum=True)` backed by Python `StrEnum`s in `app/models/enums.py`; the same enums appear in the pydantic schemas and therefore in the generated TS types.
+- ORM: SQLAlchemy 2.0 async (asyncpg) declarative models in `app/models/`; Alembic revisions in `api/alembic/` (`uv run alembic upgrade head`); views are created with raw SQL inside the revision.
 - Deletes: hard deletes only where nothing references the row; otherwise blocked in the domain layer.
 - Every table: `created_at timestamptz default now()`, mutable tables also `updated_at`.
 
@@ -36,8 +37,11 @@
 | `conversation_outcome` | `open`, `booking_started`, `enquiry_created`, `dropped` | v3 |
 | `message_role` | `user`, `assistant`, `tool`, `system` | v3 |
 
-### A2. Auth (Better Auth managed) — v1
-`user` (id, name, email unique, email_verified, image, **role user_role default 'customer'** ⏩, created_at, updated_at) · `session` · `account` · `verification`. The seed creates the single `role = 'owner'` row. v2's email-OTP plugin adds nothing to the schema.
+### A2. Auth (own implementation) — v1
+**`users`** — id, name, email unique, password_hash text null (argon2; null for OTP-only customers), **role user_role default 'customer'** ⏩, created_at, updated_at.
+**`sessions`** — id, user_id FK → users (cascade), token text unique (opaque, random, the cookie value), expires_at timestamptz, ip, user_agent, created_at. Index `(user_id)`; expired rows are deleted lazily on lookup.
+**`verification`** — id, identifier text (email), code_hash text, expires_at timestamptz, consumed_at null, created_at. Index `(identifier, created_at desc)`. ⏩ Created in `0001_v1`, used only by the v2 email OTP (`POST /auth/otp/request` / `verify`).
+The seed creates the single `role = 'owner'` row from `OWNER_EMAIL` / `OWNER_PASSWORD`. v2 adds no auth tables.
 
 ### A3. Catalog — v1
 **`destinations`**
@@ -146,7 +150,7 @@ Indexes: `(status, created_at desc)`, `(package_id)`, `(phone, package_id, creat
 |---|---|---|
 | id, ref | text | ref `TB-XXXXXX` |
 | package_id, departure_id | FK (restrict) | |
-| user_id | FK null → user | attached at checkout by email |
+| user_id | FK null → users | attached at checkout by email |
 | status | booking_status default 'pending' | |
 | hold_expires_at | timestamptz | 10 min; 48 h when `split` |
 | contact_name, contact_phone, contact_email | text | snapshot |
@@ -165,7 +169,7 @@ Indexes: `(departure_id, status)`, `(user_id, created_at desc)`, `(status, hold_
 
 ### A7. Concierge — v3
 **`conversations`** — id, session_id text (cookie), user_id FK null, outcome default 'open', provider, model, message_count integer, first_user_message text (denormalised for the admin list), created_at, updated_at. Index `(created_at desc)`.
-**`messages`** — id, conversation_id FK (cascade), role, parts jsonb (AI SDK message parts: text, tool-call, tool-result), tokens_in, tokens_out integer null, created_at. Index `(conversation_id, created_at)`.
+**`messages`** — id, conversation_id FK (cascade), role, parts jsonb (message parts: text, tool-call, tool-result — the same event shapes the SSE stream emits), tokens_in, tokens_out integer null, created_at. Index `(conversation_id, created_at)`.
 **`departure_alerts`** — id, email, package_id FK null, destination_id FK null, token text unique (unsubscribe), created_at, unsubscribed_at null. Check: exactly one of package_id/destination_id.
 **`ai_generations`** (add-on A audit) — id, kind (`package_draft` | `packing_list`), brief text, output jsonb, provider, model, created_at.
 
@@ -194,7 +198,8 @@ erDiagram
   enquiries ||--o{ enquiry_messages : has
   conversations ||--o{ messages : has
   conversations ||--o| enquiries : handoff
-  user ||--o{ bookings : owns
+  users ||--o{ sessions : has
+  users ||--o{ bookings : owns
   departures ||--o{ bookings : for
   departures ||--o{ departure_prices : per_origin
   bookings ||--o{ booking_travellers : has
@@ -211,7 +216,7 @@ erDiagram
 ### A10. Migration plan
 | Migration | Contents |
 |---|---|
-| `0001_v1` | enums (all v1 + ⏩ values), auth tables + role, catalog, enquiries, notes, views, `departure_availability` v1 view |
+| `0001_v1` | enums (all v1 + ⏩ values), `users` / `sessions` / `verification`, catalog, enquiries, notes, views, `departure_availability` v1 view (raw SQL in the revision) |
 | `0002_v2` | booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view |
 | `0003_v3` | conversations, messages, departure_alerts, ai_generations; FK `enquiries.conversation_id` becomes enforced |
 | `0004_v4` | `mcp_requests` |
@@ -220,35 +225,44 @@ erDiagram
 ---
 
 ## Part B — Seed content shape (v1)
-```ts
-// content/packages/goa-north-beaches.ts
-export default definePackage({
-  slug: 'goa-north-beaches', destination: 'goa', name: 'North Goa Beaches',
-  themes: ['beach', 'family'], nights: 3, departureCity: 'Ex-Mumbai',
-  summary: '…', highlights: ['…'], inclusions: ['…'], exclusions: ['…'],
-  hotels: [{ name: 'Lemon Tree Amarante', city: 'Candolim', stars: 4, nights: 3 }],
-  itinerary: [{ day: 1, title: 'Arrive Goa · Candolim', description: '…', meals: 'D',
-                stay: 'Candolim', location: { name: 'Candolim', lat: 15.518, lng: 73.762 } }, …],
-  faq: [{ q: '…', a: '…' }],
-  departures: [{ date: '2026-11-14', seatsTotal: 20, guaranteed: true,
-                 priceDouble: 14999, priceTriple: 13999, priceChild: 8999, singleSupplement: 4500 }, …],
-  images: ['goa/north-1.jpg', …],   // under public/seed
-});
+```python
+# api/content/packages/goa_north_beaches.py
+from content._schema import define_package
+
+package = define_package(
+    slug="goa-north-beaches", destination="goa", name="North Goa Beaches",
+    themes=["beach", "family"], nights=3, departure_city="Ex-Mumbai",
+    summary="…", highlights=["…"], inclusions=["…"], exclusions=["…"],
+    hotels=[{"name": "Lemon Tree Amarante", "city": "Candolim", "stars": 4, "nights": 3}],
+    itinerary=[
+        {"day": 1, "title": "Arrive Goa · Candolim", "description": "…", "meals": "D",
+         "stay": "Candolim", "location": {"name": "Candolim", "lat": 15.518, "lng": 73.762}},
+        …,
+    ],
+    faq=[{"q": "…", "a": "…"}],
+    departures=[
+        {"date": "2026-11-14", "seats_total": 20, "guaranteed": True,
+         "price_double": 14999, "price_triple": 13999, "price_child": 8999, "single_supplement": 4500},
+        …,
+    ],
+    images=["goa/north-1.jpg", …],   # under api/content/photos
+)
 ```
-`definePackage` is a typed identity function whose type is derived from the Drizzle insert types, so a bad seed fails `tsc`. Prices in the seed are rupees for readability; the seed script converts to paise.
+`define_package(...)` returns a validated pydantic `PackageContent` (likewise `define_destination` → `DestinationContent`, with `climate[12]`), so a bad seed fails at import — and `scripts/seed.py` imports every module before writing a row. `meals` is a string over `"BLD"` (`"BD"` = breakfast + dinner) mapped to `meal_b/meal_l/meal_d`. Prices in the seed are rupees for readability; the seed script converts to paise.
 
 ---
 
 ## Part C — API surface
 
 ### C0. Conventions
-- Everything is HTTP on `api/`. **Reads** are `GET` with query params; **writes** are `POST/PUT/PATCH/DELETE` with JSON bodies validated by `shared/schemas` (via `@hono/zod-openapi`, which also emits `/openapi.json` and the `/docs` page).
+- Everything is HTTP on `api/`. **Reads** are `GET` with query params; **writes** are `POST/PUT/PATCH/DELETE` with JSON bodies (multipart only for image upload) validated by pydantic models in `app/schemas/`. FastAPI emits `/openapi.json` and Swagger UI at `/docs` (ReDoc off) from the same models; `api/openapi.json` is committed and `web/src/lib/api-types.ts` is generated from it (`pnpm gen:api`).
 - Success: `2xx` with the JSON payload. Errors:
   ```ts
   type ApiError = { error: { code: 'validation' | 'unauthorized' | 'forbidden' | 'not_found' | 'rate_limited' | 'conflict' | 'internal'; message: string; fieldErrors?: Record<string, string> } }
   ```
-  with matching status (400/401/403/404/429/409/500). Unexpected errors are captured by Sentry and returned as `internal`.
-- Auth: Better Auth session cookie (first-party through the rewrite). `/admin/*` routes use `requireOwner` middleware; `/account/*` (v2) `requireUser`. Webhooks use provider signatures; crons use `Authorization: Bearer CRON_SECRET`.
+  with matching status (400/401/403/404/429/409/500). Pydantic `RequestValidationError` → `validation` with `fieldErrors` keyed by field path (`"itinerary.2.title"`); blank query params are treated as absent. Unexpected errors are captured by Sentry and returned as `internal`.
+- Auth: own session cookie (opaque token from `sessions`, first-party through the rewrite). `/admin/*` routes depend on `require_owner`; `/account/*` (v2) on `require_user`. Webhooks use provider signatures; crons use `Authorization: Bearer CRON_SECRET`.
+- `GET /meta` (v1, public, cached like other public GETs) returns the constants both sides need: `themes` (with labels), `badges` (with labels), `enquiryTypes`, `limits` (`maxTravellers`, `maxThemesPerPackage`, `enquiryMessageMax`, `imageMaxBytes`). The same values are OpenAPI enums in the generated types; the endpoint exists for runtime labels and for anything outside the TS build (MCP clients, the developer page).
 - Public `GET`s send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`; web additionally tags its fetches for on-demand revalidation.
 - `web/` keeps only: `POST /revalidate` (secret), OG image routes, sitemap/robots, and the no-JS enquiry proxy.
 - Rate-limit keys: `enquiry:{ip}`, `login:{ip}`, `chat:{ip}:{day}`, `chat:global:{day}`.
@@ -256,7 +270,7 @@ export default definePackage({
 ### C-REST. Endpoint map (whole app)
 | Version | Method + path | Handler (see tables below) | Auth |
 |---|---|---|---|
-| v1 | `GET /health` | — | public |
+| v1 | `GET /health` · `GET /meta` | — · `getMeta` | public |
 | v1 | `GET /packages` | `searchPackages` | public |
 | v1 | `GET /packages/:slug` | `getPackage` | public |
 | v1 | `GET /packages/:slug/departures?month=` | `getDeparturesForMonth` | public |
@@ -265,14 +279,15 @@ export default definePackage({
 | v1 | `GET /home` | `getHomeData` | public |
 | v1 | `POST /enquiries` | `submitEnquiry` | public, rate-limited |
 | v1 | `POST /views` | `recordView` | public |
-| v1 | `ALL /auth/*` | Better Auth | — |
+| v1 | `POST /auth/login` · `POST /auth/logout` · `GET /auth/session` | own auth (`login`, `logout`, `getSession`) | public (login rate-limited) / cookie |
 | v1 | `GET /admin/dashboard` | `getDashboard` | owner |
 | v1 | `POST/PUT/DELETE /admin/destinations[/:id]` | destination CRUD | owner |
 | v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
-| v1 | `POST /admin/uploads/token` · `POST/PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
+| v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
 | v1 | `GET /admin/enquiries` · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` | enquiries | owner |
 | v1 | `GET /cron/pdf-gc` | cron | CRON_SECRET |
 | v1 | `GET /docs` · `GET /openapi.json` | OpenAPI | public |
+| v2 | `POST /auth/otp/request` · `POST /auth/otp/verify` | own email OTP | public, rate-limited |
 | v2 | `POST /bookings/quote` · `POST /bookings` · `POST /bookings/:ref/confirm` | booking | public (session optional) |
 | v2 | `GET /account/bookings` · `GET /account/bookings/:ref` · `GET /account/bookings/:ref/voucher.pdf` · `POST /account/bookings/:ref/cancel` · `POST /account/bookings/:ref/review` | account | user |
 | v2 | `POST /webhooks/razorpay` | webhook | signature |
@@ -284,7 +299,7 @@ export default definePackage({
 | v4 | `POST /mcp` | MCP server | public, rate-limited (stretch: OAuth) |
 | add-on C | `GET /account/bookings/:ref/hub` · `PATCH /account/bookings/:ref/checklist/:itemId` · `PUT /admin/packages/:id/checklist` · `PATCH /admin/departures/:id` (whatsapp group) | trip hub | user / owner |
 
-### C1. Public reads — v1 (`api modules/catalog`, `modules/analytics`)
+### C1. Public reads — v1 (`api services/catalog`, `services/analytics`)
 | Function | Params | Returns |
 |---|---|---|
 | `searchPackages` | `{ destination?: string[]; maxBudget?: number; nightsMin?: number; nightsMax?: number; themes?: Theme[]; month?: 'YYYY-MM'; sort?: 'price-asc'\|'price-desc'\|'duration' }` | `{ items: PackageCard[]; total: number }` — `PackageCard = { slug, name, destination, nights, days, startingPricePaise, themes, coverUrl, highlights, badge }` |
@@ -295,7 +310,7 @@ export default definePackage({
 | `getDeparturesForMonth` | `packageSlug, 'YYYY-MM'` | departures with `seatsLeft` (used by the v3 tool too) |
 
 ### C2. Public writes — v1 (`POST /enquiries`)
-| Action | Input (zod) | Effects | Result |
+| Action | Input (pydantic `EnquiryCreate`) | Effects | Result |
 |---|---|---|---|
 | `submitEnquiry` | `{ type: 'standard'\|'custom'\|'contact'; packageSlug?; name; phone; email; travelMonth?; adults; children; message?; preferredDates?; budget?; changes?; website: '' (honeypot) }` | rate-limit; dedupe; insert; PDF; two emails; Sentry on mail failure | `201 { ref }` → web navigates to `/enquiry/thanks?ref=` |
 
@@ -304,7 +319,7 @@ export default definePackage({
 |---|---|---|
 | api | `GET /packages/:slug/itinerary.pdf` (`maxDuration 30`) | 404 if draft; 302 to cached Blob PDF or render → store → 302 |
 | api | `POST /views` | body `{ slug }`; UA bot filter; upsert `package_views`; 204 |
-| api | `POST /admin/uploads/token` | owner only; returns Blob client-upload token for `image/*` ≤ 5 MB |
+| api | `POST /admin/packages/:id/images` | owner only; `multipart/form-data` (`file`, `position?`, `alt?`); `image/jpeg\|png\|webp` ≤ 5 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST; 201 with the `package_images` row |
 | api | `GET /cron/pdf-gc` | `Authorization: Bearer CRON_SECRET`; delete Blob PDFs whose `updatedAt` key no longer matches |
 | web | `POST /revalidate` | `{ secret, tags[] }` from api → `revalidateTag` |
 | web | `GET /sitemap.xml`, `/robots.txt` | built from `GET /api/packages` + `/api/destinations` |
@@ -319,7 +334,7 @@ export default definePackage({
 | `setPackageStatus` | `{ id, status }` | live requires ≥ 1 image, ≥ 1 departure, full itinerary |
 | `duplicatePackage` | `{ id }` | copies everything as draft, slug `-copy`, name "(copy)" |
 | `deletePackage` | `{ id }` | blocked if enquiries or bookings reference it |
-| `attachImage` / `reorderImages` / `removeImage` / `setCover` | image ops | |
+| `uploadImage` / `reorderImages` / `removeImage` / `setCover` | image ops | upload is the multipart proxy (C3) |
 | `updateEnquiryStatus` | `{ id, status }` | |
 | `addEnquiryNote` | `{ id, body }` | |
 | `exportEnquiriesCsv` | current filter params | returns a Blob URL (short-lived) or streams CSV |
@@ -334,13 +349,13 @@ export default definePackage({
 | `confirmPayment` | `{ bookingRef, razorpayOrderId, razorpayPaymentId, razorpaySignature }` | verify HMAC → payment captured → booking confirmed (guarded) → voucher email |
 | `requestCancellation` | `{ bookingRef, reason }` | insert cancellation `requested` |
 | `submitReview` | `{ bookingRef, rating, text, photo? }` | only if booking `completed`; `approved=false` |
-| `listMyBookings` (read) | — | bookings for `requireUser()` |
+| `listMyBookings` (read) | — | bookings for `require_user` |
 
 **Route handlers**
 | Method + path | Behaviour |
 |---|---|
 | api `POST /webhooks/razorpay` | raw body; verify `X-Razorpay-Signature`; `payment.captured` → same guarded confirm; `payment.failed` → payment failed (booking stays pending until hold expiry); always 200 after recording |
-| `GET /account/bookings/[ref]/voucher.pdf` | owner-of-booking or admin; `VoucherDocument` via `lib/pdf`, Blob-cached by `updatedAt` |
+| `GET /account/bookings/[ref]/voucher.pdf` | owner-of-booking or admin; `render_voucher` via `services/pdf` (fpdf2), Blob-cached by `updatedAt` |
 | `GET /pay/[token]` (add-on D) | share pay page; creates the share's Razorpay order on demand |
 | `GET /api/cron/share-reminders` (add-on D) | daily; email unpaid shares older than 24 h |
 
@@ -350,9 +365,9 @@ export default definePackage({
 `pending → confirmed` (payment captured, Σ paid ≥ total) · `pending → partially_paid` (split, some paid) · `partially_paid → confirmed` · `pending|partially_paid → cancelled` (expired or failed) · `confirmed → cancelled` (cancellation approved) · `confirmed → completed` (departure date < today, nightly cron or lazy on read).
 
 ### C6. v3 — Concierge
-**api `POST /chat`** (SSE streaming) — body: AI SDK `{ messages, conversationId? }`. Steps: quotas (`chat:{ip}:{day}` ≤ 20, `chat:global:{day}` ≤ `CHAT_GLOBAL_DAILY_LIMIT`, ≤ 30 messages per conversation, ≤ 500 chars per user message) → load/create conversation → `streamText({ model: provider(), system, messages: trimmed, tools, maxSteps: 5 })` → persist user + assistant parts → post-turn guardrail (slugs/prices ⊆ tool results, else replace + force search) → stream. Over quota → `429 { reason }`; the UI shows the enquiry form.
+**api `POST /chat`** (SSE via `sse-starlette`) — body: `ChatRequest { message, conversationId? }`. Steps: quotas (`chat:{ip}:{day}` ≤ 20, `chat:global:{day}` ≤ `CHAT_GLOBAL_DAILY_LIMIT`, ≤ 30 messages per conversation, ≤ 500 chars per user message) → load/create conversation → pydantic-ai `agent.run_stream(message, message_history=trimmed)` with the tools below and a step cap of 5 → persist user + assistant parts → post-turn guardrail (slugs/prices ⊆ tool results, else replace + force search) → stream named events `text-delta` · `tool-call` · `tool-result` · `done` · `error`. Over quota → `429 { reason }`; the UI shows the enquiry form.
 
-**Tools (zod schemas)**
+**Tools (typed Python functions in `services/ai/tools.py`, pydantic-validated arguments)**
 | Tool | Input | Calls | Output |
 |---|---|---|---|
 | `searchPackages` | `{ destination?: string; maxBudget?: number; nights?: number; theme?: Theme; month?: 'YYYY-MM' }` | `catalog.searchPackages` | ≤ 5 `PackageCard` |
@@ -367,14 +382,14 @@ export default definePackage({
 | `GET /alerts/unsubscribe/[token]` | sets `unsubscribed_at` |
 | `GET /api/cron/departure-alerts` | daily; departures created in last 24 h → email matching subscribers |
 | `listConversations` / `getConversation` (admin reads) | outcome, counts, transcript with tool calls |
-| `generatePackageDraft { brief, destinationSlug }` (admin action, add-on A) | `generateObject(packageDraftSchema)` with the destination's live packages as style examples → returns draft JSON for the form; logs to `ai_generations`; never writes `packages` |
+| `generatePackageDraft { brief, destinationSlug }` (admin action, add-on A) | pydantic-ai agent with `output_type=PackageDraft` and the destination's live packages as style examples → returns draft JSON for the form; logs to `ai_generations`; never writes `packages` |
 
 ### C8. v4 — MCP server
-**api `POST /mcp`** (Streamable HTTP via `@hono/mcp`, stateless) at `https://api.tripsmith.virajdomadia.com/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
+**api `POST /mcp`** (Streamable HTTP via the official `mcp` Python SDK's `FastMCP`, mounted in the FastAPI app, stateless) at `https://api.tripsmith.virajdomadia.com/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
 
 | MCP surface | Name | Maps to |
 |---|---|---|
-| tool | `searchPackages` | same definition as C6 (shared `lib/ai/tools.ts`) |
+| tool | `searchPackages` | same definition as C6 (shared `services/ai/tools.py`) |
 | tool | `checkAvailability` | same |
 | tool | `startBooking` | same — returns `{ checkoutUrl, totalPaise }` |
 | tool | `createEnquiry` | same — `type: 'chat-handoff'`, `summary` required, ≤ 5/day/IP |
@@ -384,7 +399,7 @@ export default definePackage({
 | resource | `tripsmith://destinations/{slug}` | `catalog.getDestination` → markdown |
 | prompt | `plan-a-trip` | args destination?, month?, budget?, party? |
 
-Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `mcp-enquiry:{ip}:{day}` ≤ 5. Errors: MCP tool error content with a short message; zod issues are summarised, never raw.
+Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `mcp-enquiry:{ip}:{day}` ≤ 5. Errors: MCP tool error content with a short message; pydantic issues are summarised, never raw.
 
 **web `GET /developers`** — static page: what it is, install config blocks, tool list, limits, privacy.
 
@@ -392,7 +407,7 @@ Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `
 | Add-on | Endpoints |
 |---|---|
 | B best-time strip | none — reads `destinations.climate` |
-| C trip hub | `getTripHub { bookingRef }` (read: booking, checklist, packing list — generates via `generateObject` on first request per destination-month, weather from Open-Meteo when ≤ 16 days out), `toggleChecklistItem`, admin `setDefaultChecklist { packageId, items[] }`, `setWhatsAppGroup { departureId, url }` |
+| C trip hub | `getTripHub { bookingRef }` (read: booking, checklist, packing list — generated by a pydantic-ai structured-output call on first request per destination-month, weather from Open-Meteo when ≤ 16 days out), `toggleChecklistItem`, admin `setDefaultChecklist { packageId, items[] }`, `setWhatsAppGroup { departureId, url }` |
 | D split payment | `createBookingOrder(split: true)` creates shares; `GET /pay/[token]`; `payShare` (client callback verify); `coverRemaining { bookingRef }`; cron above |
 | E storyboard | none — reads `itinerary_days.location` |
 | Departure-city pricing | `departure_prices` CRUD inside `updatePackage`; `quoteBooking(originCity)` |
@@ -401,10 +416,12 @@ Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `
 
 ---
 
-## Part D — Validation schemas (`shared/schemas`, imported by web forms and api routes)
-- `enquirySchema`, `packageSchema` (with `itineraryDaySchema[]`, `departureSchema[]`, `faqSchema[]`, `hotelSchema[]`), `destinationSchema`, `imageSchema`, `loginSchema` — v1.
-- `quoteSchema`, `bookingContactSchema`, `paymentCallbackSchema`, `cancellationSchema`, `reviewSchema` — v2.
-- `chatMessageSchema`, tool input schemas, `packageDraftSchema`, `alertSchema` — v3.
+## Part D — Validation schemas (pydantic v2 models in `api/app/schemas/`; `web/` uses them through the generated `api-types.ts`)
+- `EnquiryCreate`, `PackageInput` (with `ItineraryDayInput[]`, `DepartureInput[]`, `FaqItem[]`, `HotelInput[]`), `DestinationInput`, `ImageInput` (multipart fields), `LoginRequest`, plus the response models `PackageCard`, `PackageDetail`, `DestinationSummary`, `Meta`, `SessionInfo` — v1.
+- `QuoteRequest`, `BookingContact`, `PaymentCallback`, `CancellationRequest`, `ReviewInput`, `OtpRequest`, `OtpVerify` — v2.
+- `ChatRequest`, tool argument models, `PackageDraft`, `AlertSubscribe` — v3.
+- Field names in the JSON contract are camelCase (`alias_generator=to_camel`, `populate_by_name=True`) so the generated TS reads naturally; the Python attributes are snake_case.
+- **The only client-side copy** is `web/src/lib/enquiry-schema.ts`, a zod mirror of `EnquiryCreate` for inline validation of the enquiry form (accepted duplication, see 04 §3); every other form relies on the api's `fieldErrors`.
 Rules that matter: Indian mobile `^[6-9]\d{9}$`; slugs `^[a-z0-9-]+$`; `days === nights + 1`; departure `date >= today` on create; prices `int >= 0`; `adults >= 1`, `children >= 0`, `adults + children <= 12` per booking; themes ≤ 3 per package.
 
 ## Part E — Data lifecycle & privacy

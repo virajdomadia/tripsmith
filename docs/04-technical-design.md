@@ -1,28 +1,30 @@
 # Tripsmith v1 — Technical Design
 
-**Lifecycle step:** 4 of 17 · **Version:** v1 "Agency website" · **Approved:** 2026-09-12 · **Revised:** 2026-09-12 for the `web/` + `api/` split (see [05-architecture.md](05-architecture.md) §0)
+**Lifecycle step:** 4 of 17 · **Version:** v1 "Agency website" · **Approved:** 2026-09-12 · **Revised:** 2026-09-12 for the `web/` + `api/` split (see [05-architecture.md](05-architecture.md) §0) · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI
 **Inputs:** [PRD.md](../PRD.md), [03-requirements.md](03-requirements.md) (R1–R13)
 **Outputs feeding:** step 5 architecture, step 6 database + API design
 **Forward design for v2 / v3 / add-ons:** [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md) — §0 there lists the v1 schema decisions that keep later versions additive (`users.role`, `itinerary_days.location`, derived `seats_left`, `enquiries.conversation_id`, deal columns, `climate[]` in destination content).
 
 ## Stack (shared across all six projects — fixed in `projects/README.md`)
-**web/**: Next.js App Router · TypeScript strict · Tailwind 4 + shadcn/ui · Playwright. **api/**: Hono (TypeScript) · `@hono/zod-openapi` · PostgreSQL (Neon) + Drizzle · Better Auth · Vitest. **shared/**: zod schemas + types. GitHub Actions · Sentry · Vercel (two projects). Package manager: pnpm workspaces.
+**web/**: Next.js App Router · TypeScript strict · Tailwind 4 + shadcn/ui · Playwright · pnpm. **api/**: FastAPI (Python 3.12) · uvicorn · pydantic v2 · PostgreSQL (Neon) + SQLAlchemy 2.0 async (asyncpg) + Alembic · own session auth · pytest · uv. **Contract:** FastAPI's OpenAPI document (`api/openapi.json`, committed) → generated `web/src/lib/api-types.ts` (`openapi-typescript`). No `shared/` package. GitHub Actions · Sentry · Vercel (two projects; api uses Vercel's FastAPI preset).
 
 **Split rule:** `web/` renders and collects input; `api/` owns data and logic. Every write below is an HTTP endpoint on `api/`; `web/` calls it through the same-origin `/api/*` rewrite.
+
+**Backend conventions (2026-09-13):** one `FastAPI` instance named `app` in `api/app/main.py`; one Vercel Function on Fluid compute, region `bom1`, `api/vercel.json` → `functions: { "app/main.py": { "maxDuration": 30 } }`; lifespan events create the SQLAlchemy engine lazily. Local dev: `uv run uvicorn app.main:app --port 8787 --reload`. Layout in [05-architecture.md](05-architecture.md) §2.
 
 ## v1-specific decisions
 
 | Concern | Decision | Alternative rejected |
 |---|---|---|
-| Media storage | **Vercel Blob**; `next/image` does resize/format | Cloudinary — transforms we don't need, second vendor |
-| PDF | **`@react-pdf/renderer`** in a route handler, cached in Blob | Headless Chrome — heavy on serverless |
-| Email | **Resend + react-email** | — |
-| Rate limiting | **Upstash Redis** (`@upstash/ratelimit`) via a generic `lib/ratelimit.ts` | Postgres counters — Upstash is reused in v3 for chat quotas (v2 seat holds are Postgres, see the v2/v3 design) |
+| Media storage | **Vercel Blob** via its REST API from `infra/storage.py` (no official Python SDK); uploads go through the api as a **server-side proxy** (Pillow checks dimensions, resizes to ≤ 2000 px); `next/image` does resize/format on the way out | Cloudinary — transforms we don't need, second vendor; Blob client uploads from the browser — need a token endpoint and a JS SDK we no longer share |
+| PDF | **fpdf2** (pure Python; DM Sans TTF bundled in `api/assets/fonts`) in a route, cached in Blob | Headless Chrome — heavy on serverless; WeasyPrint — native deps on Vercel |
+| Email | **Resend Python SDK + Jinja2 HTML templates** | — |
+| Rate limiting | **Upstash Redis REST** (`upstash-redis` package) behind a small sliding-window helper in `infra/ratelimit.py` | Postgres counters — Upstash is reused in v3 for chat quotas (v2 seat holds are Postgres, see the v2/v3 design) |
 | Page-view analytics | **Own `package_views` table** + `sendBeacon` | Vercel Analytics — no per-page API on the free tier |
-| Search | **Single Drizzle SQL query** `searchPackages()` | Search service — 12 rows |
-| CMS | **Custom admin** (it is the portfolio) | Sanity / Payload |
-| Backend | **Hono on Vercel functions**, REST + OpenAPI, one language shared with web | FastAPI — second language, duplicated types; Next.js server actions — no separate backend |
-| Seed content | **Typed TS files in `content/`**, upserted by `pnpm db:seed` | JSON / CSV — TS gives type-checking of genuine content |
+| Search | **Single SQLAlchemy query** `search_packages()` | Search service — 12 rows |
+| CMS | **Custom admin** (it is the portfolio); admin forms post to pydantic-validated endpoints and render `fieldErrors` from the envelope | Sanity / Payload |
+| Backend | **FastAPI (Python) on Vercel's FastAPI preset**, REST + built-in OpenAPI; the contract crosses the boundary as generated TS types | Hono (TypeScript) — one language, but the Python ecosystem wins for AI agents, MCP and PDF, and the portfolio wants a second language; Next.js server actions — no separate backend. Decided 2026-09-13 |
+| Seed content | **Typed Python content modules in `api/content/`** (pydantic `PackageContent` / `DestinationContent`, `define_package(...)`), upserted by `uv run python scripts/seed.py` | JSON / CSV — pydantic gives validation of genuine content at import time |
 | Maps (contact) | Google Maps embed iframe, no key | Maps Platform billing |
 
 ---
@@ -34,39 +36,42 @@
 | `/`, `/destinations`, `/destinations/[slug]`, `/packages/[slug]`, `/about`, `/contact`, policies | **Static** via `generateStaticParams`, revalidated on demand | Draft packages are excluded from `generateStaticParams`; direct hit → `notFound()` |
 | `/packages?…` | **Dynamic** on `searchParams`; DB query wrapped in `unstable_cache` tagged `packages` | Filters live in the URL (R3) |
 | `/admin/**` | Dynamic; server components fetching the API with cookies; `dynamic = 'force-dynamic'` | Behind auth |
-| `api GET /packages/:slug/itinerary.pdf` | Hono route (Node) | See §5 |
-| `api POST /views` | Hono route | See §8 |
+| `api GET /packages/:slug/itinerary.pdf` | FastAPI route | See §5 |
+| `api POST /views` | FastAPI route | See §8 |
 
 **Revalidation across the split:** web fetches carry `next: { tags }` (`packages`, `package:<slug>`, `destination:<slug>`). After every admin mutation the api calls `POST {WEB_URL}/revalidate` with `REVALIDATE_SECRET` and the affected tags; the web route handler runs `revalidateTag`. Sitemap uses the `packages` tag.
 
 ## 2. Data & search
-- Lives entirely in `api/src/modules/catalog` + `api/src/infra/db`. Drizzle schema defined in step 6 (`docs/06-data-and-api.md`). Core tables: `destinations`, `packages`, `itinerary_days`, `departures`, `package_images`, `enquiries`, `enquiry_notes`, `testimonials`, `package_views`, plus Better Auth tables.
-- `searchPackages(params)` in `api/src/modules/catalog/search.ts`, exposed as `GET /packages`: one query with `WHERE status = 'live'`, optional destination `IN`, theme array overlap (`&&`), `nights BETWEEN`, `starting_price <= budget`, and `EXISTS (SELECT 1 FROM departures WHERE package_id = p.id AND date_trunc('month', date) = :month AND seats_left > 0)` for travel month; `ORDER BY` price/duration. Returns cards with a computed badge. The same function is the v3 `searchPackages` tool.
-- Pricing helpers in `api/src/modules/catalog/pricing.ts`: `startingPrice(package)` = min over live departures of double-sharing price; `badgeFor(departure)` → `filling-fast | sold-out | guaranteed | null`.
-- Seed: `api/content/destinations/*.ts`, `api/content/packages/*.ts` (one file per package, typed against the Drizzle insert types), `api/content/testimonials.ts`. `api/scripts/seed.ts` upserts by slug; safe to re-run. Seed images in `public/seed/**`, uploaded to Blob on first seed with URLs written back to the DB.
+- Lives entirely in `api/app/services/catalog` + `api/app/infra/db.py` + `api/app/models/`. SQLAlchemy 2.0 async ORM (asyncpg driver, Neon pooled URL `postgresql+asyncpg://…`); schema defined in step 6 (`docs/06-data-and-api.md`); migrations by Alembic (`uv run alembic upgrade head`). Core tables: `destinations`, `packages`, `itinerary_days`, `departures`, `package_images`, `enquiries`, `enquiry_notes`, `testimonials`, `package_views`, plus the own `users` / `sessions` / `verification` tables.
+- `search_packages(params)` in `api/app/services/catalog/search.py`, exposed as `GET /packages`: one `select()` with `WHERE status = 'live'`, optional destination `IN`, theme array overlap (`&&`), `nights BETWEEN`, `starting_price <= budget`, and `EXISTS (SELECT 1 FROM departures JOIN departure_availability … WHERE package_id = p.id AND date_trunc('month', date) = :month AND seats_left > 0)` for travel month; `ORDER BY` price/duration. Returns pydantic `PackageCard` objects with a computed badge. The same function is the v3 `searchPackages` tool.
+- Pricing helpers in `api/app/services/catalog/pricing.py`: `starting_price(package)` = min over live departures of double-sharing price; `badge_for(departure)` → `filling-fast | sold-out | guaranteed | null`.
+- Seed: `api/content/destinations/*.py`, `api/content/packages/*.py` (one module per package, each a `define_package(...)` call returning a validated pydantic `PackageContent`), `api/content/testimonials.py`. `api/scripts/seed.py` upserts by slug; safe to re-run. Seed images in `api/content/photos/**`, uploaded to Blob on first seed (REST uploader in `infra/storage.py`, `--local` flag writes file URLs instead) with URLs written back to the DB.
 
 ## 3. Forms & mutations
-- Every write is an **api endpoint** validated with a zod schema from `shared/schemas`; the web form uses `react-hook-form` with the *same* schema for inline errors and posts JSON via the typed client (`web/lib/api-client.ts`).
+- Every write is an **api endpoint** validated by a pydantic v2 model in `api/app/schemas/` — the single source of the contract. The request/response types reach `web/` as generated TypeScript (`web/src/lib/api-types.ts`, from `api/openapi.json` via `openapi-typescript`, `pnpm gen:api`); the web form uses `react-hook-form`, posts JSON via the typed client (`web/src/lib/api.ts`) and renders `fieldErrors` from the error envelope inline.
+- Constants both sides need (themes, badge labels, limits such as max travellers) live once in `api/app/schemas/meta.py`: they are baked into the generated types as OpenAPI enums and served at runtime by `GET /meta` (public, cached) for anything the UI renders as labels.
+- **Client-side mirror (accepted duplication):** the enquiry form (1.2) keeps a small zod schema that mirrors the pydantic rules (phone regex, required fields, adults/children bounds) so validation runs before the round trip. The pydantic model is authoritative; the zod mirror is documented next to it and checked by a test that posts each zod-rejected case to the api and expects `code: "validation"`.
 - Enquiry form (R5) also works without JS: a plain `<form method="post" action="/enquire">` hits a tiny web route handler that forwards to `POST /api/enquiries` and redirects to `/enquiry/thanks?ref=…`.
-- Spam: hidden honeypot field (reject if filled), Upstash rate limit `5 / 10 min / IP` on `POST /enquiries` and `10 / 10 min / IP` on `/auth/sign-in`, duplicate suppression (same phone + package within 60 s → return the existing enquiry).
-- Admin CRUD forms: shadcn `Form` components; itinerary-day and gallery editors use `useFieldArray` with drag-to-reorder (`@dnd-kit`).
+- Spam: hidden honeypot field (reject if filled), Upstash rate limit `5 / 10 min / IP` on `POST /enquiries` and `10 / 10 min / IP` on `POST /auth/login`, duplicate suppression (same phone + package within 60 s → return the existing enquiry).
+- Admin CRUD forms: shadcn `Form` components typed from `api-types.ts`; itinerary-day and gallery editors use `useFieldArray` with drag-to-reorder (`@dnd-kit`).
 
 ## 4. Media
-- Uploads go browser → `POST /api/admin/uploads/token` (owner; returns a Blob client token) → Vercel Blob (`@vercel/blob` client upload) → URL stored in `package_images.url`. Validate type (`image/jpeg|png|webp`) and size (≤ 5 MB) server-side. `next/image` with `remotePatterns` for the Blob host.
+- Uploads are a **server-side proxy**: browser POSTs `multipart/form-data` to `POST /api/admin/packages/:id/images` (owner) → api checks type (`image/jpeg|png|webp`) and size (≤ 5 MB), Pillow reads dimensions and resizes to ≤ 2000 px on the long edge → `infra/storage.py` PUTs to Vercel Blob over its REST API (`PUT https://blob.vercel-storage.com/<pathname>`, `Authorization: Bearer $BLOB_READ_WRITE_TOKEN`, `x-api-version: 7`, `x-content-type`, `x-add-random-suffix: 0`, `x-allow-overwrite: 1`) → row in `package_images` (`url`, `width`, `height`, `position`). No client-upload token endpoint. `next/image` with `remotePatterns` for the Blob host.
 - Gallery order stored as `position`; cover = position 0.
 
 ## 5. PDF
-- api `GET /packages/:slug/itinerary.pdf`: look up package + `updatedAt`; key `pdf/{slug}-{updatedAtEpoch}.pdf`. If it exists in Blob → 302 to it. Else render `<ItineraryDocument package={…} />` with `@react-pdf/renderer` → `renderToBuffer` → put to Blob (public) → 302. Old versions are garbage-collected by a weekly cron (api `GET /cron/pdf-gc`, api project's `vercel.json`).
-- The same `renderToBuffer` is used by the enquiry confirmation email to attach the PDF (R6). Template lives in `api/src/modules/pdf/itinerary-document.tsx`; fonts (Newsreader, Inter) bundled in `api/assets/fonts`.
+- api `GET /packages/:slug/itinerary.pdf`: look up package + `updated_at`; key `pdf/{slug}-{updated_at_epoch}.pdf`. If it exists in Blob → 302 to it. Else `render_itinerary(package) -> bytes` with **fpdf2** → put to Blob (public, REST) → 302. Old versions are garbage-collected by a weekly cron (api `GET /cron/pdf-gc`, api project's `vercel.json`).
+- The same `render_itinerary` is used by the enquiry confirmation email to attach the PDF (R6). Renderer lives in `api/app/services/pdf/itinerary.py` (a small `Document` base so the v2 voucher reuses page chrome); DM Sans TTF (regular/bold) bundled in `api/assets/fonts` and registered with `add_font` — Unicode (₹, en dashes) works only through registered TTFs, never the core fonts.
 - Target: A4, < 2 MB, < 3 s cold.
 
 ## 6. Email
-- Resend via `api/src/modules/email/send.ts`; templates in `api/src/modules/email/templates/` with react-email: `enquiry-owner.tsx` (all fields, link to admin detail), `enquiry-customer.tsx` (thanks, what happens next, PDF attached, WhatsApp link).
-- Sent **after** the DB write, inside a `try/catch`; failure → `Sentry.captureException`, enquiry flagged `email_status = 'failed'` for the owner to see. The visitor still gets the thanks page.
+- Resend Python SDK via `api/app/services/email/send.py`; Jinja2 HTML templates in `api/app/services/email/templates/`: `enquiry_owner.html` (all fields, link to admin detail), `enquiry_customer.html` (thanks, what happens next, PDF attached, WhatsApp link), plus a plain-text alternative per template.
+- Sent **after** the DB write, inside a `try/except`; failure → `sentry_sdk.capture_exception`, enquiry flagged `email_status = 'failed'` for the owner to see. The visitor still gets the thanks page.
 
 ## 7. Auth
-- Better Auth runs **in api/** (Hono adapter) at `/auth/*`; email + password only, `emailAndPassword.disableSignUp = true`; the owner row is created by the seed script from `OWNER_EMAIL` / `OWNER_PASSWORD` env. Cookies are first-party because web proxies `/api/*`.
-- web `middleware.ts` gates `/admin/:path*` by asking `GET /api/auth/get-session` (redirect to `/admin/login`); api enforces `requireOwner` on every `/admin/*` route regardless.
+- **Own implementation in api/** (`app/services/auth`, `app/routers/auth.py`): `users` (with `role`) and `sessions` tables (see 06 §A2); passwords hashed with argon2 (`argon2-cffi`); no sign-up route in v1 — the owner row is created by the seed script from `OWNER_EMAIL` / `OWNER_PASSWORD` env. Routes: `POST /auth/login` (rate-limited `10 / 10 min / IP`), `POST /auth/logout`, `GET /auth/session`.
+- The session cookie carries the opaque `sessions.token` (HttpOnly, `SameSite=Lax`, `Secure` in prod, expiry from `sessions.expires_at`); it is set on the site origin because web proxies `/api/*`. FastAPI dependencies `require_owner` / `require_user` (v2) load the session row and reject with the `unauthorized` / `forbidden` envelope.
+- web `middleware.ts` gates `/admin/:path*` by asking `GET /api/auth/session` (redirect to `/admin/login`); api enforces `require_owner` on every `/admin/*` route regardless.
 - Demo credentials on the landing page are rendered from `NEXT_PUBLIC_DEMO_EMAIL` / `NEXT_PUBLIC_DEMO_PASSWORD` (portfolio demo only).
 
 ## 8. Page-view analytics
@@ -81,19 +86,21 @@
 - `opengraph-image.tsx` for packages and destinations via `next/og` (cover image + name + "from ₹X").
 
 ## 10. Testing & CI
-- **Vitest (api)**: `searchPackages` filter matrix (against a test DB), `pricing.ts`, shared zod schemas, `ItineraryDocument` renders to a buffer, CSV export formatting, plus route tests via `app.request()` (auth gates, validation errors, rate limits).
-- **Playwright**: visitor journey (home → filter → package → enquire → thanks; assert email via Resend test mode or a stubbed sender) and owner journey (login → edit price → public page shows new price). Runs against a **Neon branch** created per CI run from `main`, seeded, deleted afterwards.
-- **GitHub Actions**: `ci.yml` — pnpm install → lint → typecheck (web, api, shared) → vitest (api) → build both; `e2e.yml` — waits for **both** Vercel preview deployments, runs Playwright against the web preview (whose `API_URL` points at the api preview). Lighthouse CI on the preview for `/`, `/packages`, one package page with the ≥ 90 / 100 / 100 / 100 budget.
+- **pytest (api)**: pytest + pytest-asyncio + httpx `AsyncClient` against the app. `search_packages` filter matrix, `pricing.py`, pydantic schema edge cases, `render_itinerary` returns a PDF under the size budget, CSV export formatting, plus route tests through the client (auth gates, validation envelope, rate limits). DB-backed tests run against a **real Postgres** from `TEST_DATABASE_URL` (locally PostgreSQL 18 at `C:\Program Files\PostgreSQL\18`; in CI a `postgres:17` service container): the session fixture creates a fresh database, runs `alembic upgrade head`, and truncates all tables between tests. No secrets needed in CI.
+- **web**: vitest for the api client and the zod mirror; **Playwright**: visitor journey (home → filter → package → enquire → thanks; assert email via Resend test mode or a stubbed sender) and owner journey (login → edit price → public page shows new price). Runs against a **Neon branch** created per CI run from `main`, seeded, deleted afterwards.
+- **Lint / format / types**: ruff (lint + format) and pyright (`basic`) for api; eslint + prettier + tsc for web. Root `package.json` scripts fan out — `pnpm lint` = web eslint/prettier + `uv run ruff check . && uv run ruff format --check .`; `pnpm typecheck` = web tsc + `uv run pyright`; `pnpm test` = web vitest + `uv run pytest`; `pnpm dev` runs both servers with `concurrently`.
+- **GitHub Actions**: `ci.yml` — job `web` (pnpm install → lint → typecheck → test → build), job `api` (uv sync → ruff → pyright → pytest with a `postgres:17` service), job `contract` (regenerate `api/openapi.json` and `web/src/lib/api-types.ts`, fail on diff); `e2e.yml` — waits for **both** Vercel preview deployments, runs Playwright against the web preview (whose `API_URL` points at the api preview). Lighthouse CI on the preview for `/`, `/packages`, one package page with the ≥ 90 / 100 / 100 / 100 budget.
 
 ## 11. Observability
-- `@sentry/nextjs` (client, server, edge), source maps uploaded in CI. Vercel Analytics for traffic. UptimeRobot HTTP check on `/` every 5 min.
+- web: `@sentry/nextjs` (client, server, edge), source maps uploaded in CI. api: `sentry-sdk[fastapi]` initialised in `infra/observability.py` (the only place it is imported), request + exception capture, release tagged from the Vercel commit SHA. Vercel Analytics for traffic. UptimeRobot HTTP check on `/` and `/api/health` every 5 min.
 
 ## 12. Environment variables
-**api/**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`.
+**api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
 **web/**: `API_URL` (server-side base for rewrites/fetch), `REVALIDATE_SECRET`, `SENTRY_DSN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_DEMO_EMAIL`, `NEXT_PUBLIC_DEMO_PASSWORD`.
 
 ## 13. Trade-offs accepted
 - **Separate api/ instead of server actions**: two deploys and a revalidation hook, in exchange for a real documented API and a backend that other clients (MCP, future mobile) can use.
+- **Python backend instead of one-language TS** (2026-09-13): the trade is a generated-types step (`openapi.json` → `api-types.ts`, checked in CI) instead of a shared package, plus one small zod mirror for the enquiry form, in exchange for the Python ecosystem for AI (pydantic-ai), MCP (official SDK) and PDF (fpdf2), and a language-diverse portfolio.
 - **No CMS**: the admin is part of what the portfolio proves.
 - **No search service**: SQL over 12 rows; the AI tool reuses it.
 - **Static + on-demand revalidation** over SSR: more revalidation plumbing, but ~0 ms pages and free hosting.
@@ -103,8 +110,9 @@
 ## 14. Risks
 | Risk | Mitigation |
 |---|---|
-| `@react-pdf/renderer` font/layout quirks | Register fonts explicitly; snapshot-test the buffer size; keep layout simple |
-| Vercel Hobby function limits (10 s default) | api PDF route with `maxDuration = 30`; measured cold time target < 3 s |
+| fpdf2 fonts / Unicode: core fonts are Latin-1 only, so `₹` and dashes need a registered TTF; long itinerary text needs manual page breaks | Bundle DM Sans TTF in `api/assets/fonts` and `add_font` at render; `multi_cell` with auto page breaks; test asserts the PDF opens and stays < 2 MB; keep layout simple |
+| Cold start of the Python function (SQLAlchemy + pydantic import, engine creation) | Fluid compute keeps instances warm between requests; engine created lazily in lifespan and reused; no heavy imports at module top (fpdf2, Pillow, pydantic-ai loaded inside the service that needs them); measured cold time target < 3 s |
+| Vercel Hobby function limits (10 s default) | `api/vercel.json` `maxDuration = 30` for the single function; measured cold time target < 3 s |
 | Extra hop web → api on SSR | public pages are static (tags + revalidation), so the hop happens at build/revalidate, not per request; admin pages are owner-only |
 | Blob free-tier storage | 12 packages × 8 images ≈ 30 MB; PDFs GC'd weekly |
 | Neon branch creation in CI | Use the Neon GitHub Action; fall back to a shared test DB with per-run schema if quota is hit |
