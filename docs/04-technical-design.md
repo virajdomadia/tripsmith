@@ -3,6 +3,7 @@
 **Lifecycle step:** 4 of 17 · **Version:** v1 "Agency website" · **Approved:** 2026-09-12
 **Inputs:** [PRD.md](../PRD.md), [03-requirements.md](03-requirements.md) (R1–R13)
 **Outputs feeding:** step 5 architecture, step 6 database + API design
+**Forward design for v2 / v3 / add-ons:** [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md) — §0 there lists the v1 schema decisions that keep later versions additive (`users.role`, `itinerary_days.location`, derived `seats_left`, `enquiries.conversation_id`, deal columns, `climate[]` in destination content).
 
 ## Stack (shared across all six projects — fixed in `projects/README.md`)
 Next.js App Router · TypeScript strict · Tailwind 4 + shadcn/ui · PostgreSQL (Neon) + Drizzle · Better Auth · Vitest + Playwright · GitHub Actions · Sentry · Vercel. Package manager: pnpm.
@@ -14,7 +15,7 @@ Next.js App Router · TypeScript strict · Tailwind 4 + shadcn/ui · PostgreSQL 
 | Media storage | **Vercel Blob**; `next/image` does resize/format | Cloudinary — transforms we don't need, second vendor |
 | PDF | **`@react-pdf/renderer`** in a route handler, cached in Blob | Headless Chrome — heavy on serverless |
 | Email | **Resend + react-email** | — |
-| Rate limiting | **Upstash Redis** (`@upstash/ratelimit`) | Postgres counters — Upstash is reused in v2 for seat holds |
+| Rate limiting | **Upstash Redis** (`@upstash/ratelimit`) via a generic `lib/ratelimit.ts` | Postgres counters — Upstash is reused in v3 for chat quotas (v2 seat holds are Postgres, see the v2/v3 design) |
 | Page-view analytics | **Own `package_views` table** + `sendBeacon` | Vercel Analytics — no per-page API on the free tier |
 | Search | **Single Drizzle SQL query** `searchPackages()` | Search service — 12 rows |
 | CMS | **Custom admin** (it is the portfolio) | Sanity / Payload |

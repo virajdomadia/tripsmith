@@ -142,7 +142,7 @@ The wow. Feature list locked 2026-09-12; acceptance criteria written when v3 ent
 | **Streaming + package cards in chat** | Results render as real package cards, not text |
 | **Guardrails** | Never invents a package or price; refuses off-catalog requests politely; evals in CI |
 | **Handoff to human** | "Talk to an agent" → creates an enquiry with the chat transcript attached |
-| **Hindi / Hinglish** | Open question; decided when v3 enters step 3 |
+| **Hindi / Hinglish** | Supported by prompt — replies in the customer's language; UI stays English |
 | **"Notify me" for new departures** | Email capture the concierge can offer when nothing fits |
 | **Admin: conversation log** | Owner sees chats, which packages were suggested, and drop-offs |
 
@@ -198,6 +198,6 @@ Fixed: `virajdomadia.com` domain (~₹1,000/yr); subdomain free.
 - A stranger can go from landing page → chat → paid booking (test mode) in under 3 minutes
 - Agent never hallucinates a package that doesn't exist
 
-## Open questions
-- Does the concierge need to handle Hindi/Hinglish?
-- Do we let the chat complete payment, or always hand off to the checkout page?
+## Open questions — all resolved (2026-09-12, see docs/04-technical-design-v2-v3.md)
+- Hindi/Hinglish: **yes, by prompt** — the concierge replies in the customer's language; UI and package content stay English.
+- Payment in chat: **never** — `startBooking` hands off to the v2 checkout page.
