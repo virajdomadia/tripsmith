@@ -33,7 +33,9 @@
 - **A Editorial** · **B Search-first** · **C Brochure** — the three exploratory directions
 - **D Editorial + SaaS** — the brief above, implemented line for line. **Recommended.**
 
-**Chosen direction:** D, rebuilt as a showcase — `mockups/showcase.html` (published: https://claude.ai/code/artifact/42912aa9-92f9-4ce8-b653-5126ba72654e). The four layout variants were rejected on 2026-09-12 as too basic to show frontend skill; the showcase is the reference from here on.
+**Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". I Sunlit vs J Postcard: see the decision below. Earlier note kept for history:
+
+~~**Chosen direction:** D, rebuilt as a showcase~~ — `mockups/showcase.html` (published: https://claude.ai/code/artifact/42912aa9-92f9-4ce8-b653-5126ba72654e). The four layout variants were rejected on 2026-09-12 as too basic to show frontend skill; the showcase is the reference from here on.
 
 ### The showcase (what makes it Tripsmith's)
 - **Signature motion — the route draws itself.** The brand mark's dashed path (dot → marigold sun) is the page's one authored motion: it draws across the hero on load, it draws the itinerary map with scroll on the package page (GSAP ScrollTrigger, scrubbed, stops light up day by day), and it is the hover underline on links.
