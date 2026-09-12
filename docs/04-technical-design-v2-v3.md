@@ -1,7 +1,7 @@
 # Tripsmith — Technical Design for v2, v3, v4, and add-ons
 
 **Lifecycle step:** 4 of 17 (forward design) · **Written:** 2026-09-12
-**Companion to:** [04-technical-design.md](04-technical-design.md) (v1). Same stack, same conventions.
+**Companion to:** [04-technical-design.md](04-technical-design.md) (v1). Same stack, same conventions. **All server logic below lives in `api/`; `web/` only adds pages and components** (see [05-architecture.md](05-architecture.md) §0).
 **Status:** approved. Requirements with acceptance criteria: [03-requirements-v2.md](03-requirements-v2.md), [03-requirements-v3.md](03-requirements-v3.md). §0 lists the v1 decisions that keep every later feature additive.
 
 ---
@@ -15,10 +15,10 @@
 | `departures.guaranteed`, `seats_total`, `seats_left` as **derived** (`seats_total − confirmed − active holds`) not a mutable counter | v2 holds and bookings without double-counting |
 | `enquiries.conversation_id` (nullable FK) and `enquiries.type` enum including `chat-handoff` | v3 human handoff |
 | `packages.deal_price`, `deal_label`, `deal_ends_at` (nullable, unused in v1 UI) | v2 deals with no schema change |
-| `lib/pdf` takes a generic `Document` component | v2 voucher reuses the renderer |
+| `api modules/pdf` takes a generic `Document` component | v2 voucher reuses the renderer |
 | `searchPackages()` returns plain serialisable objects, no Drizzle classes | v3 tool result goes straight to the model |
-| `lib/ratelimit.ts` generic helper (key, limit, window) | v3 chat quotas |
-| `content/destinations/*.ts` includes a `climate[12]` array | Best-time strip |
+| `api infra/ratelimit.ts` generic helper (key, limit, window) | v3 chat quotas |
+| `api/content/destinations/*.ts` includes a `climate[12]` array | Best-time strip |
 
 ---
 
@@ -44,10 +44,10 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 - `quoteBooking(departureId, travellers[])` on the server returns the breakdown: adults × occupancy price, children × child price, single supplements, deal discount if `deal_ends_at > now()`, total. The client **never** sends amounts; the Razorpay order is created from the server quote.
 
 ### 5. Razorpay flow
-1. `createOrder` server action: quote → insert pending booking → `razorpay.orders.create({ amount, currency: 'INR', receipt: bookingId })` → return `order_id` + public key.
+1. `POST /api/bookings` (api): quote → insert pending booking → `razorpay.orders.create({ amount, currency: 'INR', receipt: bookingId })` → return `order_id` + public key.
 2. Client opens Razorpay Checkout.js with the order.
-3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` → server verifies `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` → mark payment `captured`, booking `confirmed`.
-4. **Webhook** `POST /api/webhooks/razorpay` (Node runtime, raw body): verify `X-Razorpay-Signature` with the webhook secret; handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition. Whichever of (3) or (4) arrives first confirms; the other is a no-op.
+3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /api/bookings/:ref/confirm` → api verifies `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` → mark payment `captured`, booking `confirmed`.
+4. **Webhook** `POST https://api.tripsmith.virajdomadia.com/webhooks/razorpay` (raw body, hits the api domain directly): verify `X-Razorpay-Signature` with the webhook secret; handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition. Whichever of (3) or (4) arrives first confirms; the other is a no-op.
 5. Test mode forever; keys in `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
 
 ### 6. Confirmation
@@ -74,10 +74,10 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ## v3 — AI concierge
 
 ### 1. Provider abstraction
-- Vercel AI SDK (`ai`) with `@ai-sdk/google` (Gemini Flash, free tier) as default and `@ai-sdk/anthropic` opt-in; `lib/ai/provider.ts` reads `AI_PROVIDER` and `AI_MODEL`. Nothing else in the codebase imports a vendor SDK.
+- Vercel AI SDK (`ai`) in **api/** with `@ai-sdk/google` (Gemini Flash, free tier) as default and `@ai-sdk/anthropic` opt-in; `api/src/modules/ai/provider.ts` reads `AI_PROVIDER` and `AI_MODEL`. Nothing else in the codebase imports a vendor SDK.
 
 ### 2. Chat runtime
-- `POST /api/chat` → `streamText({ model, system, messages, tools, maxSteps: 5 })`; client uses `useChat`. Tool results render as **package cards** (tool-result parts → `<PackageCard>`), never as prose tables.
+- api `POST /chat` (Hono streaming → SSE) → `streamText({ model, system, messages, tools, maxSteps: 5 })`; web `useChat({ api: '/api/chat' })` reaches it through the rewrite. Tool results render as **package cards** (tool-result parts → `<PackageCard>`), never as prose tables.
 - Anonymous `concierge_session` cookie; `conversations` + `messages` tables persist every turn (for the admin log and the handoff).
 - Quotas via `lib/ratelimit.ts`: 20 messages / IP / day, 30 messages per conversation, and a **global** 600 chat requests / day to stay inside the Gemini free quota. Over quota → the UI offers the enquiry form.
 
@@ -111,12 +111,12 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ## v4 — "Tripsmith anywhere" (MCP server)
 
 ### 1. Transport & hosting
-- `app/api/mcp/route.ts` using `mcp-handler` (Vercel's adapter over `@modelcontextprotocol/sdk`), **Streamable HTTP**, stateless per request (no SSE session store needed; Vercel Hobby has no long-lived processes). Node runtime, `maxDuration 30`.
+- api `routes/mcp.ts` using `@hono/mcp` (Hono's Streamable HTTP transport for `@modelcontextprotocol/sdk`), stateless per request (no SSE session store needed; Vercel Hobby has no long-lived processes). `maxDuration 30`. Public URL `https://api.tripsmith.virajdomadia.com/mcp` — clients hit the api domain directly.
 - Server metadata: name `tripsmith`, version from `package.json`, instructions string = the v3 system prompt's catalog-only rules.
 
 ### 2. Tools, resources, prompts
-- Tools are registered from the **same tool definitions as v3** (`lib/ai/tools.ts` exports `{ name, description, inputSchema, execute }`; both the AI SDK route and the MCP route import them). One definition, two transports.
-- Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `lib/catalog/markdown.ts` (also reusable for the PDF text and the concierge context).
+- Tools are registered from the **same tool definitions as v3** (`api/src/modules/ai/tools.ts` exports `{ name, description, inputSchema, execute }`; both the AI SDK route and the MCP route import them). One definition, two transports.
+- Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `api/src/modules/catalog/markdown.ts` (also reusable for the PDF text and the concierge context).
 - Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns a single user message that steers the client into the two-question flow.
 
 ### 3. Guardrails, limits, logging
@@ -130,7 +130,7 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 
 ### 5. Evals & proof
 - `evals/` gains an MCP driver: the same 20 conversations executed by a small MCP client harness against a preview deployment; assertions unchanged.
-- `/developers` page (static) with copy-paste config blocks for Claude Desktop (`claude_desktop_config.json` remote server entry), Cursor, ChatGPT connectors; README GIF recorded from Claude Desktop.
+- web `/developers` page (static) with copy-paste config blocks for Claude Desktop (`claude_desktop_config.json` remote server entry), Cursor, ChatGPT connectors; README GIF recorded from Claude Desktop.
 
 ### 6. Risks
 | Risk | Mitigation |

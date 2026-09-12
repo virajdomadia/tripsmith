@@ -1,7 +1,7 @@
 # Tripsmith — Development Plan
 
 **Lifecycle step:** 7 of 17 · **Written:** 2026-09-12
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 32 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 33 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
 How the lifecycle maps onto milestones: step 8 (setup) is milestone 1.0's first task; steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
@@ -10,19 +10,19 @@ How the lifecycle maps onto milestones: step 8 (setup) is milestone 1.0's first 
 
 ## v1 — Agency website (≈ 32 h)
 
-### Milestone 1.0 — Catalog live, read-only (≈ 8 h)
+### Milestone 1.0 — Catalog live, read-only (≈ 9 h)
 Goal: the package model is real, seeded with genuine content, and public pages are live at the production URL with CI.
 
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| 1.0.1 | Accounts & keys: Vercel project, Neon project (+ dev branch), Vercel Blob store, Sentry project, GitHub repo settings, `tripsmith.virajdomadia.com` DNS | 0.5 h | `.env.example` complete; all secrets in Vercel/GitHub |
-| 1.0.2 | Scaffold: `create-next-app` (TS strict, Tailwind 4, App Router, pnpm), shadcn/ui init, eslint/prettier, Vitest, Playwright, `lib/infra` adapters (db, storage, observability), folder layout from step 5 | 1 h | `pnpm lint typecheck test build` all green locally |
-| 1.0.3 | Drizzle schema `0001_v1` (all v1 tables + ⏩ columns + `departure_availability` view), migrations, `db:migrate` | 1 h | migration applies on a fresh Neon branch |
-| 1.0.4 | `definePackage`/`defineDestination` types + `scripts/seed.ts` (upsert by slug, image upload to Blob) | 1 h | `pnpm db:seed` idempotent |
+| 1.0.1 | Accounts & keys: **two** Vercel projects (`tripsmith` → web/, `tripsmith-api` → api/), Neon project (+ dev branch), Vercel Blob store, Sentry projects, GitHub repo settings, DNS for `tripsmith.` and `api.tripsmith.` | 0.5 h | `.env.example` in web/ and api/; all secrets in Vercel/GitHub |
+| 1.0.2 | Monorepo: pnpm workspaces (`web/`, `api/`, `shared/`); **web**: keep the existing Next.js app, add shadcn/ui, eslint/prettier, Playwright, `/api/*` rewrite, typed api client; **api**: Hono + `@hono/zod-openapi` + Scalar `/docs`, `hono/vercel` handler, node dev server, Vitest, `infra/` adapters; **shared**: zod schemas package; delete the FastAPI-shaped skeleton | 1.5 h | `pnpm -r lint typecheck test build` green; `GET /api/health` works through the rewrite locally |
+| 1.0.3 | Drizzle schema `0001_v1` in api (all v1 tables + ⏩ columns + `departure_availability` view), migrations, `db:migrate` | 1 h | migration applies on a fresh Neon branch |
+| 1.0.4 | `definePackage`/`defineDestination` types + `api/scripts/seed.ts` (upsert by slug, image upload to Blob) | 1 h | `pnpm --filter api db:seed` idempotent |
 | 1.0.5 | **Genuine content**: 6 destinations, 12 packages (full itineraries, real hotels, 2026 prices, 3–4 departures each), 6 testimonials, seed photos | 2 h | every package passes `setPackageStatus(live)` rules |
-| 1.0.6 | `lib/catalog`: `searchPackages`, `getPackage`, `listDestinations`, pricing/badge helpers + unit tests | 1 h | filter matrix tests green |
-| 1.0.7 | Pages: `/packages` (listing + FilterBar, URL-driven) and `/packages/[slug]` (gallery + lightbox, itinerary, inclusions, hotels, departures table, occupancy pricing, FAQ, related) — no CTAs yet | 1.5 h | static generation works; Lighthouse ≥ 90 on both |
-| 1.0.8 | CI (`ci.yml`: lint → typecheck → unit → build), Sentry wired, first production deploy, UptimeRobot check | 0.5 h | green run on `main`; site live at the subdomain |
+| 1.0.6 | api `modules/catalog` + routes `GET /packages`, `/packages/:slug`, `/destinations…`, pricing/badge helpers, OpenAPI docs + unit/route tests | 1.5 h | filter matrix tests green; `/docs` lists the endpoints |
+| 1.0.7 | web pages: `/packages` (listing + FilterBar, URL-driven, tagged fetch) and `/packages/[slug]` (gallery + lightbox, itinerary, inclusions, hotels, departures table, occupancy pricing, FAQ, related) — no CTAs yet; `/revalidate` hook | 1.5 h | static generation works; Lighthouse ≥ 90 on both |
+| 1.0.8 | CI (`ci.yml` for both packages), Sentry in both, first production deploys (web + api), UptimeRobot on `/` and `/api/health` | 0.5 h | green run on `main`; both live at their subdomains |
 | | Design note | | Before 1.0.7, pick the visual direction from a 3-variant mockup page (home + package page), per the usual variant workflow; the chosen variant sets tokens for everything after |
 
 ### Milestone 1.1 — It looks like an agency (≈ 6 h)
@@ -40,7 +40,7 @@ Goal: the package model is real, seeded with genuine content, and public pages a
 |---|---|---|
 | 1.2.1 | `lib/pdf`: `ItineraryDocument` (react-pdf, fonts), `renderToBuffer`, Blob cache keyed by `updatedAt`, route `itinerary.pdf`, GC cron | 2 h |
 | 1.2.2 | `lib/email`: Resend client, react-email templates (owner notification, customer confirmation with PDF), `email_status` handling | 1 h |
-| 1.2.3 | `lib/enquiry.submit` + `submitEnquiry` action: zod, honeypot, Upstash rate limit, dedupe, thanks page; EnquiryForm with standard/customise toggle, progressive enhancement; Contact page form | 2 h |
+| 1.2.3 | api `POST /enquiries` (shared zod schema, honeypot, Upstash rate limit, dedupe); web EnquiryForm with standard/customise toggle, no-JS proxy route, thanks page; Contact page form | 2 h |
 | 1.2.4 | Sticky mobile CTA bar on package page (price · Enquire · PDF · WhatsApp) | 0.5 h |
 | 1.2.5 | Tests: enquiry validation unit tests; Playwright visitor journey (home → filter → package → enquire → thanks); `e2e.yml` against the preview with a Neon branch | 0.5 h |
 | Done | A stranger can enquire from a phone and both emails arrive with the PDF attached | |
@@ -48,11 +48,11 @@ Goal: the package model is real, seeded with genuine content, and public pages a
 ### Milestone 1.3 — Owner side (≈ 8 h)
 | # | Task | Est. |
 |---|---|---|
-| 1.3.1 | Better Auth (email+password, sign-up disabled, owner seeded), middleware, `/admin/login`, `requireOwner`, demo credentials on landing page | 1 h |
-| 1.3.2 | Admin shell (nav, new-enquiry badge) + Dashboard (`getDashboard`, `package_views` beacon + edge route) | 1.5 h |
+| 1.3.1 | Better Auth in api (`/auth/*`, email+password, sign-up disabled, owner seeded), `requireOwner` middleware; web auth client, `middleware.ts` gate, `/admin/login`, demo credentials on landing page | 1.5 h |
+| 1.3.2 | Admin shell (nav, new-enquiry badge) + Dashboard (api `GET /admin/dashboard`, `POST /views` beacon) | 1.5 h |
 | 1.3.3 | Destinations CRUD | 0.5 h |
-| 1.3.4 | Packages CRUD: PackageForm (react-hook-form + zod), ItineraryEditor (dnd reorder), GalleryUploader (Blob client upload, reorder, cover), departures editor, FAQ/hotels editors, draft ↔ live with publish rules, duplicate, delete guards, revalidation | 3.5 h |
-| 1.3.5 | Enquiries inbox: table with filters/search, detail with status, notes, mailto/WhatsApp links, CSV export | 1.5 h |
+| 1.3.4 | Packages CRUD: api `/admin/packages*` + image endpoints with publish rules, duplicate, delete guards, revalidate hook; web PackageForm (react-hook-form + shared zod), ItineraryEditor (dnd reorder), GalleryUploader (Blob client upload, reorder, cover), departures/FAQ/hotels editors | 3 h |
+| 1.3.5 | Enquiries: api list/detail/status/notes/CSV endpoints; web inbox table with filters/search, detail, mailto/WhatsApp links | 1.5 h |
 | Done | Owner journey e2e: login → change a price → public page and PDF reflect it | |
 
 ### Milestone 1.4 — Hardening & review (≈ 4 h) — closes lifecycle steps 10–12, 17 for v1
@@ -65,7 +65,7 @@ Goal: the package model is real, seeded with genuine content, and public pages a
 | 1.4.5 | README (architecture diagram, how it works), `docs/17-post-launch.md` (what worked, metrics, next), portfolio case-study entry | 0.5 h |
 | Stretch | Best-time strip (add-on B, ~2 h) if under budget; storyboard (E) only if 1.0–1.4 came in ≥ 4 h under | |
 
-**v1 total: ≈ 32 h** (8 + 6 + 6 + 8 + 4).
+**v1 total: ≈ 33 h** (9 + 6 + 6 + 8 + 4) — +1 h for the two-package setup.
 
 ---
 
@@ -160,25 +160,25 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 ## Whole-product summary
 | Version | Milestones | Hours | Cumulative |
 |---|---|---|---|
-| v1 | 1.0 – 1.4 | 32 | 32 |
-| v2 | 2.0 – 2.3 | 15 | 47 |
-| v3 | 3.0 – 3.3 | 15 | 62 |
-| v4 | 4.0 | 6 | 68 |
+| v1 | 1.0 – 1.4 | 33 | 33 |
+| v2 | 2.0 – 2.3 | 15 | 48 |
+| v3 | 3.0 – 3.3 | 15 | 63 |
+| v4 | 4.0 | 6 | 69 |
 | Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 100 |
 
-The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (68 h). Add-ons are taken only from time saved.
+The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (69 h with the two-package setup). Add-ons are taken only from time saved.
 
 ---
 
 ## Sequencing rules
 1. Never start a milestone with a red CI on `main`.
-2. Each milestone = one branch, squash-merged; the merge is the production deploy.
+2. Each milestone = one branch, squash-merged; the merge deploys **both** web and api (Vercel ignores a package whose files didn't change).
 3. Content (1.0.5) is written before the pages that show it — the pages are designed around real data.
 4. The visual direction is chosen (variant page) before 1.0.7; no page is styled twice.
 5. Add-ons are only picked up when the enclosing version is fully done, including its docs.
 
 ## Dependencies to unblock before 1.0
-- Domain DNS: `tripsmith` CNAME → Vercel.
+- Domain DNS: `tripsmith` and `api.tripsmith` CNAMEs → Vercel (two projects).
 - Accounts: Vercel, Neon, Upstash, Resend (verify sending domain `virajdomadia.com`), Sentry, UptimeRobot, GitHub Actions secrets.
 - Photos: decide source (own / CC-licensed / generated) for 6 destination covers + ~50 package images — must be licence-clean for a public site.
 

@@ -8,7 +8,7 @@
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
 
 ## Stack
-Next.js (App Router) · TypeScript · Tailwind CSS 4 · PostgreSQL (Neon) + Drizzle · Better Auth · Razorpay · Vitest + Playwright · Sentry · Vercel
+**web/** Next.js (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · Playwright — **api/** Hono (TypeScript) · OpenAPI · PostgreSQL (Neon) + Drizzle · Better Auth · Razorpay · Vercel AI SDK · MCP SDK · Vitest — **shared/** zod schemas + types — Sentry · Vercel (two projects)
 
 ## In this repo
 ```
@@ -16,9 +16,10 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4) — the landing page
   src/app/            layout.tsx, page.tsx, globals.css
   src/components/     landing/ (one component per section), ui/
   src/lib/
-api/        FastAPI backend — folder structure only until the build starts
-  app/core · routers · models · schemas · services
-  tests/
+api/        Hono (TypeScript) REST API — folder structure only until milestone 1.0
+  src/routes · modules · infra · openapi.ts
+  content/  seed content · scripts/seed.ts · tests/
+shared/     zod schemas + TS types shared by web and api (created in 1.0)
 PRD.md      product requirements (v1 locked; v1-v4 versions, costs, add-ons)
 docs/       lifecycle outputs (steps 3-7): requirements v1-v4, user flows, technical design, architecture, data + API, plan
 mockups/    landing.html — the design source the web/ page was ported from

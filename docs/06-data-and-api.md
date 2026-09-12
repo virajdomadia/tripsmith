@@ -2,7 +2,7 @@
 
 **Lifecycle step:** 6 of 17 · **Written:** 2026-09-12
 **Inputs:** [03-requirements.md](03-requirements.md), [04-technical-design.md](04-technical-design.md), [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md), [05-architecture.md](05-architecture.md)
-**Scope:** every table and every endpoint the product will ever have, tagged with the version that introduces it. v1 builds only the v1-tagged tables **plus the forward-compat columns marked ⏩** (nullable, unused by v1 UI) so v2/v3 need no destructive migrations.
+**Scope:** every table and every endpoint the product will ever have, tagged with the version that introduces it. **Revised 2026-09-12:** all of Part C is served by `api/` (Hono) as REST endpoints; `web/` calls them via the `/api/*` rewrite. The "action" names in the tables are the api handler names; their HTTP routes are in §C-REST. v1 builds only the v1-tagged tables **plus the forward-compat columns marked ⏩** (nullable, unused by v1 UI) so v2/v3 need no destructive migrations.
 
 ## Conventions
 - IDs: `text` primary keys, cuid2 (`createId()`); human refs (`TS-7F3K2Q`) for enquiries and bookings.
@@ -242,17 +242,49 @@ export default definePackage({
 ## Part C — API surface
 
 ### C0. Conventions
-- **Reads** are plain async functions in `lib/<domain>` called from server components — no HTTP layer.
-- **Writes** are server actions. Every action returns
+- Everything is HTTP on `api/`. **Reads** are `GET` with query params; **writes** are `POST/PUT/PATCH/DELETE` with JSON bodies validated by `shared/schemas` (via `@hono/zod-openapi`, which also emits `/openapi.json` and the `/docs` page).
+- Success: `2xx` with the JSON payload. Errors:
   ```ts
-  type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string; fieldErrors?: Record<string, string> }
+  type ApiError = { error: { code: 'validation' | 'unauthorized' | 'forbidden' | 'not_found' | 'rate_limited' | 'conflict' | 'internal'; message: string; fieldErrors?: Record<string, string> } }
   ```
-  Unexpected errors are captured by Sentry and surfaced as a generic message.
-- **Route handlers** exist only for things that must be HTTP: files, beacons, crons, webhooks, streaming chat.
-- All admin actions call `requireOwner()` first; all customer actions (v2) call `requireUser()`.
+  with matching status (400/401/403/404/429/409/500). Unexpected errors are captured by Sentry and returned as `internal`.
+- Auth: Better Auth session cookie (first-party through the rewrite). `/admin/*` routes use `requireOwner` middleware; `/account/*` (v2) `requireUser`. Webhooks use provider signatures; crons use `Authorization: Bearer CRON_SECRET`.
+- Public `GET`s send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`; web additionally tags its fetches for on-demand revalidation.
+- `web/` keeps only: `POST /revalidate` (secret), OG image routes, sitemap/robots, and the no-JS enquiry proxy.
 - Rate-limit keys: `enquiry:{ip}`, `login:{ip}`, `chat:{ip}:{day}`, `chat:global:{day}`.
 
-### C1. Public reads — v1 (`lib/catalog`, `lib/analytics`)
+### C-REST. Endpoint map (whole app)
+| Version | Method + path | Handler (see tables below) | Auth |
+|---|---|---|---|
+| v1 | `GET /health` | — | public |
+| v1 | `GET /packages` | `searchPackages` | public |
+| v1 | `GET /packages/:slug` | `getPackage` | public |
+| v1 | `GET /packages/:slug/departures?month=` | `getDeparturesForMonth` | public |
+| v1 | `GET /packages/:slug/itinerary.pdf` | pdf | public |
+| v1 | `GET /destinations` · `GET /destinations/:slug` | `listDestinations` · `getDestination` | public |
+| v1 | `GET /home` | `getHomeData` | public |
+| v1 | `POST /enquiries` | `submitEnquiry` | public, rate-limited |
+| v1 | `POST /views` | `recordView` | public |
+| v1 | `ALL /auth/*` | Better Auth | — |
+| v1 | `GET /admin/dashboard` | `getDashboard` | owner |
+| v1 | `POST/PUT/DELETE /admin/destinations[/:id]` | destination CRUD | owner |
+| v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
+| v1 | `POST /admin/uploads/token` · `POST/PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
+| v1 | `GET /admin/enquiries` · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` | enquiries | owner |
+| v1 | `GET /cron/pdf-gc` | cron | CRON_SECRET |
+| v1 | `GET /docs` · `GET /openapi.json` | OpenAPI | public |
+| v2 | `POST /bookings/quote` · `POST /bookings` · `POST /bookings/:ref/confirm` | booking | public (session optional) |
+| v2 | `GET /account/bookings` · `GET /account/bookings/:ref` · `GET /account/bookings/:ref/voucher.pdf` · `POST /account/bookings/:ref/cancel` · `POST /account/bookings/:ref/review` | account | user |
+| v2 | `POST /webhooks/razorpay` | webhook | signature |
+| v2 | `GET /admin/bookings[.csv]` · `GET /admin/bookings/:ref` · `POST /admin/bookings/:ref/mark-paid` · `PATCH /admin/bookings/:ref/status` · `POST /admin/cancellations/:id/resolve` · `POST /admin/enquiries/:id/reply` · `PATCH /admin/reviews/:id` · `GET /admin/departures/:id/manifest` | admin v2 | owner |
+| v2 add-on D | `GET /pay/:token` · `POST /pay/:token/confirm` · `POST /bookings/:ref/cover-remaining` · `GET /cron/share-reminders` | split pay | public / user / cron |
+| v3 | `POST /chat` (SSE) | chat | public, quotas |
+| v3 | `POST /alerts` · `GET /alerts/unsubscribe/:token` · `GET /cron/departure-alerts` | notify-me | public / cron |
+| v3 | `GET /admin/conversations` · `GET /admin/conversations/:id` · `POST /admin/ai/package-draft` | admin v3 | owner |
+| v4 | `POST /mcp` | MCP server | public, rate-limited (stretch: OAuth) |
+| add-on C | `GET /account/bookings/:ref/hub` · `PATCH /account/bookings/:ref/checklist/:itemId` · `PUT /admin/packages/:id/checklist` · `PATCH /admin/departures/:id` (whatsapp group) | trip hub | user / owner |
+
+### C1. Public reads — v1 (`api modules/catalog`, `modules/analytics`)
 | Function | Params | Returns |
 |---|---|---|
 | `searchPackages` | `{ destination?: string[]; maxBudget?: number; nightsMin?: number; nightsMax?: number; themes?: Theme[]; month?: 'YYYY-MM'; sort?: 'price-asc'\|'price-desc'\|'duration' }` | `{ items: PackageCard[]; total: number }` — `PackageCard = { slug, name, destination, nights, days, startingPricePaise, themes, coverUrl, highlights, badge }` |
@@ -262,22 +294,24 @@ export default definePackage({
 | `getHomeData` | — | featured destinations, featured packages, testimonials |
 | `getDeparturesForMonth` | `packageSlug, 'YYYY-MM'` | departures with `seatsLeft` (used by the v3 tool too) |
 
-### C2. Public writes — v1 (`app/(site)/.../actions.ts`)
+### C2. Public writes — v1 (`POST /enquiries`)
 | Action | Input (zod) | Effects | Result |
 |---|---|---|---|
-| `submitEnquiry` | `{ type: 'standard'\|'custom'\|'contact'; packageSlug?; name; phone; email; travelMonth?; adults; children; message?; preferredDates?; budget?; changes?; website: '' (honeypot) }` | rate-limit; dedupe; insert; PDF; two emails; Sentry on mail failure | `{ ref }` → redirect `/enquiry/thanks?ref=` |
+| `submitEnquiry` | `{ type: 'standard'\|'custom'\|'contact'; packageSlug?; name; phone; email; travelMonth?; adults; children; message?; preferredDates?; budget?; changes?; website: '' (honeypot) }` | rate-limit; dedupe; insert; PDF; two emails; Sentry on mail failure | `201 { ref }` → web navigates to `/enquiry/thanks?ref=` |
 
-### C3. Route handlers — v1
-| Method + path | Runtime | Behaviour |
+### C3. Non-JSON routes — v1
+| Where | Method + path | Behaviour |
 |---|---|---|
-| `GET /packages/[slug]/itinerary.pdf` | node, `maxDuration 30` | 404 if draft; 302 to cached Blob PDF or render → store → 302 |
-| `POST /api/view` | edge | body `{ slug }`; UA bot filter; upsert `package_views`; 204 |
-| `POST /api/upload` | node | owner only; returns Blob client-upload token for `image/*` ≤ 5 MB |
-| `GET /api/cron/pdf-gc` | node | `Authorization: Bearer CRON_SECRET`; delete Blob PDFs whose `updatedAt` key no longer matches |
-| `GET /sitemap.xml`, `/robots.txt` | static | all live packages/destinations, static pages |
-| `GET /packages/[slug]/opengraph-image`, `/destinations/[slug]/opengraph-image` | edge | `next/og` |
+| api | `GET /packages/:slug/itinerary.pdf` (`maxDuration 30`) | 404 if draft; 302 to cached Blob PDF or render → store → 302 |
+| api | `POST /views` | body `{ slug }`; UA bot filter; upsert `package_views`; 204 |
+| api | `POST /admin/uploads/token` | owner only; returns Blob client-upload token for `image/*` ≤ 5 MB |
+| api | `GET /cron/pdf-gc` | `Authorization: Bearer CRON_SECRET`; delete Blob PDFs whose `updatedAt` key no longer matches |
+| web | `POST /revalidate` | `{ secret, tags[] }` from api → `revalidateTag` |
+| web | `GET /sitemap.xml`, `/robots.txt` | built from `GET /api/packages` + `/api/destinations` |
+| web | `/packages/[slug]/opengraph-image`, `/destinations/[slug]/opengraph-image` | `next/og` from API data |
+| web | `POST /enquire` | no-JS proxy → `POST /api/enquiries` → redirect |
 
-### C4. Admin actions — v1 (`app/(admin)/admin/**/actions.ts`)
+### C4. Admin endpoints — v1 (`/admin/*`, owner)
 | Action | Input | Notes |
 |---|---|---|
 | `createDestination` / `updateDestination` / `deleteDestination` | destination fields | delete blocked if packages exist |
@@ -305,7 +339,7 @@ export default definePackage({
 **Route handlers**
 | Method + path | Behaviour |
 |---|---|
-| `POST /api/webhooks/razorpay` | raw body; verify `X-Razorpay-Signature`; `payment.captured` → same guarded confirm; `payment.failed` → payment failed (booking stays pending until hold expiry); always 200 after recording |
+| api `POST /webhooks/razorpay` | raw body; verify `X-Razorpay-Signature`; `payment.captured` → same guarded confirm; `payment.failed` → payment failed (booking stays pending until hold expiry); always 200 after recording |
 | `GET /account/bookings/[ref]/voucher.pdf` | owner-of-booking or admin; `VoucherDocument` via `lib/pdf`, Blob-cached by `updatedAt` |
 | `GET /pay/[token]` (add-on D) | share pay page; creates the share's Razorpay order on demand |
 | `GET /api/cron/share-reminders` (add-on D) | daily; email unpaid shares older than 24 h |
@@ -316,7 +350,7 @@ export default definePackage({
 `pending → confirmed` (payment captured, Σ paid ≥ total) · `pending → partially_paid` (split, some paid) · `partially_paid → confirmed` · `pending|partially_paid → cancelled` (expired or failed) · `confirmed → cancelled` (cancellation approved) · `confirmed → completed` (departure date < today, nightly cron or lazy on read).
 
 ### C6. v3 — Concierge
-**`POST /api/chat`** (node, streaming) — body: AI SDK `{ messages, conversationId? }`. Steps: quotas (`chat:{ip}:{day}` ≤ 20, `chat:global:{day}` ≤ `CHAT_GLOBAL_DAILY_LIMIT`, ≤ 30 messages per conversation, ≤ 500 chars per user message) → load/create conversation → `streamText({ model: provider(), system, messages: trimmed, tools, maxSteps: 5 })` → persist user + assistant parts → post-turn guardrail (slugs/prices ⊆ tool results, else replace + force search) → stream. Over quota → `429 { reason }`; the UI shows the enquiry form.
+**api `POST /chat`** (SSE streaming) — body: AI SDK `{ messages, conversationId? }`. Steps: quotas (`chat:{ip}:{day}` ≤ 20, `chat:global:{day}` ≤ `CHAT_GLOBAL_DAILY_LIMIT`, ≤ 30 messages per conversation, ≤ 500 chars per user message) → load/create conversation → `streamText({ model: provider(), system, messages: trimmed, tools, maxSteps: 5 })` → persist user + assistant parts → post-turn guardrail (slugs/prices ⊆ tool results, else replace + force search) → stream. Over quota → `429 { reason }`; the UI shows the enquiry form.
 
 **Tools (zod schemas)**
 | Tool | Input | Calls | Output |
@@ -336,7 +370,7 @@ export default definePackage({
 | `generatePackageDraft { brief, destinationSlug }` (admin action, add-on A) | `generateObject(packageDraftSchema)` with the destination's live packages as style examples → returns draft JSON for the form; logs to `ai_generations`; never writes `packages` |
 
 ### C8. v4 — MCP server
-**`POST /api/mcp`** (node, Streamable HTTP, stateless). Also `GET /api/mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
+**api `POST /mcp`** (Streamable HTTP via `@hono/mcp`, stateless) at `https://api.tripsmith.virajdomadia.com/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
 
 | MCP surface | Name | Maps to |
 |---|---|---|
@@ -352,7 +386,7 @@ export default definePackage({
 
 Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `mcp-enquiry:{ip}:{day}` ≤ 5. Errors: MCP tool error content with a short message; zod issues are summarised, never raw.
 
-**`GET /developers`** — static page: what it is, install config blocks, tool list, limits, privacy.
+**web `GET /developers`** — static page: what it is, install config blocks, tool list, limits, privacy.
 
 ### C7. Add-on endpoints
 | Add-on | Endpoints |
@@ -367,7 +401,7 @@ Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `
 
 ---
 
-## Part D — Validation schemas (shared client/server, `lib/validation`)
+## Part D — Validation schemas (`shared/schemas`, imported by web forms and api routes)
 - `enquirySchema`, `packageSchema` (with `itineraryDaySchema[]`, `departureSchema[]`, `faqSchema[]`, `hotelSchema[]`), `destinationSchema`, `imageSchema`, `loginSchema` — v1.
 - `quoteSchema`, `bookingContactSchema`, `paymentCallbackSchema`, `cancellationSchema`, `reviewSchema` — v2.
 - `chatMessageSchema`, tool input schemas, `packageDraftSchema`, `alertSchema` — v3.

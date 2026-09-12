@@ -196,6 +196,7 @@ Chat plans a real trip from real packages and pre-fills the booking — no forms
 - Payments: Razorpay Checkout + webhook verification, idempotent booking creation
 - Email: Resend
 - SEO: destination and package pages statically generated, JSON-LD for TouristTrip/Offer
+- Repo layout (locked 2026-09-12, all projects): **`web/` (Next.js, UI only) + `api/` (Hono TypeScript REST API, owns data/auth/logic) + `shared/` (zod schemas + types)**. Two Vercel projects; web proxies `/api/*` to the API so cookies stay first-party. See docs/05-architecture.md §0.
 
 ## Costs (locked 2026-09-12) — the whole product runs on ₹0 beyond the domain
 | Need | Paid trap | Free route we take |

@@ -1,211 +1,204 @@
 # Tripsmith — Architecture
 
-**Lifecycle step:** 5 of 17 · **Written:** 2026-09-12
+**Lifecycle step:** 5 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-12 for the separate `web/` + `api/` layout
 **Inputs:** [04-technical-design.md](04-technical-design.md), [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md)
-**Scope:** the v1 system, with the v2/v3 seams marked so they slot in without restructuring.
+**Scope:** the whole product; v2/v3/v4 seams marked.
+
+## 0. The split (applies to all six portfolio projects)
+Two deployables in one repo, one language, shared types:
+
+| Folder | What | Owns | Deployed as |
+|---|---|---|---|
+| **`web/`** | Next.js App Router — UI only | pages, components, SEO, forms (as thin clients), static generation | Vercel project `tripsmith` → `tripsmith.virajdomadia.com` |
+| **`api/`** | Hono (TypeScript) REST API | database, auth, business logic, PDF, email, uploads, payments, AI, MCP, crons, webhooks | Vercel project `tripsmith-api` (Hono on Vercel functions) → `api.tripsmith.virajdomadia.com` |
+| **`shared/`** | `@tripsmith/shared` workspace package | zod schemas, TS types, constants (themes, enums, limits) | published to neither — imported by both |
+
+`web/` **never** imports Drizzle or touches the database. It talks to `api/` over HTTP through a same-origin rewrite (`/api/*` → the API deployment), so cookies are first-party and there is no CORS. Everything designed in steps 4 and 6 as a "server action" becomes an API endpoint; `web/` keeps only trivial route handlers (revalidation hook, OG images, sitemap).
 
 ## 1. System context
-
 ```mermaid
 flowchart LR
-  V[Visitor - phone/desktop]
-  O[Owner - admin]
+  V[Visitor]
+  O[Owner]
+  MC[MCP client - v4]
   subgraph Vercel
-    APP[Next.js app<br/>public site + admin + route handlers]
-    BLOB[(Vercel Blob<br/>images, PDFs)]
+    WEB[web - Next.js<br/>pages, SSG, forms]
+    API[api - Hono<br/>REST + SSE + MCP]
+    BLOB[(Vercel Blob)]
   end
   NEON[(Neon Postgres)]
-  UP[(Upstash Redis<br/>rate limits)]
-  RES[Resend<br/>email]
+  UP[(Upstash Redis)]
+  RES[Resend]
   SEN[Sentry]
-  WA[WhatsApp<br/>wa.me links]
-  GH[GitHub Actions<br/>CI / e2e / Lighthouse]
+  RZ[Razorpay - v2]
+  AI[AI provider - v3]
 
-  V -->|HTTPS| APP
-  O -->|HTTPS /admin| APP
-  APP --> NEON
-  APP --> BLOB
-  APP --> UP
-  APP -->|enquiry emails + PDF| RES
-  APP -->|errors| SEN
-  V -.->|click-to-chat| WA
-  GH -->|deploy previews, run tests| APP
+  V --> WEB
+  O --> WEB
+  WEB -->|/api/* rewrite, same-origin| API
+  MC -->|/api/mcp| API
+  API --> NEON & UP & BLOB & RES & SEN
+  API <--> RZ
+  API --> AI
+  API -->|POST /revalidate| WEB
 ```
 
-External systems in v1: **five** (Neon, Blob, Upstash, Resend, Sentry), all free tier. v2 adds Razorpay; v3 adds one AI provider behind an abstraction; v4 adds no external system — it makes Tripsmith *itself* a service (MCP) that external assistants call.
+## 2. Repo layout (pnpm workspaces)
+```
+tripsmith/
+├─ web/                              Next.js
+│  ├─ app/
+│  │  ├─ (site)/                     home, destinations/, packages/, about/, contact/, enquiry/thanks, policies
+│  │  ├─ (admin)/admin/              login/, dashboard, destinations/, packages/, enquiries/  (v2: bookings/, v3: conversations/)
+│  │  ├─ (account)/account/          v2
+│  │  ├─ developers/                 v4
+│  │  ├─ revalidate/route.ts         POST from api with secret → revalidateTag/Path
+│  │  ├─ sitemap.ts · robots.ts · opengraph-image routes
+│  ├─ components/  ui/ · site/ · admin/ · seo/ · concierge/ (v3)
+│  ├─ lib/  api-client.ts (typed fetch, cookies forwarded) · auth-client.ts (Better Auth client) · seo/
+│  ├─ tests/e2e/                     Playwright
+│  └─ next.config.ts                 rewrites: /api/:path* → API_URL/:path*
+├─ api/                              Hono
+│  ├─ src/
+│  │  ├─ app.ts                      Hono app: middleware (logger, sentry, rate limit, auth session), routes mounted
+│  │  ├─ index.ts                    Vercel handler (hono/vercel); local dev via @hono/node-server
+│  │  ├─ routes/
+│  │  │  ├─ public/                  catalog.ts, enquiries.ts, pdf.ts, views.ts
+│  │  │  ├─ admin/                   destinations.ts, packages.ts, images.ts, enquiries.ts, dashboard.ts
+│  │  │  ├─ auth.ts                  Better Auth handler mounted at /auth/*
+│  │  │  ├─ cron/                    pdf-gc.ts (v3: departure-alerts, v2 add-on: share-reminders)
+│  │  │  ├─ account/ · bookings.ts · webhooks/razorpay.ts     v2
+│  │  │  ├─ chat.ts (SSE) · alerts.ts                          v3
+│  │  │  └─ mcp.ts                                             v4
+│  │  ├─ modules/                    catalog/ enquiry/ pdf/ email/ auth/ analytics/ seo-markdown/  (v2 booking/ payments/, v3 ai/, v4 mcp/)
+│  │  ├─ infra/                      db/ (schema.ts, client.ts, migrations/), ratelimit.ts, storage.ts, observability.ts, revalidate.ts
+│  │  └─ openapi.ts                  @hono/zod-openapi → /docs (Scalar UI) + /openapi.json
+│  ├─ content/                       seed content (definePackage files)
+│  ├─ scripts/seed.ts
+│  ├─ tests/                         unit + route tests (vitest, app.request)
+│  └─ drizzle.config.ts
+├─ shared/                           @tripsmith/shared: schemas/ (zod), types/, constants/
+├─ docs/ · mockups/ · brand/
+├─ package.json · pnpm-workspace.yaml · turbo.json (optional)
+└─ .github/workflows/                ci.yml, e2e.yml, lighthouse.yml
+```
 
-## 2. One app, three faces
-
-A single Next.js deployment serves three audiences with route groups; nothing is a separate service.
-
-| Face | Route group | Who | Rendering |
-|---|---|---|---|
-| **Public site** | `app/(site)/` | visitors, crawlers | static + on-demand revalidation; listing dynamic |
-| **Admin** | `app/(admin)/admin/` | owner | dynamic, authenticated |
-| **Machine endpoints** | `app/api/`, `app/(site)/packages/[slug]/itinerary.pdf/` | browsers (beacon), crons, later webhooks and chat | route handlers |
-
-## 3. Module boundaries (the `lib/` layer)
-
-The rule: **routes and components never touch Drizzle directly.** They call a domain module in `lib/`, and each domain module owns its tables.
+## 3. Module boundaries inside `api/`
+The rule from before still holds, one level down: **routes never touch Drizzle; they call modules; modules own their tables; infra is the only place a vendor SDK is imported.**
 
 ```mermaid
 flowchart TB
-  subgraph UI["app/ (routes, server actions, components)"]
-    SITE[(site)]
-    ADMIN[(admin)]
-    API[api/]
+  subgraph ROUTES["api/src/routes"]
+    PUB[public/] ; ADM[admin/] ; AUTHR[auth] ; CRON[cron/] ; LATER[v2 bookings · v3 chat · v4 mcp]
   end
-  subgraph DOMAIN["lib/ (domain modules)"]
-    CAT[catalog<br/>destinations, packages, itinerary, departures, images<br/>searchPackages, pricing, badges]
-    ENQ[enquiry<br/>enquiries, notes, CSV<br/>submit, updateStatus, addNote]
-    PDF[pdf<br/>ItineraryDocument, render, blob cache]
-    MAIL[email<br/>templates, send]
-    AUTH[auth<br/>Better Auth config, requireOwner]
-    ANA[analytics<br/>package_views, dashboard queries]
-    SEO[seo<br/>metadata helpers, JSON-LD builders]
+  subgraph MODULES["api/src/modules"]
+    CAT[catalog] ; ENQ[enquiry] ; PDF[pdf] ; MAIL[email] ; AUTH[auth] ; ANA[analytics]
   end
-  subgraph INFRA["lib/infra (thin adapters)"]
-    DB[db - Drizzle client + schema]
-    RL[ratelimit - Upstash]
-    STORE[storage - Vercel Blob]
-    OBS[observability - Sentry]
+  subgraph INFRA["api/src/infra"]
+    DB[db] ; RL[ratelimit] ; ST[storage] ; OBS[observability] ; REV[revalidate → web]
   end
-
-  SITE --> CAT & ENQ & PDF & SEO & ANA
-  ADMIN --> CAT & ENQ & AUTH & ANA & STORE
-  API --> ANA & PDF & AUTH
+  PUB --> CAT & ENQ & PDF & ANA
+  ADM --> CAT & ENQ & ANA & ST & AUTH
+  CRON --> PDF
   ENQ --> MAIL & PDF & RL
-  CAT --> DB & STORE
-  ENQ --> DB
-  PDF --> STORE
-  ANA --> DB
-  AUTH --> DB & RL
-  MAIL --> OBS
+  CAT --> DB & ST & REV
+  ENQ --> DB ; PDF --> ST ; ANA --> DB ; AUTH --> DB & RL ; MAIL --> OBS
+```
+- Modules return plain objects typed by `@tripsmith/shared` — the same types `web/` renders and the v3 tools return.
+- Routes validate with the shared zod schemas via `@hono/zod-openapi`, which also generates the OpenAPI document.
+
+## 4. Auth across the split
+- **Better Auth runs in `api/`** (Hono adapter), mounted at `/auth/*`. Session cookie is set on the site origin because `web/` proxies `/api/*` → API; the browser never sees a second origin.
+- `web/` uses the Better Auth **client** pointed at `/api/auth` for login/logout and a `getSession()` helper (server-side fetch forwarding cookies) in `middleware.ts` to gate `/admin/*` (v2: `/account/*`).
+- `api/` enforces authorization itself on every protected route (`requireOwner`, v2 `requireUser`) — the web gate is UX only.
+
+## 5. Key flows (revised)
+
+### 5.1 Static package page
+```
+build: web generateStaticParams → GET /api/packages?status=live (slugs)
+request: web page.tsx → fetch(`${API}/packages/${slug}`, { next: { tags: ['packages', `package:${slug}`] } }) → render
+client: <ViewBeacon> → POST /api/views { slug }
 ```
 
-**Dependency rules**
-- `app/*` → `lib/<domain>` only. Never `lib/infra` directly (except `auth` middleware).
-- `lib/<domain>` → `lib/infra` and other domains **only downward**: `enquiry` may use `pdf` and `email`; `catalog` uses nothing but infra. No cycles.
-- `lib/infra` → third-party SDKs. This is the only place a vendor SDK is imported (`drizzle-orm`, `@vercel/blob`, `@upstash/ratelimit`, `@sentry/nextjs`, `resend`). Swapping a vendor touches one file.
-- Domain modules return **plain objects** (no Drizzle row classes) so results can be cached, serialised to client components, and later handed to the AI tools unchanged.
-
-## 4. Folder layout
-
+### 5.2 Listing with filters
 ```
-tripsmith/
-├─ app/
-│  ├─ (site)/                 public pages: page.tsx, destinations/, packages/, about/, contact/, enquiry/thanks, policies
-│  │  └─ packages/[slug]/
-│  │     ├─ page.tsx
-│  │     ├─ opengraph-image.tsx
-│  │     └─ itinerary.pdf/route.ts
-│  ├─ (admin)/admin/          login/, page.tsx (dashboard), destinations/, packages/, enquiries/
-│  ├─ api/                    view/route.ts (edge), upload/route.ts, cron/pdf-gc/route.ts
-│  ├─ sitemap.ts · robots.ts · layout.tsx · not-found.tsx
-├─ components/
-│  ├─ ui/                     shadcn primitives
-│  ├─ site/                   Hero, SearchBox, PackageCard, FilterBar, ItineraryDay, DeparturesTable, EnquiryForm, WhatsAppButton…
-│  ├─ admin/                  PackageForm, ItineraryEditor, GalleryUploader, EnquiryTable…
-│  └─ seo/                    JsonLd components
-├─ lib/
-│  ├─ catalog/ · enquiry/ · pdf/ · email/ · auth/ · analytics/ · seo/ · validation/
-│  └─ infra/                  db/ (schema.ts, client.ts, migrations/), ratelimit.ts, storage.ts, observability.ts
-├─ content/                   destinations/*.ts, packages/*.ts, testimonials.ts, policies/*.md
-├─ emails/                    react-email templates
-├─ scripts/                   seed.ts
-├─ tests/                     unit/ (vitest), e2e/ (playwright)
-├─ public/                    seed images, fonts, favicon
-└─ .github/workflows/         ci.yml, e2e.yml, lighthouse.yml
+web /packages?… → fetch /api/packages?destination=&maxBudget=&nights=&theme=&month=&sort= (tag 'packages') → cards
+FilterBar updates the URL; web re-renders; API query is the single searchPackages() implementation
 ```
 
-## 5. Key flows
-
-### 5.1 Visitor reads a package page
-```
-GET /packages/goa-north-beaches
-  → static HTML from Vercel CDN (built via generateStaticParams)
-  → client: <ViewBeacon> fires sendBeacon('/api/view') once per session
-        → edge handler → lib/analytics.recordView → Neon upsert
-```
-
-### 5.2 Visitor filters the listing
-```
-GET /packages?destination=goa&nights=3-4&month=2026-11
-  → server component parses searchParams → lib/catalog.searchPackages(params)
-  → unstable_cache(tag: 'packages') → Drizzle query → cards
-  → FilterBar (client) updates the URL via router.replace; server re-renders the list
-```
-
-### 5.3 Enquiry (the money flow of v1)
+### 5.3 Enquiry
 ```mermaid
 sequenceDiagram
-  participant B as Browser
-  participant A as submitEnquiry (server action)
-  participant RL as ratelimit
+  participant B as Browser (web form)
+  participant W as web (no-JS fallback: route handler proxy)
+  participant A as api POST /enquiries
   participant DB as Neon
-  participant P as lib/pdf
+  participant P as pdf module
   participant M as Resend
-  B->>A: form (name, phone, …, packageSlug, honeypot)
-  A->>A: zod validate, honeypot check
-  A->>RL: 5/10min per IP
-  A->>DB: dedupe (phone+package <60s) → insert enquiry (status=new)
-  A->>P: render or fetch cached itinerary PDF
-  A->>M: owner notification + customer confirmation (PDF attached)
-  Note over A,M: email failure → Sentry + enquiry.email_status='failed'; never blocks
-  A-->>B: redirect /enquiry/thanks?ref=…
+  B->>A: JSON (or W proxies a plain form POST)
+  A->>A: zod (shared schema), honeypot, rate limit 5/10min/IP, dedupe
+  A->>DB: insert enquiry
+  A->>P: itinerary PDF (blob-cached)
+  A->>M: owner + customer emails (PDF attached)
+  A-->>B: 201 { ref } → web navigates to /enquiry/thanks?ref=
 ```
 
-### 5.4 Owner edits a package
+### 5.4 Owner edits a package (revalidation across the split)
 ```
-POST server action updatePackage(id, data)
-  → requireOwner() → zod validate → lib/catalog.updatePackage (transaction: package + days + departures + images)
-  → revalidateTag('packages'); revalidatePath('/packages/[slug]'); revalidatePath('/destinations/[destSlug]')
-  → updatedAt changes → next PDF request renders a fresh file (old one GC'd weekly)
+web admin form → PUT /api/admin/packages/:id (cookie) → api: requireOwner → tx → 200
+api → POST {WEB_URL}/revalidate { secret, tags: ['packages', 'package:slug', 'destination:slug'] }
+web /revalidate → revalidateTag(...) → next request rebuilds the static page
+api: updatedAt changed → next itinerary.pdf request renders a fresh file
 ```
 
 ### 5.5 Image upload
 ```
-Admin <GalleryUploader> → server action getUploadToken() (requireOwner, validates type/size)
-  → browser uploads directly to Vercel Blob with the token
-  → server action attachImage(packageId, url, position) → Neon
+web GalleryUploader → POST /api/admin/uploads/token (owner) → Blob client upload from browser → POST /api/admin/packages/:id/images { url, position }
+```
+
+### 5.6 v3 chat (SSE across the split)
+```
+web Concierge (useChat, api: '/api/chat') → rewrite → api POST /chat (Hono streaming, AI SDK streamText) → SSE back through the rewrite
+```
+
+### 5.7 v4 MCP
+```
+MCP client → POST https://api.tripsmith.virajdomadia.com/mcp (direct, no rewrite) → mcp module → same tool definitions as chat
 ```
 
 ## 6. Deployment topology
-
-| Environment | Branch | URL | Data |
+| Environment | web | api | Data |
 |---|---|---|---|
-| **Local** | any | `localhost:3000` | Neon dev branch (or local Postgres via Docker), Blob dev store, Resend test key |
-| **Preview** (step 14 staging) | every PR | `tripsmith-git-<branch>.vercel.app` | Neon branch per PR (created by CI, seeded, deleted on close); Playwright + Lighthouse run here |
-| **Production** | `main` | `tripsmith.virajdomadia.com` | Neon `main` branch |
+| Local | `localhost:3000` (rewrites → `localhost:8787`) | `localhost:8787` (`@hono/node-server`) | Neon dev branch |
+| Preview (step 14 staging) | Vercel preview per PR; `API_URL` = the api preview URL | Vercel preview per PR | Neon branch per PR, seeded by CI |
+| Production | `tripsmith.virajdomadia.com` | `api.tripsmith.virajdomadia.com` | Neon `main` |
 
-- Vercel project `tripsmith`, framework preset Next.js, Node 22, region `bom1` (Mumbai) to sit next to the Indian audience; Neon project in the closest region (Singapore).
-- Secrets live only in Vercel env (production / preview / development scopes) and GitHub Actions secrets; `.env.example` documents names, never values.
-- Crons: `vercel.json` → `/api/cron/pdf-gc` weekly (Hobby allows daily-granularity crons).
+- Two Vercel projects from one repo (root directories `web/` and `api/`), both region `bom1`; Neon in Singapore.
+- Crons live in the **api** project's `vercel.json`. Webhooks (v2) and MCP (v4) hit the api domain directly.
+- Secrets split: `api/` holds all service keys; `web/` holds only `API_URL`, `REVALIDATE_SECRET`, `NEXT_PUBLIC_*`.
 
-## 7. Cross-cutting concerns
-
+## 7. Cross-cutting
 | Concern | Where |
 |---|---|
-| Auth | `middleware.ts` gates `/admin/*`; `lib/auth.requireOwner()` inside every admin server action |
-| Validation | `lib/validation/*.ts` zod schemas shared by client forms and server actions |
-| Rate limiting | `lib/infra/ratelimit.ts` — `limit(key, n, window)`; used by enquiry, login (v1), chat (v3) |
-| Errors | Server actions return `{ ok: false, fieldErrors | message }`; unexpected errors → Sentry + generic message; `error.tsx` boundaries per route group |
-| Caching | Tag `packages` for all catalog reads; `revalidateTag` on every catalog mutation |
-| Observability | Sentry client/server/edge; Vercel Analytics; UptimeRobot on `/` |
-| Content | Seed content is code (`content/`), reviewed like code; the DB is the runtime source of truth after seeding |
+| Validation | `shared/schemas` — one zod schema per form/endpoint, used by web forms and api routes |
+| OpenAPI | generated by `@hono/zod-openapi`; served at `/docs` (Scalar) — a portfolio artifact in itself |
+| Errors | api returns `{ error: { code, message, fieldErrors? } }` with proper status; web maps to inline errors; unexpected → Sentry in both |
+| Caching | web `fetch` tags + `/revalidate` hook; api sets `Cache-Control` on public GETs |
+| Rate limiting | api `infra/ratelimit` (Upstash) as Hono middleware per route |
+| Observability | Sentry in both projects; Vercel Analytics on web; UptimeRobot on `/` and `/api/health` |
+| Content | `api/content/` seed files; DB is the runtime source of truth |
 
-## 8. v2 / v3 seams (already accounted for)
-
+## 8. v2 / v3 / v4 seams
 | Later piece | Slots into |
 |---|---|
-| `lib/booking` (quote, holds, state machine), `lib/payments` (Razorpay adapter in `lib/infra/razorpay.ts`), `app/api/webhooks/razorpay` | new domain modules + one infra adapter; `catalog` unchanged |
-| `lib/ai` (provider, tools, guardrails), `app/api/chat`, `components/site/Concierge` | tools call `catalog.searchPackages`, `booking.quote`, `enquiry.submit` — existing domain functions, no new data paths |
-| v4 `app/api/mcp` (MCP server) | imports the same `lib/ai/tools.ts` definitions as the chat route; resources read `lib/catalog`; one new table `mcp_requests` |
-| Customer accounts | Better Auth already present; `users.role` column exists from v1 |
-| Add-ons (storyboard, best-time strip, trip hub, split pay) | read `itinerary_days.location`, `climate[]`, `booking` — all designed in v1/v2 schema |
+| v2 `modules/booking`, `modules/payments`, routes `account/`, `bookings.ts`, `webhooks/razorpay.ts` | api only; web adds `(account)` pages and the checkout UI calling the endpoints |
+| v3 `modules/ai` (provider, tools, guardrails), `routes/chat.ts` (SSE) | api; web adds the Concierge component |
+| v4 `modules/mcp`, `routes/mcp.ts` | api; imports the same `modules/ai/tools.ts`; web adds `/developers` |
+| Add-ons | schema already carries their columns; each is a module + a page |
 
 ## 9. What this architecture deliberately avoids
-- No separate API service, no monorepo, no microservices — one deployable.
-- No client-side data fetching library (SWR/React Query) — server components + server actions cover v1; v3 chat uses the AI SDK's own hook.
-- No ORM-level abstraction beyond Drizzle — SQL is visible and testable.
-- No feature flags system — versions ship as releases, not toggles.
+- No FastAPI / second language — one toolchain, shared types across the boundary.
+- No GraphQL — REST + OpenAPI is enough and reads well in a portfolio.
+- No microservices beyond the two deployables; no message queue (crons + lazy expiry cover every timed need).
+- No client-state library — server components + a typed fetch client; the chat uses the AI SDK hook.
