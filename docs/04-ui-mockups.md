@@ -33,7 +33,23 @@
 - **A Editorial** · **B Search-first** · **C Brochure** — the three exploratory directions
 - **D Editorial + SaaS** — the brief above, implemented line for line. **Recommended.**
 
-**Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". Decision: **K = I Sunlit base + three Postcard touches** (stamp badges on package cards, framed-photo About section with a stamp, notepaper reviews) — approved 2026-09-12 ("done"). Colour palette: being chosen from six options on the K palette switcher (Sea + Coral · Ocean + Marigold · Brand teal + Marigold · Forest + Terracotta · Indigo + Saffron · Sunset red + Marigold). Earlier note kept for history:
+**Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". Decision: **K = I Sunlit base + three Postcard touches** (stamp badges on package cards, framed-photo About section with a stamp, notepaper reviews) — approved 2026-09-12 ("done"). Colour palette: **Ocean + Marigold** (chosen 2026-09-12 from six options).
+
+### Design tokens (final — these go into `web/` Tailwind theme)
+| Token | Value | Used for |
+|---|---|---|
+| `--bg` / `--bg2` | `#FFFFFF` / `#F3F6FC` | page / tinted surfaces |
+| `--ink` / `--ink2` / `--mute` | `#14202A` / `#3B4148` / `#5E6B76` | text |
+| `--line` | `#E3E8EC` | hairlines, card borders |
+| `--primary` (ocean) / `--primary-ink` | `#1B4FD8` / `#143EAD` | logo, nav accents, icons, links, secondary buttons |
+| `--action` (marigold) / `--action-ink` | `#F2A93B` / `#D98F1F` | primary buttons (dark text `#14202A` on marigold), stamps |
+| `--ok` / `--warn` | `#1F7A4D` / `#B5541E` | guaranteed / filling-fast |
+| WhatsApp | `#25D366` | WhatsApp buttons only |
+| Type | **DM Sans** 400–800 (headlines 800, tracking −.03em) | everything; no serif in the UI |
+| Radii | 12px buttons · 16–18px cards · 999px chips | |
+| Shadows | soft, offset: `0 30px 50px -30px rgba(20,32,42,.35)` on hover | |
+| Motifs | postmark stamps (dashed circle, −12°) for badges and the About section; framed tilted photos; notepaper reviews with tape | from J |
+| Photos | real, 16:10 cards, 3:4 destination tiles, full-bleed hero with top+bottom gradient | | Earlier note kept for history:
 
 ~~**Chosen direction:** D, rebuilt as a showcase~~ — `mockups/showcase.html` (published: https://claude.ai/code/artifact/42912aa9-92f9-4ce8-b653-5126ba72654e). The four layout variants were rejected on 2026-09-12 as too basic to show frontend skill; the showcase is the reference from here on.
 
