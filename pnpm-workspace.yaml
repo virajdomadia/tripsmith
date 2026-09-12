@@ -1,0 +1,13 @@
+packages:
+  - web
+  - api
+  - shared
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+onlyBuiltDependencies:
+  - '@electric-sql/pglite'
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - '@tailwindcss/oxide'

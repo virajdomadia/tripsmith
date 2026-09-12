@@ -5,19 +5,30 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --turbopack",
-    "start": "next start"
+    "start": "next start",
+    "lint": "eslint . && prettier --check src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"web unit tests: none yet\"",
+    "e2e": "playwright test"
   },
   "dependencies": {
+    "@tripsmith/shared": "workspace:*",
     "next": "15.5.25",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "zod": "4.6.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@eslint/eslintrc": "3.3.7",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.20.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "eslint": "9.39.5",
+    "eslint-config-next": "15.5.25",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
   }
 }

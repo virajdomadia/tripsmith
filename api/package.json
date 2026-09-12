@@ -1,0 +1,37 @@
+{
+  "name": "@tripsmith/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "lint": "prettier --check src tests content scripts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/infra/db/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "1.6.3",
+    "@neondatabase/serverless": "1.1.0",
+    "@paralleldrive/cuid2": "3.3.0",
+    "@scalar/hono-api-reference": "0.12.1",
+    "@tripsmith/shared": "workspace:*",
+    "@vercel/blob": "2.8.0",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.7",
+    "zod": "4.6.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@hono/node-server": "2.1.1",
+    "@types/node": "22.20.2",
+    "dotenv": "17.4.2",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
