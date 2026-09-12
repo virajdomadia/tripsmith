@@ -1,0 +1,15 @@
+{
+  "name": "@tripsmith/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "prettier --check src tests",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "echo shared has no build step"
+  },
+  "dependencies": { "zod": "4.6.2" },
+  "devDependencies": { "typescript": "5.9.3", "vitest": "4.1.11" }
+}
