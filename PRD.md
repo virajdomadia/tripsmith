@@ -1,6 +1,6 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · Stage 1 fully decided 2026-09-12 · lifecycle step 2 (PRD) complete, next: step 3 Requirements & Scope
+**Status:** v1 · lifecycle step 3 (Requirements & Scope) complete 2026-09-12 — see [docs/03-requirements.md](docs/03-requirements.md) · next: step 4 Technical Design
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
 **Slot:** #1 · Budget ~60 h · Build first
@@ -31,16 +31,22 @@ Travel sites come in four species. Tripsmith is the first one, deliberately:
 
 Why not the others: an OTA can't be built honestly without live inventory APIs; a marketplace's hard part (suppliers, payouts) is already covered by Skillroom (project 5). The package agency is the only species that can be made **completely real** — real itineraries, real prices, real owner dashboard, real checkout — and it's the best host for an AI concierge (tool calling over a closed catalog never hallucinates). Not to be re-opened.
 
-### 2. Build order: base site → booking engine → AI concierge
-Each stage is shippable on its own. Stage 1 alone is already a complete agency website.
+### 2. Versions: v1 agency website → v2 booking engine → v3 AI concierge
+Three major versions, each with one new hard thing and one demo, each a full pass through the lifecycle (v2/v3 re-enter at step 3). Inside a major, minor releases (1.0, 1.1 …) are deployable milestones defined in step 7. v1 alone is already a complete agency website.
+
+| Version | Ships | Proves | ~Hours |
+|---|---|---|---|
+| **v1 Agency website** | Catalog, search, package pages, enquiry + WhatsApp, itinerary PDF, single-owner admin, SEO | A complete, live, real agency site | 32 |
+| **v2 Booking engine** | Book now → Razorpay → confirmation, my bookings, admin bookings | Payments, webhooks, idempotency | 15 |
+| **v3 AI concierge** | Chat with `searchPackages` / `checkAvailability` / `startBooking` tools | Tool-calling agent over a real catalog | 15 |
 
 ### 3. Identity
 **Tripsmith is the agency.** The site is Tripsmith Holidays itself — one name everywhere, no "platform + demo agency" layer to explain, and the brand kit already exists.
 
 ### 4. Conversion action
-Stage 1 converts through **enquiry form + WhatsApp**. Stage 2 adds **Book now**. Both stay on the package page forever — real agencies keep both because half of customers want to talk before paying.
+v1 converts through **enquiry form + WhatsApp**. v2 adds **Book now**. Both stay on the package page forever — real agencies keep both because half of customers want to talk before paying.
 
-## Stage 1 — Base agency website (no booking, no AI)
+## v1 — Base agency website (no booking, no AI)
 
 ### The base feature: the package catalog (locked 2026-09-12)
 Everything — site, booking engine, AI — is built on one thing: **a package, modelled properly.** The strong base is the package data model plus the search over it, not any single page.
@@ -56,17 +62,17 @@ Enquiry          package, name, phone, travel month, travellers, status, notes
 ```
 
 Why this shape is load-bearing:
-- **Departures are rows, not "dates: text"** — Stage 2 sells a specific date with seat counts; the AI's `checkAvailability` tool is real.
+- **Departures are rows, not "dates: text"** — v2 sells a specific date with seat counts; the AI's `checkAvailability` tool is real.
 - **Itinerary days are structured, not a markdown blob** — the AI can reference "Day 2" as a field; JSON-LD `TouristTrip` comes for free.
 - **Theme, nights, price are typed and indexed** — the listing's filter bar and the AI's `searchPackages` tool call the *same* server function. Build it once.
-- **Enquiry references a package** — the admin inbox already looks like a bookings list; Stage 2 just adds `Booking` beside it.
+- **Enquiry references a package** — the admin inbox already looks like a bookings list; v2 just adds `Booking` beside it.
 
-What the catalog feature includes in Stage 1:
+What the catalog feature includes in v1:
 1. The model above, seeded with **genuine content**: real places, real hotels, plausible 2026 prices, full day-by-day itineraries, 3–4 departure dates each. No "Day 2: sightseeing" filler. (Locked: keep it genuine.)
 2. `searchPackages({destination, maxBudget, nights, theme})` as one server function
 3. Packages listing with a filter bar calling that function
 4. Package page rendering everything in the model
-5. Admin CRUD for all of it — most Stage 1 hours go here
+5. Admin CRUD for all of it — most v1 hours go here
 
 Home, Destinations, About, Contact are presentation over the same data.
 
@@ -83,6 +89,8 @@ Home, Destinations, About, Contact are presentation over the same data.
 
 Themes spread across beach / hills / honeymoon / family so every filter returns results. Each package: full day-by-day itinerary, real hotels, plausible 2026 per-person prices, 3–4 departure dates.
 
+The definitive v1 feature list with acceptance criteria is **[docs/03-requirements.md](docs/03-requirements.md)** (R1–R13). Summary:
+
 ### Customer pages
 1. **Home** — hero (large destination photo + one-line promise + search box: destination / budget / days), 4–6 featured destinations as image tiles, 6 popular packages as cards, "why us" strip (3–4 trust points), testimonials, footer with contact details.
 2. **Destinations** — grid of destinations (Goa, Kerala, Himachal, Rajasthan, Andaman, Ladakh…), each tile → destination page.
@@ -92,27 +100,31 @@ Themes spread across beach / hills / honeymoon / family so every filter returns 
 6. **About** — agency story, team, why trust us.
 7. **Contact** — address, phone, WhatsApp, map, enquiry form.
 
-### Conversion (Stage 1)
-- "Enquire about this trip" on every package page → short form (name, phone, travel month, travellers) → emails the agency, saved to admin, shows a "we'll call you within 2 hours" confirmation.
-- Sticky WhatsApp button site-wide.
+### Conversion (v1)
+- "Enquire about this trip" on every package page → one form with a standard / customise-this-trip toggle → saved to admin, emails both sides (itinerary PDF attached), "we'll call you within 2 hours".
+- Sticky WhatsApp button site-wide, package pre-filled.
+- **Itinerary PDF** download on every package page, generated from package data.
+- Share (WhatsApp / copy link) with OG image per package.
+- Package page also shows occupancy pricing (double / triple / child / single supplement) and departure badges (filling fast / sold out / guaranteed); listing filters include travel month.
 
 ### Admin
-- **Single owner login** (locked 2026-09-12): one admin account, demo credentials shown on the landing page. No staff roles in Stage 1 — RBAC is Skillroom's headline, and a small agency is one person with a laptop.
-- Manage destinations and packages (photos, itinerary, prices, departure dates)
-- Enquiries inbox: list, status (new / contacted / converted), notes
+- **Single owner login** (locked 2026-09-12): one admin account, demo credentials shown on the landing page. No staff roles in v1 — RBAC is Skillroom's headline, and a small agency is one person with a laptop.
+- Manage destinations and packages (photos, itinerary, prices, departure dates), draft/live, duplicate package
+- Enquiries inbox: list, status (new / contacted / converted / closed), notes, CSV export
+- Dashboard: enquiries this week, top packages, upcoming departures
 
 ### Look & feel
 Warm, editorial, photo-led — large imagery, serif headings (Newsreader, per the brand kit), generous whitespace, one accent colour. Airbnb's calm, not MakeMyTrip's density. Mobile-first: most enquiries come from phones.
 
-## Stage 2 — Booking engine
+## v2 — Booking engine
 - Package page gains **Book now**: pick departure date & travellers → Razorpay checkout → confirmation email.
 - Account: my bookings.
 - Admin: bookings list with payment status.
-- Details to be designed when Stage 1 is done.
+- Details to be designed when v1 is done.
 
-## Stage 3 — AI concierge
+## v3 — AI concierge
 - Chat: "3 days in Goa under ₹15k" → asks 1–2 questions → searches packages (tool) → proposes itinerary → "Book this" hands off to the booking flow.
-- Details to be designed when Stage 2 is done.
+- Details to be designed when v2 is done.
 
 ## The wow moment
 Chat plans a real trip from real packages and pre-fills the booking — no forms.
