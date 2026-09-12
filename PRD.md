@@ -116,21 +116,51 @@ The definitive v1 feature list with acceptance criteria is **[docs/03-requiremen
 ### Look & feel
 Warm, editorial, photo-led — large imagery, serif headings (Newsreader, per the brand kit), generous whitespace, one accent colour. Airbnb's calm, not MakeMyTrip's density. Mobile-first: most enquiries come from phones.
 
-## v2 — Booking engine
-- Package page gains **Book now**: pick departure date & travellers → Razorpay checkout → confirmation email.
-- Account: my bookings.
-- Admin: bookings list with payment status.
-- Details to be designed when v1 is done.
+## v2 — Booking engine (~15 h)
+The site starts taking money. Feature list locked 2026-09-12; acceptance criteria written when v2 enters step 3.
 
-## v3 — AI concierge
-- Chat: "3 days in Goa under ₹15k" → asks 1–2 questions → searches packages (tool) → proposes itinerary → "Book this" hands off to the booking flow.
-- Details to be designed when v2 is done.
+| Feature | What it is |
+|---|---|
+| **Book now** | On the package page beside Enquire: pick a departure → travellers by occupancy (adults double/triple, children, single) → live price breakdown → Razorpay Checkout → paid |
+| **Seat holds** | Seats reserved for 10 min while paying; released on timeout / failure |
+| **Payment verification** | Razorpay webhook + signature check; idempotent booking creation (no double booking on retry) |
+| **Booking confirmation** | Email with a **voucher PDF** (reuses the v1 PDF generator) + WhatsApp link |
+| **Customer accounts** | Email/OTP login; "My bookings" with status and voucher download |
+| **Admin bookings** | List with payment status, filter by departure, manual "mark paid" for offline payments, CSV export |
+| **Deals** | Discounted price + offer tag on a package; deals strip on home |
+| **Reply from inbox** | Owner emails a customer from the enquiry detail, PDF attached, logged on the record |
+| **Cancellation requests** | Customer requests cancellation → status; refunds handled offline (no refund API in v2) |
+| **Reviews** | Customers with a completed booking can leave a rating + photo; shown on the package page |
+
+## v3 — AI concierge (~15 h)
+The wow. Feature list locked 2026-09-12; acceptance criteria written when v3 enters step 3.
+
+| Feature | What it is |
+|---|---|
+| **Concierge chat** | Floating assistant on every page; "3 days in Goa under ₹15k for 2" → asks 1–2 questions → answers only from real packages |
+| **Tools** | `searchPackages` (the v1 server function), `checkAvailability` (v2 departures + seats), `startBooking` (opens v2 checkout pre-filled) |
+| **Streaming + package cards in chat** | Results render as real package cards, not text |
+| **Guardrails** | Never invents a package or price; refuses off-catalog requests politely; evals in CI |
+| **Handoff to human** | "Talk to an agent" → creates an enquiry with the chat transcript attached |
+| **Hindi / Hinglish** | Open question; decided when v3 enters step 3 |
+| **"Notify me" for new departures** | Email capture the concierge can offer when nothing fits |
+| **Admin: conversation log** | Owner sees chats, which packages were suggested, and drop-offs |
+
+## Nice-to-have (any version, only if hours remain)
+| Feature | Notes |
+|---|---|
+| Itinerary route map | Static map of the day-by-day stops on the package page; stops already exist in the itinerary model |
+| Departure-city pricing | Ex-Mumbai / ex-Delhi / ex-Bengaluru prices per departure; doubles the pricing model |
+| Blog / travel guides | "Best time to visit Goa", "What to pack for Ladakh" — SEO play, content-heavy |
+| Compare packages | Pick 2–3, side-by-side table |
+| Wishlist / recently viewed | `localStorage`, no account needed |
+| Request a callback | Phone + preferred time, 10-second form; duplicate of Enquire, so only if a real reason appears |
+
+## Never (decided)
+Flights / hotels APIs · multi-currency · loyalty points · newsletter · visa / forex / insurance add-ons · multiple admins with roles (that's Skillroom's job) · a separate group/corporate flow (it's enquiry type = group).
 
 ## The wow moment
 Chat plans a real trip from real packages and pre-fills the booking — no forms.
-
-## Out of scope (v1)
-Flights/hotels APIs, multi-currency, refunds/cancellations UI, reviews, multi-agency.
 
 ## Tech notes (to discuss)
 - AI: Vercel AI SDK, streaming, tool calling (`searchPackages`, `checkAvailability`, `startBooking`); guardrails so it only recommends real packages
