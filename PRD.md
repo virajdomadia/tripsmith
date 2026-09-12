@@ -146,15 +146,28 @@ The wow. Feature list locked 2026-09-12; acceptance criteria written when v3 ent
 | **"Notify me" for new departures** | Email capture the concierge can offer when nothing fits |
 | **Admin: conversation log** | Owner sees chats, which packages were suggested, and drop-offs |
 
-## Nice-to-have (any version, only if hours remain)
+## Nice-to-have (only if hours remain)
+
+### Unique features — what would make Tripsmith stand out (added 2026-09-12)
+| Feature | What it is | Placement |
+|---|---|---|
+| **Owner-side AI: draft a package** | Admin types "5N Kerala honeymoon, ₹35k" → AI drafts the whole package (days, hotels, inclusions, FAQ) into the editor for review. AI as operator tooling, not just a chatbot | v3 stretch (~4 h) |
+| **Best-time strip** | On each destination page, a 12-month bar showing rain / heat / crowd / price level, tied to the travel-month filter ("October — ideal") | v1 nice-to-have (~2 h) |
+| **Trip hub after booking** | Private page per booking: countdown, departure details, documents checklist, AI-generated packing list for that destination and month, weather at departure | v2/v3 stretch (~6 h) |
+| **Split payment for groups** | One booking, N travellers, each gets their own pay link; confirms when all pay or the leader covers the rest; reminders, hold expiry | v2 stretch (~8 h) — most serious engineering |
+| **Itinerary storyboard** | Scroll-driven map on the package page: the route draws itself day by day, photos and stops animate in | v1/v2 stretch (~6 h, GSAP + static map) |
+
+Rejected: concierge inside WhatsApp (WhatsApp Business API costs money — 2026-09-12); group planning / RSVP features (overlap with Zapigo); mood-based visual search (Offcut's hard part).
+
+### Standard nice-to-haves
 | Feature | Notes |
 |---|---|
-| Itinerary route map | Static map of the day-by-day stops on the package page; stops already exist in the itinerary model |
+| Itinerary route map | Static map of the day-by-day stops; superseded by the storyboard above if that gets built |
 | Departure-city pricing | Ex-Mumbai / ex-Delhi / ex-Bengaluru prices per departure; doubles the pricing model |
 | Blog / travel guides | "Best time to visit Goa", "What to pack for Ladakh" — SEO play, content-heavy |
 | Compare packages | Pick 2–3, side-by-side table |
 | Wishlist / recently viewed | `localStorage`, no account needed |
-| Request a callback | Phone + preferred time, 10-second form; duplicate of Enquire, so only if a real reason appears |
+| Request a callback | Phone + preferred time; duplicate of Enquire, so only if a real reason appears |
 
 ## Never (decided)
 Flights / hotels APIs · multi-currency · loyalty points · newsletter · visa / forex / insurance add-ons · multiple admins with roles (that's Skillroom's job) · a separate group/corporate flow (it's enquiry type = group).
