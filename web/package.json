@@ -1,5 +1,5 @@
 {
-  "name": "tripsmith-web",
+  "name": "@tripsmith/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . && prettier --check src",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"web unit tests: none yet\"",
+    "test": "vitest run",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -23,12 +23,13 @@
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.2",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
     "eslint-config-next": "15.5.25",
     "prettier": "3.9.6",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
   }
 }

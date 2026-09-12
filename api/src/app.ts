@@ -1,15 +1,17 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { logger } from 'hono/logger';
-import { ApiError } from './errors';
+import { ApiError, ROOT_FIELD } from './errors';
 import { health } from './routes/public/health';
 
 export function createApp() {
   const app = new OpenAPIHono({
     defaultHook: (result, c) => {
       if (!result.success) {
+        // One message per field (first issue wins); object-level refine issues land under ROOT_FIELD.
         const fieldErrors: Record<string, string> = {};
-        for (const i of result.error.issues) fieldErrors[i.path.join('.') || '_'] = i.message;
+        for (const i of result.error.issues)
+          fieldErrors[i.path.join('.') || ROOT_FIELD] ??= i.message;
         return c.json(new ApiError('validation', 'Invalid request', fieldErrors).body(), 400);
       }
     },

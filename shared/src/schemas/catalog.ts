@@ -1,19 +1,29 @@
 import { z } from 'zod';
 import { LIMITS, MONTH_RE, SLUG_RE, SORTS, THEMES } from '../constants';
 
+/** A GET form submits every field, so `?maxBudget=` means "not set", not an empty value. */
+const blankToUndefined = (v: unknown) => (v === '' ? undefined : v);
+const optionalParam = <T extends z.ZodType>(inner: T) =>
+  z.preprocess(blankToUndefined, inner.optional());
+
 const csv = (inner: z.ZodType<string>) =>
   z.preprocess((v) => (typeof v === 'string' ? v.split(',').filter(Boolean) : v), z.array(inner));
 
 /** Query string of GET /packages. Arrays arrive as CSV (`?destination=goa,kerala`). */
-export const searchParamsSchema = z.object({
-  destination: csv(z.string().regex(SLUG_RE)).optional(),
-  maxBudget: z.coerce.number().int().positive().optional(), // rupees per person
-  nightsMin: z.coerce.number().int().min(1).max(30).optional(),
-  nightsMax: z.coerce.number().int().min(1).max(30).optional(),
-  themes: csv(z.enum(THEMES)).optional(),
-  month: z.string().regex(MONTH_RE).optional(), // YYYY-MM
-  sort: z.enum(SORTS).default('price-asc'),
-});
+export const searchParamsSchema = z
+  .object({
+    destination: optionalParam(csv(z.string().regex(SLUG_RE))),
+    maxBudget: optionalParam(z.coerce.number().int().positive()), // rupees per person
+    nightsMin: optionalParam(z.coerce.number().int().min(1).max(30)),
+    nightsMax: optionalParam(z.coerce.number().int().min(1).max(30)),
+    themes: optionalParam(csv(z.enum(THEMES))),
+    month: optionalParam(z.string().regex(MONTH_RE)), // YYYY-MM
+    sort: z.preprocess(blankToUndefined, z.enum(SORTS).default('price-asc')),
+  })
+  .refine((p) => p.nightsMin == null || p.nightsMax == null || p.nightsMin <= p.nightsMax, {
+    message: 'nightsMax must be >= nightsMin',
+    path: ['nightsMax'],
+  });
 export type SearchParams = z.infer<typeof searchParamsSchema>;
 
 export const hotelSchema = z.object({

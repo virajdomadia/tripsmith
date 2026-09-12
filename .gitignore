@@ -24,3 +24,6 @@ Thumbs.db
 
 # sdd scratch
 .superpowers/
+
+# git worktrees
+.worktrees/
