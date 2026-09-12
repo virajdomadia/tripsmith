@@ -1,6 +1,9 @@
-import type { ApiError as ApiErrorBody } from '@tripsmith/shared';
+import type { ApiErrorResponse } from '@tripsmith/shared';
 
-type Code = ApiErrorBody['error']['code'];
+type Code = ApiErrorResponse['error']['code'];
+
+/** `fieldErrors` key for validation issues that belong to the whole object rather than one field. */
+export const ROOT_FIELD = '_root';
 
 const STATUS: Record<Code, 400 | 401 | 403 | 404 | 409 | 429 | 500> = {
   validation: 400,
@@ -23,7 +26,7 @@ export class ApiError extends Error {
   get status() {
     return STATUS[this.code];
   }
-  body(): ApiErrorBody {
+  body(): ApiErrorResponse {
     return {
       error: {
         code: this.code,

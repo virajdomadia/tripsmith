@@ -17,6 +17,24 @@ describe('searchParamsSchema', () => {
       sort: 'price-asc',
     });
   });
+  it('treats blank-but-present params (an empty GET form) as absent', () => {
+    const r = searchParamsSchema.parse({
+      destination: '',
+      maxBudget: '',
+      nightsMin: '',
+      nightsMax: '',
+      themes: '',
+      month: '',
+      sort: '',
+    });
+    expect(r).toEqual({ sort: 'price-asc' });
+  });
+  it('rejects nightsMin greater than nightsMax', () => {
+    const r = searchParamsSchema.safeParse({ nightsMin: '5', nightsMax: '3' });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].path).toEqual(['nightsMax']);
+    expect(searchParamsSchema.safeParse({ nightsMin: '3', nightsMax: '3' }).success).toBe(true);
+  });
   it('rejects a bad month and a bad theme', () => {
     expect(searchParamsSchema.safeParse({ month: '2026-13' }).success).toBe(false);
     expect(searchParamsSchema.safeParse({ themes: 'space' }).success).toBe(false);

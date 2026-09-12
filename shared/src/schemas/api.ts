@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const apiErrorSchema = z.object({
+/** Every non-2xx response from the api. `fieldErrors` is present only for `validation`. */
+export const apiErrorResponseSchema = z.object({
   error: z.object({
     code: z.enum([
       'validation',
@@ -15,4 +16,4 @@ export const apiErrorSchema = z.object({
     fieldErrors: z.record(z.string(), z.string()).optional(),
   }),
 });
-export type ApiError = z.infer<typeof apiErrorSchema>;
+export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
