@@ -37,6 +37,8 @@
   .site img { display: block; max-width: 100%; }
   .site :focus-visible { outline: 2px solid var(--pri); outline-offset: 3px; }
   .num { font-variant-numeric: tabular-nums; }
+  .pgrid > *, .listing > *, .enq > *, .contact > *, .two > *, .fgrid > *, .fgrid > div > *, .detail > *, .detail > div > *, .adm .main, .adm .main > *, .panel, main, aside { min-width: 0; max-width: 100%; }
+  table { max-width: 100%; }
   .ph { position: relative; overflow: hidden; background: #DDE3E6; }
   .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--ease); }
   .wrap { width: min(1220px, 100% - 48px); margin-inline: auto; }
@@ -256,6 +258,8 @@
   .seat i b { display: block; height: 100%; background: var(--pri); border-radius: 999px; }
   .seat.low i b { background: var(--warn); }
   .occ { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .occ.best { grid-template-columns: repeat(4, 1fr); }
+  .cards.two-col { grid-template-columns: 1fr 1fr; }
   .occ div { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
   .occ small { display: block; color: var(--mute); font-weight: 600; font-size: 12px; margin-bottom: 4px; }
   .occ b { font-size: 20px; font-weight: 800; }
@@ -377,6 +381,7 @@
   .dayrow input { border: 0; background: transparent; padding: 6px 4px; font: 500 14px "DM Sans", sans-serif; }
   .dayrow .n { width: 26px; height: 26px; border-radius: 7px; background: var(--pri); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
   .gal { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .gal.six { grid-template-columns: repeat(6, 1fr); }
   .gal .ph { aspect-ratio: 4 / 3; border-radius: 8px; }
   .gal .ph.cover::after { content: "Cover"; position: absolute; left: 6px; top: 6px; background: var(--act); color: var(--ink); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
   .gal .add { aspect-ratio: 4 / 3; border: 1.5px dashed var(--line); border-radius: 8px; display: grid; place-items: center; color: var(--mute); font-size: 12px; font-weight: 700; text-align: center; }
@@ -430,7 +435,8 @@
     .login { grid-template-columns: 1fr; }
     .login .ph { min-height: 200px; }
     .team { grid-template-columns: 1fr 1fr; }
-    .occ { grid-template-columns: 1fr 1fr; }
+    .occ, .occ.best { grid-template-columns: 1fr 1fr; }
+    .cards.two-col { grid-template-columns: 1fr; }
     .facts5 { grid-template-columns: repeat(3, 1fr); }
     .facts5 div:nth-child(3n) { border-right: 0; }
   }
@@ -456,7 +462,9 @@
     .hero h1 { font-size: 36px; }
     .search { grid-template-columns: 1fr; margin-top: -40px; }
     .search .btn { grid-column: auto; }
-    .trust, .why, .cards, .reviews, .listing .cards, .hl, .incl, .steps, .team { grid-template-columns: 1fr; }
+    .trust, .why, .cards, .reviews, .listing .cards, .hl, .incl, .steps { grid-template-columns: 1fr; }
+    .team { grid-template-columns: 1fr 1fr; }
+    .panel .kvs { grid-template-columns: 1fr; }
     .dests { grid-template-columns: 1fr 1fr; }
     .dests.big { grid-template-columns: 1fr; gap: 12px; }
     .dests.big .dest { aspect-ratio: 16 / 9; }
@@ -490,7 +498,7 @@
     .adm .hd { flex-wrap: wrap; }
     .fsec .row3 { grid-template-columns: 1fr; }
     .dayrow { grid-template-columns: 34px 1fr; }
-    .gal { grid-template-columns: 1fr 1fr 1fr; }
+    .gal, .gal.six { grid-template-columns: 1fr 1fr 1fr; }
     .kvs { grid-template-columns: 1fr; }
     .band { padding: 24px; }
     .summary { position: static; }
@@ -595,8 +603,8 @@ S.S2 = { t:'Destinations', g:'Public', n:'Grid of the six destinations with pack
 S.S3 = { t:'Destination page', g:'Public', n:'Goa: cover, intro, best time to visit, the two packages, and a link back to all destinations. JSON-LD TouristDestination.', h: () => pageWrap(`<div class="wrap"><div class="crumbs"><a href="#" data-s="S1">Home</a><span>›</span><a href="#" data-s="S2">Destinations</a><span>›</span><span>Goa</span></div>
   <div class="phero">${ph(IMG.goa[0], 'Vagator, Goa')}<div class="cap"><div><h1>Goa</h1><div class="sub"><span>Beaches & Portuguese lanes</span><span>Best Nov – Feb</span><span>2 trips from ₹14,999</span></div></div></div></div>
   <div class="pgrid"><main><p class="lede">${DEST[0].intro}</p>
-    <h2>Best time to visit</h2><div class="occ" style="grid-template-columns:repeat(4,1fr)"><div><small>Nov – Feb</small><b>Ideal</b><span style="font-size:13px;color:var(--mute)">Dry, 28°C, everything open</span></div><div><small>Mar – May</small><b>Hot</b><span style="font-size:13px;color:var(--mute)">Good deals, quieter</span></div><div><small>Jun – Sep</small><b>Monsoon</b><span style="font-size:13px;color:var(--mute)">Green, many shacks shut</span></div><div><small>Oct</small><b>Opening</b><span style="font-size:13px;color:var(--mute)">Fresh season, fewer crowds</span></div></div>
-    <h2>Trips to Goa</h2><div class="cards" style="grid-template-columns:1fr 1fr">${PKGS.slice(0,2).map(card).join('')}</div>
+    <h2>Best time to visit</h2><div class="occ best"><div><small>Nov – Feb</small><b>Ideal</b><span style="font-size:13px;color:var(--mute)">Dry, 28°C, everything open</span></div><div><small>Mar – May</small><b>Hot</b><span style="font-size:13px;color:var(--mute)">Good deals, quieter</span></div><div><small>Jun – Sep</small><b>Monsoon</b><span style="font-size:13px;color:var(--mute)">Green, many shacks shut</span></div><div><small>Oct</small><b>Opening</b><span style="font-size:13px;color:var(--mute)">Fresh season, fewer crowds</span></div></div>
+    <h2>Trips to Goa</h2><div class="cards two-col">${PKGS.slice(0,2).map(card).join('')}</div>
     <h2>Good to know</h2><ul class="hl"><li>${ic('check')}Flights to Dabolim (GOI) from most metros; Mopa (GOX) for the north</li><li>${ic('check')}Airport transfers are included in both trips</li><li>${ic('check')}Anjuna flea market is Wednesdays</li><li>${ic('check')}Children under 5 travel free</li></ul></main>
     <aside><div class="box"><div class="from">Trips from<b class="num">₹14,999</b>per person, double sharing</div><a class="btn" href="#" data-s="S6">Enquire about Goa</a><div class="row"><a class="btn line" href="#">${ic('wa')}WhatsApp</a><a class="btn line" href="#">${ic('phone')}Call</a></div><div class="call">A person calls you back within 2 hours, 10 am – 8 pm.</div></div></aside></div></div>`, 'dest') };
 
@@ -686,7 +694,7 @@ S.A4 = { t:'Package form', g:'Admin', n:'Create / edit: basics, gallery upload w
 
 S.A5 = { t:'Destinations', g:'Admin', n:'Destination CRUD: cover, intro, best months; delete blocked while packages exist.', h: () => adm('A5', `<div class="hd"><div><h1>Destinations</h1><p>6 destinations</p></div><div class="acts"><a class="btn sm" href="#">${ic('plus')}New destination</a></div></div>
   <div class="panel"><table><thead><tr><th>Destination</th><th>Tagline</th><th>Best months</th><th>Packages</th><th>Order</th><th></th></tr></thead><tbody>${DEST.map((d,i) => `<tr><td><span class="thumb ph"><img src="${IMG[d.slug][0]}" alt=""></span><b>${d.name}</b></td><td>${d.tag}</td><td>${d.best}</td><td class="num">${d.n} live</td><td class="num">${i+1}</td><td class="act"><a href="#" data-s="S3">View</a><a href="#">Edit</a></td></tr>`).join('')}</tbody></table></div>
-  <div class="panel"><div class="ph3">Edit · Goa</div><div class="fsec form"><div class="row"><div><label>Name</label><input value="Goa"></div><div><label>Slug</label><input value="goa"></div></div><div class="row"><div><label>Tagline</label><input value="Beaches & Portuguese lanes"></div><div><label>Best months</label><input value="Nov, Dec, Jan, Feb"></div></div><div><label>Intro</label><textarea rows="3">${DEST[0].intro}</textarea></div><div class="gal" style="grid-template-columns:repeat(6,1fr)">${ph(IMG.goa[0],'','cover')}<div class="add">${ic('plus')}<br>Replace cover</div></div><div style="display:flex;gap:8px"><a class="btn sm" href="#">Save</a><a class="btn danger sm" href="#">Delete</a><small style="color:var(--mute);align-self:center">Delete is blocked while 2 packages use this destination.</small></div></div></div>`) };
+  <div class="panel"><div class="ph3">Edit · Goa</div><div class="fsec form"><div class="row"><div><label>Name</label><input value="Goa"></div><div><label>Slug</label><input value="goa"></div></div><div class="row"><div><label>Tagline</label><input value="Beaches & Portuguese lanes"></div><div><label>Best months</label><input value="Nov, Dec, Jan, Feb"></div></div><div><label>Intro</label><textarea rows="3">${DEST[0].intro}</textarea></div><div class="gal six">${ph(IMG.goa[0],'','cover')}<div class="add">${ic('plus')}<br>Replace cover</div></div><div style="display:flex;gap:8px"><a class="btn sm" href="#">Save</a><a class="btn danger sm" href="#">Delete</a><small style="color:var(--mute);align-self:center">Delete is blocked while 2 packages use this destination.</small></div></div></div>`) };
 
 S.A6 = { t:'Enquiries inbox', g:'Admin', n:'List with status filters, type, package, date; search by name/phone; CSV export; new-enquiry badge in the sidebar.', h: () => adm('A6', `<div class="hd"><div><h1>Enquiries</h1><p>3 new · 7 contacted · 9 converted this month</p></div><div class="acts"><span class="search-in">${ic('search')}Search name or phone…</span><a class="btn line sm" href="#">${ic('dl')}Export CSV</a></div></div>
   <div class="panel"><div class="tabs"><span class="on">New 3</span><span>Contacted 7</span><span>Converted 9</span><span>Closed 12</span><span>All 31</span></div><table><thead><tr><th>Ref</th><th>Name</th><th>Package</th><th>Type</th><th>Month · pax</th><th>Status</th><th>Received</th><th></th></tr></thead><tbody>${ENQ.map(e => `<tr><td class="num"><b>${e.ref}</b></td><td><b>${e.name}</b><br><span style="color:var(--mute);font-size:12px">${e.phone}</span></td><td>${e.pkg}</td><td>${e.type}</td><td>${e.month} · ${e.pax}</td><td><span class="badge ${e.status}">${e.status[0].toUpperCase()+e.status.slice(1)}</span></td><td style="color:var(--mute)">${e.when}</td><td class="act"><a href="#" data-s="A7">Open</a></td></tr>`).join('')}</tbody></table><div class="pager"><span>Showing 5 of 31</span><div class="pg"><span class="on">1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div></div></div>`) };
@@ -699,6 +707,7 @@ S.A7 = { t:'Enquiry detail', g:'Admin', n:'All submitted fields, package link, o
 /* ---------- switcher ---------- */
 const ORDER = ['S1','S2','S3','S4','S4b','S5','S6','S7','S8','S9','S10','S11','S12','S13','A1','A2','A3','A4','A5','A6','A7'];
 let cur = 'S1', w = 'desktop'; try { cur = localStorage.getItem('ts-screen') || 'S1'; w = localStorage.getItem('ts-w') || 'desktop'; } catch (e) {}
+const qs = new URLSearchParams(location.search); if (qs.get('s') && S[qs.get('s')]) cur = qs.get('s'); if (qs.get('w')) w = qs.get('w');
 if (!S[cur]) cur = 'S1';
 function sideNav() { const side = document.getElementById('side'); let g = ''; side.innerHTML = ORDER.map(k => { const s = S[k]; const h = s.g !== g ? `<h2>${s.g}</h2>` : ''; g = s.g; return `${h}<button data-k="${k}" aria-current="${k===cur}"><span>${s.t}</span><small>${k}</small></button>`; }).join(''); }
 function render() {
