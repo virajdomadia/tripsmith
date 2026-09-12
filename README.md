@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 3 of 17 (Requirements & Scope) done; next step 4 (Technical Design) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
+> Status: step 4 of 17 (Technical Design) done; next step 5 (Architecture) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
 
 ## What it proves
 AI agent with tool calling · Razorpay payments · SEO content site
@@ -32,6 +32,6 @@ pnpm dev
 ```
 
 ## Roadmap
-Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Step 3 (Requirements & Scope) done; next is step 4 (Technical Design).
+Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Step 4 (Technical Design) done; next is step 5 (Architecture).
 
 Versions: **v1** agency website → **v2** booking engine → **v3** AI concierge. Each version re-enters the lifecycle at step 3.

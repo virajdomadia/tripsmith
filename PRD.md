@@ -1,6 +1,6 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · lifecycle step 3 (Requirements & Scope) complete 2026-09-12 — see [docs/03-requirements.md](docs/03-requirements.md) · next: step 4 Technical Design
+**Status:** v1 · lifecycle step 4 (Technical Design) complete 2026-09-12 — see [docs/](docs/) · next: step 5 Architecture
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
 **Slot:** #1 · Budget ~60 h · Build first
