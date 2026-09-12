@@ -1,0 +1,538 @@
+<title>Tripsmith Directions II</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=Instrument+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+  :root { color-scheme: light; --ease: cubic-bezier(.22,1,.36,1); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #E9E6E0; color: #1C1C1A; font: 15px/1.5 "Instrument Sans", system-ui, sans-serif; }
+  .chrome { position: sticky; top: 0; z-index: 60; background: #1C1C1A; color: #EDEAE3; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+  .chrome h1 { font: 600 14px/1 "Instrument Sans", sans-serif; margin: 0; letter-spacing: .02em; }
+  .chrome .grp { display: flex; gap: 4px; align-items: center; }
+  .chrome .grp span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-right: 6px; }
+  .chrome button { background: transparent; color: inherit; border: 1px solid #4A4A46; border-radius: 6px; padding: 5px 11px; font: 600 13px "Instrument Sans", sans-serif; cursor: pointer; }
+  .chrome button[aria-pressed="true"] { background: #EDEAE3; color: #1C1C1A; border-color: #EDEAE3; }
+  .chrome button:focus-visible { outline: 2px solid #F2A93B; outline-offset: 2px; }
+  .note { max-width: 1100px; margin: 14px auto 0; padding: 0 16px; }
+  .note p { margin: 0; background: #FFFDF8; border-left: 4px solid #1C1C1A; padding: 12px 16px; font-size: 14px; }
+  .stage { padding: 14px 16px 60px; }
+  .frame { margin: 0 auto; max-width: 1360px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.18); overflow: clip; border-radius: 6px; }
+  .site { container-type: inline-size; position: relative; }
+  .site * { box-sizing: border-box; }
+  .site h1, .site h2, .site h3 { margin: 0; text-wrap: balance; }
+  .site a { color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .scene { position: relative; overflow: hidden; background: #BFC7CC; }
+  .scene canvas { position: absolute; inset: -4%; width: 108%; height: 108%; max-width: none; transform-origin: 50% 60%; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; line-height: 1.3; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .wrap { width: min(1220px, 100% - 48px); margin-inline: auto; }
+  :focus-visible { outline: 2px solid #F2A93B; outline-offset: 3px; }
+
+  /* ================= E · NIGHT ================= */
+  .ve { --bg: #0B0F14; --bg2: #121820; --ink: #F3EFE6; --mute: #9AA3AD; --line: rgba(255,255,255,.12); --acc: #F2A93B; --acc2: #5B9BFF;
+        background: var(--bg); color: var(--ink); font: 16px/1.55 "Instrument Sans", system-ui, sans-serif; }
+  .ve ::selection { background: var(--acc); color: #0B0F14; }
+  .ve h1, .ve h2, .ve h3 { font-family: "Newsreader", Georgia, serif; font-weight: 400; letter-spacing: -.02em; }
+  .ve header { position: absolute; inset: 0 0 auto; z-index: 5; display: flex; align-items: center; gap: 26px; padding: 22px 0; }
+  .ve .logo { font: 600 13px "Instrument Sans", sans-serif; letter-spacing: .22em; text-transform: uppercase; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .ve nav { margin-left: auto; display: flex; gap: 24px; font-size: 14px; font-weight: 500; }
+  .ve nav a { text-decoration: none; opacity: .85; }
+  .ve .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font: 600 14px "Instrument Sans", sans-serif; text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); backdrop-filter: blur(8px); transition: background .25s, transform .35s var(--ease); }
+  .ve .btn:hover { background: rgba(255,255,255,.12); transform: translateY(-1px); }
+  .ve .btn.sun { background: var(--acc); color: #0B0F14; border-color: var(--acc); }
+  .ve .btn.sun:hover { background: #F7B95A; }
+  .ve .hero { position: relative; height: 760px; }
+  .ve .hero .scene { position: absolute; inset: 0; }
+  .ve .hero .scene canvas { transition: opacity 1.4s var(--ease); }
+  .ve .hero .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, #0B0F14 0%, rgba(11,15,20,.55) 40%, rgba(11,15,20,.15) 70%, rgba(11,15,20,.35) 100%); }
+  .ve .hero .copy { position: absolute; left: 0; right: 0; bottom: 84px; }
+  .ve .hero h1 { font-size: clamp(48px, 7vw, 104px); line-height: .95; letter-spacing: -.03em; max-width: 12ch; }
+  .ve .hero h1 em { font-style: italic; color: var(--acc); }
+  .ve .hero h1 .place { display: inline-block; }
+  .ve .hero p { color: var(--mute); font-size: 18px; margin: 18px 0 0; max-width: 460px; }
+  .ve .glass { margin-top: 28px; width: min(720px, 100%); display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 2px; background: rgba(255,255,255,.08); border: 1px solid var(--line); border-radius: 16px; padding: 6px; backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 30px 80px -30px rgba(0,0,0,.8); }
+  .ve .glass .f { padding: 10px 16px; border-right: 1px solid var(--line); }
+  .ve .glass .f:nth-last-child(2) { border-right: 0; }
+  .ve .glass label { display: block; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+  .ve .glass .v { font-weight: 500; }
+  .ve .dots { position: absolute; right: 0; bottom: 100px; display: grid; gap: 10px; }
+  .ve .dots button { width: 34px; height: 3px; border: 0; background: rgba(255,255,255,.25); border-radius: 2px; cursor: pointer; padding: 0; transition: background .3s; }
+  .ve .dots button[aria-current="true"] { background: var(--acc); }
+  .ve section { padding: 80px 0 0; }
+  .ve .sechead { display: flex; align-items: end; justify-content: space-between; margin-bottom: 26px; }
+  .ve .sechead h2 { font-size: clamp(32px, 4vw, 48px); }
+  .ve .sechead a { font-size: 14px; font-weight: 600; color: var(--acc); text-decoration: none; }
+  .ve .rail { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; scrollbar-width: none; }
+  .ve .rail::-webkit-scrollbar { display: none; }
+  .ve .dcard { flex: 0 0 260px; height: 360px; border-radius: 18px; overflow: hidden; position: relative; scroll-snap-align: start; text-decoration: none; transition: transform .5s var(--ease); }
+  .ve .dcard:hover { transform: translateY(-6px); }
+  .ve .dcard .scene { position: absolute; inset: 0; }
+  .ve .dcard .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(11,15,20,.85), transparent 55%); }
+  .ve .dcard .t { position: absolute; left: 18px; right: 18px; bottom: 18px; }
+  .ve .dcard b { font: 400 30px "Newsreader", serif; display: block; letter-spacing: -.02em; }
+  .ve .dcard small { color: var(--mute); font-size: 13px; }
+  .ve .list { border-top: 1px solid var(--line); }
+  .ve .row { display: grid; grid-template-columns: 1.6fr 1fr 1fr auto; gap: 24px; align-items: center; padding: 22px 0; border-bottom: 1px solid var(--line); text-decoration: none; position: relative; transition: padding .35s var(--ease); }
+  .ve .row:hover { padding-left: 14px; }
+  .ve .row h3 { font-size: 30px; letter-spacing: -.02em; }
+  .ve .row .m { color: var(--mute); font-size: 14px; }
+  .ve .row .p { font: 400 26px "Newsreader", serif; }
+  .ve .row .p small { font: 400 13px "Instrument Sans", sans-serif; color: var(--mute); }
+  .ve .row .go { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; transition: background .25s, transform .35s var(--ease); }
+  .ve .row:hover .go { background: var(--acc); color: #0B0F14; transform: rotate(-45deg); }
+  .ve .badge.fill { background: rgba(242,169,59,.15); color: var(--acc); }
+  .ve .badge.sure { background: rgba(91,155,255,.15); color: var(--acc2); }
+  .ve .peek { position: fixed; width: 260px; aspect-ratio: 4/3; border-radius: 14px; pointer-events: none; z-index: 70; opacity: 0; transform: scale(.9); transition: opacity .35s var(--ease), transform .5s var(--ease); box-shadow: 0 30px 60px -20px rgba(0,0,0,.7); }
+  .ve .peek.show { opacity: 1; transform: none; }
+  .ve .conc { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; border: 1px solid var(--line); border-radius: 24px; padding: 48px; background: radial-gradient(80% 120% at 100% 0%, rgba(91,155,255,.18), transparent 60%), var(--bg2); }
+  .ve .conc h2 { font-size: clamp(30px, 3.6vw, 44px); }
+  .ve .conc p { color: var(--mute); margin: 14px 0 0; }
+  .ve .chat { display: grid; gap: 10px; }
+  .ve .msg { padding: 12px 16px; border-radius: 14px; font-size: 14px; max-width: 90%; }
+  .ve .msg.u { background: rgba(255,255,255,.1); margin-left: auto; }
+  .ve .msg.a { background: rgba(255,255,255,.04); border: 1px solid var(--line); }
+  .ve .msg .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .ve .msg .cards a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); text-decoration: none; font-size: 12px; }
+  .ve .msg .cards .scene { aspect-ratio: 16/9; }
+  .ve .msg .cards div.t { padding: 8px 10px; }
+  .ve footer { margin-top: 90px; border-top: 1px solid var(--line); padding: 40px 0 24px; color: var(--mute); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  @container (max-width: 800px) {
+    .ve nav { display: none; }
+    .ve .hero { height: 640px; }
+    .ve .hero h1 { font-size: 46px; }
+    .ve .glass { grid-template-columns: 1fr; }
+    .ve .glass .f { border-right: 0; border-bottom: 1px solid var(--line); }
+    .ve .dots { display: none; }
+    .ve .row { grid-template-columns: 1fr auto; }
+    .ve .row .m, .ve .row .p small { display: none; }
+    .ve .row h3 { font-size: 22px; }
+    .ve .conc { grid-template-columns: 1fr; padding: 26px; }
+    .ve .peek { display: none; }
+  }
+
+  /* ================= F · BENTO ================= */
+  .vf { --bg: #EEF0F3; --bg2: #FFFFFF; --ink: #111418; --mute: #6B7280; --line: #E3E6EA; --acc: #1A4BD6; --acc-soft: #E8EEFF; --sun: #F2A93B; --ok: #1F7A4D;
+        background: var(--bg); color: var(--ink); font: 15px/1.5 "Manrope", system-ui, sans-serif; }
+  .vf h1, .vf h2, .vf h3 { font-family: "Manrope", system-ui, sans-serif; font-weight: 800; letter-spacing: -.035em; }
+  .vf header { display: flex; align-items: center; gap: 24px; padding: 18px 0; }
+  .vf .logo { font: 800 18px "Manrope", sans-serif; letter-spacing: -.03em; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .vf nav { margin-left: auto; display: flex; gap: 6px; }
+  .vf nav a { text-decoration: none; font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 999px; }
+  .vf nav a.on { background: var(--bg2); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .vf .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 12px; font: 700 14px "Manrope", sans-serif; text-decoration: none; background: var(--ink); color: #fff; border: 0; cursor: pointer; transition: transform .35s var(--ease), box-shadow .35s var(--ease); }
+  .vf .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(0,0,0,.4); }
+  .vf .btn.acc { background: var(--acc); }
+  .vf .bento { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 150px; gap: 14px; padding: 6px 0 0; }
+  .vf .tile { background: var(--bg2); border-radius: 22px; padding: 22px; position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(17,20,24,.04), 0 12px 32px -20px rgba(17,20,24,.18); transition: transform .5s var(--ease), box-shadow .5s var(--ease); }
+  .vf .tile:hover { transform: translateY(-3px); box-shadow: 0 1px 2px rgba(17,20,24,.04), 0 24px 44px -20px rgba(17,20,24,.28); }
+  .vf .tile .k { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-weight: 700; }
+  .vf .t-hero { grid-column: span 4; grid-row: span 3; padding: 0; color: #fff; }
+  .vf .t-hero .scene { position: absolute; inset: 0; }
+  .vf .t-hero .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.6), transparent 55%); }
+  .vf .t-hero .c { position: absolute; left: 28px; right: 28px; bottom: 28px; }
+  .vf .t-hero h1 { font-size: clamp(36px, 4.6vw, 64px); line-height: .98; max-width: 12ch; }
+  .vf .t-hero p { margin: 10px 0 0; opacity: .9; font-weight: 500; max-width: 420px; }
+  .vf .t-ask { grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; gap: 12px; }
+  .vf .t-ask h2 { font-size: 26px; }
+  .vf .t-ask .in { margin-top: auto; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; color: var(--mute); font-weight: 500; }
+  .vf .t-ask .in b { color: var(--ink); }
+  .vf .t-ask .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vf .t-ask .chip { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; background: var(--acc-soft); color: var(--acc); }
+  .vf .t-price { grid-column: span 2; display: flex; flex-direction: column; justify-content: space-between; }
+  .vf .t-price b { font-size: 40px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+  .vf .t-price small { color: var(--mute); font-weight: 600; }
+  .vf .t-best { grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; }
+  .vf .t-best h3 { font-size: 20px; margin: 4px 0 12px; }
+  .vf .bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; align-items: end; flex: 1; }
+  .vf .bars i { display: block; background: var(--acc-soft); border-radius: 6px 6px 3px 3px; height: var(--h); position: relative; transform-origin: bottom; }
+  .vf .bars i.hi { background: var(--acc); }
+  .vf .bars i.now { background: var(--sun); }
+  .vf .months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; font-size: 9px; color: var(--mute); font-weight: 700; text-align: center; margin-top: 6px; }
+  .vf .t-map { grid-column: span 2; grid-row: span 2; padding: 0; }
+  .vf .t-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vf .t-map .lab { position: absolute; left: 18px; top: 16px; }
+  .vf .t-map .lab b { display: block; font-size: 16px; font-weight: 800; }
+  .vf .t-conc { grid-column: span 2; grid-row: span 2; background: var(--ink); color: #fff; display: flex; flex-direction: column; gap: 8px; }
+  .vf .t-conc .k { color: #9AA3AD; }
+  .vf .t-conc .m { font-size: 13px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.08); max-width: 92%; }
+  .vf .t-conc .m.u { background: var(--acc); margin-left: auto; }
+  .vf .t-conc .dots i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #9AA3AD; margin-right: 3px; animation: bounce 1s infinite; }
+  .vf .t-conc .dots i:nth-child(2) { animation-delay: .15s } .vf .t-conc .dots i:nth-child(3) { animation-delay: .3s }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0) } 30% { transform: translateY(-4px) } }
+  .vf .t-dest { padding: 0; color: #fff; text-decoration: none; }
+  .vf .t-dest .scene { position: absolute; inset: 0; }
+  .vf .t-dest .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), transparent 60%); }
+  .vf .t-dest b { position: absolute; left: 16px; bottom: 14px; font-size: 18px; font-weight: 800; }
+  .vf .t-dest small { position: absolute; right: 14px; bottom: 16px; font-size: 12px; font-weight: 700; opacity: .9; }
+  .vf .t-stats { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; }
+  .vf .t-stats b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+  .vf .t-stats small { color: var(--mute); font-weight: 600; font-size: 12px; }
+  .vf .t-j { grid-column: span 2; grid-row: span 2; padding: 0; text-decoration: none; display: grid; grid-template-rows: 1fr auto; }
+  .vf .t-j .scene { min-height: 0; }
+  .vf .t-j .b { padding: 14px 18px 16px; display: flex; justify-content: space-between; align-items: end; gap: 10px; }
+  .vf .t-j h3 { font-size: 18px; }
+  .vf .t-j small { color: var(--mute); font-weight: 600; display: block; margin-top: 2px; }
+  .vf .t-j .p { font-weight: 800; font-size: 18px; white-space: nowrap; }
+  .vf .badge.fill { background: #FFF1DD; color: #B5541E; } .vf .badge.sure { background: #E3F0EA; color: var(--ok); }
+  .vf .t-j .badge { position: absolute; top: 12px; left: 12px; }
+  .vf footer { padding: 40px 0 24px; color: var(--mute); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  @container (max-width: 900px) {
+    .vf nav { display: none; }
+    .vf .bento { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 140px; }
+    .vf .t-hero { grid-column: span 2; grid-row: span 3; }
+    .vf .t-ask, .vf .t-best, .vf .t-map, .vf .t-conc, .vf .t-price, .vf .t-stats, .vf .t-j { grid-column: span 2; }
+    .vf .t-dest { grid-column: span 1; }
+  }
+
+  /* ================= G · IMMERSIVE ================= */
+  .vg { --bg: #0E0D0B; --ink: #F4EFE6; --mute: #A39C90; --line: rgba(255,255,255,.14); --acc: #F2A93B;
+        background: var(--bg); color: var(--ink); font: 16px/1.5 "Instrument Sans", system-ui, sans-serif; }
+  .vg h1, .vg h2, .vg h3 { font-family: "Fraunces", Georgia, serif; font-weight: 500; letter-spacing: -.03em; }
+  .vg header { position: absolute; inset: 0 0 auto; z-index: 5; display: flex; align-items: center; gap: 26px; padding: 22px 0; mix-blend-mode: difference; color: #fff; }
+  .vg .logo { font: 600 13px "Instrument Sans", sans-serif; letter-spacing: .22em; text-transform: uppercase; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .vg nav { margin-left: auto; display: flex; gap: 24px; font-size: 14px; font-weight: 500; }
+  .vg nav a { text-decoration: none; }
+  .vg .stage-g { position: relative; height: 720px; overflow: hidden; }
+  .vg .stage-g .scene { position: absolute; inset: 0; opacity: 0; }
+  .vg .stage-g .scene.on { opacity: 1; }
+  .vg .stage-g .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(14,13,11,.75), rgba(14,13,11,.2) 55%, rgba(14,13,11,.5)); }
+  .vg .index { position: absolute; left: 0; right: 0; bottom: 0; top: 0; display: grid; grid-template-columns: 1fr 1fr; align-items: end; padding-bottom: 60px; }
+  .vg .index .names { display: grid; gap: 2px; }
+  .vg .index .names a { display: grid; grid-template-columns: 40px 1fr auto; gap: 16px; align-items: baseline; text-decoration: none; font: 500 clamp(28px, 4.4vw, 60px) "Fraunces", serif; letter-spacing: -.03em; color: rgba(244,239,230,.35); transition: color .4s, transform .5s var(--ease); line-height: 1.1; }
+  .vg .index .names a.on { color: var(--ink); transform: translateX(10px); }
+  .vg .index .names a small { font: 500 12px "Instrument Sans", sans-serif; letter-spacing: .12em; color: var(--mute); }
+  .vg .index .names a span.i { font: 500 12px "Instrument Sans", sans-serif; letter-spacing: .12em; color: var(--acc); align-self: center; }
+  .vg .index .side { justify-self: end; text-align: right; max-width: 380px; }
+  .vg .index .side h1 { font-size: 22px; font-weight: 400; font-style: italic; color: var(--ink); }
+  .vg .index .side p { color: var(--mute); font-size: 15px; margin: 8px 0 18px; }
+  .vg .index .side .btn { display: inline-flex; gap: 8px; align-items: center; padding: 12px 20px; border-radius: 999px; background: var(--ink); color: #0E0D0B; font: 600 14px "Instrument Sans", sans-serif; text-decoration: none; }
+  .vg .prog { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 2px; height: 160px; background: var(--line); }
+  .vg .prog i { display: block; width: 100%; height: 16.66%; background: var(--acc); transition: transform .5s var(--ease); }
+  .vg .ask { position: absolute; left: 0; right: 0; bottom: 0; transform: translateY(50%); z-index: 4; }
+  .vg .ask .in { width: min(720px, 100%); margin: 0 auto; background: #fff; color: #0E0D0B; border-radius: 999px; padding: 8px 8px 8px 24px; display: flex; align-items: center; gap: 12px; box-shadow: 0 30px 80px -20px rgba(0,0,0,.7); font-weight: 500; }
+  .vg .ask .in span { flex: 1; color: #6B6559; }
+  .vg .ask .in span b { color: #0E0D0B; font-weight: 500; }
+  .vg .ask .btn { padding: 12px 20px; border-radius: 999px; background: #0E0D0B; color: #fff; font: 600 14px "Instrument Sans", sans-serif; text-decoration: none; white-space: nowrap; }
+  .vg section { padding: 110px 0 0; }
+  .vg .sechead { display: flex; align-items: end; justify-content: space-between; margin-bottom: 26px; }
+  .vg .sechead h2 { font-size: clamp(32px, 4vw, 52px); }
+  .vg .sechead a { color: var(--acc); font-weight: 600; text-decoration: none; font-size: 14px; }
+  .vg .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .vg .jc { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 3/4; text-decoration: none; }
+  .vg .jc .scene { position: absolute; inset: 0; }
+  .vg .jc .scene canvas { transition: transform 1.2s var(--ease); }
+  .vg .jc:hover .scene canvas { transform: scale(1.06); }
+  .vg .jc .scene::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(14,13,11,.9), transparent 50%); }
+  .vg .jc .t { position: absolute; left: 20px; right: 20px; bottom: 20px; }
+  .vg .jc h3 { font-size: 28px; }
+  .vg .jc .m { display: flex; justify-content: space-between; color: var(--mute); font-size: 13px; margin-top: 6px; }
+  .vg .jc .m b { color: var(--ink); font: 500 18px "Fraunces", serif; }
+  .vg .jc .badge { position: absolute; top: 14px; left: 14px; background: rgba(14,13,11,.55); color: var(--ink); backdrop-filter: blur(6px); }
+  .vg .strip { margin-top: 110px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 20px 0; overflow: hidden; white-space: nowrap; }
+  .vg .strip .track { display: inline-flex; gap: 40px; padding-right: 40px; animation: mq 34s linear infinite; font: italic 400 28px "Fraunces", serif; }
+  .vg .strip:hover .track { animation-play-state: paused; }
+  .vg .strip .track span::after { content: "·"; margin-left: 40px; color: var(--acc); }
+  @keyframes mq { to { transform: translateX(-50%) } }
+  .vg footer { padding: 40px 0 24px; color: var(--mute); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  @container (max-width: 800px) {
+    .vg nav { display: none; }
+    .vg .stage-g { height: 640px; }
+    .vg .index { grid-template-columns: 1fr; align-content: end; padding-bottom: 70px; }
+    .vg .index .side { display: none; }
+    .vg .index .names a { font-size: 30px; }
+    .vg .grid { grid-template-columns: 1fr; }
+    .vg .prog { display: none; }
+    .vg .ask .in { border-radius: 20px; flex-direction: column; align-items: stretch; padding: 10px; }
+    .vg .ask .in span { padding: 8px 10px; }
+  }
+
+  /* ================= H · KINETIC ================= */
+  .vh { --bg: #FFFFFF; --ink: #0F0F0F; --mute: #6B6B6B; --line: #E8E6E1; --acc: #1A4BD6;
+        background: var(--bg); color: var(--ink); font: 15px/1.5 "Instrument Sans", system-ui, sans-serif; }
+  .vh h1, .vh h2, .vh h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -.02em; }
+  .vh header { display: flex; align-items: center; gap: 26px; padding: 20px 0; border-bottom: 1px solid var(--ink); }
+  .vh .logo { font: 600 13px "Instrument Sans", sans-serif; letter-spacing: .22em; text-transform: uppercase; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .vh nav { margin-left: auto; display: flex; gap: 24px; font-size: 14px; font-weight: 500; }
+  .vh nav a { text-decoration: none; }
+  .vh .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 4px; background: var(--ink); color: #fff; font: 600 14px "Instrument Sans", sans-serif; text-decoration: none; border: 0; cursor: pointer; }
+  .vh .btn.acc { background: var(--acc); }
+  .vh .big { overflow: hidden; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+  .vh .big .track { display: inline-flex; gap: 0; animation: mq 22s linear infinite; }
+  .vh .big span { font: 400 clamp(120px, 20vw, 260px)/1 "Instrument Serif", serif; letter-spacing: -.05em; padding-right: .3em; }
+  .vh .big span em { color: var(--acc); }
+  .vh .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 28px 0 0; align-items: end; }
+  .vh .hero p.lead { font: 400 clamp(24px, 2.6vw, 36px)/1.2 "Instrument Serif", serif; margin: 0; max-width: 18ch; letter-spacing: -.01em; }
+  .vh .hero .ask { justify-self: end; width: min(440px, 100%); display: grid; gap: 8px; }
+  .vh .hero .ask .in { border-bottom: 1.5px solid var(--ink); padding: 10px 0; display: flex; justify-content: space-between; color: var(--mute); }
+  .vh .hero .ask .in b { color: var(--ink); font-weight: 500; }
+  .vh .list { margin-top: 40px; border-top: 1px solid var(--ink); }
+  .vh .li { display: grid; grid-template-columns: 1fr auto auto; gap: 24px; align-items: baseline; padding: 18px 0; border-bottom: 1px solid var(--line); text-decoration: none; position: relative; }
+  .vh .li .n { font: 400 clamp(44px, 6.4vw, 92px)/1 "Instrument Serif", serif; letter-spacing: -.035em; transition: transform .5s var(--ease), color .3s; }
+  .vh .li:hover .n { transform: translateX(16px); color: var(--acc); }
+  .vh .li .n em { font-style: italic; }
+  .vh .li .m { color: var(--mute); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; }
+  .vh .li .p { font: 400 22px "Instrument Serif", serif; }
+  .vh .li .p small { font: 600 11px "Instrument Sans", sans-serif; color: var(--mute); letter-spacing: .1em; text-transform: uppercase; }
+  .vh .peek { position: fixed; width: 300px; aspect-ratio: 4/3; border-radius: 6px; pointer-events: none; z-index: 70; opacity: 0; transform: scale(.85) rotate(-3deg); transition: opacity .35s var(--ease), transform .55s var(--ease); box-shadow: 0 30px 60px -20px rgba(0,0,0,.4); }
+  .vh .peek.show { opacity: 1; transform: rotate(-3deg); }
+  .vh section { padding: 90px 0 0; }
+  .vh .sechead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  .vh .sechead h2 { font-size: clamp(34px, 4.4vw, 56px); }
+  .vh .sechead a { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; text-decoration: none; }
+  .vh .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .vh .card { text-decoration: none; display: grid; gap: 10px; }
+  .vh .card .scene { aspect-ratio: 4/5; border-radius: 4px; }
+  .vh .card .scene canvas { transition: transform 1.2s var(--ease); }
+  .vh .card:hover .scene canvas { transform: scale(1.05); }
+  .vh .card h3 { font-size: 24px; }
+  .vh .card .m { display: flex; justify-content: space-between; font-size: 13px; color: var(--mute); }
+  .vh .card .m b { color: var(--ink); font-weight: 600; }
+  .vh .badge.fill { background: #FBEBD1; color: #B5541E; } .vh .badge.sure { background: #E3F0EA; color: #1F7A4D; }
+  .vh .conc { margin-top: 90px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; border-top: 1px solid var(--ink); padding-top: 40px; }
+  .vh .conc h2 { font-size: clamp(34px, 4.4vw, 56px); }
+  .vh .conc p { color: var(--mute); font-size: 17px; }
+  .vh .conc .q { font: italic 400 26px/1.3 "Instrument Serif", serif; padding: 20px 0; border-bottom: 1px solid var(--line); }
+  .vh .conc .a { padding: 16px 0 0; font-size: 15px; }
+  .vh .conc .a b { color: var(--acc); }
+  .vh footer { margin-top: 80px; border-top: 1px solid var(--ink); padding: 30px 0 22px; color: var(--mute); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  @container (max-width: 800px) {
+    .vh nav { display: none; }
+    .vh .hero { grid-template-columns: 1fr; }
+    .vh .hero .ask { justify-self: start; }
+    .vh .li { grid-template-columns: 1fr auto; }
+    .vh .li .m { display: none; }
+    .vh .cards { grid-template-columns: 1fr 1fr; }
+    .vh .conc { grid-template-columns: 1fr; }
+    .vh .peek { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vg .strip .track, .vh .big .track, .vf .t-conc .dots i { animation: none !important; }
+  }
+</style>
+
+<div class="chrome">
+  <h1>Tripsmith · directions II — modern &amp; cool</h1>
+  <div class="grp" role="group" aria-label="Variant"><span>Variant</span>
+    <button data-v="e" aria-pressed="true">E · Night</button>
+    <button data-v="f" aria-pressed="false">F · Bento</button>
+    <button data-v="g" aria-pressed="false">G · Immersive</button>
+    <button data-v="h" aria-pressed="false">H · Kinetic</button>
+  </div>
+  <span style="font-size:12px;opacity:.7">v1 scope only (no concierge, no accounts) · Home page · each has its own motion · resize the window for mobile</span>
+</div>
+<div class="note"><p id="tradeoff"></p></div>
+<div class="stage"><div class="frame" id="frame"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+/* ---------- content ---------- */
+const DEST = [
+  { slug:'goa', name:'Goa', tag:'Beaches & Portuguese lanes', from:14999, best:'Nov – Feb', line:'Sunsets, forts and shacks.' },
+  { slug:'kerala', name:'Kerala', tag:'Backwaters & tea hills', from:21999, best:'Sep – Mar', line:'A night on the water.' },
+  { slug:'himachal', name:'Himachal', tag:'Snow, pines & Parvati valley', from:18499, best:'Mar – Jun', line:'Pines, snow and Parvati.' },
+  { slug:'rajasthan', name:'Rajasthan', tag:'Forts, lakes & the Thar', from:19499, best:'Oct – Mar', line:'Forts at dusk, dunes at night.' },
+  { slug:'andaman', name:'Andaman', tag:'Radhanagar sands & reefs', from:32999, best:'Nov – Apr', line:'The clearest water in India.' },
+  { slug:'ladakh', name:'Ladakh', tag:'Passes, lakes & monasteries', from:27499, best:'Jun – Sep', line:'Above the clouds.' },
+];
+const PKGS = [
+  { dest:'goa', name:'North Goa Beaches', n:3, from:14999, hl:'Candolim stay · Aguada & Chapora · Mandovi cruise', badge:'fill' },
+  { dest:'kerala', name:'Munnar & Alleppey Houseboat', n:4, from:21999, hl:'Tea estate · private houseboat · Eravikulam', badge:'sure' },
+  { dest:'himachal', name:'Shimla–Manali Classic', n:4, from:18499, hl:'Mall Road & Kufri · Solang · Hadimba', badge:'fill' },
+  { dest:'rajasthan', name:'Jaipur · Jodhpur · Udaipur', n:5, from:26499, hl:'Amber by jeep · Mehrangarh · Pichola', badge:'sure' },
+  { dest:'andaman', name:'Port Blair · Havelock · Neil', n:5, from:32999, hl:'Radhanagar · Elephant beach · Cellular jail', badge:'fill' },
+  { dest:'ladakh', name:'Leh · Nubra · Pangong', n:6, from:29999, hl:'Khardung La · Hunder · Pangong camp', badge:'sure' },
+];
+const BADGE = { fill:'Filling fast', sure:'Guaranteed' };
+const inr = n => '₹' + n.toLocaleString('en-IN');
+const badge = b => b ? `<span class="badge ${b}">${BADGE[b]}</span>` : '';
+const dn = p => `${p.n}N / ${p.n+1}D`;
+const destName = s => DEST.find(d => d.slug === s).name;
+const scene = (k, cls = '', inner = '') => `<div class="scene ${cls}" data-kind="${k}" role="img" aria-label="${destName(k)}">${inner}</div>`;
+const mark = (bg, fg) => `<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="${bg}"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="${fg}" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="${fg}"/></svg>`;
+const ARROW = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>`;
+
+/* ---------- E · Night ---------- */
+const E = {
+  note: '<b>E · Night.</b> Dark cinematic — the destination fills the screen and crossfades every few seconds while the headline changes place (“Tonight, <i>Goa</i>”). Glass search bar, a tall snap-scrolling destination rail, journeys as a typographic list where hovering a row floats its photo next to the cursor, and the enquiry promise as a warm panel. Feels like a premium app after dark; the most “cool” of the four. Trade-off: dark UIs photograph beautifully but read heavier on a sunlit phone, so the warm marigold and the human promise have to carry the trust.',
+  html() { return `<div class="site ve">
+    <div class="hero"><div class="wrap" style="position:relative;height:100%">
+      <header><a class="logo" href="#">${mark('#F2A93B','#0B0F14')} Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Trips</a><a href="#">About</a><a href="#">Contact</a></nav><a class="btn" href="#">Enquire</a></header>
+      ${DEST.map((d, i) => scene(d.slug, i ? '' : 'on', '')).join('')}
+      <div class="copy"><h1 id="e-h1">Tonight, <em><span class="place" id="e-place">Goa</span></em>.<br>Planned by people who’ve been.</h1><p id="e-line">Sunsets, forts and shacks. Twelve trips we actually run, with real dates and real seats.</p>
+        <form class="glass" onsubmit="return false"><div class="f"><label>Where</label><div class="v">Anywhere in India</div></div><div class="f"><label>When</label><div class="v">November</div></div><div class="f"><label>Budget</label><div class="v">Up to ₹25,000</div></div><button class="btn sun" type="button">Find my trip ${ARROW}</button></form></div>
+      <div class="dots" id="e-dots">${DEST.map((d, i) => `<button aria-label="${d.name}" aria-current="${i === 0}"></button>`).join('')}</div>
+    </div></div>
+    <div class="wrap">
+      <section><div class="sechead"><h2>Where to, this season</h2><a href="#">All six →</a></div><div class="rail">${DEST.map(d => `<a class="dcard" href="#">${scene(d.slug)}<div class="t"><b>${d.name}</b><small>from ${inr(d.from)} · best ${d.best}</small></div></a>`).join('')}</div></section>
+      <section><div class="sechead"><h2>Popular journeys</h2><a href="#">All 12 →</a></div><div class="list">${PKGS.map(p => `<a class="row" href="#" data-peek="${p.dest}"><h3>${p.name}</h3><div class="m">${destName(p.dest)} · ${dn(p)}<br>${p.hl}</div><div class="p num">${inr(p.from)} <small>/ person</small> <br>${badge(p.badge)}</div><span class="go">${ARROW}</span></a>`).join('')}</div></section>
+      <section><div class="conc"><div><h2>Tell us the trip. A person calls you back within two hours.</h2><p>Enquire on any package — or on WhatsApp — and someone from our Bengaluru office calls between 10 am and 8 pm. Every itinerary is a PDF you can forward to the family group.</p><div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap"><a class="btn sun" href="#">Enquire now</a><a class="btn" href="#">WhatsApp us</a></div></div>
+        <div class="chat"><div class="msg a"><b>What you get with every trip</b></div><div class="msg a">Real departures with live seat counts — every date on the site is one we run.</div><div class="msg a">Hotels we have slept in ourselves. No surprises on arrival.</div><div class="msg a">The full itinerary as a PDF, matching the page to the rupee.<div class="cards"><a href="#">${scene('goa')}<div class="t"><b>North Goa Beaches</b> · 3N · ₹14,999</div></a><a href="#">${scene('kerala')}<div class="t"><b>Munnar & Alleppey</b> · 4N · ₹21,999</div></a></div></div></div></div></section>
+      <footer><span>© 2026 Tripsmith Holidays · Bengaluru</span><span>Demo login: owner@tripsmith.in / demo1234</span></footer>
+    </div>
+    <div class="peek scene" id="e-peek" data-kind="goa" aria-hidden="true"></div>
+  </div>`; },
+  motion(root) {
+    const scenes = [...root.querySelectorAll('.hero .scene')], dots = [...root.querySelectorAll('#e-dots button')], place = root.querySelector('#e-place'), line = root.querySelector('#e-line');
+    let i = 0, t;
+    const show = k => { i = k; scenes.forEach((sc, j) => { const c = sc.querySelector('canvas'); if (c) c.style.opacity = j === k ? 1 : 0; }); dots.forEach((d, j) => d.setAttribute('aria-current', String(j === k)));
+      if (window.gsap && !reduced) { gsap.to([place, line], { opacity: 0, y: -8, duration: .3, ease: 'power2.in', onComplete: () => { place.textContent = DEST[k].name; line.textContent = DEST[k].line + ' Twelve trips we actually run, with real dates and real seats.'; gsap.fromTo([place, line], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: .6, ease: 'expo.out', stagger: .05 }); } }); }
+      else { place.textContent = DEST[k].name; line.textContent = DEST[k].line; } };
+    scenes.forEach(sc => { const c = sc.querySelector('canvas'); if (c) c.style.opacity = 0; }); scenes[0].querySelector('canvas').style.opacity = 1;
+    const loop = () => { t = setTimeout(() => { show((i + 1) % DEST.length); loop(); }, 5200); };
+    if (!reduced) loop();
+    dots.forEach((d, k) => d.addEventListener('click', () => { clearTimeout(t); show(k); if (!reduced) loop(); }));
+    cleanup.push(() => clearTimeout(t));
+    peek(root, '#e-peek', '.row');
+    if (window.gsap && !reduced) { gsap.from(root.querySelectorAll('.copy > *'), { y: 24, opacity: 0, duration: 1, stagger: .12, ease: 'expo.out', delay: .2 }); gsap.from(root.querySelectorAll('.dcard'), { y: 30, opacity: 0, duration: .9, stagger: .06, ease: 'expo.out', scrollTrigger: { trigger: root.querySelector('.rail'), start: 'top 85%', once: true } }); }
+  }
+};
+
+/* ---------- F · Bento ---------- */
+const F = {
+  note: '<b>F · Bento.</b> Light, app-like, modular: a hero tile, the question tile, a live “from” price, a 12-month best-time chart, a map tile whose route draws itself, an enquiry tile with the two-hour promise, six destination tiles and three journeys — all springing into place on load. Reads as a modern product (think fintech/travel-app landing) and works brilliantly on a phone because every tile stacks. Trade-off: it is the least “travel-magazine” of the four; photography is smaller, so the tiles have to be sharp.',
+  html() { const months = ['J','F','M','A','M','J','J','A','S','O','N','D'], hi = [1,1,0,0,0,0,0,0,0,1,1,1], h = [.9,.8,.5,.3,.2,.15,.15,.2,.35,.7,1,.95];
+    return `<div class="site vf"><div class="wrap">
+    <header><a class="logo" href="#">${mark('#1A4BD6','#fff')} Tripsmith</a><nav><a class="on" href="#">Destinations</a><a href="#">Trips</a><a href="#">About</a><a href="#">Contact</a></nav><a class="btn" href="#">Enquire</a></header>
+    <div class="bento" id="bento">
+      <div class="tile t-hero">${scene('andaman')}<div class="c"><h1>Travel, intelligently.</h1><p>Twelve trips we run ourselves — real dates, real hotels, real seats.</p></div></div>
+      <div class="tile t-ask"><span class="k">Find a trip</span><h2>Where do you want to go?</h2><div class="chips">${DEST.slice(0,4).map(d => `<span class="chip">${d.name}</span>`).join('')}<span class="chip">+2</span></div><div class="in"><span id="f-type">November · up to ₹25,000 · 3–5 nights</span><b>Search</b></div></div>
+      <div class="tile t-price"><span class="k">Trips from</span><div><b class="num" id="f-price">₹0</b><br><small>per person · double sharing</small></div></div>
+      <div class="tile t-best"><span class="k">Best time · Goa</span><h3>November to February</h3><div class="bars" id="f-bars">${h.map((v, i) => `<i style="--h:${Math.round(v*100)}%" class="${hi[i] ? 'hi' : ''} ${i === 10 ? 'now' : ''}"></i>`).join('')}</div><div class="months">${months.map(m => `<span>${m}</span>`).join('')}</div></div>
+      <div class="tile t-map"><svg viewBox="0 0 300 300" aria-hidden="true"><rect width="300" height="300" fill="#DDE7F2"/><path d="M70 -10 C 60 60, 110 90, 90 150 S 120 260, 100 310 L 310 310 L 310 -10 Z" fill="#E9EFE6"/><path id="f-route" d="M 90 90 C 110 130, 150 120, 160 80 S 230 140, 240 170 S 200 230, 170 232" fill="none" stroke="#1A4BD6" stroke-width="3" stroke-dasharray="6 7" stroke-linecap="round"/><circle cx="90" cy="90" r="6" fill="#1A4BD6"/><circle cx="160" cy="80" r="6" fill="#1A4BD6"/><circle cx="240" cy="170" r="6" fill="#1A4BD6"/><circle cx="170" cy="232" r="7" fill="#F2A93B"/></svg><div class="lab"><span class="k">Itinerary map</span><b>Candolim → Panjim</b></div></div>
+      <div class="tile t-conc"><span class="k">Enquire</span><div class="m u">Honeymoon in Kerala, first week of November?</div><div class="m" id="f-a"><span class="dots"><i></i><i></i><i></i></span></div><div class="m" style="background:transparent;padding:0;color:#9AA3AD;font-size:12px">A person calls back within 2 hours · 10 am – 8 pm · WhatsApp too</div></div>
+      ${DEST.map(d => `<a class="tile t-dest" href="#">${scene(d.slug)}<b>${d.name}</b><small>${inr(d.from)}</small></a>`).join('')}
+      <div class="tile t-stats"><div><b class="num">12</b><small>journeys</small></div><div><b class="num">41</b><small>departures this season</small></div><div><b class="num">2 h</b><small>callback promise</small></div></div>
+      ${PKGS.slice(0,3).map(p => `<a class="tile t-j" href="#">${scene(p.dest)}${badge(p.badge)}<div class="b"><div><h3>${p.name}</h3><small>${destName(p.dest)} · ${dn(p)}</small></div><div class="p num">${inr(p.from)}</div></div></a>`).join('')}
+    </div>
+    <footer><span>© 2026 Tripsmith Holidays · Bengaluru</span><span>Demo login: owner@tripsmith.in / demo1234</span></footer>
+  </div></div>`; },
+  motion(root) {
+    if (!window.gsap || reduced) { root.querySelector('#f-price').textContent = inr(14999); root.querySelector('#f-a').textContent = 'Thanks Priya — Rohan from Tripsmith here. Munnar & Alleppey Houseboat fits: 4 nights, ₹21,999 per person, Sat 7 Nov with 8 seats. Sending the itinerary PDF now.'; return; }
+    gsap.from(root.querySelectorAll('.tile'), { y: 28, opacity: 0, scale: .97, duration: .9, stagger: { each: .05, from: 'start' }, ease: 'expo.out' });
+    const pr = { v: 0 }, el = root.querySelector('#f-price'); gsap.to(pr, { v: 14999, duration: 1.6, ease: 'expo.out', delay: .4, onUpdate: () => el.textContent = inr(Math.round(pr.v)) });
+    gsap.from(root.querySelectorAll('#f-bars i'), { scaleY: 0, duration: .9, stagger: .04, ease: 'expo.out', delay: .5 });
+    const r = root.querySelector('#f-route'), L = r.getTotalLength(); gsap.fromTo(r, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.8, ease: 'power2.inOut', delay: .7, onComplete: () => r.setAttribute('stroke-dasharray', '6 7') });
+    const a = root.querySelector('#f-a'), txt = 'Thanks Priya — Rohan from Tripsmith here. Munnar & Alleppey Houseboat fits: 4 nights, ₹21,999 per person, Sat 7 Nov with 8 seats. Sending the itinerary PDF now.'; const w = txt.split(' '); let j = 0;
+    const t2 = () => { a.textContent = w.slice(0, ++j).join(' '); if (j < w.length) timers.push(setTimeout(t2, 45)); }; timers.push(setTimeout(t2, 1500));
+    const prompts = ['November · up to ₹25,000 · 3–5 nights', 'Goa · December · any budget', 'Honeymoon · 4–6 nights · under ₹40,000']; let pi = 0, ty = root.querySelector('#f-type');
+    const cyc = () => { pi = (pi + 1) % prompts.length; gsap.to(ty, { opacity: 0, duration: .25, onComplete: () => { ty.textContent = prompts[pi]; gsap.to(ty, { opacity: 1, duration: .4 }); } }); timers.push(setTimeout(cyc, 3000)); }; timers.push(setTimeout(cyc, 3000));
+  }
+};
+
+/* ---------- G · Immersive ---------- */
+const G = {
+  note: '<b>G · Immersive.</b> One destination at a time, full screen. The hero is a pinned index of the six places: as you scroll, the scene crossfades and the active name lights up (or click a name). A single white question bar hangs off the bottom, then journeys as tall photo cards and an italic marquee. This is the “agency site that wins awards” shape. Trade-off: the pinned hero is expensive on a phone (falls back to tap-to-switch) and it delays the catalog by a screen — it sells the dream first, the trips second.',
+  html() { return `<div class="site vg">
+    <div class="stage-g" id="g-stage"><div class="wrap" style="position:relative;height:100%">
+      <header><a class="logo" href="#">${mark('#fff','#0E0D0B')} Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Trips</a><a href="#">About</a><a href="#">Enquire</a></nav></header>
+      ${DEST.map((d, i) => scene(d.slug, i ? '' : 'on')).join('')}
+      <div class="index"><div class="names" id="g-names">${DEST.map((d, i) => `<a href="#" class="${i ? '' : 'on'}" data-i="${i}"><span class="i">0${i+1}</span>${d.name}<small>from ${inr(d.from)}</small></a>`).join('')}</div>
+        <div class="side"><h1 id="g-line">Sunsets, forts and shacks.</h1><p>Twelve trips we run ourselves. Real dates, real hotels, real seats — and a person who calls you back.</p><a class="btn" href="#">See trips to <span id="g-name">Goa</span> ${ARROW}</a></div></div>
+      <div class="prog" aria-hidden="true"><i id="g-prog"></i></div>
+    </div>
+    <div class="ask"><div class="wrap"><div class="in"><span><b>Where do you want to go?</b> Anywhere · November · up to ₹25,000</span><a class="btn" href="#">Find trips</a></div></div></div></div>
+    <div class="wrap">
+      <section><div class="sechead"><h2>Popular journeys</h2><a href="#">All 12 →</a></div><div class="grid">${PKGS.map(p => `<a class="jc" href="#">${scene(p.dest)}${badge(p.badge)}<div class="t"><h3>${p.name}</h3><div class="m"><span>${destName(p.dest)} · ${dn(p)}</span><b class="num">${inr(p.from)}</b></div></div></a>`).join('')}</div></section>
+    </div>
+    <div class="strip" aria-hidden="true"><div class="track">${[...DEST, ...DEST].map(d => `<span>${d.line}</span>`).join('')}</div></div>
+    <div class="wrap"><footer><span>© 2026 Tripsmith Holidays · Bengaluru</span><span>Demo login: owner@tripsmith.in / demo1234</span></footer></div>
+  </div>`; },
+  motion(root) {
+    const scenes = [...root.querySelectorAll('#g-stage .scene')], names = [...root.querySelectorAll('#g-names a')], line = root.querySelector('#g-line'), nm = root.querySelector('#g-name'), prog = root.querySelector('#g-prog');
+    const show = k => { scenes.forEach((s, j) => s.classList.toggle('on', j === k)); names.forEach((a, j) => a.classList.toggle('on', j === k)); line.textContent = DEST[k].line; nm.textContent = DEST[k].name; prog.style.transform = `translateY(${k * 100}%)`; };
+    names.forEach((a, k) => a.addEventListener('click', e => { e.preventDefault(); show(k); }));
+    scenes.forEach(s => { s.style.transition = 'opacity .9s cubic-bezier(.22,1,.36,1)'; });
+    if (!window.gsap || reduced || frameW() < 800) return;
+    ScrollTrigger.create({ trigger: root.querySelector('#g-stage'), start: 'top top', end: '+=1800', pin: true, scrub: true, onUpdate: self => show(Math.min(5, Math.floor(self.progress * 6))) });
+    gsap.from(root.querySelectorAll('.jc'), { y: 40, opacity: 0, duration: 1, stagger: .08, ease: 'expo.out', scrollTrigger: { trigger: root.querySelector('.grid'), start: 'top 85%', once: true } });
+  }
+};
+
+/* ---------- H · Kinetic ---------- */
+const H = {
+  note: '<b>H · Kinetic.</b> White, typographic, gallery-like: a giant scrolling wordmark, destinations as enormous serif lines — hover one and its photo trails your cursor — then compact journey cards and the enquiry promise as a printed Q&amp;A. The most “design studio” of the four and the fastest to load; photography is used sparingly so the type does the work. Trade-off: it is cool for a design-literate audience and may feel too spare for a family booking a Goa trip — the cards and prices have to carry the reassurance.',
+  html() { return `<div class="site vh"><div class="wrap">
+    <header><a class="logo" href="#">${mark('#0F0F0F','#fff')} Tripsmith</a><nav><a href="#">Destinations</a><a href="#">Trips</a><a href="#">About</a><a href="#">Contact</a></nav><a class="btn" href="#">Enquire</a></header>
+    </div><div class="big" aria-hidden="true"><div class="track">${Array(4).fill('<span>Travel, <em>intelligently.</em></span>').join('')}</div></div><div class="wrap">
+    <div class="hero"><p class="lead">Twelve short Indian holidays, planned by people who have been.</p><form class="ask" onsubmit="return false"><div class="in"><span><b>Where</b> Anywhere</span><span>When · November</span><span>Budget · ₹25k</span></div><small style="color:var(--mute)">Real trips, real dates, real seats — filter by destination, month, budget and nights.</small></form></div>
+    <div class="list">${DEST.map((d, i) => `<a class="li" href="#" data-peek="${d.slug}"><span class="n">${i % 2 ? `<em>${d.name}</em>` : d.name}</span><span class="m">${d.best}</span><span class="p num">${inr(d.from)} <small>from</small></span></a>`).join('')}</div>
+    <section><div class="sechead"><h2>Popular journeys</h2><a href="#">All twelve</a></div><div class="cards">${PKGS.slice(0,4).map(p => `<a class="card" href="#">${scene(p.dest)}<h3>${p.name}</h3><div class="m"><span>${destName(p.dest)} · ${dn(p)}</span><b class="num">${inr(p.from)}</b></div>${badge(p.badge)}</a>`).join('')}</div></section>
+    <div class="conc"><div><h2>Ask us anything. A person answers within two hours.</h2><p>Enquire on any trip, or WhatsApp us. We call back between 10 am and 8 pm, and every itinerary comes as a PDF you can forward.</p></div><div><div class="q">“3 days in Goa under ₹15k for two of us, mid-November?”</div><div class="a"><b>Rohan, Tripsmith</b> — Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left. Sending you the itinerary PDF; call you at 6?</div></div></div>
+    <footer><span>© 2026 Tripsmith Holidays · Bengaluru</span><span>Demo login: owner@tripsmith.in / demo1234</span></footer>
+    </div><div class="peek scene" id="h-peek" data-kind="goa" aria-hidden="true"></div></div>`; },
+  motion(root) {
+    peek(root, '#h-peek', '.li');
+    if (!window.gsap || reduced) return;
+    gsap.from(root.querySelectorAll('.li'), { y: 30, opacity: 0, duration: 1, stagger: .07, ease: 'expo.out', delay: .2 });
+    gsap.from(root.querySelectorAll('.card'), { y: 30, opacity: 0, duration: .9, stagger: .08, ease: 'expo.out', scrollTrigger: { trigger: root.querySelector('.cards'), start: 'top 85%', once: true } });
+  }
+};
+
+/* ---------- shared: cursor-following image peek ---------- */
+function peek(root, sel, rowSel) {
+  const pk = root.querySelector(sel); if (!pk || matchMedia('(hover: none)').matches) return;
+  const rows = root.querySelectorAll(rowSel);
+  const mv = e => { pk.style.left = (e.clientX + 24) + 'px'; pk.style.top = (e.clientY - 90) + 'px'; };
+  rows.forEach(r => { const en = () => { pk.dataset.kind = r.dataset.peek; paint(pk, true); pk.classList.add('show'); }, lv = () => pk.classList.remove('show'); r.addEventListener('mouseenter', en); r.addEventListener('mouseleave', lv); cleanup.push(() => { r.removeEventListener('mouseenter', en); r.removeEventListener('mouseleave', lv); }); });
+  document.addEventListener('mousemove', mv); cleanup.push(() => document.removeEventListener('mousemove', mv));
+}
+
+/* ---------- procedural scenes (same painter as the showcase) ---------- */
+const PAL = {
+  goa:       { sky:['#F9DDB0','#8AD0DC'], sun:[.78,.22], ridges:['#2A8AA0','#1E6F86','#155A6E'], water:['#5FC0CF','#1E6F86'], horizon:.62 },
+  kerala:    { sky:['#E6F0D8','#7FB59A'], sun:[.3,.2], ridges:['#3F8A64','#2F7A56','#1F5A3E','#0F3D2E'], water:['#5B8F7A','#0F3D2E'], horizon:.7 },
+  himachal:  { sky:['#F1F4F8','#8CA5C6'], sun:[.2,.18], ridges:['#93A9C4','#5B7EA6','#3E5A80','#233A5C'], water:null, horizon:.55 },
+  rajasthan: { sky:['#FBE1AE','#E8A45C'], sun:[.72,.3], ridges:['#D98F52','#C9713A','#9C4A24','#7A2E1D'], water:null, horizon:.6 },
+  andaman:   { sky:['#FFF4DE','#5FC6DA'], sun:[.62,.2], ridges:['#0F6F88','#0A5C75'], water:['#7ED7E6','#1592AE'], horizon:.58 },
+  ladakh:    { sky:['#EEE6F5','#A398BD'], sun:[.5,.16], ridges:['#A8977A','#8B7A5E','#6A5A48','#4A3F5C'], water:['#7E8FA8','#4A3F5C'], horizon:.68 },
+};
+function rnd(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function paint(el, force) {
+  const k = el.dataset.kind, P = PAL[k] || PAL.goa;
+  let c = el.querySelector('canvas'); if (!c) { c = document.createElement('canvas'); el.prepend(c); }
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const dpr = Math.min(devicePixelRatio || 1, 1.5), W = Math.round(r.width * 1.08 * dpr), H = Math.round(r.height * 1.08 * dpr);
+  if (!force && c.width === W && c.height === H && c.dataset.kind === k) return; c.width = W; c.height = H; c.dataset.kind = k;
+  const g = c.getContext('2d'), R = rnd(k.length * 7919 + Math.round(r.width) + 11);
+  const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, P.sky[0]); sky.addColorStop(1, P.sky[1]); g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  const sx = P.sun[0] * W, sy = P.sun[1] * H, sr = Math.min(W, H) * .07;
+  const halo = g.createRadialGradient(sx, sy, 0, sx, sy, sr * 5); halo.addColorStop(0, 'rgba(255,240,200,.75)'); halo.addColorStop(1, 'rgba(255,240,200,0)'); g.fillStyle = halo; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#F2A93B'; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill();
+  const hz = P.horizon * H, n = P.ridges.length;
+  P.ridges.forEach((col, i) => { const base = hz - (n - 1 - i) * H * .08, amp = H * (.06 + .05 * (n - i)), f1 = 1 + R() * 2, f2 = 3 + R() * 4, ph = R() * 6.28;
+    g.fillStyle = col; g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 6) { const t = x / W; g.lineTo(x, base - amp * (0.55 * Math.sin(t * f1 * 3.14 + ph) + 0.3 * Math.sin(t * f2 * 6.28 + ph * 2) + 0.15 * Math.sin(t * 23 + ph))); }
+    g.lineTo(W, H); g.closePath(); g.fill();
+    if (i < n - 1) { const hz2 = g.createLinearGradient(0, base - amp, 0, base + amp); hz2.addColorStop(0, 'rgba(255,255,255,0)'); hz2.addColorStop(1, 'rgba(255,255,255,.18)'); g.fillStyle = hz2; g.fillRect(0, base - amp, W, amp * 2); } });
+  if (P.water) { const wy = hz + H * .02, wg = g.createLinearGradient(0, wy, 0, H); wg.addColorStop(0, P.water[0]); wg.addColorStop(1, P.water[1]); g.fillStyle = wg; g.fillRect(0, wy, W, H - wy);
+    g.globalAlpha = .35; g.strokeStyle = '#fff'; g.lineWidth = dpr;
+    for (let i = 0; i < 26; i++) { const y = wy + R() * (H - wy), x = sx + (R() - .5) * W * .5, l = (R() * .25 + .05) * W * (1 - (y - wy) / (H - wy) * .5); g.beginPath(); g.moveTo(x - l / 2, y); g.lineTo(x + l / 2, y); g.stroke(); }
+    g.globalAlpha = 1; }
+  const v = g.createRadialGradient(W * .5, H * .45, H * .3, W * .5, H * .5, H * .95); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.28)'); g.fillStyle = v; g.fillRect(0, 0, W, H);
+  const gr = document.createElement('canvas'); gr.width = gr.height = 128; const gg = gr.getContext('2d'), id = gg.createImageData(128, 128);
+  for (let i = 0; i < id.data.length; i += 4) { const sh = 128 + (R() - .5) * 90; id.data[i] = id.data[i+1] = id.data[i+2] = sh; id.data[i+3] = 22; }
+  gg.putImageData(id, 0, 0); g.fillStyle = g.createPattern(gr, 'repeat'); g.fillRect(0, 0, W, H);
+}
+function paintAll(root) { (root || document).querySelectorAll('.scene').forEach(el => paint(el)); }
+
+/* ---------- switcher ---------- */
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const frameW = () => document.getElementById('frame').clientWidth;
+let cleanup = [], timers = [];
+const V = { e:E, f:F, g:G, h:H };
+let cur = 'e'; try { cur = localStorage.getItem('ts-dir2') || 'e'; } catch (e) {}
+if (window.gsap) gsap.registerPlugin(ScrollTrigger);
+function render() {
+  if (window.gsap) { ScrollTrigger.getAll().forEach(t => t.kill()); gsap.globalTimeline.clear(); }
+  cleanup.forEach(f => f()); cleanup = []; timers.forEach(clearTimeout); timers = [];
+  const frame = document.getElementById('frame'); frame.innerHTML = V[cur].html();
+  document.getElementById('tradeoff').innerHTML = V[cur].note;
+  document.querySelectorAll('.chrome button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === cur)));
+  window.scrollTo({ top: 0 }); paintAll(frame); V[cur].motion(frame);
+  if (window.gsap) requestAnimationFrame(() => ScrollTrigger.refresh());
+  try { localStorage.setItem('ts-dir2', cur); } catch (e) {}
+}
+document.querySelector('.chrome').addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (!b) return; cur = b.dataset.v; render(); });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { paintAll(); window.gsap && ScrollTrigger.refresh(); }, 150); });
+render();
+</script>

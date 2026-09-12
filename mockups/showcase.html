@@ -400,7 +400,7 @@
 <header class="top" id="top">
   <div class="wrap">
     <a class="logo" href="#" data-go="home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1A4BD6"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F7F4EE" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#F7F4EE"/></svg>Tripsmith</a>
-    <nav><a class="ln" href="#" data-go="home">Explore</a><a class="ln" href="#" data-go="pkg">Trips</a><a class="ln dim" href="#">My Trips</a></nav>
+    <nav><a class="ln" href="#" data-go="home">Destinations</a><a class="ln" href="#" data-go="pkg">Trips</a><a class="ln" href="#">About</a><a class="ln" href="#">Contact</a></nav>
     <div class="switch" role="group" aria-label="Page"><button data-go="home" aria-pressed="true">Home</button><button data-go="pkg" aria-pressed="false">Package</button></div>
     <a class="btn line" href="#">Enquire</a>
   </div>
@@ -410,7 +410,7 @@
 <div id="wipe" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F7F4EE" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/></svg></div>
 <div id="lightbox" role="dialog" aria-label="Photo" aria-hidden="true"><button class="x" type="button">Close ✕</button><div class="cap"></div></div>
 <main id="view"></main>
-<a class="fab" href="#"><span class="dot"></span>Ask the concierge</a>
+<a class="fab" href="#"><span class="dot"></span>WhatsApp us</a>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
@@ -486,8 +486,8 @@ const HOME = () => `
   <section class="hero"><div class="wrap grid">
     <div>
       <h1 id="h1">Travel, <span class="em">intelligently.</span></h1>
-      <p class="lead">Tell us where you want to go. We’ll build the journey — from twelve trips we actually run.</p>
-      <form class="ask" onsubmit="return false"><label class="sr" for="ask">Where do you want to go?</label><div class="type" id="type" aria-hidden="true"></div><input id="ask" hidden><button class="btn acc" type="button"><span class="dot"></span>Plan my trip</button></form>
+      <p class="lead">Tell us where you want to go. We’ll plan the journey — from twelve trips we actually run.</p>
+      <form class="ask" onsubmit="return false"><label class="sr" for="ask">Where do you want to go?</label><div class="type" id="type" aria-hidden="true"></div><input id="ask" hidden><button class="btn acc" type="button"><span class="dot"></span>Find trips</button></form>
       <div class="chips">${DEST.slice(0,4).map(d => `<a class="chip" href="#"><span class="sw">${scene(d.slug)}</span>${d.name}</a>`).join('')}<a class="chip" href="#" style="padding-left:14px">All six ${arrow}</a></div>
     </div>
     <div class="art">
@@ -508,13 +508,13 @@ const HOME = () => `
   </div></section>
 
   <section class="concierge"><div class="wrap"><div class="panel">
-    <div><h2>Your AI travel concierge</h2><p>Ask in plain words. It searches our real packages, checks real dates and seats, and hands you to a person the moment you want one.</p>
-      <ul class="pts"><li>Only recommends trips we actually run</li><li>Checks live departures and seats</li><li>Hindi and Hinglish welcome</li><li>“Talk to a person” at any time</li></ul></div>
-    <div class="chat" id="chat"><div class="hd"><b><i></i>Tripsmith concierge</b><span>Replies in seconds</span></div>
+    <div><h2>Tell us the trip. A person calls you back within two hours.</h2><p>Enquire on any package, or on WhatsApp. Someone from our Bengaluru office calls between 10 am and 8 pm — and every itinerary is a PDF you can forward to the family group.</p>
+      <ul class="pts"><li>Every date on the site is a departure we run</li><li>Live seat counts, no “call for availability”</li><li>Hotels we have slept in ourselves</li><li>Itinerary PDF that matches the page to the rupee</li></ul></div>
+    <div class="chat" id="chat"><div class="hd"><b><i></i>WhatsApp · Tripsmith</b><span>Rohan · replies within 2 h</span></div>
       <div class="msg u" id="m1"></div>
       <div class="msg a" id="m2"><span class="dots"><i></i><i></i><i></i></span></div>
       <div class="mini" id="m3"><a href="#" data-go="pkg">${scene('goa')}<div class="t"><b>North Goa Beaches</b><span>3N · from ₹14,999 · 6 seats on 14 Nov</span></div></a><a href="#" data-go="pkg">${scene('goa')}<div class="t"><b>South Goa Quiet Escape</b><span>3N · from ₹17,499 · Guaranteed</span></div></a></div>
-      <div class="in"><span>Ask about dates, hotels, kids…</span><span>↵</span></div>
+      <div class="in"><span>Message Tripsmith on WhatsApp…</span><span>↵</span></div>
     </div>
   </div></div></section>
 
@@ -524,7 +524,7 @@ const HOME = () => `
 
   ${FOOT()}`;
 
-const FOOT = () => `<footer><div class="wrap"><p class="big" aria-hidden="true">Tripsmith</p><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a class="ln" href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a class="ln" href="#">About</a><a class="ln" href="#">Contact</a><a class="ln" href="#">Developers</a></div><div><b>Policies</b><a class="ln" href="#">Terms</a><a class="ln" href="#">Privacy</a><a class="ln" href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia</span><span>Demo login: owner@tripsmith.in / demo1234</span></div></div></footer>`;
+const FOOT = () => `<footer><div class="wrap"><p class="big" aria-hidden="true">Tripsmith</p><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a class="ln" href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a class="ln" href="#">About</a><a class="ln" href="#">Contact</a><a class="ln" href="#">Why Tripsmith</a></div><div><b>Policies</b><a class="ln" href="#">Terms</a><a class="ln" href="#">Privacy</a><a class="ln" href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia</span><span>Demo login: owner@tripsmith.in / demo1234</span></div></div></footer>`;
 
 const MAP = `<svg viewBox="0 0 300 240" aria-label="Route map: Candolim, Aguada, Anjuna, Old Goa, Panjim"><defs><clipPath id="mapclip"><rect width="300" height="240" rx="6"/></clipPath></defs><g clip-path="url(#mapclip)"><rect class="sea" width="300" height="240"/>${[30,70,110,150,190,230].map(y=>`<path class="wave" d="M-10 ${y} q 15 -6 30 0 t 30 0 t 30 0 t 30 0"/>`).join('')}<path class="land" d="M82 -10 C 70 30, 96 52, 78 78 C 62 100, 104 118, 96 146 C 90 170, 128 196, 112 250 L 310 250 L 310 -10 Z"/><path class="land" d="M60 210 C 90 200, 130 214, 150 250 L 40 250 Z" opacity=".7"/><path class="road" d="M92 40 C 120 60, 150 70, 186 90 S 240 150, 230 200"/><path class="road" d="M120 20 C 150 40, 170 30, 220 60"/><path class="road" d="M150 250 C 160 200, 200 170, 240 150"/><text class="place" x="200" y="34">Mapusa</text><text class="place" x="238" y="96">Ponda</text><text class="place" x="132" y="226">Vasco</text><text class="place" x="20" y="120" transform="rotate(-70 20 120)" style="font-size:9px;letter-spacing:.2em">ARABIAN SEA</text><path class="route" id="route" d="M 78 62 C 92 96, 128 90, 140 46 S 210 100, 226 128 S 200 176, 168 178"/><g class="stop" data-i="0"><circle cx="78" cy="62" r="6"/><text x="88" y="58">Candolim</text></g><g class="stop" data-i="1"><circle cx="140" cy="46" r="6"/><text x="150" y="42">Aguada · Anjuna</text></g><g class="stop" data-i="2"><circle cx="226" cy="128" r="6"/><text x="150" y="152">Old Goa</text></g><g class="stop end" data-i="3"><circle cx="168" cy="178" r="6"/><text x="178" y="196">Panjim · cruise</text></g><circle class="marker" id="marker" cx="78" cy="62" r="5"/></g></svg>`;
 
@@ -544,7 +544,7 @@ const PKGV = () => `
       <h2>Where you stay</h2><div class="hotel">${scene('goa')}<div><b>${PKG.hotel.name}</b><span>${PKG.hotel.city} · ${PKG.hotel.stars} · ${PKG.hotel.nights}</span></div></div>
       <h2 id="s-dates">Dates & prices</h2><table><thead><tr><th>Departure</th><th>Per person</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>${PKG.deps.map(d => `<tr><td>${d.date}</td><td class="num">${inr(d.price)}</td><td class="num"><span class="seat ${d.seats && d.seats <= 4 ? 'low' : ''}"><i><b style="transform:scaleX(${d.seats/20})"></b></i>${d.seats ? d.seats + ' left' : 'sold out'}</span></td><td>${badge(d.badge)}</td><td style="text-align:right">${d.seats ? '<a class="btn line" href="#">Enquire</a>' : ''}</td></tr>`).join('')}</tbody></table>
       <h2 id="s-faq">Questions</h2><div class="faq">${PKG.faq.map(f => `<details><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
-    </main><aside><div class="box"><div class="from">From<b class="num">${inr(PKG.from)}</b>per person, double sharing</div><div class="fld"><label>Departure</label><div class="v"><span>Sat 14 Nov 2026</span><span class="num">6 seats</span></div></div><div class="fld"><label>Travellers</label><div class="v"><span>2 adults</span><span>Change</span></div></div><a class="btn acc" href="#"><span class="dot"></span>Enquire about this trip</a><div class="row"><a class="btn line" href="#">Customise</a><a class="btn line" href="#">WhatsApp</a></div><div class="occ">${PKG.occ.map(o => `<div><span>${o[0]}</span><span class="num">${o[1]}</span></div>`).join('')}</div><div class="call">A person calls you back within 2 hours, 10 am – 8 pm IST. No payment until you say so.</div></div></aside></div>
+    </main><aside><div class="box"><div class="from">From<b class="num">${inr(PKG.from)}</b>per person, double sharing</div><div class="fld"><label>Departure</label><div class="v"><span>Sat 14 Nov 2026</span><span class="num">6 seats</span></div></div><div class="fld"><label>Travellers</label><div class="v"><span>2 adults</span><span>Change</span></div></div><a class="btn acc" href="#"><span class="dot"></span>Enquire about this trip</a><div class="row"><a class="btn line" href="#">Customise</a><a class="btn line" href="#">WhatsApp</a></div><div class="occ">${PKG.occ.map(o => `<div><span>${o[0]}</span><span class="num">${o[1]}</span></div>`).join('')}</div><div class="call">A person calls you back within 2 hours, 10 am – 8 pm IST. Nothing to pay online.</div></div></aside></div>
     <div class="cta-mobile"><div class="price"><b class="num">${inr(PKG.from)}</b><small>per person</small></div><a class="btn line" href="#">PDF</a><a class="btn acc" href="#">Enquire</a></div>
     <section class="related"><div class="sechead"><h2>More journeys like this</h2></div><div class="rail">${[PKGS[6], PKGS[1], PKGS[4]].map(card).join('')}</div></section>
   </div></section>
@@ -653,7 +653,7 @@ function motionHome() {
   const h1 = document.getElementById('h1');
   h1.innerHTML = h1.innerHTML.replace(/(<span class="em">)?([^<\s]+)(<\/span>)?/g, (m, a, w, b) => (a || b) ? m : `<span class="w"><span>${w}</span></span>`)
     .replace(/<span class="em">([^<]+)<\/span>/, '<span class="w"><span class="em">$1</span></span>');
-  const prompts = ['3 days in Goa under ₹15k for two', 'Honeymoon in Kerala, first week of November', 'Somewhere cold in December, ex-Delhi', 'Family of five, 5 nights, under ₹1 lakh'];
+  const prompts = ['Goa · 3 nights · under ₹15,000', 'Kerala · November · honeymoon', 'Himachal · December · family of five', 'Ladakh · 6 nights · June'];
   const type = document.getElementById('type');
   if (reduced) { type.textContent = 'Where do you want to go?'; }
   else {
@@ -686,16 +686,16 @@ function motionHome() {
   ScrollTrigger.batch('.why .row, .quote, .concierge .pts li', { start: 'top 88%', once: true, onEnter: els => gsap.from(els, { y: 22, opacity: 0, duration: .9, ease: 'expo.out', stagger: .08, overwrite: true }) });
   ScrollTrigger.create({ trigger: '#chat', start: 'top 75%', once: true, onEnter: () => {
     const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'), m3 = document.getElementById('m3');
-    const u = '3 days in Goa under ₹15k for 2 of us, mid-November'; let i = 0; m1.classList.add('show');
+    const u = 'Hi, 3 days in Goa under ₹15k for 2 of us, mid-November?'; let i = 0; m1.classList.add('show');
     const t1 = () => { m1.textContent = u.slice(0, ++i); if (i < u.length) setTimeout(t1, 28); else setTimeout(() => { m2.classList.add('show'); setTimeout(reply, 1100); }, 350); };
-    const reply = () => { const a = 'Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left — Candolim stay, forts and a Mandovi cruise. South Goa Quiet Escape is ₹17,499, a little over budget. Want me to check dates?'; const words = a.split(' '); let j = 0; m2.textContent = '';
+    const reply = () => { const a = 'Hi! Rohan from Tripsmith. Two trips fit — North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left: Candolim stay, forts and a Mandovi cruise. South Goa Quiet Escape is ₹17,499. Sending both itineraries as PDF — call you at 6?'; const words = a.split(' '); let j = 0; m2.textContent = '';
       const t2 = () => { m2.textContent = words.slice(0, ++j).join(' '); if (j < words.length) setTimeout(t2, 38); else setTimeout(() => m3.querySelectorAll('a').forEach((x, k) => setTimeout(() => x.classList.add('show'), k * 140)), 250); };
       t2(); };
     setTimeout(t1, 200);
   }});
   tilt('.card'); magnetic('.btn.acc');
 }
-function staticChat() { const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'); if (!m1) return; m1.textContent = '3 days in Goa under ₹15k for 2 of us, mid-November'; m1.classList.add('show'); m2.textContent = 'Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left. South Goa Quiet Escape is ₹17,499, a little over budget. Want me to check dates?'; m2.classList.add('show'); document.querySelectorAll('#m3 a').forEach(a => a.classList.add('show')); }
+function staticChat() { const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'); if (!m1) return; m1.textContent = 'Hi, 3 days in Goa under ₹15k for 2 of us, mid-November?'; m1.classList.add('show'); m2.textContent = 'Hi! Rohan from Tripsmith. Two trips fit — North Goa Beaches, Sat 14 Nov, ₹14,999 per person, 6 seats left. Sending both itineraries as PDF — call you at 6?'; m2.classList.add('show'); document.querySelectorAll('#m3 a').forEach(a => a.classList.add('show')); }
 
 function motionPkg() {
   const route = document.getElementById('route'), stops = [...document.querySelectorAll('.map .stop')], days = [...document.querySelectorAll('.tday')], lbl = document.getElementById('mapday');

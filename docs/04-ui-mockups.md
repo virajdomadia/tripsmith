@@ -44,6 +44,15 @@
 - **Craft floor:** themed selection / caret / scrollbar / focus rings, tabular numerals in every price column, `prefers-reduced-motion` renders everything at rest, sticky enquiry box, mobile CTA bar, hover states on every control.
 - **Stack for the real build:** the same motion transfers to `web/` with `gsap` + `@gsap/react` (`useGSAP`), scenes as a `<Scene kind>` client component, tokens into the Tailwind theme.
 
+### Directions II — modern & cool (2026-09-12, v1 scope only)
+`mockups/directions-2.html` (published: https://claude.ai/code/artifact/ad8dff40-83e3-42ff-b395-a054f7b1037b) — four home-page directions, each with its own motion, after the showcase was judged good but not the final look:
+- **E Night** — dark cinematic; destination scenes crossfade with the headline; glass search; journeys list with cursor-following photo
+- **F Bento** — light app-like grid; tiles spring in; live from-price count-up; 12-month best-time chart; route draws in the map tile
+- **G Immersive** — pinned full-screen destination index driven by scroll; tall photo journey cards; italic marquee
+- **H Kinetic** — white, giant serif type; destination lines with photo trailing the cursor; compact cards
+
+**Rule (Viraj, 2026-09-12): mockups show v1 only** — no concierge, no accounts / "My Trips", no AI copy. The search is structured (where / when / budget); the human promise (2-hour callback, WhatsApp, itinerary PDF) takes the place the concierge would have. The showcase was updated to the same rule. v3 screens get the concierge when v3 is designed.
+
 ## Screen index status
 | Screens | Status |
 |---|---|
