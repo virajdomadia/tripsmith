@@ -1,6 +1,6 @@
 # Tripsmith — Technical Design for v2, v3, v4, and add-ons
 
-**Lifecycle step:** 4 of 17 (forward design) · **Written:** 2026-09-12
+**Lifecycle step:** 4 of 17 (forward design) · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI
 **Companion to:** [04-technical-design.md](04-technical-design.md) (v1). Same stack, same conventions. **All server logic below lives in `api/`; `web/` only adds pages and components** (see [05-architecture.md](05-architecture.md) §0).
 **Status:** approved. Requirements with acceptance criteria: [03-requirements-v2.md](03-requirements-v2.md), [03-requirements-v3.md](03-requirements-v3.md). §0 lists the v1 decisions that keep every later feature additive.
 
@@ -10,15 +10,15 @@
 
 | v1 change | Enables |
 |---|---|
-| `users.role` column (`owner` \| `customer`) in the Better Auth user table | v2 customer accounts without a migration of auth |
+| `users.role` column (`owner` \| `customer`) in the own `users` table | v2 customer accounts without a migration of auth |
 | `itinerary_days.location` (`name`, `lat`, `lng`, nullable) filled in the seed | Storyboard, route map, trip-hub weather |
 | `departures.guaranteed`, `seats_total`, `seats_left` as **derived** (`seats_total − confirmed − active holds`) not a mutable counter | v2 holds and bookings without double-counting |
 | `enquiries.conversation_id` (nullable FK) and `enquiries.type` enum including `chat-handoff` | v3 human handoff |
 | `packages.deal_price`, `deal_label`, `deal_ends_at` (nullable, unused in v1 UI) | v2 deals with no schema change |
-| `api modules/pdf` takes a generic `Document` component | v2 voucher reuses the renderer |
-| `searchPackages()` returns plain serialisable objects, no Drizzle classes | v3 tool result goes straight to the model |
-| `api infra/ratelimit.ts` generic helper (key, limit, window) | v3 chat quotas |
-| `api/content/destinations/*.ts` includes a `climate[12]` array | Best-time strip |
+| `api services/pdf` exposes a small `Document` base (page chrome, fonts) | v2 voucher reuses the renderer |
+| `search_packages()` returns pydantic models, never SQLAlchemy instances | v3 tool result goes straight to the model |
+| `api infra/ratelimit.py` generic helper (key, limit, window) | v3 chat quotas |
+| `api/content/destinations/*.py` includes a `climate[12]` list | Best-time strip |
 
 ---
 
@@ -44,21 +44,21 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 - `quoteBooking(departureId, travellers[])` on the server returns the breakdown: adults × occupancy price, children × child price, single supplements, deal discount if `deal_ends_at > now()`, total. The client **never** sends amounts; the Razorpay order is created from the server quote.
 
 ### 5. Razorpay flow
-1. `POST /api/bookings` (api): quote → insert pending booking → `razorpay.orders.create({ amount, currency: 'INR', receipt: bookingId })` → return `order_id` + public key.
+1. `POST /api/bookings` (api): quote → insert pending booking → `client.order.create({"amount": …, "currency": "INR", "receipt": booking_id})` with the official `razorpay` Python SDK (imported only in `infra/razorpay.py`) → return `order_id` + public key.
 2. Client opens Razorpay Checkout.js with the order.
-3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /api/bookings/:ref/confirm` → api verifies `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` → mark payment `captured`, booking `confirmed`.
-4. **Webhook** `POST https://api.tripsmith.virajdomadia.com/webhooks/razorpay` (raw body, hits the api domain directly): verify `X-Razorpay-Signature` with the webhook secret; handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition. Whichever of (3) or (4) arrives first confirms; the other is a no-op.
+3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /api/bookings/:ref/confirm` → api verifies `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` with `hmac.compare_digest` → mark payment `captured`, booking `confirmed`.
+4. **Webhook** `POST https://api.tripsmith.virajdomadia.com/webhooks/razorpay` (raw body, hits the api domain directly): verify `X-Razorpay-Signature` with the webhook secret (`hmac`, constant-time compare); handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition. Whichever of (3) or (4) arrives first confirms; the other is a no-op.
 5. Test mode forever; keys in `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
 
 ### 6. Confirmation
-- `VoucherDocument` via `lib/pdf` (booking ref, travellers, departure, hotels, inclusions, contact). Email via Resend with the voucher attached; WhatsApp deep link with the booking ref.
+- `render_voucher` via `services/pdf` (fpdf2; booking ref, travellers, departure, hotels, inclusions, contact). Email via Resend with the voucher attached; WhatsApp deep link with the booking ref.
 
 ### 7. Customer accounts
-- Better Auth **email OTP plugin** (no SMS). A booking made while logged out is attached to the account created/logged in at checkout by email. `/account/bookings` lists bookings with voucher download and cancellation request.
+- **Own email OTP** (no SMS): `POST /auth/otp/request` writes a 6-digit code to the `verification` table (hashed, 10-min expiry, rate-limited per email and IP) and emails it via Resend; `POST /auth/otp/verify` creates the `users` row if needed (`role = 'customer'`) and a `sessions` row — the same cookie mechanism as the owner login. A booking made while logged out is attached to the account created/logged in at checkout by email. `/account/bookings` lists bookings with voucher download and cancellation request.
 
 ### 8. Admin additions
 - `/admin/bookings`: list, filters (status, departure, date), detail with payment timeline, **mark paid (offline)** which creates a manual `payments` row, CSV export.
-- Reply from inbox: server action → Resend → `enquiry_messages` row; thread shown on the enquiry.
+- Reply from inbox: `POST /admin/enquiries/:id/reply` → Resend → `enquiry_messages` row; thread shown on the enquiry.
 - Reviews moderation: approve/hide.
 - Deals: three fields on the package form.
 
@@ -74,19 +74,21 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ## v3 — AI concierge
 
 ### 1. Provider abstraction
-- Vercel AI SDK (`ai`) in **api/** with `@ai-sdk/google` (Gemini Flash, free tier) as default and `@ai-sdk/anthropic` opt-in; `api/src/modules/ai/provider.ts` reads `AI_PROVIDER` and `AI_MODEL`. Nothing else in the codebase imports a vendor SDK.
+- **pydantic-ai** in **api/** with Gemini Flash (free tier) as the default model and Anthropic opt-in; `api/app/services/ai/provider.py` reads `AI_PROVIDER` and `AI_MODEL` and builds the `Agent`. Nothing else in the codebase imports a model-provider SDK.
 
 ### 2. Chat runtime
-- api `POST /chat` (Hono streaming → SSE) → `streamText({ model, system, messages, tools, maxSteps: 5 })`; web `useChat({ api: '/api/chat' })` reaches it through the rewrite. Tool results render as **package cards** (tool-result parts → `<PackageCard>`), never as prose tables.
+- api `POST /chat` (SSE via `sse-starlette`) → `agent.run_stream(...)` with the system prompt, trimmed history, tools and a step cap of 5; events (`text-delta`, `tool-call`, `tool-result`, `done`, `error`) are emitted as named SSE events. web's in-house `useConcierge` hook (fetch stream over `ReadableStream`, no `useChat`) reaches it through the rewrite and reduces events into the message list. Tool results render as **package cards** (tool-result events → `<PackageCard>`), never as prose tables.
 - Anonymous `concierge_session` cookie; `conversations` + `messages` tables persist every turn (for the admin log and the handoff).
-- Quotas via `lib/ratelimit.ts`: 20 messages / IP / day, 30 messages per conversation, and a **global** 600 chat requests / day to stay inside the Gemini free quota. Over quota → the UI offers the enquiry form.
+- Quotas via `infra/ratelimit.py`: 20 messages / IP / day, 30 messages per conversation, and a **global** 600 chat requests / day to stay inside the Gemini free quota. Over quota → the UI offers the enquiry form.
 
 ### 3. Tools
+Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validated arguments, docstring = description) registered on the agent with `@agent.tool`; the same functions are exported to MCP in v4.
+
 | Tool | Wraps | Returns |
 |---|---|---|
-| `searchPackages({destination?, maxBudget?, nights?, theme?, month?})` | v1 `searchPackages()` | up to 5 package cards |
+| `searchPackages({destination?, maxBudget?, nights?, theme?, month?})` | v1 `search_packages()` | up to 5 package cards |
 | `checkAvailability({packageSlug, month?})` | departures query | dates, seats left, price per person, badges |
-| `startBooking({departureId, adults, children})` | v2 quote | a checkout URL with the selection pre-filled |
+| `startBooking({departureId, adults, children})` | v2 `quote_booking` | a checkout URL with the selection pre-filled |
 | `createEnquiry({name, phone, packageSlug?, summary})` | v1 enquiry pipeline, `type = chat-handoff` | enquiry ref; the transcript is attached |
 
 **Decision on the PRD open question:** the chat **never takes payment**. `startBooking` hands off to the v2 checkout page. Payment UI in a chat is worse UX and doubles the surface to secure.
@@ -98,7 +100,7 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 - **Decision on the PRD open question:** Hinglish is supported by prompt ("reply in the language the customer writes in, Hindi or Hinglish included"); the UI and package content stay English. Gemini handles this natively; no translation layer.
 
 ### 5. Evals
-- `evals/conversations/*.ts`: ~20 scripted dialogues with assertions (which tool was called with which args, no hallucinated slug, correct refusal for "Maldives", handoff created when asked for a human). Run with Vitest against the real provider, nightly via GitHub Actions (`schedule`), and on demand — never on every push, to protect the daily quota.
+- `api/evals/conversations/*.py`: ~20 scripted dialogues with assertions (which tool was called with which args, no hallucinated slug, correct refusal for "Maldives", handoff created when asked for a human). Run with pytest (`-m evals`, excluded from the default run) against the real provider, nightly via GitHub Actions (`schedule`), and on demand — never on every push, to protect the daily quota.
 
 ### 6. Admin conversation log
 - `/admin/conversations`: list with outcome (booking started / enquiry created / dropped), message count, first user message; detail shows the transcript with tool calls inline.
@@ -111,25 +113,25 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ## v4 — "Tripsmith anywhere" (MCP server)
 
 ### 1. Transport & hosting
-- api `routes/mcp.ts` using `@hono/mcp` (Hono's Streamable HTTP transport for `@modelcontextprotocol/sdk`), stateless per request (no SSE session store needed; Vercel Hobby has no long-lived processes). `maxDuration 30`. Public URL `https://api.tripsmith.virajdomadia.com/mcp` — clients hit the api domain directly.
-- Server metadata: name `tripsmith`, version from `package.json`, instructions string = the v3 system prompt's catalog-only rules.
+- Official **`mcp` Python SDK** (`FastMCP`) built in `api/app/services/mcp/` and mounted in the FastAPI app at `/mcp` (Streamable HTTP, stateless, JSON responses — no SSE session store needed; Vercel Hobby has no long-lived processes). `maxDuration 30`. Public URL `https://api.tripsmith.virajdomadia.com/mcp` — clients hit the api domain directly.
+- Server metadata: name `tripsmith`, version from `pyproject.toml`, instructions string = the v3 system prompt's catalog-only rules.
 
 ### 2. Tools, resources, prompts
-- Tools are registered from the **same tool definitions as v3** (`api/src/modules/ai/tools.ts` exports `{ name, description, inputSchema, execute }`; both the AI SDK route and the MCP route import them). One definition, two transports.
-- Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `api/src/modules/catalog/markdown.ts` (also reusable for the PDF text and the concierge context).
+- Tools are registered from the **same tool definitions as v3** (`api/app/services/ai/tools.py` exports the typed functions; the chat agent registers them with `@agent.tool`, the MCP server with `@mcp.tool()`). One definition, two transports.
+- Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `api/app/services/catalog/markdown.py` (also reusable for the PDF text and the concierge context).
 - Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns a single user message that steers the client into the two-question flow.
 
 ### 3. Guardrails, limits, logging
-- zod on every tool input (same schemas); tool errors returned as `isError: true` content, never thrown.
-- `lib/ratelimit`: `mcp:{ip}:{hour}` ≤ 60 calls; `mcp-enquiry:{ip}:{day}` ≤ 5.
+- pydantic on every tool input (same models); tool errors returned as `isError: true` content, never raised.
+- `infra/ratelimit`: `mcp:{ip}:{hour}` ≤ 60 calls; `mcp-enquiry:{ip}:{day}` ≤ 5.
 - `mcp_requests` row per call: client name/version captured from `initialize` (stateless transport → clients resend it; fall back to `User-Agent`), method, tool/resource name, args with `phone`/`name` stripped, latency ms, `ok`.
 - Dashboard tile reads `mcp_requests` (7 / 30 days, top tools, `startBooking` count = "trips planned via MCP").
 
 ### 4. Auth (stretch R38)
-- MCP authorization spec: Better Auth as the OAuth 2.1 authorization server (PKCE), `/.well-known/oauth-authorization-server` metadata, bearer tokens checked in the MCP handler; `myBookings` and `getVoucher` tools registered only when a valid token is present.
+- MCP authorization spec: an own OAuth 2.1 authorization server (PKCE) on top of the `users` / `sessions` tables, `/.well-known/oauth-authorization-server` metadata, bearer tokens checked by the `mcp` SDK's auth hooks; `myBookings` and `getVoucher` tools registered only when a valid token is present.
 
 ### 5. Evals & proof
-- `evals/` gains an MCP driver: the same 20 conversations executed by a small MCP client harness against a preview deployment; assertions unchanged.
+- `api/evals/` gains an MCP driver: the same 20 conversations executed by the `mcp` SDK's client against a preview deployment; assertions unchanged.
 - web `/developers` page (static) with copy-paste config blocks for Claude Desktop (`claude_desktop_config.json` remote server entry), Cursor, ChatGPT connectors; README GIF recorded from Claude Desktop.
 
 ### 6. Risks
@@ -137,18 +139,18 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 |---|---|
 | Stateless transport loses `initialize` client info | log `User-Agent` as fallback; correctness of tools does not depend on it |
 | Abuse via `createEnquiry` | daily per-IP cap, honeypot-equivalent (reject empty summaries), owner can block by IP hash |
-| MCP spec drift | pin `@modelcontextprotocol/sdk` version; Inspector run in CI as a smoke test |
+| MCP spec drift | pin the `mcp` package in `uv.lock`; Inspector run in CI as a smoke test |
 
 ## Add-ons (unique nice-to-haves)
 
 ### A. Owner-side AI: draft a package (v3 stretch)
-- Admin "Draft with AI" button → `generateObject({ schema: packageDraftSchema })` (zod schema mirroring the package insert + itinerary days) from a one-line brief and the destination's existing packages as style examples → result populates the package form **as a draft**; owner edits and saves. Never auto-publishes, never touches prices without the owner. Same provider abstraction.
+- Admin "Draft with AI" button → a pydantic-ai agent with `output_type=PackageDraft` (pydantic model mirroring the package insert + itinerary days) from a one-line brief and the destination's existing packages as style examples → result populates the package form **as a draft**; owner edits and saves. Never auto-publishes, never touches prices without the owner. Same provider abstraction.
 
 ### B. Best-time strip (v1 nice-to-have)
-- `content/destinations/*.ts` carries `climate: Array<{ month, rain: 1|2|3, heat: 1|2|3, crowd: 1|2|3, price: 1|2|3 }>` (static, hand-written from public climate data). `<BestTimeStrip>` renders 12 cells with a colour scale; clicking a month links to `/packages?destination=…&month=…`. When the listing has a month filter, the strip highlights it. No API.
+- `content/destinations/*.py` carries `climate: list[ClimateMonth]` (`month, rain: 1|2|3, heat: 1|2|3, crowd: 1|2|3, price: 1|2|3`) (static, hand-written from public climate data). `<BestTimeStrip>` renders 12 cells with a colour scale; clicking a month links to `/packages?destination=…&month=…`. When the listing has a month filter, the strip highlights it. No API.
 
 ### C. Trip hub after booking (v2/v3 stretch)
-- `/account/bookings/[id]/hub` (customer auth). Sections: countdown (departure date), departure details, documents checklist (`booking_checklist_items`, owner-editable defaults per package), **packing list** via `generateObject` cached in `packing_lists (destination_id, month)` so it's generated once per destination-month, weather via **Open-Meteo** forecast when within 16 days, else climate averages from B, WhatsApp group link (`departures.whatsapp_group_url`, set by owner).
+- `/account/bookings/[id]/hub` (customer auth). Sections: countdown (departure date), departure details, documents checklist (`booking_checklist_items`, owner-editable defaults per package), **packing list** via a pydantic-ai structured-output call cached in `packing_lists (destination_id, month)` so it's generated once per destination-month, weather via **Open-Meteo** forecast when within 16 days, else climate averages from B, WhatsApp group link (`departures.whatsapp_group_url`, set by owner).
 
 ### D. Split payment for groups (v2 stretch)
 - `booking_shares` (booking_id, name, email, amount_paise, token, razorpay_order_id, status). Leader chooses "split" at checkout → one share per traveller with a pay link `/pay/[token]`; each share is its own Razorpay order; booking is `partially_paid` until Σ captured = total, then `confirmed`. Leader can "cover the rest" (one order for the remainder). Daily cron sends reminders for unpaid shares. Seat hold for split bookings is 48 h instead of 10 min (accepted risk, owner can release manually).
@@ -167,7 +169,7 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 ---
 
 ## Environment variables added later
-v4: `MCP_PUBLIC_URL` (defaults to `NEXT_PUBLIC_SITE_URL`), stretch: OAuth issuer settings via Better Auth.
+v4: `MCP_PUBLIC_URL` (defaults to `NEXT_PUBLIC_SITE_URL`), stretch: OAuth issuer settings for the own authorization server.
 v2: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`.
 v3: `AI_PROVIDER` (`google` | `anthropic`), `AI_MODEL`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY` (optional), `CHAT_GLOBAL_DAILY_LIMIT`.
 

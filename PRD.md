@@ -1,6 +1,6 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · lifecycle steps 1–7 complete for v1–v4 (2026-09-12) — see [docs/](docs/) · next: step 8 Project Setup, milestone 1.0
+**Status:** v1 · lifecycle steps 1–7 complete for v1–v4 (2026-09-12; revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/) · step 8 Project Setup in progress, milestone 1.0 restarting at 1.0.2
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
 **Slot:** #1 · Budget ~60 h (v1–v3) + ~6 h v4 · Build first
@@ -158,7 +158,7 @@ The agency lives inside the customer's own assistant. Feature list locked; accep
 | **Prompt** | `plan-a-trip` guided planning prompt |
 | **Guardrails & logging** | catalog-only rules, per-client rate limits, `mcp_requests` log, dashboard tile "trips planned via MCP" |
 | **Developer page + proof** | `/developers` with one-line install config; README GIF of Claude Desktop planning a Goa trip |
-| **Stretch: authenticated tools** | MCP OAuth via Better Auth → `myBookings`, `getVoucher` (~3 h) |
+| **Stretch: authenticated tools** | MCP OAuth (own OAuth 2.1 server over the api's users/sessions) → `myBookings`, `getVoucher` (~3 h) |
 
 Why last: it needs v3's tools and v2's checkout to exist, and it's the sentence that ends the case study — "add our travel agency to your AI".
 
@@ -192,23 +192,23 @@ Flights / hotels APIs · multi-currency · loyalty points · newsletter · visa 
 Chat plans a real trip from real packages and pre-fills the booking — no forms.
 
 ## Tech notes (to discuss)
-- AI: Vercel AI SDK, streaming, tool calling (`searchPackages`, `checkAvailability`, `startBooking`); guardrails so it only recommends real packages. **Provider is swappable via one env var** — Gemini Flash (free tier) by default, Claude opt-in for the case study
+- AI: pydantic-ai (Python), streaming over SSE, tool calling (`searchPackages`, `checkAvailability`, `startBooking`); guardrails so it only recommends real packages. **Provider is swappable via one env var** — Gemini Flash (free tier) by default, Claude opt-in for the case study
 - Payments: Razorpay Checkout + webhook verification, idempotent booking creation
 - Email: Resend
 - SEO: destination and package pages statically generated, JSON-LD for TouristTrip/Offer
-- Repo layout (locked 2026-09-12, all projects): **`web/` (Next.js, UI only) + `api/` (Hono TypeScript REST API, owns data/auth/logic) + `shared/` (zod schemas + types)**. Two Vercel projects; web proxies `/api/*` to the API so cookies stay first-party. See docs/05-architecture.md §0.
+- Repo layout (locked 2026-09-12, revised 2026-09-13, all projects): **`web/` (Next.js, UI only) + `api/` (FastAPI Python REST API, owns data/auth/logic)**; the contract is the api's OpenAPI document → generated TS types in web (no `shared/` package). Two Vercel projects; web proxies `/api/*` to the API so cookies stay first-party. See docs/05-architecture.md §0.
 
 ## Costs (locked 2026-09-12) — the whole product runs on ₹0 beyond the domain
 | Need | Paid trap | Free route we take |
 |---|---|---|
-| AI (v3 concierge, evals, owner-side drafting, packing list) | Anthropic / OpenAI pay-per-token | **Gemini Flash free tier** (~1,500 req/day, tool calling included) behind the Vercel AI SDK provider abstraction; `AI_PROVIDER` env var swaps to Claude. Evals on a small fixed set; public chat rate-limited per IP. Free-tier data may be used by Google for training — acceptable because the catalog is fictional |
+| AI (v3 concierge, evals, owner-side drafting, packing list) | Anthropic / OpenAI pay-per-token | **Gemini Flash free tier** (~1,500 req/day, tool calling included) behind pydantic-ai's provider abstraction; `AI_PROVIDER` env var swaps to Claude. Evals on a small fixed set; public chat rate-limited per IP. Free-tier data may be used by Google for training — acceptable because the catalog is fictional |
 | WhatsApp button / share | WhatsApp Business API (rejected) | Plain `wa.me` click-to-chat links |
-| MCP server (v4) | — | Streamable HTTP on a Vercel route handler; `@modelcontextprotocol/sdk` is free |
+| MCP server (v4) | — | Streamable HTTP mounted in the FastAPI app; the official `mcp` Python SDK is free |
 | Payments (v2) | 2% per live transaction | Razorpay **test mode forever** |
 | Customer login (v2) | SMS OTP (~₹0.20/SMS) | **Email OTP / magic link** via Resend |
 | Maps (contact page, storyboard, route map) | Google Maps Platform billing account | Contact: Google Maps embed iframe (no key). Storyboard/route: **MapLibre + OpenFreeMap tiles** |
 | Weather (trip hub) | Paid weather APIs | Open-Meteo (free, no key) |
-| Images, email, OG, PDF, rate limiting, DB, hosting, errors, uptime | — | Vercel Blob / Cloudinary free tier, Resend free, `@vercel/og`, `@react-pdf/renderer`, Upstash free, Neon free, Vercel Hobby, Sentry dev, UptimeRobot |
+| Images, email, OG, PDF, rate limiting, DB, hosting, errors, uptime | — | Vercel Blob / Cloudinary free tier, Resend free, `@vercel/og`, fpdf2, Upstash free, Neon free, Vercel Hobby, Sentry dev, UptimeRobot |
 
 Fixed: `virajdomadia.com` domain (~₹1,000/yr); subdomain free.
 
