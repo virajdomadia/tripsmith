@@ -11,9 +11,25 @@ AI agent with tool calling · Razorpay payments · SEO content site
 Next.js (App Router) · TypeScript · Tailwind CSS 4 · PostgreSQL (Neon) + Drizzle · Better Auth · Razorpay · Vitest + Playwright · Sentry · Vercel
 
 ## In this repo
-- [`PRD.md`](PRD.md) — product requirements (v0, being refined)
-- [`mockups/landing.html`](mockups/landing.html) — landing-page design mockup (open in a browser)
-- [`brand/`](brand/) — logo, mark and favicon
+```
+web/        Next.js 15 (App Router, TypeScript, Tailwind 4) — the landing page lives here
+  src/app/            layout.tsx, page.tsx, globals.css
+  src/components/     landing/ (one component per section), ui/
+  src/lib/
+api/        FastAPI backend — folder structure only until the build starts
+  app/core · routers · models · schemas · services
+  tests/
+PRD.md      product requirements (v0, being refined)
+mockups/    landing.html — the design source the web/ page was ported from
+brand/      logo, mark and favicon
+```
+
+### Run the landing page
+```
+cd web
+pnpm install
+pnpm dev
+```
 
 ## Roadmap
 Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Currently at **step 2 (PRD)**.

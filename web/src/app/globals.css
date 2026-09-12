@@ -1,19 +1,13 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tripsmith — trips planned in a chat</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230F4C5C'/%3E%3Cpath d='M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22' fill='none' stroke='%23F2E8D5' stroke-width='4' stroke-linecap='round' stroke-dasharray='6 6'/%3E%3Ccircle cx='50' cy='22' r='6' fill='%23F2A93B'/%3E%3Ccircle cx='14' cy='44' r='4' fill='%23F2E8D5'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
+@import "tailwindcss";
+
+/* Landing page styles — ported from mockups/landing.html. Brand tokens live in :root. */
 :root{
   --sea:#0F4C5C; --sea-deep:#093644; --ground:#E6EFEA; --sand:#F2E8D5; --sand-2:#E8DCC3; --saffron:#F2A93B; --ink:#17252A; --white:#FFFDF8;
-  --serif:'Newsreader',Georgia,serif; --sans:'Public Sans',system-ui,sans-serif;
+  --serif:var(--font-serif),Georgia,serif; --sans:var(--font-sans),system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{width:min(1180px,100% - 48px);margin-inline:auto}
@@ -118,108 +112,3 @@ p{margin:0}
   .table .row{grid-template-columns:1.4fr 1fr .8fr}
   .table .row > :nth-child(4){display:none}
 }
-</style>
-</head>
-<body>
-<header class="wrap">
-  <nav class="nav" aria-label="Main">
-    <a class="logo" href="#"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#0F4C5C"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F2E8D5" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#F2E8D5"/></svg>Tripsmith</a>
-    <ul><li><a href="#trips">Trips</a></li><li><a href="#how">How it works</a></li><li><a href="#agency">For agencies</a></li></ul>
-    <a class="btn btn-ghost" href="#">Sign in</a>
-  </nav>
-</header>
-
-<main>
-<section class="wrap hero">
-  <div>
-    <h1>Tell it where you want to go.<br><em>It books the rest.</em></h1>
-    <p class="lede">Chat with a concierge that knows every package we run — dates, prices, what's included — and books the one that fits your budget.</p>
-    <div class="cta">
-      <a class="btn btn-sea" href="#">Plan a trip in chat</a>
-      <a class="btn btn-ghost" href="#trips">Browse packages</a>
-    </div>
-    <p class="note">Domestic holidays across India. Pay with UPI, cards or netbanking.</p>
-  </div>
-
-  <div class="chat" aria-label="Example conversation with the concierge">
-    <div class="chat-top"><span class="dot"></span> Tripsmith concierge</div>
-    <div class="chat-body">
-      <div class="msg user">3 days in Goa under ₹15k for two, next weekend</div>
-      <div class="msg bot">Got it. Beach side or old-town side? And do you want breakfast included?</div>
-      <div class="msg user">North Goa, breakfast yes</div>
-      <div class="msg bot">Two packages fit. This one leaves the most room in your budget:
-        <div class="itin">
-          <div class="t">Goa Coast &amp; Cafés · 3 days</div>
-          <ol>
-            <li>Arrive, check in at Anjuna guesthouse, sunset at Vagator</li>
-            <li>Breakfast, Chapora fort, kayak at Baga, night market</li>
-            <li>Breakfast, Panjim Latin quarter walk, drop to airport</li>
-          </ol>
-          <div class="price">2 travellers · 19–21 Sep <span>₹13,400</span></div>
-          <a class="book" href="#">Book this trip</a>
-        </div>
-      </div>
-      <div class="msg user">Book it</div>
-    </div>
-    <div class="chat-input">Ask anything about your trip <span class="send" aria-hidden="true">↑</span></div>
-  </div>
-</section>
-
-<section class="wrap dest" id="trips">
-  <h2>Twelve packages. All real, all bookable.</h2>
-  <p class="sub">The concierge only suggests trips from this list — no invented hotels, no surprise prices at checkout.</p>
-  <div class="grid">
-    <a class="card" href="#"><span class="bg g1"></span><span class="tag">Most booked</span><h3>Goa</h3><div class="meta"><span>3 days</span><span>from ₹6,700 pp</span></div></a>
-    <a class="card" href="#"><span class="bg g2"></span><h3>Kerala backwaters</h3><div class="meta"><span>4 days</span><span>from ₹11,200 pp</span></div></a>
-    <a class="card" href="#"><span class="bg g3"></span><h3>Manali</h3><div class="meta"><span>5 days</span><span>from ₹9,800 pp</span></div></a>
-    <a class="card" href="#"><span class="bg g4"></span><h3>Jaisalmer</h3><div class="meta"><span>3 days</span><span>from ₹8,400 pp</span></div></a>
-  </div>
-</section>
-
-<section class="how" id="how">
-  <div class="wrap">
-    <h2>From "where should we go" to a confirmed booking</h2>
-    <div class="steps">
-      <div class="step"><h3>Say what you want</h3><p>Budget, dates, how many people, what kind of place. Plain language, in English or Hinglish.</p></div>
-      <div class="step"><h3>Get a real itinerary</h3><p>The concierge searches live packages and availability, then lays out the days and the exact price.</p></div>
-      <div class="step"><h3>Pay and you're done</h3><p>Razorpay checkout, confirmation on email, and the booking shows up in your account.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="wrap owner" id="agency">
-  <div class="owner-in">
-    <div>
-      <h2>Run your agency from one screen</h2>
-      <p>Add packages, set dates and prices, and watch bookings and payments land. The concierge reads from the same data, so what you publish is what it sells.</p>
-      <ul>
-        <li>Packages with itineraries, inclusions and date-wise pricing</li>
-        <li>Bookings list with payment status straight from Razorpay</li>
-        <li>Confirmation emails sent for you</li>
-      </ul>
-    </div>
-    <div class="table" role="table" aria-label="Recent bookings">
-      <div class="row head" role="row"><span>Trip</span><span>Traveller</span><span>Dates</span><span>Status</span></div>
-      <div class="row" role="row"><span>Goa Coast &amp; Cafés</span><span>Ananya R.</span><span>19–21 Sep</span><span class="pill">Paid</span></div>
-      <div class="row" role="row"><span>Kerala backwaters</span><span>Rohit &amp; Meera</span><span>3–6 Oct</span><span class="pill">Paid</span></div>
-      <div class="row" role="row"><span>Manali long weekend</span><span>Karan S.</span><span>10–14 Oct</span><span class="pill wait">Awaiting payment</span></div>
-      <div class="row" role="row"><span>Jaisalmer desert</span><span>Priya D.</span><span>24–26 Oct</span><span class="pill">Paid</span></div>
-    </div>
-  </div>
-</section>
-
-<section class="wrap cta">
-  <div class="cta-box">
-    <h2>Your next long weekend, sorted in a chat</h2>
-    <p>Start with a budget and a rough idea. The concierge does the comparing.</p>
-    <a class="btn btn-saffron" href="#">Plan a trip in chat</a>
-  </div>
-</section>
-</main>
-
-<footer class="wrap foot">
-  <span>Tripsmith · a portfolio project by Viraj Domadia</span>
-  <span>tripsmith.virajdomadia.com</span>
-</footer>
-</body>
-</html>
