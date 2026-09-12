@@ -33,12 +33,21 @@
 - **A Editorial** · **B Search-first** · **C Brochure** — the three exploratory directions
 - **D Editorial + SaaS** — the brief above, implemented line for line. **Recommended.**
 
-**Chosen direction:** pending Viraj's letter.
+**Chosen direction:** D, rebuilt as a showcase — `mockups/showcase.html` (published: https://claude.ai/code/artifact/42912aa9-92f9-4ce8-b653-5126ba72654e). The four layout variants were rejected on 2026-09-12 as too basic to show frontend skill; the showcase is the reference from here on.
+
+### The showcase (what makes it Tripsmith's)
+- **Signature motion — the route draws itself.** The brand mark's dashed path (dot → marigold sun) is the page's one authored motion: it draws across the hero on load, it draws the itinerary map with scroll on the package page (GSAP ScrollTrigger, scrubbed, stops light up day by day), and it is the hover underline on links.
+- **Procedural scenes.** Every "photo" is painted on Canvas per destination (sky gradient, sun with halo, layered ridges with atmospheric haze, water with light streaks, vignette, film grain) — placeholders that look art-directed until the real photos arrive. Slow Ken Burns on the hero.
+- **Hero:** word-by-word clip reveal of *Travel, intelligently.*; the question input types real prompts; chips carry live scene swatches.
+- **Popular journeys:** pinned horizontal scroll on desktop (vertical scroll drives the rail), native snap-scroll on mobile.
+- **Concierge:** the conversation types itself when it enters view — user message, typing dots, streamed reply, two package cards pop in. Real content.
+- **Craft floor:** themed selection / caret / scrollbar / focus rings, tabular numerals in every price column, `prefers-reduced-motion` renders everything at rest, sticky enquiry box, mobile CTA bar, hover states on every control.
+- **Stack for the real build:** the same motion transfers to `web/` with `gsap` + `@gsap/react` (`useGSAP`), scenes as a `<Scene kind>` client component, tokens into the Tailwind theme.
 
 ## Screen index status
 | Screens | Status |
 |---|---|
-| S1 Home, S5 Package | four variants built; awaiting pick |
+| S1 Home, S5 Package | **done — showcase** (`mockups/showcase.html`) |
 | S2–S4, S6–S13 (rest of v1 public) | next, in the chosen direction |
 | A1–A7 (v1 admin) | next |
 | S14–S22, A8–A12 (v2) · S23–S26, A13–A14 (v3) · S27 (v4) | after v1 screens |

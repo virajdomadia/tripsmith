@@ -1,0 +1,642 @@
+<title>Tripsmith Showcase</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F7F4EE; --bg2: #FFFFFF; --bg3: #EFEBE3; --ink: #14181C; --ink2: #3B4148; --mute: #5F6670; --line: #E4DFD5; --line2: #D3CDC0;
+    --acc: #1A4BD6; --acc-ink: #1238A8; --acc-soft: #E6ECFB; --sun: #F2A93B; --ok: #1F7A4D; --ok-soft: #E3F0EA; --warn: #B5541E; --warn-soft: #FBEBD1;
+    --serif: "Newsreader", Georgia, "Times New Roman", serif; --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    --r: 10px; --gutter: clamp(16px, 4vw, 48px); --max: 1240px;
+    --ease: cubic-bezier(.22, 1, .36, 1);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: clip; caret-color: var(--acc); }
+  ::selection { background: var(--acc); color: #fff; }
+  ::-webkit-scrollbar { width: 12px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--line2); border: 3px solid var(--bg); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--mute); }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; border-radius: 4px; }
+  a { color: inherit; }
+  img, svg, canvas { max-width: 100%; display: block; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 500; letter-spacing: -.02em; text-wrap: balance; margin: 0; line-height: 1.05; }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { width: min(var(--max), 100% - 2 * var(--gutter)); margin-inline: auto; }
+  .em { font-style: italic; font-weight: 400; }
+
+  /* ---------- link underline that "travels" ---------- */
+  .ln { position: relative; text-decoration: none; }
+  .ln::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 1.5px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .45s var(--ease); }
+  .ln:hover::after, .ln:focus-visible::after { transform: scaleX(1); }
+
+  /* ---------- buttons ---------- */
+  .btn { --b: var(--ink); display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 8px; background: var(--b); color: #fff; font: 600 15px var(--sans); text-decoration: none; border: 1px solid transparent; cursor: pointer; white-space: nowrap; position: relative; overflow: hidden; transition: transform .35s var(--ease), box-shadow .35s var(--ease), background .25s; }
+  .btn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.18) 50%, transparent 70%); transform: translateX(-120%); transition: transform .7s var(--ease); }
+  .btn:hover::before { transform: translateX(120%); }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(20,24,28,.35); }
+  .btn:active { transform: translateY(0); }
+  .btn.acc { --b: var(--acc); }
+  .btn.acc:hover { background: var(--acc-ink); }
+  .btn.line { --b: transparent; color: var(--ink); border-color: var(--line2); }
+  .btn.line:hover { background: var(--bg2); box-shadow: 0 6px 18px -8px rgba(20,24,28,.25); }
+  .btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 0 rgba(242,169,59,.6); }
+  .btn:hover .dot { animation: pulse 1.4s var(--ease) infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(242,169,59,.6) } 100% { box-shadow: 0 0 0 10px rgba(242,169,59,0) } }
+
+  /* ---------- scenes (procedural "photos") ---------- */
+  .scene { position: relative; overflow: hidden; background: #DCE3E6; }
+  .scene canvas { position: absolute; inset: -4%; width: 108%; height: 108%; max-width: none; transform-origin: 50% 60%; }
+  .scene.kb canvas { animation: kb 26s var(--ease) infinite alternate; }
+  @keyframes kb { from { transform: scale(1) translateY(0) } to { transform: scale(1.06) translateY(-1.5%) } }
+  .scene .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 24px; color: #fff; text-shadow: 0 1px 24px rgba(0,0,0,.35); background: linear-gradient(to top, rgba(10,14,18,.55), transparent 70%); }
+  .scene .cap small { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; opacity: .9; margin-bottom: 6px; }
+  .scene .cap b { font: 500 clamp(22px, 2.6vw, 34px) var(--serif); letter-spacing: -.02em; }
+  .scene .cap span { display: block; font-size: 14px; margin-top: 4px; opacity: .95; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; line-height: 1.3; letter-spacing: .01em; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.fill { background: var(--warn-soft); color: var(--warn); }
+  .badge.sure { background: var(--ok-soft); color: var(--ok); }
+  .badge.sold { background: var(--bg3); color: var(--mute); }
+
+  /* ---------- top chrome ---------- */
+  .top { position: sticky; top: 0; z-index: 40; background: rgba(247,244,238,.72); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid transparent; transition: border-color .3s; }
+  .top.scrolled { border-bottom-color: var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 28px; height: 68px; }
+  .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 600 14px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); }
+  .logo svg { width: 28px; height: 28px; }
+  .top nav { display: flex; gap: 28px; margin-left: auto; font-weight: 500; font-size: 15px; }
+  .top nav a.dim { color: var(--mute); }
+  .top .btn { padding: 10px 16px; font-size: 14px; }
+  .switch { display: flex; gap: 2px; background: var(--bg3); border-radius: 999px; padding: 3px; }
+  .switch button { border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; font: 600 12px var(--sans); color: var(--mute); cursor: pointer; }
+  .switch button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  /* ---------- HOME · hero ---------- */
+  .hero { position: relative; padding: clamp(40px, 7vh, 80px) 0 0; }
+  .hero .grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: clamp(28px, 4vw, 64px); align-items: center; }
+  .hero h1 { font-size: clamp(52px, 7.2vw, 96px); letter-spacing: -.035em; line-height: .98; }
+  .hero h1 .w { display: inline-block; overflow: hidden; vertical-align: bottom; }
+  .hero h1 .w span { display: inline-block; }
+  .hero .lead { font-size: clamp(18px, 1.6vw, 22px); color: var(--mute); max-width: 440px; margin: 22px 0 0; line-height: 1.4; }
+  .ask { margin-top: 30px; width: min(600px, 100%); background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 8px 20px; display: flex; align-items: center; gap: 10px; box-shadow: 0 1px 2px rgba(20,24,28,.04), 0 24px 60px -24px rgba(20,24,28,.25); transition: box-shadow .35s var(--ease), border-color .25s; }
+  .ask:focus-within { border-color: var(--acc); box-shadow: 0 0 0 4px var(--acc-soft), 0 24px 60px -24px rgba(20,24,28,.25); }
+  .ask input { flex: 1; min-width: 0; border: 0; background: transparent; font: 400 17px var(--sans); color: var(--ink); outline: none; padding: 8px 0; }
+  .ask input::placeholder { color: var(--mute); }
+  .ask .type { flex: 1; min-width: 0; font: 400 17px var(--sans); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 0; }
+  .ask .type::after { content: ""; display: inline-block; width: 1.5px; height: 1.1em; background: var(--acc); vertical-align: -3px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { to { opacity: 0 } }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line2); border-radius: 999px; padding: 7px 14px 7px 8px; font-size: 14px; font-weight: 500; text-decoration: none; background: transparent; transition: background .25s, border-color .25s, transform .35s var(--ease); }
+  .chip .sw { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; position: relative; }
+  .chip .sw canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .chip:hover { background: var(--bg2); border-color: var(--ink); transform: translateY(-1px); }
+  .hero .art { position: relative; }
+  .hero .art .scene { aspect-ratio: 4 / 5; border-radius: 14px; box-shadow: 0 40px 80px -40px rgba(20,24,28,.45); }
+  .hero .art .tag { position: absolute; left: -18px; bottom: 56px; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: 0 16px 40px -20px rgba(20,24,28,.35); display: grid; gap: 2px; font-size: 13px; }
+  .hero .art .tag b { font: 500 18px var(--serif); }
+  .hero .art .tag small { color: var(--mute); }
+  .route-hero { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  .route-hero path { fill: none; stroke: var(--acc); stroke-width: 2; stroke-dasharray: 6 7; stroke-linecap: round; }
+  .route-hero .end { fill: var(--sun); }
+  .route-hero .start { fill: var(--acc); }
+
+  /* ---------- marquee ---------- */
+  .marquee { margin-top: clamp(56px, 8vh, 96px); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px 0; overflow: hidden; white-space: nowrap; }
+  .marquee .track { display: inline-flex; gap: 48px; padding-right: 48px; animation: mq 40s linear infinite; will-change: transform; }
+  .marquee:hover .track { animation-play-state: paused; }
+  .marquee .it { display: inline-flex; align-items: baseline; gap: 12px; font: 500 20px var(--serif); }
+  .marquee .it small { font: 500 12px var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+  .marquee .it i { width: 6px; height: 6px; border-radius: 50%; background: var(--sun); align-self: center; }
+  @keyframes mq { to { transform: translateX(-50%) } }
+
+  /* ---------- featured ---------- */
+  .feature { margin-top: clamp(56px, 8vh, 96px); }
+  .feature .scene { aspect-ratio: 21 / 9; border-radius: 14px; }
+  .feature .scene canvas { inset: -12% 0 0; height: 124%; }
+  .feature .cap { padding: 32px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+  .feature .cap .btn { text-shadow: none; }
+
+  /* ---------- journeys (horizontal) ---------- */
+  .journeys { margin-top: clamp(72px, 10vh, 120px); }
+  .sechead { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+  .sechead h2 { font-size: clamp(34px, 4vw, 52px); }
+  .sechead p { margin: 6px 0 0; color: var(--mute); max-width: 460px; }
+  .sechead .ln { font-weight: 600; font-size: 15px; white-space: nowrap; }
+  .rail-wrap { position: relative; }
+  .rail { display: flex; gap: 20px; will-change: transform; }
+  .card { flex: 0 0 min(400px, 78vw); background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; text-decoration: none; color: var(--ink); display: grid; grid-template-rows: auto 1fr; transition: transform .5s var(--ease), box-shadow .5s var(--ease), border-color .3s; }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -30px rgba(20,24,28,.35); border-color: var(--line2); }
+  .card .scene { aspect-ratio: 4 / 3; }
+  .card .scene canvas { transition: transform 1.2s var(--ease); }
+  .card:hover .scene canvas { transform: scale(1.05); }
+  .card .scene .b { position: absolute; top: 14px; left: 14px; }
+  .card .body { padding: 18px 20px 20px; display: grid; gap: 8px; align-content: start; }
+  .card .top { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+  .card h3 { font-size: 26px; }
+  .card p { margin: 0; color: var(--mute); font-size: 14px; }
+  .card .foot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .card .price { font: 500 22px var(--serif); }
+  .card .price small { font: 400 13px var(--sans); color: var(--mute); }
+  .card .go { color: var(--acc); font-weight: 600; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+  .card .go svg { width: 16px; height: 16px; transition: transform .35s var(--ease); }
+  .card:hover .go svg { transform: translateX(4px); }
+  .rail-mobile { display: none; }
+
+  /* ---------- concierge ---------- */
+  .concierge { margin-top: clamp(72px, 10vh, 120px); }
+  .concierge .panel { background: var(--ink); color: #EDE9E1; border-radius: 16px; padding: clamp(28px, 4vw, 64px); display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 72px); align-items: center; position: relative; overflow: hidden; }
+  .concierge .panel::before { content: ""; position: absolute; inset: -40% -20% auto auto; width: 60%; aspect-ratio: 1; background: radial-gradient(closest-side, rgba(26,75,214,.45), transparent 70%); pointer-events: none; }
+  .concierge h2 { font-size: clamp(34px, 4vw, 52px); color: #fff; }
+  .concierge p { color: #B9B4AA; font-size: 17px; margin: 16px 0 26px; max-width: 440px; }
+  .concierge .pts { display: grid; gap: 12px; font-size: 15px; padding: 0; margin: 0; list-style: none; }
+  .concierge .pts li { display: flex; gap: 12px; align-items: baseline; }
+  .concierge .pts li::before { content: ""; width: 18px; height: 2px; background: var(--sun); flex: none; transform: translateY(-4px); }
+  .chat { position: relative; background: var(--bg2); color: var(--ink); border-radius: 14px; padding: 16px; display: grid; gap: 10px; box-shadow: 0 40px 80px -30px rgba(0,0,0,.6); min-height: 380px; align-content: start; }
+  .chat .hd { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--mute); border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .chat .hd b { color: var(--ink); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .chat .hd b i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.45; opacity: 0; transform: translateY(8px); }
+  .msg.show { opacity: 1; transform: none; transition: opacity .4s var(--ease), transform .5s var(--ease); }
+  .msg.u { background: var(--bg3); margin-left: auto; border-bottom-right-radius: 4px; }
+  .msg.a { background: var(--bg2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .msg .dots { display: inline-flex; gap: 4px; }
+  .msg .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); animation: bounce 1s infinite; }
+  .msg .dots i:nth-child(2) { animation-delay: .15s } .msg .dots i:nth-child(3) { animation-delay: .3s }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0) } 30% { transform: translateY(-4px) } }
+  .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mini a { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; text-decoration: none; color: var(--ink); font-size: 12px; opacity: 0; transform: translateY(10px) scale(.98); transition: transform .35s var(--ease), box-shadow .35s var(--ease); }
+  .mini a.show { opacity: 1; transform: none; transition: opacity .45s var(--ease), transform .55s var(--ease); }
+  .mini a:hover { box-shadow: 0 14px 30px -18px rgba(20,24,28,.4); }
+  .mini .scene { aspect-ratio: 16 / 9; }
+  .mini .t { padding: 8px 10px; display: grid; gap: 2px; }
+  .mini b { font-size: 13px; }
+  .mini .t span { color: var(--mute); }
+  .chat .in { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--mute); font-size: 14px; display: flex; justify-content: space-between; margin-top: auto; }
+
+  /* ---------- why ---------- */
+  .why { margin-top: clamp(72px, 10vh, 120px); display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 80px); align-items: start; }
+  .why h2 { font-size: clamp(34px, 4vw, 52px); position: sticky; top: 100px; }
+  .why dl { margin: 0; display: grid; }
+  .why .row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; padding: 22px 0; border-top: 1px solid var(--line); }
+  .why .row:last-child { border-bottom: 1px solid var(--line); }
+  .why dt { font: 500 24px var(--serif); letter-spacing: -.01em; }
+  .why dd { margin: 0; color: var(--mute); font-size: 15px; }
+
+  /* ---------- quotes ---------- */
+  .quotes { margin-top: clamp(72px, 10vh, 120px); display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .quote { border-top: 2px solid var(--ink); padding-top: 18px; }
+  .quote p { font: 400 22px/1.35 var(--serif); margin: 0 0 14px; letter-spacing: -.01em; }
+  .quote small { color: var(--mute); font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .quote small i { width: 22px; height: 1px; background: var(--line2); }
+
+  /* ---------- footer ---------- */
+  footer { margin-top: clamp(80px, 12vh, 140px); border-top: 1px solid var(--line); padding: 48px 0 28px; font-size: 14px; color: var(--mute); }
+  footer .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 28px; }
+  footer b { color: var(--ink); display: block; margin-bottom: 10px; font-weight: 600; }
+  footer a { text-decoration: none; display: block; margin-bottom: 6px; width: max-content; }
+  footer .fine { margin-top: 36px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; }
+  footer .big { font: 500 clamp(44px, 9vw, 120px) var(--serif); letter-spacing: -.04em; color: var(--ink); line-height: 1; margin: 0 0 32px; opacity: .08; user-select: none; }
+
+  /* ---------- floating concierge ---------- */
+  .fab { position: fixed; right: 22px; bottom: 22px; z-index: 30; background: var(--ink); color: #fff; border-radius: 999px; padding: 12px 18px 12px 14px; display: flex; align-items: center; gap: 10px; font: 600 14px var(--sans); box-shadow: 0 18px 40px -14px rgba(20,24,28,.5); text-decoration: none; transition: transform .35s var(--ease); }
+  .fab:hover { transform: translateY(-2px); }
+  .fab .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sun); animation: pulse 2.4s var(--ease) infinite; }
+
+  /* ---------- PACKAGE ---------- */
+  .phero { margin-top: 18px; }
+  .crumbs { font-size: 14px; color: var(--mute); padding: 16px 0 12px; display: flex; gap: 8px; }
+  .crumbs a { text-decoration: none; }
+  .phero .scene { aspect-ratio: 21 / 9; border-radius: 14px; }
+  .phero .scene canvas { inset: -10% 0 0; height: 120%; }
+  .phero .cap { padding: 36px; display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+  .phero h1 { font-size: clamp(36px, 5vw, 68px); color: #fff; letter-spacing: -.03em; }
+  .phero .sub { font-size: 16px; margin-top: 10px; opacity: .95; display: flex; gap: 14px; flex-wrap: wrap; }
+  .phero .share { display: flex; gap: 8px; }
+  .phero .share .btn { background: rgba(255,255,255,.94); color: var(--ink); text-shadow: none; padding: 10px 14px; font-size: 14px; }
+  .facts { display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg2); }
+  .facts div { padding: 16px 20px; border-right: 1px solid var(--line); }
+  .facts div:last-child { border-right: 0; }
+  .facts small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; margin-bottom: 4px; }
+  .facts b { font: 500 21px var(--serif); }
+  .pgrid { display: grid; grid-template-columns: 1fr 380px; gap: clamp(32px, 5vw, 64px); margin-top: 40px; align-items: start; }
+  .pgrid h2 { font-size: clamp(28px, 3vw, 36px); margin: 48px 0 18px; }
+  .pgrid h2:first-of-type { margin-top: 0; }
+  .lede { font: 400 clamp(20px, 1.8vw, 24px)/1.45 var(--serif); margin: 0 0 8px; letter-spacing: -.01em; max-width: 60ch; }
+  .hl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; padding: 0; margin: 0; list-style: none; font-size: 15px; }
+  .hl li { display: flex; gap: 10px; align-items: baseline; }
+  .hl li::before { content: ""; width: 14px; height: 2px; background: var(--acc); flex: none; transform: translateY(-4px); }
+
+  /* storyboard */
+  .story { display: grid; grid-template-columns: 1fr 320px; gap: 32px; align-items: start; }
+  .days { display: grid; }
+  .tday { position: relative; padding: 22px 0 22px 40px; border-top: 1px solid var(--line); transition: opacity .4s; }
+  .tday:last-child { border-bottom: 1px solid var(--line); }
+  .tday::before { content: ""; position: absolute; left: 6px; top: 32px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line2); background: var(--bg); transition: background .3s, border-color .3s, transform .4s var(--ease); }
+  .tday.on::before { background: var(--acc); border-color: var(--acc); transform: scale(1.25); }
+  .tday::after { content: ""; position: absolute; left: 11.5px; top: 46px; bottom: -2px; width: 1.5px; background: repeating-linear-gradient(to bottom, var(--line2) 0 5px, transparent 5px 10px); }
+  .tday:last-child::after { display: none; }
+  .tday .n { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--acc); font-weight: 600; }
+  .tday h3 { font-size: 24px; margin: 4px 0 8px; }
+  .tday p { margin: 0 0 10px; color: var(--ink2); font-size: 15px; max-width: 60ch; }
+  .tday .tags { display: flex; gap: 8px; }
+  .tday .tags span { font-size: 12px; font-weight: 600; color: var(--mute); background: var(--bg3); border-radius: 999px; padding: 4px 10px; }
+  .map { position: sticky; top: 90px; background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; }
+  .map svg { width: 100%; height: auto; border-radius: 6px; background: #E9EEE6; }
+  .map .lg { padding: 10px 6px 4px; font-size: 12px; color: var(--mute); display: flex; justify-content: space-between; }
+  .map .lg b { color: var(--ink); font-weight: 600; }
+  .map path.route { fill: none; stroke: var(--acc); stroke-width: 2.5; stroke-dasharray: 5 6; stroke-linecap: round; }
+  .map path.land { fill: #D8E2D3; }
+  .map path.sea { fill: #C9DCEA; }
+  .map .stop circle { fill: var(--bg2); stroke: var(--line2); stroke-width: 2; transition: fill .3s, stroke .3s, r .3s; }
+  .map .stop.on circle { fill: var(--acc); stroke: var(--acc); }
+  .map .stop.end circle { fill: var(--sun); stroke: var(--sun); }
+  .map .stop text { font: 600 10px var(--sans); fill: var(--ink); }
+
+  .gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-auto-rows: 180px; gap: 10px; }
+  .gallery .scene { border-radius: 8px; cursor: zoom-in; }
+  .gallery .scene:first-child { grid-row: span 2; }
+  .gallery .scene canvas { transition: transform 1.2s var(--ease); }
+  .gallery .scene:hover canvas { transform: scale(1.06); }
+  .incl { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 15px; }
+  .incl h3 { font: 600 12px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); margin-bottom: 12px; }
+  .incl ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .incl li { display: flex; gap: 10px; align-items: baseline; }
+  .incl li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ok); flex: none; transform: translateY(-2px); }
+  .incl .no li::before { border-color: var(--line2); }
+  .hotel { display: flex; gap: 16px; align-items: center; border: 1px solid var(--line); border-radius: var(--r); padding: 12px; background: var(--bg2); }
+  .hotel .scene { width: 120px; aspect-ratio: 4 / 3; border-radius: 6px; flex: none; }
+  .hotel b { font: 500 20px var(--serif); display: block; }
+  .hotel span { color: var(--mute); font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; background: var(--bg2); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+  th, td { text-align: left; padding: 12px 14px; }
+  th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+  td { border-top: 1px solid var(--line); transition: background .2s; }
+  tbody tr:hover td { background: var(--bg); }
+  td .btn { padding: 7px 12px; font-size: 13px; }
+  .faq details { border-top: 1px solid var(--line); }
+  .faq details:last-child { border-bottom: 1px solid var(--line); }
+  .faq summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; font-weight: 600; cursor: pointer; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; font: 400 22px var(--serif); color: var(--mute); transition: transform .35s var(--ease); }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq p { margin: 0 0 16px; color: var(--ink2); max-width: 65ch; }
+  aside .box { position: sticky; top: 90px; background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 12px; box-shadow: 0 30px 60px -40px rgba(20,24,28,.35); }
+  aside .from { font-size: 14px; color: var(--mute); }
+  aside .from b { display: block; font: 500 40px var(--serif); color: var(--ink); letter-spacing: -.03em; line-height: 1.1; }
+  aside .fld { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; display: grid; gap: 2px; cursor: pointer; transition: border-color .25s; }
+  aside .fld:hover { border-color: var(--ink); }
+  aside .fld label { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; cursor: pointer; }
+  aside .fld .v { font-weight: 500; font-size: 15px; display: flex; justify-content: space-between; }
+  aside .btn { width: 100%; justify-content: center; padding: 14px; font-size: 16px; }
+  aside .row { display: flex; gap: 8px; }
+  aside .row .btn { padding: 10px; font-size: 14px; }
+  aside .occ { font-size: 14px; display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 12px; }
+  aside .occ div { display: flex; justify-content: space-between; }
+  aside .occ span:last-child { font-weight: 600; }
+  aside .call { font-size: 13px; color: var(--mute); line-height: 1.5; }
+  .related { margin-top: clamp(56px, 8vh, 96px); }
+  .related .rail { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .related .card { flex: auto; }
+  .cta-mobile { display: none; }
+
+  /* ---------- reveal (from a visible default) ---------- */
+  .rv { opacity: 1; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 1000px) {
+    .hero .grid { grid-template-columns: 1fr; }
+    .hero .art .scene { aspect-ratio: 16 / 10; }
+    .hero .art .tag { left: 16px; bottom: 16px; }
+    .route-hero { display: none; }
+    .concierge .panel { grid-template-columns: 1fr; }
+    .why { grid-template-columns: 1fr; }
+    .why h2 { position: static; }
+    .quotes { grid-template-columns: 1fr; }
+    .pgrid { grid-template-columns: 1fr; }
+    .story { grid-template-columns: 1fr; }
+    .map { position: static; }
+    .facts { grid-template-columns: repeat(3, 1fr); }
+    .facts div:nth-child(3n) { border-right: 0; }
+    .related .rail { grid-template-columns: 1fr; }
+    footer .cols { grid-template-columns: 1fr 1fr; }
+    .rail-wrap { display: none; }
+    .rail-mobile { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); scrollbar-width: none; }
+    .rail-mobile::-webkit-scrollbar { display: none; }
+    .rail-mobile .card { scroll-snap-align: start; }
+  }
+  @media (max-width: 640px) {
+    .top nav { display: none; }
+    .top .wrap { height: 60px; }
+    .hero h1 { font-size: clamp(44px, 13vw, 60px); }
+    .ask { flex-direction: column; align-items: stretch; padding: 8px; }
+    .ask .type, .ask input { padding: 8px 10px; }
+    .marquee .it { font-size: 18px; }
+    .feature .scene, .phero .scene { aspect-ratio: 4 / 5; }
+    .feature .cap, .phero .cap { flex-direction: column; align-items: start; padding: 20px; }
+    .phero h1 { font-size: 34px; }
+    .facts { grid-template-columns: 1fr 1fr; }
+    .facts div:nth-child(3n) { border-right: 1px solid var(--line); }
+    .facts div:nth-child(2n) { border-right: 0; }
+    .why .row { grid-template-columns: 1fr; gap: 6px; }
+    .hl, .incl { grid-template-columns: 1fr; }
+    .gallery { grid-template-columns: 1fr 1fr; grid-auto-rows: 130px; }
+    .gallery .scene:first-child { grid-column: span 2; grid-row: auto; }
+    aside { display: none; }
+    .cta-mobile { display: flex; position: sticky; bottom: 0; z-index: 25; gap: 8px; padding: 10px 12px; align-items: center; background: var(--bg2); border-top: 1px solid var(--line); margin-inline: calc(-1 * var(--gutter)); }
+    .cta-mobile .price { margin-right: auto; }
+    .cta-mobile .price b { display: block; font: 500 20px var(--serif); }
+    .cta-mobile .price small { color: var(--mute); font-size: 12px; }
+    .fab { bottom: 78px; right: 14px; padding: 10px 14px 10px 12px; font-size: 13px; }
+    footer .cols { grid-template-columns: 1fr; }
+    footer .fine { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .scene.kb canvas, .marquee .track, .fab .dot, .btn .dot { animation: none !important; }
+    .ask .type::after { animation: none; }
+    .msg, .mini a { opacity: 1; transform: none; }
+    .btn::before { display: none; }
+  }
+</style>
+
+<header class="top" id="top">
+  <div class="wrap">
+    <a class="logo" href="#" data-go="home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1A4BD6"/><path d="M14 44 C 22 44, 22 26, 32 26 S 42 40, 50 22" fill="none" stroke="#F7F4EE" stroke-width="4" stroke-linecap="round" stroke-dasharray="6 6"/><circle cx="50" cy="22" r="6" fill="#F2A93B"/><circle cx="14" cy="44" r="4" fill="#F7F4EE"/></svg>Tripsmith</a>
+    <nav><a class="ln" href="#" data-go="home">Explore</a><a class="ln" href="#" data-go="pkg">Trips</a><a class="ln dim" href="#">My Trips</a></nav>
+    <div class="switch" role="group" aria-label="Page"><button data-go="home" aria-pressed="true">Home</button><button data-go="pkg" aria-pressed="false">Package</button></div>
+    <a class="btn line" href="#">Enquire</a>
+  </div>
+</header>
+
+<main id="view"></main>
+<a class="fab" href="#"><span class="dot"></span>Ask the concierge</a>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+/* ============ content (locked seed) ============ */
+const DEST = [
+  { slug:'goa', name:'Goa', tag:'Beaches & Portuguese lanes', from:14999, best:'Nov – Feb' },
+  { slug:'kerala', name:'Kerala', tag:'Backwaters & tea hills', from:21999, best:'Sep – Mar' },
+  { slug:'himachal', name:'Himachal', tag:'Snow, pines & Parvati valley', from:18499, best:'Mar – Jun' },
+  { slug:'rajasthan', name:'Rajasthan', tag:'Forts, lakes & the Thar', from:19499, best:'Oct – Mar' },
+  { slug:'andaman', name:'Andaman', tag:'Radhanagar sands & reefs', from:32999, best:'Nov – Apr' },
+  { slug:'ladakh', name:'Ladakh', tag:'Passes, lakes & monasteries', from:27499, best:'Jun – Sep' },
+];
+const PKGS = [
+  { slug:'goa-north-beaches', dest:'goa', name:'North Goa Beaches', n:3, from:14999, hl:'Candolim stay · Aguada & Chapora forts · Mandovi sunset cruise', badge:'fill' },
+  { slug:'kerala-munnar-alleppey', dest:'kerala', name:'Munnar & Alleppey Houseboat', n:4, from:21999, hl:'Tea estate stay · private houseboat night · Eravikulam park', badge:'sure' },
+  { slug:'himachal-shimla-manali', dest:'himachal', name:'Shimla–Manali Classic', n:4, from:18499, hl:'Mall Road & Kufri · Solang valley · Hadimba temple', badge:'fill' },
+  { slug:'rajasthan-royal-trail', dest:'rajasthan', name:'Jaipur · Jodhpur · Udaipur', n:5, from:26499, hl:'Amber fort by jeep · Mehrangarh at dusk · Lake Pichola boat', badge:'sure' },
+  { slug:'andaman-three-islands', dest:'andaman', name:'Port Blair · Havelock · Neil', n:5, from:32999, hl:'Radhanagar beach · Elephant beach snorkel · Cellular jail show', badge:'fill' },
+  { slug:'ladakh-nubra-pangong', dest:'ladakh', name:'Leh · Nubra · Pangong', n:6, from:29999, hl:'Khardung La · Hunder dunes · Pangong lakeside camp', badge:'sure' },
+  { slug:'goa-south-escape', dest:'goa', name:'South Goa Quiet Escape', n:3, from:17499, hl:'Palolem & Agonda · Cabo de Rama · spice farm lunch', badge:null },
+  { slug:'rajasthan-jaisalmer', dest:'rajasthan', name:'Jaisalmer Desert Nights', n:4, from:19499, hl:'Sam dunes camp · camel safari sunset · golden fort walk', badge:null },
+];
+const PKG = {
+  name:'North Goa Beaches', n:3, from:14999, city:'Ex-Mumbai · flights extra',
+  summary:'Four easy days on the Candolim strip — forts at golden hour, Anjuna market, Old Goa churches and a Mandovi sunset cruise — with a 4★ stay two minutes from the beach.',
+  hls:['3 nights at Lemon Tree Amarante, Candolim (4★)','Aguada, Chapora and Anjuna in one relaxed day','Old Goa churches and a Fontainhas walk','Mandovi river sunset cruise with dinner','Airport transfers and AC sightseeing coach','Daily breakfast, two dinners'],
+  days:[
+    { d:1, t:'Arrive Goa · Candolim', p:'Pick-up at Dabolim airport, check in by 2 pm. Evening free for Candolim beach and the shacks. Welcome dinner at the resort.', meals:'Dinner', stay:'Candolim' },
+    { d:2, t:'Forts & the northern beaches', p:'Fort Aguada and the lighthouse, Chapora fort viewpoint, Vagator and Anjuna beaches with time at the flea market. Baga sunset.', meals:'Breakfast', stay:'Candolim' },
+    { d:3, t:'Old Goa & Panjim', p:'Basilica of Bom Jesus and Se Cathedral, then the painted lanes of Fontainhas. Evening Mandovi cruise with live music and dinner on board.', meals:'Breakfast · Dinner', stay:'Candolim' },
+    { d:4, t:'Departure', p:'Breakfast, late check-out on request, transfer to the airport for flights after 12 pm.', meals:'Breakfast', stay:'—' },
+  ],
+  incl:['3 nights in a Superior room','Daily breakfast, dinner on Day 1 & 3','Airport pick-up and drop','AC coach for all sightseeing','Mandovi sunset cruise tickets','All tolls, parking and taxes'],
+  excl:['Flights to Goa','Lunches and drinks','Entry fees at monuments','Water sports and personal expenses','5% GST on the package'],
+  hotel:{ name:'Lemon Tree Amarante Beach Resort', city:'Candolim, North Goa', stars:'4★', nights:'3 nights' },
+  deps:[
+    { date:'Sat 14 Nov 2026', price:14999, seats:6, badge:null },
+    { date:'Sat 28 Nov 2026', price:14999, seats:3, badge:'fill' },
+    { date:'Sat 12 Dec 2026', price:15999, seats:12, badge:'sure' },
+    { date:'Sat 26 Dec 2026', price:18999, seats:0, badge:'sold' },
+  ],
+  occ:[['Adult · double sharing','₹14,999'],['Adult · triple sharing','₹13,999'],['Child 5–11 (with parents)','₹8,999'],['Single supplement','+ ₹4,500']],
+  faq:[
+    ['Is this package suitable for parents or kids?','Yes — the pace is gentle, all transfers are by AC coach and the resort has a pool and lift access. Children under 5 travel free.'],
+    ['Can I add flights from Mumbai or Delhi?','Yes. Enquire with your dates and we quote flights at the day’s fare, usually ₹4,000–7,000 return per person.'],
+    ['What is the cancellation policy?','Free cancellation up to 30 days before departure; 50% between 30 and 15 days; no refund inside 15 days.'],
+  ],
+};
+const WHY = [
+  ['Real departures, real seats','Every date on the site is a departure we actually run — with live seat counts, not "call for availability".'],
+  ['A person calls within 2 hours','Enquire and someone from our Bengaluru office calls you back, 10 am–8 pm, every day.'],
+  ['An itinerary you can forward','Download the PDF, send it to the family group, decide together. It matches the page to the rupee.'],
+  ['Hotels we have slept in','Every property is one we have checked ourselves. No surprises on arrival.'],
+];
+const QUOTES = [
+  ['The Kerala houseboat night was exactly as the PDF promised — even the dinner.','Priya & Rahul, Pune'],
+  ['Booked Shimla–Manali for my parents. Zero stress; they were called at every step.','Anirudh S, Bengaluru'],
+  ['Goa with two kids under 8 and it just worked. The coach timing, the resort, everything.','Meghna T, Hyderabad'],
+];
+const BADGE = { fill:'Filling fast', sure:'Guaranteed', sold:'Sold out' };
+const inr = n => '₹' + n.toLocaleString('en-IN');
+const badge = b => b ? `<span class="badge ${b}">${BADGE[b]}</span>` : '';
+const destName = s => DEST.find(d => d.slug === s).name;
+const scene = (kind, cls = '', inner = '') => `<div class="scene ${cls}" data-kind="${kind}" role="img" aria-label="${destName(kind)}">${inner}</div>`;
+const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>`;
+const card = p => `<a class="card" href="#" data-go="pkg">${scene(p.dest, '', `<div class="b">${badge(p.badge)}</div>`)}<div class="body"><div class="top"><span>${destName(p.dest)} · ${p.n}N / ${p.n+1}D</span></div><h3>${p.name}</h3><p>${p.hl}</p><div class="foot"><div class="price num">${inr(p.from)} <small>per person</small></div><span class="go">View journey ${arrow}</span></div></div></a>`;
+
+/* ============ views ============ */
+const HOME = () => `
+  <section class="hero"><div class="wrap grid">
+    <div>
+      <h1 id="h1">Travel, <span class="em">intelligently.</span></h1>
+      <p class="lead">Tell us where you want to go. We’ll build the journey — from twelve trips we actually run.</p>
+      <form class="ask" onsubmit="return false"><label class="sr" for="ask">Where do you want to go?</label><div class="type" id="type" aria-hidden="true"></div><input id="ask" hidden><button class="btn acc" type="button"><span class="dot"></span>Plan my trip</button></form>
+      <div class="chips">${DEST.slice(0,4).map(d => `<a class="chip" href="#"><span class="sw">${scene(d.slug)}</span>${d.name}</a>`).join('')}<a class="chip" href="#" style="padding-left:14px">All six ${arrow}</a></div>
+    </div>
+    <div class="art">
+      ${scene('kerala', 'kb', `<div class="cap"><small>This season</small><b>Kerala, by water</b><span>Munnar & Alleppey houseboat · 4 nights from ₹21,999</span></div>`)}
+      <div class="tag"><b>Next departure</b><small>Sat 14 Nov · 6 seats left</small></div>
+    </div>
+    <svg class="route-hero" id="route-hero" viewBox="0 0 1200 600" preserveAspectRatio="none" aria-hidden="true"><path id="rh" d="M 300 430 C 420 430, 460 250, 620 300 S 800 120, 960 160"/><circle class="start" cx="300" cy="430" r="4"/><circle class="end" cx="960" cy="160" r="7"/></svg>
+  </div></section>
+
+  <div class="marquee" aria-hidden="true"><div class="track">${[...DEST, ...DEST].map(d => `<span class="it"><i></i>${d.name}<small>best ${d.best}</small></span>`).join('')}</div></div>
+
+  <section class="feature"><div class="wrap">${scene('rajasthan', '', `<div class="cap"><div><small>Journey of the month</small><b>Jaipur · Jodhpur · Udaipur</b><span>5 nights · Amber by jeep, Mehrangarh at dusk, Lake Pichola by boat · from ₹26,499</span></div><a class="btn" href="#" data-go="pkg">See the journey</a></div>`)}</div></section>
+
+  <section class="journeys"><div class="wrap">
+    <div class="sechead"><div><h2>Popular journeys</h2><p>Six of the twelve trips we run — every one with a departure this season.</p></div><a class="ln" href="#">All 12 journeys →</a></div>
+    <div class="rail-wrap" id="rail-wrap"><div class="rail" id="rail">${PKGS.slice(0,6).map(card).join('')}</div></div>
+    <div class="rail-mobile">${PKGS.slice(0,6).map(card).join('')}</div>
+  </div></section>
+
+  <section class="concierge"><div class="wrap"><div class="panel">
+    <div><h2>Your AI travel concierge</h2><p>Ask in plain words. It searches our real packages, checks real dates and seats, and hands you to a person the moment you want one.</p>
+      <ul class="pts"><li>Only recommends trips we actually run</li><li>Checks live departures and seats</li><li>Hindi and Hinglish welcome</li><li>“Talk to a person” at any time</li></ul></div>
+    <div class="chat" id="chat"><div class="hd"><b><i></i>Tripsmith concierge</b><span>Replies in seconds</span></div>
+      <div class="msg u" id="m1"></div>
+      <div class="msg a" id="m2"><span class="dots"><i></i><i></i><i></i></span></div>
+      <div class="mini" id="m3"><a href="#" data-go="pkg">${scene('goa')}<div class="t"><b>North Goa Beaches</b><span>3N · from ₹14,999 · 6 seats on 14 Nov</span></div></a><a href="#" data-go="pkg">${scene('goa')}<div class="t"><b>South Goa Quiet Escape</b><span>3N · from ₹17,499 · Guaranteed</span></div></a></div>
+      <div class="in"><span>Ask about dates, hotels, kids…</span><span>↵</span></div>
+    </div>
+  </div></div></section>
+
+  <section class="why wrap"><h2>Why families keep coming back</h2><dl>${WHY.map(w => `<div class="row"><dt>${w[0]}</dt><dd>${w[1]}</dd></div>`).join('')}</dl></section>
+
+  <section class="quotes wrap">${QUOTES.map(q => `<div class="quote"><p>“${q[0]}”</p><small><i></i>${q[1]}</small></div>`).join('')}</section>
+
+  ${FOOT()}`;
+
+const FOOT = () => `<footer><div class="wrap"><p class="big" aria-hidden="true">Tripsmith</p><div class="cols"><div><b>Tripsmith Holidays</b>14 Church Street, Bengaluru 560001<br>+91 98450 12345 · WhatsApp · hello@tripsmith.in<br>Mon–Sat, 10 am – 8 pm</div><div><b>Destinations</b>${DEST.map(d => `<a class="ln" href="#">${d.name}</a>`).join('')}</div><div><b>Company</b><a class="ln" href="#">About</a><a class="ln" href="#">Contact</a><a class="ln" href="#">Developers</a></div><div><b>Policies</b><a class="ln" href="#">Terms</a><a class="ln" href="#">Privacy</a><a class="ln" href="#">Cancellation & refunds</a></div></div><div class="fine"><span>© 2026 Tripsmith Holidays · a portfolio project by Viraj Domadia</span><span>Demo login: owner@tripsmith.in / demo1234</span></div></div></footer>`;
+
+const MAP = `<svg viewBox="0 0 300 240" aria-label="Route map: Candolim, Aguada, Anjuna, Old Goa, Panjim"><path class="sea" d="M0 0H300V240H0Z"/><path class="land" d="M70 0 C 60 60, 110 90, 90 140 S 130 220, 100 240 L300 240 L300 0Z"/><path class="route" id="route" d="M 78 62 C 92 96, 128 90, 140 46 S 210 100, 226 128 S 200 176, 168 178"/><g class="stop" data-i="0"><circle cx="78" cy="62" r="6"/><text x="88" y="58">Candolim</text></g><g class="stop" data-i="1"><circle cx="140" cy="46" r="6"/><text x="150" y="42">Aguada · Anjuna</text></g><g class="stop" data-i="2"><circle cx="226" cy="128" r="6"/><text x="150" y="150">Old Goa</text></g><g class="stop end" data-i="3"><circle cx="168" cy="178" r="6"/><text x="178" y="196">Panjim · cruise</text></g></svg>`;
+
+const PKGV = () => `
+  <section class="phero"><div class="wrap">
+    <div class="crumbs"><a class="ln" href="#" data-go="home">Explore</a><span>›</span><a class="ln" href="#">Goa</a><span>›</span><span>${PKG.name}</span></div>
+    ${scene('goa', '', `<div class="cap"><div><h1>${PKG.name}</h1><div class="sub"><span>${PKG.n}N / ${PKG.n+1}D</span><span>${PKG.city}</span><span>Beach & family</span></div></div><div class="share"><a class="btn" href="#">Share</a><a class="btn" href="#">Download itinerary</a></div></div>`)}
+    <div class="facts"><div><small>Duration</small><b>${PKG.n}N / ${PKG.n+1}D</b></div><div><small>From</small><b class="num">${inr(PKG.from)}</b></div><div><small>Departs</small><b>Mumbai</b></div><div><small>Stay</small><b>4★ Candolim</b></div><div><small>Next date</small><b>14 Nov</b></div></div>
+    <div class="pgrid"><main>
+      <p class="lede">${PKG.summary}</p>
+      <h2>Highlights</h2><ul class="hl">${PKG.hls.map(h => `<li>${h}</li>`).join('')}</ul>
+      <h2>The journey, day by day</h2>
+      <div class="story"><div class="days" id="days">${PKG.days.map(d => `<div class="tday" data-i="${Math.min(d.d-1,3)}"><div class="n">Day ${d.d}</div><h3>${d.t}</h3><p>${d.p}</p><div class="tags"><span>${d.meals}</span><span>Stay · ${d.stay}</span></div></div>`).join('')}</div><div class="map" id="map">${MAP}<div class="lg"><span>Route from the itinerary stops</span><b id="mapday">Day 1</b></div></div></div>
+      <h2>Photos</h2><div class="gallery">${['goa','goa','goa','andaman','goa'].map(k => scene(k)).join('')}</div>
+      <h2>What’s in the price</h2><div class="incl"><div><h3>Included</h3><ul>${PKG.incl.map(i => `<li>${i}</li>`).join('')}</ul></div><div class="no"><h3>Not included</h3><ul>${PKG.excl.map(i => `<li>${i}</li>`).join('')}</ul></div></div>
+      <h2>Where you stay</h2><div class="hotel">${scene('goa')}<div><b>${PKG.hotel.name}</b><span>${PKG.hotel.city} · ${PKG.hotel.stars} · ${PKG.hotel.nights}</span></div></div>
+      <h2>Dates & prices</h2><table><thead><tr><th>Departure</th><th>Per person</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>${PKG.deps.map(d => `<tr><td>${d.date}</td><td class="num">${inr(d.price)}</td><td class="num">${d.seats ? d.seats + ' left' : '—'}</td><td>${badge(d.badge)}</td><td style="text-align:right">${d.seats ? '<a class="btn line" href="#">Enquire</a>' : ''}</td></tr>`).join('')}</tbody></table>
+      <h2>Questions</h2><div class="faq">${PKG.faq.map(f => `<details><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</div>
+    </main><aside><div class="box"><div class="from">From<b class="num">${inr(PKG.from)}</b>per person, double sharing</div><div class="fld"><label>Departure</label><div class="v"><span>Sat 14 Nov 2026</span><span class="num">6 seats</span></div></div><div class="fld"><label>Travellers</label><div class="v"><span>2 adults</span><span>Change</span></div></div><a class="btn acc" href="#"><span class="dot"></span>Enquire about this trip</a><div class="row"><a class="btn line" href="#">Customise</a><a class="btn line" href="#">WhatsApp</a></div><div class="occ">${PKG.occ.map(o => `<div><span>${o[0]}</span><span class="num">${o[1]}</span></div>`).join('')}</div><div class="call">A person calls you back within 2 hours, 10 am – 8 pm IST. No payment until you say so.</div></div></aside></div>
+    <div class="cta-mobile"><div class="price"><b class="num">${inr(PKG.from)}</b><small>per person</small></div><a class="btn line" href="#">PDF</a><a class="btn acc" href="#">Enquire</a></div>
+    <section class="related"><div class="sechead"><h2>More journeys like this</h2></div><div class="rail">${[PKGS[6], PKGS[1], PKGS[4]].map(card).join('')}</div></section>
+  </div></section>
+  ${FOOT()}`;
+
+/* ============ procedural scenes ============ */
+const PAL = {
+  goa:       { sky:['#F9DDB0','#8AD0DC'], sun:[.78,.22], ridges:['#2A8AA0','#1E6F86','#155A6E'], water:['#5FC0CF','#1E6F86'], horizon:.62 },
+  kerala:    { sky:['#E6F0D8','#7FB59A'], sun:[.3,.2], ridges:['#3F8A64','#2F7A56','#1F5A3E','#0F3D2E'], water:['#5B8F7A','#0F3D2E'], horizon:.7 },
+  himachal:  { sky:['#F1F4F8','#8CA5C6'], sun:[.2,.18], ridges:['#93A9C4','#5B7EA6','#3E5A80','#233A5C'], water:null, horizon:.55 },
+  rajasthan: { sky:['#FBE1AE','#E8A45C'], sun:[.72,.3], ridges:['#D98F52','#C9713A','#9C4A24','#7A2E1D'], water:null, horizon:.6 },
+  andaman:   { sky:['#FFF4DE','#5FC6DA'], sun:[.62,.2], ridges:['#0F6F88','#0A5C75'], water:['#7ED7E6','#1592AE'], horizon:.58 },
+  ladakh:    { sky:['#EEE6F5','#A398BD'], sun:[.5,.16], ridges:['#A8977A','#8B7A5E','#6A5A48','#4A3F5C'], water:['#7E8FA8','#4A3F5C'], horizon:.68 },
+};
+function rnd(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function paint(el) {
+  const k = el.dataset.kind, P = PAL[k] || PAL.goa;
+  let c = el.querySelector('canvas'); if (!c) { c = document.createElement('canvas'); el.prepend(c); }
+  const r = el.getBoundingClientRect(); if (!r.width) return;
+  const dpr = Math.min(devicePixelRatio || 1, 1.5), W = Math.round(r.width * 1.08 * dpr), H = Math.round(r.height * 1.08 * dpr);
+  if (c.width === W && c.height === H) return; c.width = W; c.height = H;
+  const g = c.getContext('2d'), R = rnd(k.length * 7919 + [...el.className].length + Math.round(r.width));
+  const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, P.sky[0]); sky.addColorStop(1, P.sky[1]); g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  // sun
+  const sx = P.sun[0] * W, sy = P.sun[1] * H, sr = Math.min(W, H) * .07;
+  const halo = g.createRadialGradient(sx, sy, 0, sx, sy, sr * 5); halo.addColorStop(0, 'rgba(255,240,200,.75)'); halo.addColorStop(1, 'rgba(255,240,200,0)'); g.fillStyle = halo; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#F2A93B'; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill();
+  // ridges
+  const hz = P.horizon * H, n = P.ridges.length;
+  P.ridges.forEach((col, i) => {
+    const base = hz - (n - 1 - i) * H * .08, amp = H * (.06 + .05 * (n - i)), f1 = 1 + R() * 2, f2 = 3 + R() * 4, ph = R() * 6.28;
+    g.fillStyle = col; g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 6) { const t = x / W; const y = base - amp * (0.55 * Math.sin(t * f1 * 3.14 + ph) + 0.3 * Math.sin(t * f2 * 6.28 + ph * 2) + 0.15 * Math.sin(t * 23 + ph)); g.lineTo(x, y); }
+    g.lineTo(W, H); g.closePath(); g.fill();
+    // atmospheric haze between layers
+    if (i < n - 1) { const hz2 = g.createLinearGradient(0, base - amp, 0, base + amp); hz2.addColorStop(0, 'rgba(255,255,255,0)'); hz2.addColorStop(1, 'rgba(255,255,255,.18)'); g.fillStyle = hz2; g.fillRect(0, base - amp, W, amp * 2); }
+  });
+  // water
+  if (P.water) {
+    const wy = hz + H * .02, wg = g.createLinearGradient(0, wy, 0, H); wg.addColorStop(0, P.water[0]); wg.addColorStop(1, P.water[1]); g.fillStyle = wg; g.fillRect(0, wy, W, H - wy);
+    g.globalAlpha = .35; g.strokeStyle = '#fff'; g.lineWidth = 1 * dpr;
+    for (let i = 0; i < 26; i++) { const y = wy + R() * (H - wy), x = sx + (R() - .5) * W * .5, l = (R() * .25 + .05) * W * (1 - (y - wy) / (H - wy) * .5); g.beginPath(); g.moveTo(x - l / 2, y); g.lineTo(x + l / 2, y); g.stroke(); }
+    g.globalAlpha = 1;
+  }
+  // vignette + grain
+  const v = g.createRadialGradient(W * .5, H * .45, H * .3, W * .5, H * .5, H * .95); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.28)'); g.fillStyle = v; g.fillRect(0, 0, W, H);
+  const gr = document.createElement('canvas'); gr.width = gr.height = 128; const gg = gr.getContext('2d'), id = gg.createImageData(128, 128);
+  for (let i = 0; i < id.data.length; i += 4) { const s = 128 + (R() - .5) * 90; id.data[i] = id.data[i+1] = id.data[i+2] = s; id.data[i+3] = 22; }
+  gg.putImageData(id, 0, 0); g.fillStyle = g.createPattern(gr, 'repeat'); g.fillRect(0, 0, W, H);
+}
+function paintAll() { document.querySelectorAll('.scene').forEach(paint); }
+
+/* ============ motion ============ */
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let typeTimer;
+function killMotion() { if (window.ScrollTrigger) ScrollTrigger.getAll().forEach(t => t.kill()); if (window.gsap) gsap.globalTimeline.clear(); clearTimeout(typeTimer); }
+
+function motionHome() {
+  const h1 = document.getElementById('h1');
+  h1.innerHTML = h1.innerHTML.replace(/(<span class="em">)?([^<\s]+)(<\/span>)?/g, (m, a, w, b) => (a || b) ? m : `<span class="w"><span>${w}</span></span>`)
+    .replace(/<span class="em">([^<]+)<\/span>/, '<span class="w"><span class="em">$1</span></span>');
+  const prompts = ['3 days in Goa under ₹15k for two', 'Honeymoon in Kerala, first week of November', 'Somewhere cold in December, ex-Delhi', 'Family of five, 5 nights, under ₹1 lakh'];
+  const type = document.getElementById('type');
+  if (reduced) { type.textContent = 'Where do you want to go?'; }
+  else {
+    let pi = 0;
+    const run = () => { const s = prompts[pi % prompts.length]; let i = 0; type.textContent = '';
+      const tick = () => { type.textContent = s.slice(0, ++i); if (i < s.length) typeTimer = setTimeout(tick, 34 + Math.random() * 40); else typeTimer = setTimeout(() => { pi++; run(); }, 2400); };
+      typeTimer = setTimeout(tick, 200); };
+    run();
+  }
+  if (reduced || !window.gsap) return;
+  gsap.registerPlugin(ScrollTrigger);
+  const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
+  tl.from('#h1 .w > span', { yPercent: 110, duration: 1.1, stagger: .08 })
+    .from('.hero .lead, .ask, .chips', { y: 18, opacity: 0, duration: .9, stagger: .1 }, '-=.7')
+    .from('.hero .art', { clipPath: 'inset(0 0 100% 0 round 14px)', duration: 1.3, ease: 'expo.inOut' }, '-=1.1')
+    .from('.hero .art .tag', { y: 14, opacity: 0, duration: .7 }, '-=.5');
+  const rh = document.getElementById('rh'); if (rh) { const L = rh.getTotalLength(); gsap.set(rh, { strokeDasharray: `6 7`, strokeDashoffset: 0 }); gsap.fromTo('#route-hero', { opacity: 0 }, { opacity: 1, duration: .6, delay: .9 }); gsap.fromTo(rh, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.8, ease: 'power2.inOut', delay: .9, onComplete: () => gsap.set(rh, { strokeDasharray: '6 7' }) }); gsap.from('#route-hero .end', { scale: 0, transformOrigin: 'center', duration: .5, ease: 'back.out(2)', delay: 2.5 }); }
+  // featured parallax
+  gsap.to('.feature .scene canvas', { yPercent: 9, ease: 'none', scrollTrigger: { trigger: '.feature', start: 'top bottom', end: 'bottom top', scrub: true } });
+  // horizontal journeys (desktop)
+  const rail = document.getElementById('rail'), wrap = document.getElementById('rail-wrap');
+  if (rail && wrap && innerWidth > 1000) {
+    const dist = () => Math.max(0, rail.scrollWidth - wrap.clientWidth);
+    gsap.to(rail, { x: () => -dist(), ease: 'none', scrollTrigger: { trigger: '.journeys', start: 'top 12%', end: () => '+=' + (dist() + 200), pin: true, scrub: .6, invalidateOnRefresh: true, anticipatePin: 1 } });
+  }
+  // reveals from visible defaults (only translate, never park at opacity 0 before viewport)
+  ScrollTrigger.batch('.why .row, .quote, .concierge .pts li', { start: 'top 88%', once: true, onEnter: els => gsap.from(els, { y: 22, opacity: 0, duration: .9, ease: 'expo.out', stagger: .08, overwrite: true }) });
+  // concierge conversation types itself
+  ScrollTrigger.create({ trigger: '#chat', start: 'top 75%', once: true, onEnter: () => {
+    const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'), m3 = document.getElementById('m3');
+    const u = '3 days in Goa under ₹15k for 2 of us, mid-November'; let i = 0; m1.classList.add('show');
+    const t1 = () => { m1.textContent = u.slice(0, ++i); if (i < u.length) setTimeout(t1, 28); else setTimeout(() => { m2.classList.add('show'); setTimeout(reply, 1100); }, 350); };
+    const reply = () => { const a = 'Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left — Candolim stay, forts and a Mandovi cruise. South Goa Quiet Escape is ₹17,499, a little over budget. Want me to check dates?'; const words = a.split(' '); let j = 0; m2.textContent = '';
+      const t2 = () => { m2.textContent = words.slice(0, ++j).join(' '); if (j < words.length) setTimeout(t2, 38); else setTimeout(() => m3.querySelectorAll('a').forEach((x, k) => setTimeout(() => x.classList.add('show'), k * 140)), 250); };
+      t2(); };
+    setTimeout(t1, 200);
+  }});
+  if (reduced) return;
+}
+function staticChat() { const m1 = document.getElementById('m1'), m2 = document.getElementById('m2'); if (!m1) return; m1.textContent = '3 days in Goa under ₹15k for 2 of us, mid-November'; m1.classList.add('show'); m2.textContent = 'Two trips fit. North Goa Beaches has a Sat 14 Nov departure at ₹14,999 per person with 6 seats left. South Goa Quiet Escape is ₹17,499, a little over budget. Want me to check dates?'; m2.classList.add('show'); document.querySelectorAll('#m3 a').forEach(a => a.classList.add('show')); }
+
+function motionPkg() {
+  const route = document.getElementById('route'), stops = [...document.querySelectorAll('.map .stop')], days = [...document.querySelectorAll('.tday')], lbl = document.getElementById('mapday');
+  const setDay = i => { days.forEach((d, k) => d.classList.toggle('on', k === i)); stops.forEach(s => s.classList.toggle('on', +s.dataset.i <= i)); lbl.textContent = 'Day ' + (i + 1); };
+  if (reduced || !window.gsap) { setDay(3); if (route) route.style.strokeDasharray = '5 6'; return; }
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.from('.phero .scene', { clipPath: 'inset(0 0 100% 0 round 14px)', duration: 1.3, ease: 'expo.inOut' });
+  gsap.from('.phero h1, .phero .sub, .phero .share', { y: 20, opacity: 0, duration: .9, stagger: .08, delay: .5, ease: 'expo.out' });
+  gsap.from('.facts div', { y: 14, opacity: 0, duration: .7, stagger: .06, delay: .8, ease: 'expo.out' });
+  gsap.to('.phero .scene canvas', { yPercent: 8, ease: 'none', scrollTrigger: { trigger: '.phero .scene', start: 'top top', end: 'bottom top', scrub: true } });
+  const L = route.getTotalLength(); gsap.set(route, { strokeDasharray: L, strokeDashoffset: L });
+  gsap.to(route, { strokeDashoffset: 0, ease: 'none', scrollTrigger: { trigger: '#days', start: 'top 60%', end: 'bottom 60%', scrub: .4, onUpdate: self => setDay(Math.min(3, Math.floor(self.progress * 4))) } });
+  setDay(0);
+  ScrollTrigger.batch('.hl li, .incl li, .gallery .scene, tbody tr', { start: 'top 90%', once: true, onEnter: els => gsap.from(els, { y: 16, opacity: 0, duration: .8, ease: 'expo.out', stagger: .05, overwrite: true }) });
+}
+
+/* ============ router ============ */
+const view = document.getElementById('view');
+let current = 'home';
+function go(p) {
+  current = p; killMotion();
+  view.innerHTML = p === 'home' ? HOME() : PKGV();
+  document.querySelectorAll('.switch button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.go === p)));
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  paintAll();
+  if (p === 'home') { motionHome(); if (reduced) staticChat(); } else motionPkg();
+  if (window.ScrollTrigger) requestAnimationFrame(() => ScrollTrigger.refresh());
+  try { localStorage.setItem('ts-showcase', p); } catch (e) {}
+}
+document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (!a) return; e.preventDefault(); go(a.dataset.go); });
+addEventListener('scroll', () => document.getElementById('top').classList.toggle('scrolled', scrollY > 8), { passive: true });
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(paintAll, 150); });
+let start = 'home'; try { start = localStorage.getItem('ts-showcase') || 'home'; } catch (e) {}
+document.fonts && document.fonts.ready.then(() => window.ScrollTrigger && ScrollTrigger.refresh());
+go(start);
+</script>
