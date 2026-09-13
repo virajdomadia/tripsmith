@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 8 in progress — milestone 1.0 *Skeleton live*, restarted from a clean slate on 2026-09-13 (S1 done: Hono `api/` and `shared/` removed; next S2 accounts & keys, S3 toolchains, S4 FastAPI skeleton). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
+> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate done: Hono `api/` and `shared/` removed; next S2 accounts & keys). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
 
 ## What it proves
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
@@ -16,7 +16,7 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm) — the landin
   src/app/            layout.tsx, page.tsx, globals.css
   src/components/     landing/ (one component per section), ui/
   src/lib/            api.ts (typed client) · api-types.ts (generated from api/openapi.json)
-api/        FastAPI (Python 3.12, uv) REST API — empty after S1, built up from S3/S4 onwards (target layout:)
+api/        FastAPI (Python 3.12, uv) REST API — empty after S1, built from S3/S4 onwards (target layout:)
   app/      main.py · config.py · errors.py · routers/ · services/ · infra/ · models/ · schemas/
   alembic/  migrations · content/ seed content (Python modules) · scripts/seed.py · tests/ (pytest)
   openapi.json (generated, committed) · pyproject.toml · uv.lock · vercel.json
@@ -35,6 +35,6 @@ cd .. && pnpm dev       # web on :3000 (rewrites /api/* → :8787) and api on :8
 Or separately: `cd web && pnpm dev` · `cd api && uv run uvicorn app.main:app --port 8787 --reload`. Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (each fans out to web and `uv run …`); `pnpm gen:api` regenerates `web/src/lib/api-types.ts` from `api/openapi.json`.
 
 ## Roadmap
-Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Steps 1–7 are done for v1–v4; step 8 (Project Setup) is in progress — milestone 1.0, restarted at 1.0.2 on 2026-09-13 with the FastAPI backend.
+Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Steps 1–7 are done for v1–v4; step 8 (Project Setup) is milestone 1.0 "Skeleton live" — restarted at S1 on 2026-09-13 with the FastAPI backend and the structure-C plan.
 
 Versions: **v1** agency website → **v2** booking engine → **v3** AI concierge → **v4** MCP server ("Tripsmith anywhere"). All four versions are fully specified (steps 1–7); each later version starts with a short step-3 re-validation before coding.

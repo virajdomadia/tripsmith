@@ -1,74 +1,97 @@
 # Tripsmith — Development Plan
 
-**Lifecycle step:** 7 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI
+**Lifecycle step:** 7 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI; v1 re-cut to milestone structure C (skeleton first, journey milestones)
 
-> **Revision 2026-09-13: backend switched from Hono to FastAPI.** `api/` is now FastAPI (Python 3.12, uv, SQLAlchemy + Alembic, pydantic, pytest); `shared/` is gone and the contract is `api/openapi.json` → generated `web/src/lib/api-types.ts`. Milestone 1.0 restarts at **1.0.2**: what PR #1 (`feat/1.0.2-workspace`, merged as 270f27e) and PR #3 (`fix/pr1-review-followups`, merged as 1ccf5da) built for the Hono api and `shared/` is replaced; their web-side pieces are kept (see 1.0.2). Task rows below are rewritten where the stack matters; estimates, milestone structure and "done when" criteria are otherwise unchanged.
+> **Revision 2026-09-13: backend switched from Hono to FastAPI.** `api/` is now FastAPI (Python 3.12, uv, SQLAlchemy + Alembic, pydantic, pytest); `shared/` is gone and the contract is `api/openapi.json` → generated `web/src/lib/api-types.ts`. What PR #1 (`feat/1.0.2-workspace`, merged as 270f27e — old numbering) and PR #3 (`fix/pr1-review-followups`, merged as 1ccf5da) built for the Hono api and `shared/` is removed in **S1**; their web-side pieces are kept. The v1 rows below were then re-cut into structure C the same evening (see the next note).
 
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 34 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
-How the lifecycle maps onto milestones: step 8 (setup) is milestone 1.0's first task; steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
+How the lifecycle maps onto milestones: step 8 (setup) **is** milestone 1.0 (the walking skeleton); steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
 
 ---
 
-## v1 — Agency website (≈ 34 h)
+## v1 — Agency website (≈ 35 h)
 
-### Milestone 1.0 — Catalog live, read-only (≈ 10 h)
-Goal: the package model is real, seeded with genuine content, and public pages are live at the production URL with CI.
+> **Revision 2026-09-13 (evening): milestone structure C.** The previous 1.0 ("Catalog live, read-only", 10 h before anything was deployed) is replaced by a **walking skeleton first**: 1.0 puts both deployments, CI and monitoring live with nothing but `/health`; every later part deploys on merge. Content grows **2 → 6 → 12** packages alongside the pages instead of all up front. Milestones follow the visitor's and owner's journeys: **Skeleton → Browse → Enquire → Manage → Harden**. Every row below is one branch + one PR. **Row ids:** S = setup (milestone 1.0), F = feature (1.1–1.3), H = hardening (1.4); branches are named after them (e.g. `chore/s1-clean-slate`, `feat/f2-package-page`).
 
-| # | Task | Est. | Done when |
-|---|---|---|---|
-| 1.0.1 | Accounts & keys: **two** Vercel projects (`tripsmith` → web/, `tripsmith-api` → api/), Neon project (+ dev branch), Vercel Blob store, Sentry projects, GitHub repo settings, DNS for `tripsmith.` and `api.tripsmith.` | 0.5 h | `.env.example` in web/ and api/; all secrets in Vercel/GitHub |
-| 1.0.2 | **Workspace, two toolchains** (restart, 2026-09-13): pnpm for `web/` only (`pnpm-workspace.yaml` drops `shared/`), **uv** for `api/` (`pyproject.toml` + `uv.lock`, Python 3.12). Remove `shared/` and the Hono skeleton (`api/src`, `api/package.json`, `vitest.config.ts`). **api**: FastAPI skeleton — `app/main.py` (`app`, lifespan, error handlers → envelope), `config.py` (pydantic-settings), `errors.py`, routers `GET /health`, `GET /meta`, built-in `/docs` + `/openapi.json`; `app/openapi.py` dumps `api/openapi.json`; `api/vercel.json` (`maxDuration 30`, `bom1`); ruff + pyright config; first pytest (health, meta, validation envelope). **web**: keep the Next.js app, shadcn/ui, eslint/prettier, Playwright, `/api/*` rewrite; api client now typed from **generated** `src/lib/api-types.ts` (`openapi-typescript`, script `gen:api`); delete `web/src/app/api-health`. **Root** `package.json` scripts: `lint` / `typecheck` / `test` fan out to web + `uv run …`, `dev` runs both with `concurrently`, `gen:api`. The PR #3 follow-ups (`fix/pr1-review-followups`) are folded in and carried forward: web `next.config` trailing-slash strip, web api client trusting only the shared error envelope, blank-query-param handling (now in pydantic), `.gitattributes` LF, `.prettierignore`, CI | 2.5 h | `pnpm lint typecheck test` green for both languages; `GET /api/health` and `/api/meta` work through the rewrite locally; `/api/docs` opens; `openapi.json` and `api-types.ts` committed and in sync |
-| 1.0.3 | SQLAlchemy models (all v1 tables + ⏩ columns, `users`/`sessions`/`verification`) + Alembic `0001_v1` (enums, tables, indexes, `departure_availability` view as raw SQL) + pytest DB harness (`TEST_DATABASE_URL`, fresh database per session, `alembic upgrade head`, truncate between tests) | 1 h | migration applies on a fresh Neon branch and in the pytest harness; `uv run alembic downgrade base` clean |
-| 1.0.4 | `define_package` / `define_destination` pydantic content models (`api/content/_schema.py`) + `api/scripts/seed.py` (import every content module, upsert by slug, Blob REST uploader in `infra/storage.py` with a `--local` fallback that writes file URLs), owner user seeded from `OWNER_*` | 1 h | `uv run python scripts/seed.py` idempotent; seed test on a two-package fixture |
-| 1.0.5 | **Genuine content**: 6 destinations, 12 packages (full itineraries, real hotels, 2026 prices, 3–4 departures each), 6 testimonials, seed photos | 2 h | every package passes `setPackageStatus(live)` rules |
-| 1.0.6 | api `services/catalog` (`search_packages`, `get_package`, `list_destinations`, `get_destination`, `get_home_data`, `get_departures_for_month`, pricing/badge helpers) + `routers/public/catalog.py` for `GET /packages`, `/packages/:slug`, `/destinations…`, `/home`; pydantic response models (`PackageCard`, `PackageDetail`, …); regenerate `openapi.json` + `api-types.ts`; pytest filter matrix + route tests | 1.5 h | filter matrix tests green; `/docs` lists the endpoints; contract files regenerated without diff |
-| 1.0.7 | web pages: `/packages` (listing + FilterBar, URL-driven, tagged fetch) and `/packages/[slug]` (gallery + lightbox, itinerary, inclusions, hotels, departures table, occupancy pricing, FAQ, related) — no CTAs yet; `/revalidate` hook | 1.5 h | static generation works; Lighthouse ≥ 90 on both |
-| 1.0.8 | CI: `ci.yml` with jobs `web` (pnpm) and `api` (uv, ruff, pyright, pytest with a `postgres:17` service) plus the `contract` check (`openapi.json` / `api-types.ts` regenerate without diff); `sentry-sdk[fastapi]` in api and `@sentry/nextjs` in web; first production deploys (web + api on the FastAPI preset), UptimeRobot on `/` and `/api/health` | 0.5 h | green run on `main`; both live at their subdomains |
-| | Design note | | Before 1.0.7, pick the visual direction from a 3-variant mockup page (home + package page), per the usual variant workflow; the chosen variant sets tokens for everything after |
+Column key — **Who:** 🟢 customer-facing · 🔴 admin (owner) · ⚪ platform/both. **web/** = Next.js frontend work · **api/** = FastAPI backend work (— = none). Endpoint names are from [06-data-and-api.md](06-data-and-api.md) §C-REST; layout from [05-architecture.md](05-architecture.md) §2.
 
-### Milestone 1.1 — It looks like an agency (≈ 6 h)
-| # | Task | Est. |
-|---|---|---|
-| 1.1.1 | Home: hero + search box → `/packages`, featured destinations, popular packages, why-us, testimonials, footer | 2 h |
-| 1.1.2 | `/destinations` grid and `/destinations/[slug]` (intro, best months, packages) | 1 h |
-| 1.1.3 | About, Contact (map embed, phone, WhatsApp, hours; form wired in 1.2), Terms, Privacy, Cancellation policy — real copy | 1 h |
-| 1.1.4 | SEO: `generateMetadata` everywhere, JSON-LD components, sitemap, robots, OG images for packages/destinations, breadcrumbs | 1.5 h |
-| 1.1.5 | Share buttons (WhatsApp / copy / native) on package page; WhatsApp floating button with package pre-fill | 0.5 h |
-| Done | Lighthouse 90/100/100/100 on `/`, `/packages`, one package; OG card renders in WhatsApp | |
+### Milestone 1.0 — Skeleton live (≈ 7.5 h) — lifecycle step 8, plus 13 / 15 / 16 set up here
+Goal: `tripsmith.virajdomadia.com` and `api.tripsmith.virajdomadia.com` are live, CI is green, the database is migrated and seeded with two packages, the visual direction is chosen. No product feature yet.
 
-### Milestone 1.2 — The funnel closes (≈ 6 h)
-| # | Task | Est. |
-|---|---|---|
-| 1.2.1 | `services/pdf`: `render_itinerary` with **fpdf2** (DM Sans TTF in `api/assets/fonts`, `Document` base for page chrome), Blob cache keyed by `updated_at`, route `itinerary.pdf`, GC cron; pytest asserts a valid PDF under 2 MB | 2 h |
-| 1.2.2 | `services/email`: Resend Python SDK, Jinja2 HTML templates (owner notification, customer confirmation with PDF), `email_status` handling | 1 h |
-| 1.2.3 | api `POST /enquiries` (pydantic `EnquiryCreate`, honeypot, Upstash rate limit via `infra/ratelimit.py`, dedupe); web EnquiryForm with standard/customise toggle using the zod mirror (`enquiry-schema.ts`, with the mirror test), no-JS proxy route, thanks page; Contact page form | 2 h |
-| 1.2.4 | Sticky mobile CTA bar on package page (price · Enquire · PDF · WhatsApp) | 0.5 h |
-| 1.2.5 | Tests: enquiry validation unit tests; Playwright visitor journey (home → filter → package → enquire → thanks); `e2e.yml` against the preview with a Neon branch | 0.5 h |
-| Done | A stranger can enquire from a phone and both emails arrive with the PDF attached | |
+| # | Part | Who | web/ | api/ | Est. | Done when |
+|---|---|---|---|---|---|---|
+| S1 | **Clean slate** ✅ PR #5 | ⚪ | Delete `shared/` and `web/src/app/api-health`; drop the `@tripsmith/shared` dep and `transpilePackages`, inline the error-envelope schema in `src/lib/api.ts` (S5 regenerates the client); keep the Next.js app, shadcn/ui, eslint/prettier, Playwright, the `/api/*` rewrite and the PR #3 follow-ups (trailing-slash strip, error-envelope-only client, `.gitattributes` LF, `.prettierignore`) | Delete the Hono skeleton: `api/src`, `api/tests`, `api/package.json`, `tsconfig.json`, `vitest.config.ts`, the Hono-era `.env.example`; `pnpm-workspace.yaml` = `web/` only, lockfile regenerated | 0.5 h | `pnpm-workspace.yaml` lists `web/` only; no TypeScript left under `api/`; `pnpm lint typecheck test` green for web |
+| S2 | **Accounts & keys** | ⚪ | Vercel project `tripsmith` (root `web/`); `web/.env.example` = `API_URL`, `REVALIDATE_SECRET`, `SENTRY_DSN`, `NEXT_PUBLIC_*` (04 §12) | Vercel project `tripsmith-api` (FastAPI preset, root `api/`, `bom1`); Neon project + dev branch; Vercel Blob store; Upstash Redis; Resend (sending domain `virajdomadia.com`); Sentry ×2; `api/.env.example` with every key from 04 §12; install `uv` locally; DNS CNAMEs `tripsmith.` and `api.tripsmith.` | 0.5 h | All secrets in Vercel + GitHub Actions; both `.env.example` files committed |
+| S3 | **Toolchains** | ⚪ | Root `package.json` scripts `lint` / `typecheck` / `test` / `dev` (`concurrently`) / `gen:api` | `pyproject.toml` + `uv.lock` (Python 3.12), ruff + pyright config | 0.5 h | `pnpm lint` at the root runs both languages |
+| S4 | **FastAPI skeleton** | ⚪ | — | `app/main.py` (app factory, lifespan with lazy engine, request-id + Sentry middleware), `config.py` (pydantic-settings), `errors.py` (`{ error: { code, message, fieldErrors? } }`, `RequestValidationError` → `validation`), routers `GET /health`, `GET /meta`, built-in `/docs` + `/openapi.json`, `app/openapi.py` dumps `api/openapi.json`, `api/vercel.json` (`maxDuration 30`, `bom1`); pytest: health, meta, validation envelope | 1 h | `uv run pytest` green; `/docs` opens locally |
+| S5 | **Contract + typed client** | ⚪ | `openapi-typescript` → `src/lib/api-types.ts` (generated, committed); `src/lib/api.ts` typed fetch, forwards cookies, trusts only the error envelope; `next.config.ts` rewrite `/api/:path*` → `API_URL` | `openapi.json` committed | 0.5 h | `GET /api/health` and `/api/meta` work through the rewrite locally; `pnpm gen:api` produces no diff |
+| S6 | **Web shell** | ⚪ | Root layout, `(site)` + `(admin)` route groups, unstyled header/footer shell and placeholder home that shows API health — system font stack, **no brand tokens or styling yet** (S12 locks them, so nothing is styled twice); `/revalidate` route handler (`{ secret, tags[] }` → `revalidateTag`) | `infra/revalidate.py` (POST `{WEB_URL}/revalidate`) | 0.5 h | Placeholder home renders the API's `/meta` values |
+| S7 | **CI** | ⚪ | `ci.yml` job `web`: pnpm lint / typecheck / vitest | `ci.yml` job `api`: uv, ruff, pyright, pytest with a `postgres:17` service; job `contract`: regenerate `openapi.json` + `api-types.ts` → no diff | 0.5 h | Green run on `main`; branch protection requires it |
+| S8 | **Observability** | ⚪ | `@sentry/nextjs`, Vercel Analytics | `sentry-sdk[fastapi]` wired in `infra/observability.py` | 0.25 h | A thrown test error appears in both Sentry projects |
+| S9 | **First production deploys** | ⚪ | Production at `tripsmith.virajdomadia.com`; preview per PR | Production at `api.tripsmith.virajdomadia.com`; UptimeRobot on `/` and `/api/health` | 0.25 h | Both subdomains answer; a PR gets two preview URLs |
+| S10 | **Database layer** | ⚪ | — | SQLAlchemy 2.0 models for all v1 tables + ⏩ forward-compat columns (`users` / `sessions` / `verification`, catalog, enquiries, analytics); Alembic `0001_v1` (enums, tables, indexes, `departure_availability` view as raw SQL); `infra/db.py`; pytest DB harness (`TEST_DATABASE_URL`, fresh DB per session, truncate between tests); `DATABASE_URL` set in Vercel | 1 h | Migration applies on a fresh Neon branch and in the harness; `alembic downgrade base` clean |
+| S11 | **Seed pipeline + 2 packages** | ⚪ | — | `content/_schema.py` (`define_package`, `define_destination` pydantic content models); `scripts/seed.py` (upsert by slug, `--local` skips Blob); `infra/storage.py` (Blob REST uploader); owner user from `OWNER_*`; **1 destination, 2 genuine packages** with departures, photos + `content/photos/CREDITS.md` | 1 h | `uv run python scripts/seed.py` idempotent; seed test on the two-package fixture; production DB seeded |
+| S12 | **Visual direction** | 🟢 | 3-variant mockup page (home + package page) per the variant workflow, with direction K · Ocean + Marigold from [04-ui-mockups.md](04-ui-mockups.md) as the incumbent variant → chosen variant's tokens + `next/font` locked in `globals.css`; 04-ui-mockups.md updated with the outcome (K confirmed or replaced) | — | 1 h | Tokens committed; no page styled twice after this |
+| Done | | | Both deploys live · CI green · `/api/docs` opens · DB migrated and seeded with 2 packages · direction chosen | | **7.5 h** | |
 
-### Milestone 1.3 — Owner side (≈ 8 h)
-| # | Task | Est. |
-|---|---|---|
-| 1.3.1 | Own auth in api: `users`/`sessions` service, argon2 (`argon2-cffi`), `POST /auth/login` (rate-limited) · `POST /auth/logout` · `GET /auth/session`, HttpOnly SameSite=Lax cookie, `require_owner` dependency, owner seeded; web login form posting to `/api/auth/login`, `middleware.ts` gate via `GET /api/auth/session`, `/admin/login`, demo credentials on landing page | 1.5 h |
-| 1.3.2 | Admin shell (nav, new-enquiry badge) + Dashboard (api `GET /admin/dashboard`, `POST /views` beacon) | 1.5 h |
-| 1.3.3 | Destinations CRUD | 0.5 h |
-| 1.3.4 | Packages CRUD: api `/admin/packages*` + image endpoints (multipart **proxy upload** `POST /admin/packages/:id/images` — 5 MB cap, type check, Pillow dimensions + resize ≤ 2000 px, Blob REST PUT) with publish rules, duplicate, delete guards, revalidate hook; web PackageForm (react-hook-form typed from `api-types.ts`, inline `fieldErrors` from the envelope), ItineraryEditor (dnd reorder), GalleryUploader (multipart POST, reorder, cover), departures/FAQ/hotels editors | 3 h |
-| 1.3.5 | Enquiries: api list/detail/status/notes/CSV endpoints; web inbox table with filters/search, detail, mailto/WhatsApp links | 1.5 h |
-| Done | Owner journey e2e: login → change a price → public page and PDF reflect it | |
+### Milestone 1.1 — Browse (≈ 8.5 h) 🟢 customer
+Goal: a visitor can find and read a package. Content grows 2 → 6 → 12 inside this milestone.
 
-### Milestone 1.4 — Hardening & review (≈ 4 h) — closes lifecycle steps 10–12, 17 for v1
-| # | Task | Est. |
-|---|---|---|
-| 1.4.1 | Test gaps: pricing/badge edge cases, CSV formatting, PDF snapshot size, 404 for drafts, rate-limit behaviour | 1 h |
-| 1.4.2 | Security pass (`docs/12-security-performance.md`): auth on every admin action, input validation audit, headers (CSP where feasible, HSTS), secrets audit, dependency audit | 1 h |
-| 1.4.3 | Performance pass: Lighthouse CI budget in `lighthouse.yml`, image sizes, font loading, bundle check | 1 h |
-| 1.4.4 | Accessibility pass at 360/768/1280: keyboard, focus, contrast, alt text | 0.5 h |
-| 1.4.5 | README (architecture diagram, how it works), `docs/17-post-launch.md` (what worked, metrics, next), portfolio case-study entry | 0.5 h |
-| Stretch | Best-time strip (add-on B, ~2 h) if under budget; storyboard (E) only if 1.0–1.4 came in ≥ 4 h under | |
+| # | Part | Who | web/ | api/ | Est. | Done when |
+|---|---|---|---|---|---|---|
+| F1 | **Catalog read services** | 🟢 | — | `services/catalog`: `get_package`, `list_destinations`, `get_destination`, `get_departures_for_month`, pricing + badge helpers (*Filling fast* ≤ 4 · *Sold out* 0 · *Guaranteed*); pydantic `PackageDetail`, `DestinationCard`, …; regenerate contract | 1 h | pytest: badge/pricing edge cases, draft hidden |
+| F2 | **Package page** | 🟢 | `/packages/[slug]`: gallery + lightbox, quick facts, highlights, day-by-day itinerary, inclusions/exclusions, hotels, departures table with badges, occupancy pricing, FAQ, 3 related; draft → 404; SSG + tagged fetch; `generateMetadata` + JSON-LD `TouristTrip` / `Offer`; **no CTAs yet** | `GET /packages/:slug`, `GET /packages/:slug/departures?month=`; `Cache-Control` on public GETs | 1.5 h | Live at production for the 2 seeded packages; Lighthouse mobile ≥ 90 |
+| F3 | **Package search** | 🟢 | `/packages`: FilterBar (destination multi, budget max, nights range, theme multi, travel month), sort, filters in URL, result count, empty state, client re-fetch without reload | `search_packages(params)` — the single filter function v3's AI reuses — + `GET /packages`; `PackageCard` schema | 1.5 h | pytest filter matrix green; shareable filter URLs render server-side |
+| F4 | **Content → 6 packages** | 🟢 | — | 6 genuine packages across 3 destinations, 3–4 departures each, photos | 0.5 h | Every package passes the live-status rules; seeded to production |
+| F5 | **Destinations** | 🟢 | `/destinations` grid (cover, name, package count, from-price), `/destinations/[slug]` (cover, intro, best months, live packages); JSON-LD `TouristDestination` | `GET /destinations`, `GET /destinations/:slug` (destinations with 0 live packages hidden) | 1 h | Unique title/description per page |
+| F6 | **Home** | 🟢 | `/`: full-width hero + search form (destination · budget · nights → `/packages?…`), 6 destination tiles, 6 package cards, why-us strip, testimonials, full footer (address / phone / WhatsApp / policy links); hero is the LCP element | `get_home_data` + `GET /home`; `testimonials` seeded | 1.5 h | Search submit lands on `/packages` with matching params; fully server-rendered |
+| F7 | **Content → 12 packages** | 🟢 | — | 6 destinations, 12 packages (full itineraries, real hotels, 2026 prices), ~40 departures, 6 testimonials | 1 h | Home shows 6 + 6 real tiles; seeded to production |
+| F8 | **Trust pages** | 🟢 | `/about`, `/contact` (address, phone, WhatsApp, hours, map embed; form placeholder until F9), `/terms`, `/privacy`, `/cancellation-policy` — real copy; footer links | — | 0.5 h | No lorem ipsum; all linked from the footer |
+| Done | | | A stranger can browse 12 real packages on a phone at the production URL | | **8.5 h** | |
 
-**v1 total: ≈ 34 h** (10 + 6 + 6 + 8 + 4) — +1 h for the two-package setup, +1 h for the two-toolchain setup (2026-09-13).
+### Milestone 1.2 — Enquire (≈ 6 h) 🟢 customer
+Goal: the funnel closes — a visitor can enquire, get the PDF, and share.
+
+| # | Part | Who | web/ | api/ | Est. | Done when |
+|---|---|---|---|---|---|---|
+| F9 | **Enquiry form** | 🟢 | `EnquiryForm` (Standard / Customise-this-trip toggle), zod mirror `enquiry-schema.ts` (+ mirror test), inline `fieldErrors` from the envelope, thanks state ("we'll call within 2 hours, 10 am–8 pm IST"); `POST /enquire` no-JS proxy → redirect; wired on the package page (package attached) and the Contact page (`type=contact`) | `services/enquiry.submit` + `POST /enquiries`: pydantic `EnquiryCreate` (Indian mobile), honeypot, `infra/ratelimit.py` (Upstash sliding window, 5 / 10 min / IP), 1-minute dedupe, insert `enquiries` with `status=new` | 1.5 h | Works with JS off; duplicate submit within 1 min is deduped |
+| F10 | **Emails** | 🟢 | — | `services/email` (Resend SDK, Jinja2 templates): owner notification, visitor confirmation; `email_status` on the enquiry | 1 h | Both emails arrive from the production API |
+| F11 | **Itinerary PDF** | 🟢 | "Download itinerary (PDF)" link (plain `<a>` to the API) | `services/pdf.render_itinerary` (fpdf2, DM Sans TTF, `Document` base): cover, facts, itinerary, inclusions, hotels, departures, pricing, contact block; `GET /packages/:slug/itinerary.pdf` (404 if draft → Blob cache keyed by `updated_at` → 302); attached to the confirmation email; `GET /cron/pdf-gc` | 2 h | Valid A4 PDF < 2 MB, < 3 s cold; content matches the page |
+| F12 | **CTAs + WhatsApp** | 🟢 | Sticky mobile CTA bar on the package page (price · Enquire · PDF · WhatsApp); site-wide floating WhatsApp button pre-filled "Hi, I'm interested in <package> (<url>)" | — | 0.5 h | CTA visible at 360 px without covering content |
+| F13 | **Share + OG images** | 🟢 | Share buttons (WhatsApp, copy link, `navigator.share`); `opengraph-image` routes for packages and destinations (cover + name + price) | — | 0.5 h | Pasting a package URL into WhatsApp shows the OG card |
+| F14 | **Page views + visitor e2e** | ⚪ | `recordView` beacon from the package page; Playwright visitor journey (home → filter → package → enquire → thanks); `e2e.yml` against the PR preview with a Neon branch | `POST /views` (UA bot filter, upsert `package_views`, 204) | 0.5 h | e2e green on a preview |
+| Done | | | A stranger can enquire from a phone and both emails arrive with the PDF attached | | **6 h** | |
+
+### Milestone 1.3 — Manage (≈ 9 h) 🔴 admin
+Goal: the owner runs the business from `/admin` without touching the database.
+
+| # | Part | Who | web/ | api/ | Est. | Done when |
+|---|---|---|---|---|---|---|
+| F15 | **Owner login** | 🔴 | `/admin/login` form posting to `/api/auth/login`; `middleware.ts` gate on `/admin/*` via `GET /api/auth/session`; logout; demo credentials shown on the public landing page | `services/auth`: `users` / `sessions`, argon2 (`argon2-cffi`), `POST /auth/login` (rate-limited), `POST /auth/logout`, `GET /auth/session`; HttpOnly SameSite=Lax cookie; `require_owner` dependency | 1.5 h | Unauthenticated `/admin` → login; owner journey starts |
+| F16 | **Admin shell** | 🔴 | `(admin)` layout: nav with new-enquiry badge, table / form / toast primitives (shadcn) | New-enquiry count in the session payload | 1 h | Badge reconciles with the inbox |
+| F17 | **Destinations CRUD** | 🔴 | `/admin/destinations` list + form (cover upload, intro, best months) | `GET /admin/destinations` (all, including those the public list hides) · `POST/PUT/DELETE /admin/destinations[/:id]` (delete blocked if packages exist) → revalidate `destinations`, `destination:slug` | 0.5 h | Public grid updates within seconds of a save |
+| F18 | **Packages CRUD** | 🔴 | `/admin/packages` list + `PackageForm` (react-hook-form typed from `api-types.ts`): fields, theme tags, list editors (highlights / inclusions / exclusions / FAQ), occupancy pricing grid, draft ↔ live toggle, duplicate button, delete guard | `GET/POST/PUT/DELETE /admin/packages[/:id]`, `POST …/status` (live-publish rules), `POST …/duplicate` ("(copy)" draft); on save → `infra/revalidate` with tags + bump `updated_at` (invalidates the PDF cache) | 2 h | Owner changes a price → public page and PDF reflect it |
+| F19 | **Itinerary + departures editors** | 🔴 | `ItineraryEditor` (add / remove / dnd reorder days with meals + stay), hotels list, departures sub-table (date, price, seats total / left, guaranteed) | Nested writes inside the package PUT (days, hotels, departures) with per-row validation | 1 h | No data loss on a validation failure |
+| F20 | **Image upload** | 🔴 | `GalleryUploader`: multi-file, reorder, cover, alt text | `POST /admin/packages/:id/images` (multipart proxy: `jpeg` / `png` / `webp` ≤ 5 MB, Pillow resize ≤ 2000 px, Blob REST PUT → `package_images` row), `PATCH/DELETE …/images/:imageId` | 1 h | Uploaded image appears in the public gallery after revalidation |
+| F21 | **Enquiries inbox** | 🔴 | `/admin/enquiries` table (status / type / package / date filters, name-phone search, 50 per page), `/admin/enquiries/[id]` detail (one-click status, append-only notes, `mailto:` + WhatsApp links), Export CSV button | `GET /admin/enquiries`, `GET …/:id`, `PATCH …/status`, `POST …/notes`, `GET /admin/enquiries.csv` | 1.5 h | CSV opens correctly in Excel |
+| F22 | **Dashboard + owner e2e** | 🔴 | `/admin`: new enquiries this week vs last, by status, top 5 by enquiries and by views (30 d), departures in the next 30 days with seats left; Playwright owner journey (login → edit → live) | `GET /admin/dashboard` aggregates over `enquiries`, `package_views`, `departures` | 0.5 h | Loads < 1 s with seeded data; numbers reconcile with the inbox |
+| Done | | | Owner journey e2e green: login → change a price → public page and PDF reflect it | | **9 h** | |
+
+### Milestone 1.4 — Harden (≈ 4 h) ⚪ — closes lifecycle steps 10–12, 17 for v1
+
+| # | Part | Who | web/ | api/ | Est. | Done when |
+|---|---|---|---|---|---|---|
+| H1 | **SEO** | 🟢 | `generateMetadata` audit, canonicals, `sitemap.ts` + `robots.ts` from the public GETs, JSON-LD `Organization` + `FAQPage`, breadcrumbs | — | 0.75 h | Lighthouse SEO 100 on home, listing, package |
+| H2 | **Performance** | ⚪ | Lighthouse CI budget in `lighthouse.yml`, `next/image` sizes, font loading, bundle check | `Cache-Control` review, query indexes checked with `EXPLAIN` | 0.75 h | Lighthouse mobile ≥ 90 perf on the three pages |
+| H3 | **Accessibility + responsive** | 🟢 | Keyboard nav, visible focus, alt text, AA contrast; pass at 360 / 768 / 1280 | — | 0.5 h | Lighthouse a11y 100 |
+| H4 | **Security** | ⚪ | CSRF-safe forms, headers (CSP where feasible, HSTS), no secrets client-side | Validation audit on every write, rate limits on forms + login verified, `require_owner` on every admin route, dependency audit → `docs/12-security-performance.md` | 0.75 h | Checklist in `docs/12` complete |
+| H5 | **Test gaps** | ⚪ | Vitest for the api client and zod mirror | pytest: pricing / badge edge cases, CSV formatting, PDF size snapshot, 404 for drafts, rate-limit behaviour | 0.75 h | CI green with the new tests |
+| H6 | **Review + docs** | ⚪ | README (architecture diagram, how it works, status line), `docs/17-post-launch.md`, portfolio case-study entry | — | 0.5 h | v1 signed off; PRD status updated |
+| Stretch | Best-time strip (add-on B, ~2 h) if under budget; storyboard (E) only if 1.0–1.4 came in ≥ 4 h under | | | | | |
+
+**v1 total: ≈ 35 h** (7.5 + 8.5 + 6 + 9 + 4).
 
 ---
 
@@ -163,21 +186,21 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 ## Whole-product summary
 | Version | Milestones | Hours | Cumulative |
 |---|---|---|---|
-| v1 | 1.0 – 1.4 | 34 | 34 |
-| v2 | 2.0 – 2.3 | 15 | 49 |
-| v3 | 3.0 – 3.3 | 15 | 64 |
-| v4 | 4.0 | 6 | 70 |
+| v1 | 1.0 – 1.4 | 35 | 35 |
+| v2 | 2.0 – 2.3 | 15 | 50 |
+| v3 | 3.0 – 3.3 | 15 | 65 |
+| v4 | 4.0 | 6 | 71 |
 | Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 102 |
 
-The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (70 h with the two-package and two-toolchain setup). Add-ons are taken only from time saved.
+The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). Add-ons are taken only from time saved.
 
 ---
 
 ## Sequencing rules
 1. Never start a milestone with a red CI on `main`.
 2. Each task = its own branch + PR into a protected `main`; Viraj reviews and merges; never push to `main` directly. A merge deploys **both** web and api (Vercel ignores a project whose files didn't change).
-3. Content (1.0.5) is written before the pages that show it — the pages are designed around real data.
-4. The visual direction is chosen (variant page) before 1.0.7; no page is styled twice.
+3. Content grows with the pages — 2 packages in S11, 6 in F4, 12 in F7 — so every page is designed around real data without blocking the first deploy.
+4. The visual direction is chosen (variant page, S12) before any customer page is built; no page is styled twice.
 5. Add-ons are only picked up when the enclosing version is fully done, including its docs.
 
 ## Dependencies to unblock before 1.0
@@ -186,4 +209,4 @@ The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (70 h with the two-package 
 - Photos: decide source (own / CC-licensed / generated) for 6 destination covers + ~50 package images — must be licence-clean for a public site.
 
 ## Tracking
-Progress is tracked in the repo README's status line and a checklist in each milestone PR description. Estimates are re-baselined after 1.0 — if 1.0 runs > 10 h, the v1 stretch items are dropped first.
+Progress is tracked in the repo README's status line and a checklist in each milestone PR description. Estimates are re-baselined after 1.1 — if 1.0 + 1.1 run > 16 h, the v1 stretch items are dropped first.
