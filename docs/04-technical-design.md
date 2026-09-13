@@ -10,7 +10,7 @@
 
 **Split rule:** `web/` renders and collects input; `api/` owns data and logic. Every write below is an HTTP endpoint on `api/`; `web/` calls it through the same-origin `/api/*` rewrite.
 
-**Backend conventions (2026-09-13):** one `FastAPI` instance named `app` in `api/app/main.py`; one Vercel Function on Fluid compute, region `bom1`, `api/vercel.json` → `functions: { "app/main.py": { "maxDuration": 30 } }`; lifespan events create the SQLAlchemy engine lazily. Local dev: `uv run uvicorn app.main:app --port 8787 --reload`. Layout in [05-architecture.md](05-architecture.md) §2.
+**Backend conventions (2026-09-13):** one `FastAPI` instance named `app` in `api/app/main.py`; one Vercel Function on Fluid compute, region `bom1`, `api/vercel.json` → `functions: { "app/main.py": { "maxDuration": 30 } }`; lifespan events create the SQLAlchemy engine lazily. Local dev: `uv run uvicorn app.main:app --port 8000 --reload`. Layout in [05-architecture.md](05-architecture.md) §2.
 
 ## v1-specific decisions
 

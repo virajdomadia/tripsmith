@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate ✅, S2 accounts & keys ✅ — Neon, Upstash, Blob, Resend, Sentry wired into Vercel; next S3 toolchains). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — api will be at https://tripsmith-api.vercel.app from S9; custom domain `tripsmith.virajdomadia.com` deferred until the domain is bought.
+> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate ✅, S2 accounts & keys ✅ — Neon, Upstash, Blob, Resend, Sentry wired into Vercel; S3 toolchains ✅ — uv/ruff/pyright/pytest for api, root scripts run both languages, CI runs both; next S4 FastAPI skeleton). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — api will be at https://tripsmith-api.vercel.app from S9; custom domain `tripsmith.virajdomadia.com` deferred until the domain is bought.
 
 ## What it proves
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
@@ -30,9 +30,9 @@ brand/      logo, mark and favicon
 ```
 pnpm install            # web (pnpm workspace) + root scripts
 cd api && uv sync       # api (Python 3.12, uv)
-cd .. && pnpm dev       # web on :3000 (rewrites /api/* → :8787) and api on :8787, via concurrently
+cd .. && pnpm dev       # web on :3000 (rewrites /api/* → :8000) and api on :8000, via concurrently
 ```
-Or separately: `cd web && pnpm dev` · `cd api && uv run uvicorn app.main:app --port 8787 --reload`. Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (each fans out to web and `uv run …`); `pnpm gen:api` regenerates `web/src/lib/api-types.ts` from `api/openapi.json`.
+Or separately: `cd web && pnpm dev` · `cd api && uv run uvicorn app.main:app --port 8000 --reload` (the api half exists from S4). Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test` (each fans out to web and `uv run --directory api …`); `pnpm gen:api` regenerates `web/src/lib/api-types.ts` from `api/openapi.json`.
 
 ## Roadmap
 Follows the 17-step lifecycle: Product Discovery → PRD → Requirements & Scope → Technical Design → Architecture → Database + API Design → Development Plan → Project Setup → MVP Development → Testing → Code Review → Security + Performance → CI/CD → Staging → Production → Monitoring → Post-Launch Review. Steps 1–7 are done for v1–v4; step 8 (Project Setup) is milestone 1.0 "Skeleton live" — restarted at S1 on 2026-09-13 with the FastAPI backend and the structure-C plan.
