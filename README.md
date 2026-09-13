@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate done: Hono `api/` and `shared/` removed; next S2 accounts & keys). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
+> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate ✅, S2 accounts & keys ✅ — Neon, Upstash, Blob, Resend, Sentry wired into Vercel; next S3 toolchains). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — api will be at https://tripsmith-api.vercel.app from S9; custom domain `tripsmith.virajdomadia.com` deferred until the domain is bought.
 
 ## What it proves
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
