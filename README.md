@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 8 in progress — backend switched to FastAPI on 2026-09-13; v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden), starting at S1 (clean slate). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
+> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate done: Hono `api/` and `shared/` removed; next S2 accounts & keys). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — will move to `tripsmith.virajdomadia.com` later.
 
 ## What it proves
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
@@ -16,7 +16,7 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm) — the landin
   src/app/            layout.tsx, page.tsx, globals.css
   src/components/     landing/ (one component per section), ui/
   src/lib/            api.ts (typed client) · api-types.ts (generated from api/openapi.json)
-api/        FastAPI (Python 3.12, uv) REST API — rebuilt from S4 onwards
+api/        FastAPI (Python 3.12, uv) REST API — empty after S1, built from S3/S4 onwards (target layout:)
   app/      main.py · config.py · errors.py · routers/ · services/ · infra/ · models/ · schemas/
   alembic/  migrations · content/ seed content (Python modules) · scripts/seed.py · tests/ (pytest)
   openapi.json (generated, committed) · pyproject.toml · uv.lock · vercel.json
