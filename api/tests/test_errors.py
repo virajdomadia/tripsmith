@@ -22,7 +22,8 @@ async def test_wrong_method_is_not_found_envelope(client: AsyncClient) -> None:
     # is reported as not_found so the contract stays closed.
     res = await client.post("/health")
     assert res.status_code == 404
-    assert res.json()["error"]["code"] == "not_found"
+    assert res.json() == {"error": {"code": "not_found", "message": "Not Found"}}
+    assert "allow" not in res.headers
 
 
 async def test_validation_error_envelope_with_field_errors(
@@ -121,3 +122,51 @@ async def test_unhandled_exception_is_internal_without_leaking(
     assert res.json() == {"error": {"code": "internal", "message": "Internal server error"}}
     assert "hunter2" not in res.text
     assert res.headers["x-request-id"] == "trace-me"
+
+
+async def test_http_exception_500_never_leaks_detail(app: FastAPI, client: AsyncClient) -> None:
+    @app.get("/_test/http500")
+    async def _route() -> None:
+        raise HTTPException(status_code=500, detail="db password is hunter2")
+
+    res = await client.get("/_test/http500")
+    assert res.status_code == 500
+    assert res.json() == {"error": {"code": "internal", "message": "Internal server error"}}
+
+
+async def test_unmapped_4xx_keeps_status_and_headers(app: FastAPI, client: AsyncClient) -> None:
+    # e.g. Starlette's 413 from RequestBodyLimitMiddleware once image upload sets max_body_size
+    @app.get("/_test/too-large")
+    async def _route() -> None:
+        raise HTTPException(status_code=413, detail="Too large", headers={"Retry-After": "1"})
+
+    res = await client.get("/_test/too-large")
+    assert res.status_code == 413
+    assert res.json() == {"error": {"code": "validation", "message": "Too large"}}
+    assert res.headers["retry-after"] == "1"
+
+
+async def test_invalid_json_body_is_keyed_body(app: FastAPI, client: AsyncClient) -> None:
+    class Body(BaseModel):
+        title: str
+
+    @app.post("/_test/json")
+    async def _route(body: Body) -> None:
+        return None
+
+    res = await client.post(
+        "/_test/json", content=b"{not json", headers={"Content-Type": "application/json"}
+    )
+    assert res.status_code == 400
+    assert list(res.json()["error"]["fieldErrors"]) == ["body"]
+
+
+async def test_blank_query_params_are_treated_as_absent(app: FastAPI, client: AsyncClient) -> None:
+    # docs/06 C0: no-JS GET forms send empty selects; `?page=` must not be a 400.
+    @app.get("/_test/blank")
+    async def _route(page: int | None = None, q: str = "default") -> dict[str, object]:
+        return {"page": page, "q": q}
+
+    res = await client.get("/_test/blank", params={"page": "", "q": ""})
+    assert res.status_code == 200
+    assert res.json() == {"page": None, "q": "default"}

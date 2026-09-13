@@ -17,8 +17,10 @@ def test_settings_declare_exactly_the_documented_keys() -> None:
     assert {name.upper() for name in Settings.model_fields} == EXPECTED_ENV_KEYS
 
 
-def test_settings_load_with_no_env_at_all() -> None:
+def test_settings_load_with_no_env_at_all(monkeypatch: pytest.MonkeyPatch) -> None:
     # CI has no secrets (04 §10); constructing must not fail.
+    for key in EXPECTED_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
     s = EnvOnlySettings()
     assert s.database_url is None
     assert s.session_secret is None

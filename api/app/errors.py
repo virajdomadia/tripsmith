@@ -64,13 +64,16 @@ def envelope(
     code: ErrorCode,
     message: str,
     *,
+    status: int | None = None,
     field_errors: dict[str, str] | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     error: dict[str, object] = {"code": code, "message": message}
     if field_errors is not None:
         error["fieldErrors"] = field_errors
-    return JSONResponse({"error": error}, status_code=STATUS_FOR_CODE[code], headers=headers)
+    return JSONResponse(
+        {"error": error}, status_code=status or STATUS_FOR_CODE[code], headers=headers
+    )
 
 
 def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
@@ -78,8 +81,12 @@ def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
     errors: dict[str, str] = {}
     for err in exc.errors():
         loc = [str(part) for part in err["loc"]]
-        # Drop the source (body/query/path/header/cookie) unless it is all there is.
-        path = ".".join(loc[1:]) if len(loc) > 1 else ".".join(loc)
+        if err.get("type") == "json_invalid":
+            # loc is ("body", <byte offset>) — the whole body is the field.
+            path = "body"
+        else:
+            # Drop the source (body/query/path/header/cookie) unless it is all there is.
+            path = ".".join(loc[1:]) if len(loc) > 1 else ".".join(loc)
         errors.setdefault(path, str(err["msg"]))
     return errors
 
@@ -96,12 +103,16 @@ async def _validation_error(_: Request, exc: Exception) -> JSONResponse:
 
 async def _http_exception(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StarletteHTTPException)
-    # 405: the route does not exist for this method → not_found keeps the code set closed.
-    code = CODE_FOR_STATUS.get(404 if exc.status_code == 405 else exc.status_code)
-    if code is None:
-        log.error("HTTPException with unmapped status %s: %s", exc.status_code, exc.detail)
+    status = exc.status_code
+    if status == 405:
+        # Not one of the seven codes: a route that does not exist for this method is not_found.
+        return envelope("not_found", "Not Found")
+    if status >= 500:
+        log.error("HTTPException %s: %s", status, exc.detail)
         return envelope("internal", INTERNAL_MESSAGE)
-    return envelope(code, str(exc.detail), headers=exc.headers)
+    # Unmapped 4xx (413, 415, …) keep their status and headers under the closest code.
+    code = CODE_FOR_STATUS.get(status, "validation")
+    return envelope(code, str(exc.detail), status=status, headers=exc.headers)
 
 
 async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
