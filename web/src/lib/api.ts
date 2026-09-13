@@ -19,7 +19,7 @@ export const apiErrorResponseSchema = z.object({
 export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
 
 // `new URL(path, BASE)` tolerates a trailing slash on API_URL; next.config.ts strips it for rewrites.
-const BASE = process.env.API_URL ?? 'http://localhost:8787';
+const BASE = process.env.API_URL ?? 'http://localhost:8000';
 
 export class ApiRequestError extends Error {
   constructor(

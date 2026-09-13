@@ -178,7 +178,7 @@ MCP client → POST https://api.tripsmith.virajdomadia.com/mcp (direct, no rewri
 ## 6. Deployment topology
 | Environment | web | api | Data |
 |---|---|---|---|
-| Local | `localhost:3000` (rewrites → `localhost:8787`) | `localhost:8787` (`uv run uvicorn app.main:app --port 8787 --reload`; `pnpm dev` at the root starts both) | Neon dev branch (tests: local PostgreSQL 18 via `TEST_DATABASE_URL`) |
+| Local | `localhost:3000` (rewrites → `localhost:8000`) | `localhost:8000` (`uv run uvicorn app.main:app --port 8000 --reload`; `pnpm dev` at the root starts both) | Neon dev branch (tests: local PostgreSQL 18 via `TEST_DATABASE_URL`) |
 | Preview (step 14 staging) | Vercel preview per PR; `API_URL` = the api preview URL | Vercel preview per PR | Neon branch per PR, seeded by CI |
 | Production | `tripsmith.virajdomadia.com` | `api.tripsmith.virajdomadia.com` | Neon `main` |
 

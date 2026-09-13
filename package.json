@@ -2,15 +2,23 @@
   "name": "tripsmith",
   "private": true,
   "packageManager": "pnpm@11.5.1",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "dev": "concurrently -n web,api -c cyan,green \"pnpm --filter web dev\" \"uv run --directory api uvicorn app.main:app --reload --port 8000\"",
+    "lint": "pnpm -r lint && uv run --directory api ruff check . && uv run --directory api ruff format --check .",
+    "typecheck": "pnpm -r typecheck && uv run --directory api pyright",
+    "test": "pnpm -r test && uv run --directory api pytest",
     "build": "pnpm -r build",
+    "gen:api": "openapi-typescript api/openapi.json -o web/src/lib/api-types.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
-  "devDependencies": { "prettier": "3.9.6", "typescript": "5.9.3" }
+  "devDependencies": {
+    "concurrently": "10.0.5",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3"
+  }
 }
