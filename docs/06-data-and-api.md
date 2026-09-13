@@ -281,7 +281,7 @@ package = define_package(
 | v1 | `POST /views` | `recordView` | public |
 | v1 | `POST /auth/login` · `POST /auth/logout` · `GET /auth/session` | own auth (`login`, `logout`, `getSession`) | public (login rate-limited) / cookie |
 | v1 | `GET /admin/dashboard` | `getDashboard` | owner |
-| v1 | `POST/PUT/DELETE /admin/destinations[/:id]` | destination CRUD | owner |
+| v1 | `GET /admin/destinations` (all, unfiltered) · `POST/PUT/DELETE /admin/destinations[/:id]` | destination CRUD | owner |
 | v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
 | v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
 | v1 | `GET /admin/enquiries` · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` | enquiries | owner |

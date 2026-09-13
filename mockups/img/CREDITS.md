@@ -1,6 +1,6 @@
 # Mockup photo credits
 
-All photos in `mockups/img/` are from Wikimedia Commons under CC BY / CC BY-SA licences, downscaled to 1400 px for the mockups only. The live site will use licensed or own photography (task 1.0.5). Attribution as required by the licences:
+All photos in `mockups/img/` are from Wikimedia Commons under CC BY / CC BY-SA licences, downscaled to 1400 px for the mockups only. The live site will use licensed or own photography (seeded in S11 / F4 / F7). Attribution as required by the licences:
 
 | File | Title | Licence | Link |
 |---|---|---|---|
