@@ -88,7 +88,7 @@
 Step 4 (UI mockups) is complete for v1. The mockup's CSS block is the token source for `web/` (Tailwind theme) and its components map 1:1 to `web/components/site` and `web/components/admin`.
 
 ## Mockup conventions
-- Photos are colour-field placeholders labelled by place until the seed photos exist (1.0.5).
+- Photos are colour-field placeholders labelled by place until the seed photos exist (1.0.11 → 1.1.7).
 - Real seed content only — the six destinations, the twelve packages, the North Goa itinerary, real departure dates and prices.
 - Every screen is built at desktop and 390px; the phone view is the primary one for customer screens.
 - The mockups are HTML, so the chosen tokens (colours, type scale, radii, spacing) transfer directly into `web/` as Tailwind theme values in milestone 1.0.
