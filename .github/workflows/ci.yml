@@ -5,12 +5,21 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
 jobs:
-  check:
+  # ---------------------------------------------------------------------------
+  # web/ — Next.js: lint (eslint + prettier) → typecheck → vitest → next build
+  # ---------------------------------------------------------------------------
+  web:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -21,11 +30,65 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web lint
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter web build
+
+  # ---------------------------------------------------------------------------
+  # api/ — FastAPI: ruff → pyright → pytest against a throwaway Postgres (S10+)
+  # ---------------------------------------------------------------------------
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # Throwaway container, no password at all (keeps secret scanners quiet too).
+          POSTGRES_USER: tripsmith
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: tripsmith_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tripsmith"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Consumed by the pytest DB harness from S10; the test suite ignores it until then.
+      TEST_DATABASE_URL: postgresql+asyncpg://tripsmith@localhost:5432/tripsmith_test
+    steps:
+      - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6 # python version comes from api/.python-version
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
       - run: uv sync --locked --directory api
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: uv run --directory api ruff check .
+      - run: uv run --directory api ruff format --check .
+      - run: uv run --directory api pyright
+      - run: uv run --directory api pytest
+
+  # ---------------------------------------------------------------------------
+  # contract — api/openapi.json and web/src/lib/api-types.ts must be committed fresh
+  # ---------------------------------------------------------------------------
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked --directory api
+      - run: pnpm gen:api
+      - name: Fail if the committed contract is stale (run `pnpm gen:api` and commit)
+        run: git diff --exit-code -- api/openapi.json web/src/lib/api-types.ts
