@@ -12,8 +12,11 @@ import type { components } from '../src/lib/api-types';
 type Meta = components['schemas']['Meta'];
 type ErrorCode = components['schemas']['ErrorCode'];
 
-const cookieStore = { toString: () => 'session=abc123' };
-vi.mock('next/headers', () => ({ cookies: async () => cookieStore }));
+// A base64 token: `+ / =` must reach the api byte-for-byte (Starlette never percent-decodes).
+const RAW_COOKIE = 'session=ab+c/12==; theme=dark';
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ cookie: RAW_COOKIE }),
+}));
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -57,14 +60,14 @@ describe('api() — typed server-side fetch', () => {
     expect(call).toBeTypeOf('function');
   });
 
-  it('forwards the request cookies and disables caching when auth is requested', async () => {
+  it('forwards the raw cookie header untouched and disables caching when auth is requested', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
     vi.stubGlobal('fetch', fetchMock);
 
     await api('/health', { auth: true });
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(new Headers(init.headers).get('cookie')).toBe('session=abc123');
+    expect(new Headers(init.headers).get('cookie')).toBe(RAW_COOKIE);
     expect(init.cache).toBe('no-store');
   });
 

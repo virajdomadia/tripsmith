@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { headers as requestHeaders } from 'next/headers';
 import { z } from 'zod';
 import type { components, paths } from './api-types';
 
@@ -65,8 +65,8 @@ export interface ApiInit {
   revalidate?: number | false;
   searchParams?: Record<string, string | undefined>;
   /**
-   * Forward the viewer's cookies (owner session) and never cache. Only for `/admin/**` and
-   * `/auth/session`; public data must not vary by viewer.
+   * Forward the viewer's `Cookie` header (owner session) and never cache. Only for `/admin/**`
+   * and `/auth/session`; public data must not vary by viewer.
    */
   auth?: boolean;
 }
@@ -79,7 +79,10 @@ export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promi
   const headers = new Headers();
   let cache: RequestCache | undefined;
   if (init.auth) {
-    headers.set('cookie', (await cookies()).toString());
+    // The raw header, not `cookies().toString()`: that re-encodes values, and the api never
+    // percent-decodes, so a base64 session token (`+ / =`) would stop matching its row.
+    const cookie = (await requestHeaders()).get('cookie');
+    if (cookie) headers.set('cookie', cookie);
     cache = 'no-store';
   }
 
