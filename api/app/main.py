@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from app.errors import install_error_handlers
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
-from app.routers.public import health, meta
+from app.routers.site import health, meta
 
 
 @asynccontextmanager
