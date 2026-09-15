@@ -5,7 +5,12 @@ import type { NextConfig } from 'next';
 const API_URL = (process.env.API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
-  images: { remotePatterns: [{ protocol: 'https', hostname: '*.public.blob.vercel-storage.com' }] },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
+      { protocol: 'http', hostname: 'localhost', port: '8000' }, // scripts/seed.py --local
+    ],
+  },
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];
   },
