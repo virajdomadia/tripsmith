@@ -1,9 +1,10 @@
 """Vercel Blob over its REST API — there is no official Python SDK (04 §4).
 
 `BlobStore.put` uploads one public object and returns its URL. `LocalStore` is the seed's
-`--local` mode: no upload, just a URL the dev server can serve.
+`--local` mode: objects are mirrored to `api/.seed-photos/` and served by the dev api.
 """
 
+from pathlib import Path
 from typing import Protocol
 
 import httpx
@@ -43,9 +44,17 @@ class BlobStore:
         return str(res.json()["url"])
 
 
+# Dev mirror of the Blob store: the seed writes objects here and the api mounts it at /seed-photos.
+LOCAL_STORE_DIR = Path(__file__).resolve().parents[2] / ".seed-photos"
+
+
 class LocalStore:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, directory: Path = LOCAL_STORE_DIR):
         self._base = base_url.rstrip("/")
+        self._dir = directory
 
     async def put(self, pathname: str, data: bytes, content_type: str) -> str:
+        target = self._dir / pathname
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
         return f"{self._base}/{pathname}"

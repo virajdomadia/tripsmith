@@ -1,15 +1,17 @@
 """infra/storage.py — Vercel Blob over its REST API (04 §4)."""
 
+from pathlib import Path
+
 import httpx
 import pytest
-from pydantic import SecretStr
 
 from app.config import Settings
 from app.infra.storage import BlobStore, LocalStore, StorageNotConfigured
+from tests.settings import make_settings
 
 
 def _settings(token: str | None = "tok") -> Settings:
-    return Settings.model_validate({"blob_read_write_token": SecretStr(token) if token else None})
+    return make_settings(blob_read_write_token=token)
 
 
 async def test_put_sends_the_documented_headers_and_returns_the_public_url() -> None:
@@ -47,9 +49,9 @@ def test_blob_store_needs_the_token() -> None:
         BlobStore(_settings(None))
 
 
-async def test_local_store_returns_a_file_url_without_uploading() -> None:
-    store = LocalStore(base_url="http://localhost:8000/seed-photos")
-    assert (
-        await store.put("packages/goa/b.jpg", b"", "image/jpeg")
-        == "http://localhost:8000/seed-photos/packages/goa/b.jpg"
-    )
+async def test_local_store_mirrors_the_object_to_disk_under_its_pathname(tmp_path: Path) -> None:
+    # Same pathname semantics as Blob, so the dev server can serve what the seed wrote.
+    store = LocalStore(base_url="http://localhost:8000/seed-photos", directory=tmp_path)
+    url = await store.put("packages/goa/b.jpg", b"JPEGDATA", "image/jpeg")
+    assert url == "http://localhost:8000/seed-photos/packages/goa/b.jpg"
+    assert (tmp_path / "packages" / "goa" / "b.jpg").read_bytes() == b"JPEGDATA"

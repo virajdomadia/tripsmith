@@ -13,6 +13,7 @@ from sentry_sdk.transport import Transport
 from app.config import Settings
 from app.infra.observability import init_sentry
 from app.main import create_app
+from tests.settings import make_settings
 
 
 class Sink(Transport):
@@ -39,7 +40,7 @@ def events() -> Iterator[list[dict[str, Any]]]:
 
 
 def _settings(dsn: str | None) -> Settings:
-    return Settings.model_validate({"sentry_dsn": dsn}) if dsn else Settings.model_validate({})
+    return make_settings(sentry_dsn=dsn) if dsn else make_settings()
 
 
 def test_without_a_dsn_sentry_stays_off() -> None:
@@ -96,6 +97,6 @@ async def test_unhandled_error_is_reported_once_with_the_request_id(
 
 async def test_the_test_app_never_reports_to_sentry(events: list[dict[str, Any]]) -> None:
     # conftest builds the app with Sentry off even when .env.local carries a real DSN.
-    app = create_app(settings=Settings.model_validate({"sentry_dsn": None}))
+    app = create_app(settings=make_settings())
     assert sentry_sdk.get_client().is_active() is False
     assert app is not None

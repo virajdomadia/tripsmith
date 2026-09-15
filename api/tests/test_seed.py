@@ -2,7 +2,6 @@
 
 import pytest
 from argon2 import PasswordHasher
-from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +18,7 @@ from app.models import (
 from app.models.enums import PackageStatus, UserRole
 from content import load_content
 from scripts.seed import SeedResult, seed
+from tests.settings import make_settings
 
 pytestmark = pytest.mark.db
 
@@ -33,9 +33,7 @@ class RecordingStore:
 
 
 def owner_settings() -> Settings:
-    return Settings.model_validate(
-        {"owner_email": "owner@tripsmith.demo", "owner_password": SecretStr("demo-pass")}
-    )
+    return make_settings(owner_email="owner@tripsmith.demo", owner_password="demo-pass")
 
 
 async def count(db: AsyncSession, model: type) -> int:  # type: ignore[type-arg]
@@ -124,6 +122,6 @@ async def test_seed_creates_the_owner_with_an_argon2_hash(db: AsyncSession) -> N
 
 
 async def test_seed_without_owner_env_skips_the_user(db: AsyncSession) -> None:
-    result = await seed(db, load_content(), RecordingStore(), Settings.model_validate({}))
+    result = await seed(db, load_content(), RecordingStore(), make_settings())
     assert await count(db, User) == 0
     assert "owner" in result.warnings[0]

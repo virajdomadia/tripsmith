@@ -196,6 +196,106 @@
         "title": "Meta",
         "type": "object"
       },
+      "PackageCard": {
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Badge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the next upcoming departure"
+          },
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "destination": {
+            "description": "Destination display name",
+            "title": "Destination",
+            "type": "string"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Highlights",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "themes": {
+            "items": {
+              "$ref": "#/components/schemas/Theme"
+            },
+            "title": "Themes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "destination",
+          "nights",
+          "days",
+          "startingPricePaise",
+          "themes",
+          "coverUrl",
+          "highlights",
+          "badge"
+        ],
+        "title": "PackageCard",
+        "type": "object"
+      },
+      "PackageList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PackageCard"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PackageList",
+        "type": "object"
+      },
       "Theme": {
         "enum": [
           "beach",
@@ -290,6 +390,37 @@
           }
         },
         "summary": "Get Meta",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/packages": {
+      "get": {
+        "operationId": "searchPackages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Packages",
         "tags": [
           "public"
         ]

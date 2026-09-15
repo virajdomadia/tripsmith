@@ -12,6 +12,7 @@ import os
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
+import sentry_sdk
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
@@ -20,14 +21,21 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
-from app.config import Settings
 from app.infra import db as db_module
 from app.infra.db import get_session
 from app.main import create_app
 from app.models import Base
+from tests.settings import make_settings
 
 API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _sentry_off() -> None:
+    # Importing app.main builds the module-level `app` from the real settings, which turns Sentry
+    # on when api/.env.local carries a DSN. Tests start from an inactive SDK.
+    sentry_sdk.get_global_scope().set_client(None)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -45,9 +53,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def app() -> FastAPI:
-    # model_validate skips the env / .env.local sources: Sentry stays off in tests even when
-    # the local .env.local carries a real DSN.
-    return create_app(settings=Settings.model_validate({}))
+    # Pure defaults (tests/settings.py): no env, no .env.local — Sentry and the DB stay off.
+    return create_app(settings=make_settings())
 
 
 @pytest.fixture

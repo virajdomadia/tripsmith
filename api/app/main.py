@@ -4,13 +4,15 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
 from app.errors import install_error_handlers
 from app.infra.db import dispose_engine
 from app.infra.observability import init_sentry
+from app.infra.storage import LOCAL_STORE_DIR
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
-from app.routers.site import health, meta
+from app.routers.site import catalog, health, meta
 
 
 @asynccontextmanager
@@ -42,6 +44,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(meta.router)
+    app.include_router(catalog.router)
+
+    # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
+    # deployed) and points image URLs here; production serves them from Vercel Blob instead.
+    if LOCAL_STORE_DIR.is_dir():
+        app.mount("/seed-photos", StaticFiles(directory=LOCAL_STORE_DIR), name="seed-photos")
     return app
 
 

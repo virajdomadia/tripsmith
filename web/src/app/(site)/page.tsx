@@ -8,8 +8,12 @@ const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
 export default async function Home() {
   try {
-    const [health, meta] = await Promise.all([api('/health'), api('/meta', { tags: ['meta'] })]);
-    return <ApiStatus health={health} meta={meta} apiUrl={API_URL} />;
+    const [health, meta, packages] = await Promise.all([
+      api('/health'),
+      api('/meta', { tags: ['meta'] }),
+      api('/packages', { tags: ['packages'] }),
+    ]);
+    return <ApiStatus health={health} meta={meta} packages={packages} apiUrl={API_URL} />;
   } catch (err) {
     return <ApiStatus error={err instanceof Error ? err.message : String(err)} apiUrl={API_URL} />;
   }
