@@ -17,6 +17,8 @@ from sqlalchemy import (
     SmallInteger,
     Text,
     UniqueConstraint,
+    column,
+    table,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -173,3 +175,13 @@ class Testimonial(IdMixin, CreatedMixin, Base):
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     package_id: Mapped[str | None] = mapped_column(ForeignKey("packages.id", ondelete="SET NULL"))
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+
+
+# The `departure_availability` view (06 A3). v1 = `seats_total`; the v2 migration replaces the
+# view to subtract bookings. Services join this instead of reading seats_total so v2 changes
+# nothing above the database.
+departure_availability = table(
+    "departure_availability",
+    column("departure_id", Text),
+    column("seats_left", Integer),
+)

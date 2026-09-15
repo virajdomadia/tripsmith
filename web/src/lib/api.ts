@@ -60,6 +60,8 @@ type JsonOf<R> = R extends { content: { 'application/json': infer J } } ? J : ne
 export type GetResponse<P extends GetPath> = JsonOf<paths[P]['get']['responses'][200]>;
 
 export interface ApiInit {
+  /** Values for `{name}` tokens in the path (`/packages/{slug}`), URL-encoded. */
+  params?: Record<string, string>;
   /** Cache tags for on-demand revalidation (`/revalidate` route handler). */
   tags?: string[];
   revalidate?: number | false;
@@ -71,9 +73,18 @@ export interface ApiInit {
   auth?: boolean;
 }
 
+/** `/packages/{slug}` + `{ slug: 'x' }` → `/packages/x`. Throws rather than sending a literal `{slug}`. */
+export function fillPath(path: string, params: Record<string, string> = {}) {
+  return path.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`Missing path param "${name}" for ${path}`);
+    return encodeURIComponent(value);
+  });
+}
+
 /** Server-side typed GET to the api; throws `ApiRequestError` on any non-2xx. */
 export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promise<GetResponse<P>> {
-  const url = new URL(path, BASE);
+  const url = new URL(fillPath(path, init.params), BASE);
   for (const [k, v] of Object.entries(init.searchParams ?? {})) if (v) url.searchParams.set(k, v);
 
   const headers = new Headers();
