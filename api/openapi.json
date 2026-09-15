@@ -1,0 +1,228 @@
+{
+  "components": {
+    "schemas": {
+      "Badge": {
+        "description": "Computed per departure by `services/catalog/pricing.badge_for` (04 §3).",
+        "enum": [
+          "filling-fast",
+          "sold-out",
+          "guaranteed"
+        ],
+        "title": "Badge",
+        "type": "string"
+      },
+      "BadgeOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Badge"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "BadgeOption",
+        "type": "object"
+      },
+      "EnquiryType": {
+        "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3).",
+        "enum": [
+          "standard",
+          "custom",
+          "contact"
+        ],
+        "title": "EnquiryType",
+        "type": "string"
+      },
+      "EnquiryTypeOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/EnquiryType"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "EnquiryTypeOption",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "Limits": {
+        "properties": {
+          "enquiryMessageMax": {
+            "examples": [
+              1000
+            ],
+            "title": "Enquirymessagemax",
+            "type": "integer"
+          },
+          "imageMaxBytes": {
+            "examples": [
+              5242880
+            ],
+            "title": "Imagemaxbytes",
+            "type": "integer"
+          },
+          "maxThemesPerPackage": {
+            "examples": [
+              3
+            ],
+            "title": "Maxthemesperpackage",
+            "type": "integer"
+          },
+          "maxTravellers": {
+            "examples": [
+              12
+            ],
+            "title": "Maxtravellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "maxTravellers",
+          "maxThemesPerPackage",
+          "enquiryMessageMax",
+          "imageMaxBytes"
+        ],
+        "title": "Limits",
+        "type": "object"
+      },
+      "Meta": {
+        "properties": {
+          "badges": {
+            "items": {
+              "$ref": "#/components/schemas/BadgeOption"
+            },
+            "title": "Badges",
+            "type": "array"
+          },
+          "enquiryTypes": {
+            "items": {
+              "$ref": "#/components/schemas/EnquiryTypeOption"
+            },
+            "title": "Enquirytypes",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "themes": {
+            "items": {
+              "$ref": "#/components/schemas/ThemeOption"
+            },
+            "title": "Themes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "themes",
+          "badges",
+          "enquiryTypes",
+          "limits"
+        ],
+        "title": "Meta",
+        "type": "object"
+      },
+      "Theme": {
+        "enum": [
+          "beach",
+          "hills",
+          "honeymoon",
+          "family",
+          "adventure",
+          "heritage"
+        ],
+        "title": "Theme",
+        "type": "string"
+      },
+      "ThemeOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Theme"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ThemeOption",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Tripsmith API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Health",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/meta": {
+      "get": {
+        "operationId": "getMeta",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Meta",
+        "tags": [
+          "public"
+        ]
+      }
+    }
+  }
+}

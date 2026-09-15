@@ -11,7 +11,8 @@
     "typecheck": "pnpm -r typecheck && uv run --directory api pyright",
     "test": "pnpm -r test && uv run --directory api pytest",
     "build": "pnpm -r build",
-    "gen:api": "openapi-typescript api/openapi.json -o web/src/lib/api-types.ts",
+    "gen:openapi": "uv run --directory api python -m app.openapi",
+    "gen:api": "pnpm gen:openapi && openapi-typescript api/openapi.json -o web/src/lib/api-types.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
