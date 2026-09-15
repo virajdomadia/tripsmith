@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Destinations */
+        get: operations["listDestinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/destinations/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Destination Route */
+        get: operations["getDestination"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -55,6 +89,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/packages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Package Route */
+        get: operations["getPackage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/packages/{slug}/departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Departures Route */
+        get: operations["getDeparturesForMonth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -88,6 +156,109 @@ export interface components {
             label: string;
             value: components["schemas"]["Badge"];
         };
+        /** DepartureList */
+        DepartureList: {
+            /**
+             * Items
+             * @description Upcoming departures, soonest first
+             */
+            items: components["schemas"]["DepartureOut"][];
+        };
+        /** DepartureOut */
+        DepartureOut: {
+            badge: components["schemas"]["Badge"] | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Guaranteed */
+            guaranteed: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Pricechildpaise
+             * @description Child 5-11 sharing the parents' room
+             */
+            priceChildPaise: number;
+            /**
+             * Pricedoublepaise
+             * @description Per adult, double sharing
+             */
+            priceDoublePaise: number;
+            /** Pricetriplepaise */
+            priceTriplePaise: number;
+            /**
+             * Seatsleft
+             * @description From the departure_availability view
+             */
+            seatsLeft: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number;
+        };
+        /** DestinationCard */
+        DestinationCard: {
+            /** Coverurl */
+            coverUrl: string;
+            /** Name */
+            name: string;
+            /**
+             * Packagecount
+             * @description Live packages
+             */
+            packageCount: number;
+            /** Slug */
+            slug: string;
+            /** Startingpricepaise */
+            startingPricePaise: number;
+            /** Tagline */
+            tagline: string;
+        };
+        /** DestinationDetail */
+        DestinationDetail: {
+            /**
+             * Bestmonths
+             * @description 1-12
+             */
+            bestMonths: number[];
+            /** Coverurl */
+            coverUrl: string;
+            /**
+             * Intro
+             * @description Markdown
+             */
+            intro: string;
+            /** Name */
+            name: string;
+            /**
+             * Packages
+             * @description Live packages, cheapest first
+             */
+            packages: components["schemas"]["PackageCard"][];
+            /** Region */
+            region: string;
+            /** Slug */
+            slug: string;
+            /** Tagline */
+            tagline: string;
+        };
+        /** DestinationList */
+        DestinationList: {
+            /**
+             * Items
+             * @description Only destinations with at least 1 live package
+             */
+            items: components["schemas"]["DestinationCard"][];
+        };
+        /** DestinationRef */
+        DestinationRef: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
         /**
          * EnquiryType
          * @description The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.
@@ -109,6 +280,13 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
+        /** FaqItem */
+        FaqItem: {
+            /** A */
+            a: string;
+            /** Q */
+            q: string;
+        };
         /** Health */
         Health: {
             /**
@@ -116,6 +294,46 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** HotelOut */
+        HotelOut: {
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Stars */
+            stars: number;
+        };
+        /** ImageOut */
+        ImageOut: {
+            /** Alt */
+            alt: string;
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
+        /** ItineraryDayOut */
+        ItineraryDayOut: {
+            /** Dayno */
+            dayNo: number;
+            /**
+             * Description
+             * @description Markdown
+             */
+            description: string;
+            meals: components["schemas"]["Meals"];
+            /**
+             * Stay
+             * @description Hotel / city for the night; null on the last day
+             */
+            stay: string | null;
+            /** Title */
+            title: string;
         };
         /** Limits */
         Limits: {
@@ -139,6 +357,15 @@ export interface components {
              * @example 12
              */
             maxTravellers: number;
+        };
+        /** Meals */
+        Meals: {
+            /** Breakfast */
+            breakfast: boolean;
+            /** Dinner */
+            dinner: boolean;
+            /** Lunch */
+            lunch: boolean;
         };
         /** Meta */
         Meta: {
@@ -176,6 +403,62 @@ export interface components {
             /** Themes */
             themes: components["schemas"]["Theme"][];
         };
+        /** PackageDetail */
+        PackageDetail: {
+            cover: components["schemas"]["ImageOut"] | null;
+            /** Days */
+            days: number;
+            /** Departurecity */
+            departureCity: string;
+            /**
+             * Departures
+             * @description Upcoming only, soonest first
+             */
+            departures: components["schemas"]["DepartureOut"][];
+            destination: components["schemas"]["DestinationRef"];
+            /** Exclusions */
+            exclusions: string[];
+            /** Faq */
+            faq: components["schemas"]["FaqItem"][];
+            /** Highlights */
+            highlights: string[];
+            /** Hotels */
+            hotels: components["schemas"]["HotelOut"][];
+            /**
+             * Images
+             * @description Gallery order; the cover is first
+             */
+            images: components["schemas"]["ImageOut"][];
+            /** Inclusions */
+            inclusions: string[];
+            /** Itinerary */
+            itinerary: components["schemas"]["ItineraryDayOut"][];
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /**
+             * Related
+             * @description Up to 3: same destination, then shared theme
+             */
+            related: components["schemas"]["PackageCard"][];
+            /** Slug */
+            slug: string;
+            /**
+             * Startingpricepaise
+             * @description Cheapest upcoming double-sharing price; 0 if none
+             */
+            startingPricePaise: number;
+            /** Summary */
+            summary: string;
+            /** Themes */
+            themes: components["schemas"]["Theme"][];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
         /** PackageList */
         PackageList: {
             /** Items */
@@ -203,6 +486,66 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDestinations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getDestination: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationDetail"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -277,6 +620,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageDetail"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getDeparturesForMonth: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM; omitted or blank = all upcoming */
+                month?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureList"];
                 };
             };
             /** @description Error envelope (06 C0) */

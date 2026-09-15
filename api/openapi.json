@@ -65,6 +65,222 @@
         "title": "BadgeOption",
         "type": "object"
       },
+      "DepartureList": {
+        "properties": {
+          "items": {
+            "description": "Upcoming departures, soonest first",
+            "items": {
+              "$ref": "#/components/schemas/DepartureOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DepartureList",
+        "type": "object"
+      },
+      "DepartureOut": {
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Badge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "guaranteed": {
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "priceChildPaise": {
+            "description": "Child 5-11 sharing the parents' room",
+            "title": "Pricechildpaise",
+            "type": "integer"
+          },
+          "priceDoublePaise": {
+            "description": "Per adult, double sharing",
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "priceTriplePaise": {
+            "title": "Pricetriplepaise",
+            "type": "integer"
+          },
+          "seatsLeft": {
+            "description": "From the departure_availability view",
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "singleSupplementPaise": {
+            "title": "Singlesupplementpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "seatsTotal",
+          "seatsLeft",
+          "guaranteed",
+          "priceDoublePaise",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise",
+          "badge"
+        ],
+        "title": "DepartureOut",
+        "type": "object"
+      },
+      "DestinationCard": {
+        "properties": {
+          "coverUrl": {
+            "title": "Coverurl",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageCount": {
+            "description": "Live packages",
+            "title": "Packagecount",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "tagline": {
+            "title": "Tagline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "tagline",
+          "coverUrl",
+          "packageCount",
+          "startingPricePaise"
+        ],
+        "title": "DestinationCard",
+        "type": "object"
+      },
+      "DestinationDetail": {
+        "properties": {
+          "bestMonths": {
+            "description": "1-12",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Bestmonths",
+            "type": "array"
+          },
+          "coverUrl": {
+            "title": "Coverurl",
+            "type": "string"
+          },
+          "intro": {
+            "description": "Markdown",
+            "title": "Intro",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packages": {
+            "description": "Live packages, cheapest first",
+            "items": {
+              "$ref": "#/components/schemas/PackageCard"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "tagline": {
+            "title": "Tagline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "tagline",
+          "intro",
+          "coverUrl",
+          "region",
+          "bestMonths",
+          "packages"
+        ],
+        "title": "DestinationDetail",
+        "type": "object"
+      },
+      "DestinationList": {
+        "properties": {
+          "items": {
+            "description": "Only destinations with at least 1 live package",
+            "items": {
+              "$ref": "#/components/schemas/DestinationCard"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DestinationList",
+        "type": "object"
+      },
+      "DestinationRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "DestinationRef",
+        "type": "object"
+      },
       "EnquiryType": {
         "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3).",
         "enum": [
@@ -106,6 +322,24 @@
         "title": "ErrorCode",
         "type": "string"
       },
+      "FaqItem": {
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "string"
+          },
+          "q": {
+            "title": "Q",
+            "type": "string"
+          }
+        },
+        "required": [
+          "q",
+          "a"
+        ],
+        "title": "FaqItem",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -118,6 +352,103 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HotelOut": {
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "stars": {
+            "title": "Stars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "stars",
+          "nights"
+        ],
+        "title": "HotelOut",
+        "type": "object"
+      },
+      "ImageOut": {
+        "properties": {
+          "alt": {
+            "title": "Alt",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "alt",
+          "width",
+          "height"
+        ],
+        "title": "ImageOut",
+        "type": "object"
+      },
+      "ItineraryDayOut": {
+        "properties": {
+          "dayNo": {
+            "title": "Dayno",
+            "type": "integer"
+          },
+          "description": {
+            "description": "Markdown",
+            "title": "Description",
+            "type": "string"
+          },
+          "meals": {
+            "$ref": "#/components/schemas/Meals"
+          },
+          "stay": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hotel / city for the night; null on the last day",
+            "title": "Stay"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dayNo",
+          "title",
+          "description",
+          "meals",
+          "stay"
+        ],
+        "title": "ItineraryDayOut",
         "type": "object"
       },
       "Limits": {
@@ -158,6 +489,29 @@
           "imageMaxBytes"
         ],
         "title": "Limits",
+        "type": "object"
+      },
+      "Meals": {
+        "properties": {
+          "breakfast": {
+            "title": "Breakfast",
+            "type": "boolean"
+          },
+          "dinner": {
+            "title": "Dinner",
+            "type": "boolean"
+          },
+          "lunch": {
+            "title": "Lunch",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "breakfast",
+          "lunch",
+          "dinner"
+        ],
+        "title": "Meals",
         "type": "object"
       },
       "Meta": {
@@ -275,6 +629,154 @@
         "title": "PackageCard",
         "type": "object"
       },
+      "PackageDetail": {
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "departures": {
+            "description": "Upcoming only, soonest first",
+            "items": {
+              "$ref": "#/components/schemas/DepartureOut"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationRef"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "faq": {
+            "items": {
+              "$ref": "#/components/schemas/FaqItem"
+            },
+            "title": "Faq",
+            "type": "array"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Highlights",
+            "type": "array"
+          },
+          "hotels": {
+            "items": {
+              "$ref": "#/components/schemas/HotelOut"
+            },
+            "title": "Hotels",
+            "type": "array"
+          },
+          "images": {
+            "description": "Gallery order; the cover is first",
+            "items": {
+              "$ref": "#/components/schemas/ImageOut"
+            },
+            "title": "Images",
+            "type": "array"
+          },
+          "inclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inclusions",
+            "type": "array"
+          },
+          "itinerary": {
+            "items": {
+              "$ref": "#/components/schemas/ItineraryDayOut"
+            },
+            "title": "Itinerary",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "related": {
+            "description": "Up to 3: same destination, then shared theme",
+            "items": {
+              "$ref": "#/components/schemas/PackageCard"
+            },
+            "title": "Related",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "description": "Cheapest upcoming double-sharing price; 0 if none",
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "themes": {
+            "items": {
+              "$ref": "#/components/schemas/Theme"
+            },
+            "title": "Themes",
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "summary",
+          "destination",
+          "themes",
+          "nights",
+          "days",
+          "departureCity",
+          "startingPricePaise",
+          "highlights",
+          "inclusions",
+          "exclusions",
+          "hotels",
+          "faq",
+          "itinerary",
+          "images",
+          "cover",
+          "departures",
+          "related",
+          "updatedAt"
+        ],
+        "title": "PackageDetail",
+        "type": "object"
+      },
       "PackageList": {
         "properties": {
           "items": {
@@ -333,6 +835,79 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/destinations": {
+      "get": {
+        "operationId": "listDestinations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Destinations",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/destinations/{slug}": {
+      "get": {
+        "operationId": "getDestination",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Destination Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -421,6 +996,109 @@
           }
         },
         "summary": "Get Packages",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/packages/{slug}": {
+      "get": {
+        "operationId": "getPackage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Package Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/packages/{slug}/departures": {
+      "get": {
+        "operationId": "getDeparturesForMonth",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "YYYY-MM; omitted or blank = all upcoming",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM; omitted or blank = all upcoming",
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartureList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Departures Route",
         "tags": [
           "public"
         ]

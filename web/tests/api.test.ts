@@ -53,6 +53,28 @@ describe('api() — typed server-side fetch', () => {
     expect(init).toMatchObject({ next: { tags: ['meta'] } });
   });
 
+  it('fills {param} tokens in the path, URL-encoded', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ items: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/packages/{slug}/departures', {
+      params: { slug: 'north goa/beaches' },
+      searchParams: { month: '2026-12' },
+    });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.toString()).toBe(
+      'http://localhost:8000/packages/north%20goa%2Fbeaches/departures?month=2026-12',
+    );
+  });
+
+  it('throws when a path param is missing instead of calling the api', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api('/packages/{slug}')).rejects.toThrow('Missing path param "slug"');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('only accepts paths that exist in the contract', () => {
     // Type-level only: the closure is never invoked, so no real fetch is attempted.
     // @ts-expect-error — /nope is not an operation in api/openapi.json
