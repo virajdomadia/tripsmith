@@ -3,7 +3,11 @@ name = "tripsmith-api"
 version = "0.1.0"
 description = "Tripsmith API — FastAPI backend (see docs/04-technical-design.md)"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "uvicorn[standard]>=0.52.4",
+]
 
 [dependency-groups]
 dev = ["ruff", "pyright", "pytest", "pytest-asyncio", "httpx"]
