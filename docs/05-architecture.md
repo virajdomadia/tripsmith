@@ -65,7 +65,7 @@ tripsmith/
 │  │  ├─ errors.py                   ApiError + exception handlers → { error: { code, message, fieldErrors? } }
 │  │  ├─ openapi.py                  `python -m app.openapi` dumps the OpenAPI document → api/openapi.json
 │  │  ├─ routers/
-│  │  │  ├─ public/                  health.py, meta.py, catalog.py, enquiries.py, pdf.py, views.py
+│  │  │  ├─ site/                    health.py, meta.py, catalog.py, enquiries.py, pdf.py, views.py — public routes; not `public/`, Vercel drops any dir of that name from the Python bundle
 │  │  │  ├─ admin/                   destinations.py, packages.py, images.py (multipart proxy upload), enquiries.py, dashboard.py
 │  │  │  ├─ auth.py                  POST /auth/login · POST /auth/logout · GET /auth/session  (v2: /auth/otp/*)
 │  │  │  ├─ cron/                    pdf_gc.py (v3: departure_alerts, v2 add-on: share_reminders)
@@ -96,7 +96,7 @@ The rule from before still holds, one level down: **routers never touch SQLAlche
 ```mermaid
 flowchart TB
   subgraph ROUTERS["api/app/routers"]
-    PUB[public/] ; ADM[admin/] ; AUTHR[auth] ; CRON[cron/] ; LATER[v2 bookings · v3 chat · v4 mcp]
+    PUB[site/] ; ADM[admin/] ; AUTHR[auth] ; CRON[cron/] ; LATER[v2 bookings · v3 chat · v4 mcp]
   end
   subgraph SERVICES["api/app/services"]
     CAT[catalog] ; ENQ[enquiry] ; PDF[pdf] ; MAIL[email] ; AUTH[auth] ; ANA[analytics]

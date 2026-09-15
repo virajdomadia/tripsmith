@@ -5,3 +5,4 @@ api/uv.lock
 **/__pycache__/
 **/.pytest_cache/
 **/.ruff_cache/
+api/openapi.json
