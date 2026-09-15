@@ -1,21 +1,28 @@
 """App factory. Vercel's FastAPI preset imports the module-level `app` from here."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
 from app.errors import install_error_handlers
+from app.infra.db import dispose_engine
 from app.infra.observability import init_sentry
+from app.infra.storage import LOCAL_STORE_DIR
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
-from app.routers.site import health, meta
+from app.routers.site import catalog, health, meta
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    # S10: create the SQLAlchemy async engine lazily here (infra/db.py) and dispose on exit.
-    yield
+    # The engine is created lazily by the first session (infra/db.py); only disposal lives here.
+    try:
+        yield
+    finally:
+        await dispose_engine()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,  # ReDoc off (06 C0)
         lifespan=lifespan,
     )
+    app.state.settings = settings  # read by infra.db.get_session
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
@@ -38,6 +46,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(meta.router)
+    app.include_router(catalog.router)
+
+    # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
+    # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`
+    # so a dev server started before the first local seed serves the folder once it appears.
+    if not os.environ.get("VERCEL"):
+        app.mount(
+            "/seed-photos",
+            StaticFiles(directory=LOCAL_STORE_DIR, check_dir=False),
+            name="seed-photos",
+        )
     return app
 
 

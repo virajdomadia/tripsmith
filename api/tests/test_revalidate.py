@@ -5,19 +5,19 @@ import logging
 
 import httpx
 import pytest
-from pydantic import SecretStr
 
 from app.config import Settings
 from app.infra.revalidate import revalidate
+from tests.settings import make_settings
 
 
 def _settings(**overrides: object) -> Settings:
     base: dict[str, object] = {
         "web_url": "https://tripsmith.example",
-        "revalidate_secret": SecretStr("s3cret"),
+        "revalidate_secret": "s3cret",
     }
     base.update(overrides)
-    return Settings.model_validate(base)
+    return make_settings(**base)
 
 
 def _transport(status: int, calls: list[httpx.Request]) -> httpx.MockTransport:
