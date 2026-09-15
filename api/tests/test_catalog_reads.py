@@ -8,7 +8,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Departure, Package
-from app.models.enums import PackageStatus
+from app.models.enums import PackageStatus, Theme
 from app.services.catalog.reads import month_bounds, related_order
 from content import load_content
 from scripts.seed import seed
@@ -35,13 +35,15 @@ def test_month_bounds_rolls_over_december() -> None:
     assert month_bounds("2026-02") == (dt.date(2026, 2, 1), dt.date(2026, 3, 1))
 
 
-class P:  # package-like duck for related_order
-    def __init__(self, id: str, dest: str, themes: list[str], price: int, name: str = "") -> None:
-        self.id = id
-        self.destination_id = dest
-        self.themes = themes
-        self.starting_price_paise = price
-        self.name = name or id
+def P(id: str, dest: str, themes: list[str], price: int) -> Package:
+    """An unsaved row: `related_order` is pure, so no session is needed."""
+    return Package(
+        id=id,
+        destination_id=dest,
+        themes=[Theme(t) for t in themes],
+        starting_price_paise=price,
+        name=id,
+    )
 
 
 def test_related_order_same_destination_then_shared_theme_then_rest_cheapest_first() -> None:

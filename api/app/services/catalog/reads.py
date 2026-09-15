@@ -7,7 +7,6 @@ leave this module; `seats_left` always comes from the `departure_availability` v
 
 import datetime as dt
 from collections.abc import Iterable
-from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,22 +41,12 @@ def month_bounds(month: str) -> tuple[dt.date, dt.date]:
     return start, end
 
 
-class PackageLike(Protocol):
-    id: str
-    destination_id: str
-    themes: list  # Theme enums or their string values
-    starting_price_paise: int
-    name: str
-
-
-def related_order[TPackage: PackageLike](
-    package: PackageLike, candidates: Iterable[TPackage]
-) -> list[TPackage]:
+def related_order(package: Package, candidates: Iterable[Package]) -> list[Package]:
     """R4 "same destination or theme": tier 0 same destination, 1 shares a theme, 2 anything
     else live; cheapest first within a tier, name as tiebreaker; the package itself excluded."""
     mine = set(package.themes)
 
-    def tier(p: PackageLike) -> int:
+    def tier(p: Package) -> int:
         if p.destination_id == package.destination_id:
             return 0
         return 1 if mine & set(p.themes) else 2
