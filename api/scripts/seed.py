@@ -10,6 +10,7 @@ The owner user comes from OWNER_EMAIL / OWNER_PASSWORD (skipped with a warning i
 
 import argparse
 import asyncio
+import datetime as dt
 import io
 import sys
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: E40
 
 from app.config import Settings, get_settings  # noqa: E402
 from app.infra.db import make_engine  # noqa: E402
-from app.infra.storage import BlobStore, LocalStore, Store  # noqa: E402
+from app.infra.storage import BlobStore, LocalStore, StorageNotConfigured, Store  # noqa: E402
 from app.models import (  # noqa: E402
     Departure,
     Destination,
@@ -36,6 +37,7 @@ from app.models import (  # noqa: E402
     User,
 )
 from app.models.enums import UserRole  # noqa: E402
+from app.services.catalog.pricing import starting_price  # noqa: E402
 from content import Content, load_content  # noqa: E402
 from content._schema import DestinationContent, PackageContent, Photo  # noqa: E402
 
@@ -97,8 +99,19 @@ async def _seed_destination(
     return row
 
 
+@dataclass
+class _Priced:
+    seats_left: int
+    guaranteed: bool
+    price_double_paise: int
+
+
 async def _seed_package(
-    db: AsyncSession, content: PackageContent, destinations: dict[str, Destination], store: Store
+    db: AsyncSession,
+    content: PackageContent,
+    destinations: dict[str, Destination],
+    store: Store,
+    today: dt.date,
 ) -> Package:
     row = (
         await db.execute(select(Package).where(Package.slug == content.slug))
@@ -120,7 +133,12 @@ async def _seed_package(
     row.faq = [f.model_dump() for f in content.faq]
     row.status = content.status
     row.featured = content.featured
-    row.starting_price_paise = min(d.price_double_inr for d in content.departures) * 100
+    # "min live-departure price": departures already gone do not set the "from ₹" figure.
+    row.starting_price_paise = starting_price(
+        _Priced(d.seats_total, d.guaranteed, d.price_double_inr * 100)
+        for d in content.departures
+        if d.date >= today
+    )
     row.cover_image_id = None
     await db.flush()
 
@@ -196,11 +214,21 @@ async def _seed_testimonials(
     await db.flush()
 
 
-async def seed(db: AsyncSession, content: Content, store: Store, settings: Settings) -> SeedResult:
+async def seed(
+    db: AsyncSession,
+    content: Content,
+    store: Store,
+    settings: Settings,
+    *,
+    today: dt.date | None = None,
+) -> SeedResult:
+    today = today or dt.date.today()
     result = SeedResult()
     await _seed_owner(db, settings, result)
     destinations = {d.slug: await _seed_destination(db, d, store) for d in content.destinations}
-    packages = {p.slug: await _seed_package(db, p, destinations, store) for p in content.packages}
+    packages = {
+        p.slug: await _seed_package(db, p, destinations, store, today) for p in content.packages
+    }
     await _seed_testimonials(db, content, packages)
     await db.commit()
     result.counts.update(
@@ -236,7 +264,11 @@ async def main(argv: list[str] | None = None) -> int:
             "DATABASE_URL is not set (api/.env.local) and --database-url not given", file=sys.stderr
         )
         return 2
-    store: Store = LocalStore(args.local_base_url) if args.local else BlobStore(settings)
+    try:
+        store: Store = LocalStore(args.local_base_url) if args.local else BlobStore(settings)
+    except StorageNotConfigured as exc:
+        print(f"{exc} — set it in api/.env.local or pass --local", file=sys.stderr)
+        return 2
 
     content = load_content()
     engine = make_engine(url)

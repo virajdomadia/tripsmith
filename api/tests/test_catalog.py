@@ -108,6 +108,21 @@ async def test_badge_uses_the_next_upcoming_departure(
 
 
 async def test_get_packages_without_a_database_is_a_500_envelope(client: AsyncClient) -> None:
+    # The app was built with make_settings() (no DATABASE_URL); a real URL in the developer's
+    # .env.local must not be picked up behind the app's back.
     res = await client.get("/packages")
     assert res.status_code == 500
     assert res.json()["error"]["code"] == "internal"
+
+
+async def test_the_session_dependency_uses_the_apps_settings() -> None:
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import create_app
+
+    app = create_app(settings=make_settings(database_url="postgresql+asyncpg://x@127.0.0.1:1/none"))
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://t"
+    ) as c:
+        res = await c.get("/packages")
+    assert res.status_code == 500  # connection refused on port 1 → internal, not a leaked DB

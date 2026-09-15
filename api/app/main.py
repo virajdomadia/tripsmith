@@ -1,5 +1,6 @@
 """App factory. Vercel's FastAPI preset imports the module-level `app` from here."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,  # ReDoc off (06 C0)
         lifespan=lifespan,
     )
+    app.state.settings = settings  # read by infra.db.get_session
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
@@ -47,9 +49,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalog.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
-    # deployed) and points image URLs here; production serves them from Vercel Blob instead.
-    if LOCAL_STORE_DIR.is_dir():
-        app.mount("/seed-photos", StaticFiles(directory=LOCAL_STORE_DIR), name="seed-photos")
+    # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`
+    # so a dev server started before the first local seed serves the folder once it appears.
+    if not os.environ.get("VERCEL"):
+        app.mount(
+            "/seed-photos",
+            StaticFiles(directory=LOCAL_STORE_DIR, check_dir=False),
+            name="seed-photos",
+        )
     return app
 
 

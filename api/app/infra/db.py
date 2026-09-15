@@ -1,11 +1,15 @@
 """Database engine + session dependency (05 §3: infra owns the vendor; services get sessions).
 
-The engine is created lazily on first use — the app must import and serve `/health` with no
-`DATABASE_URL` at all (CI, tests, the meta endpoint) — and disposed by the lifespan.
+Engines are created lazily per database URL — the app must import and serve `/health` with no
+`DATABASE_URL` at all (CI, tests, the meta endpoint) — and disposed by the lifespan. The
+dependency reads the URL from the app's own `Settings` (`app.state.settings`), never from the
+process env behind the app's back, so a test app with no URL stays offline even when the
+developer's `.env.local` has one.
 """
 
 from collections.abc import AsyncIterator
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,10 +17,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.config import Settings, get_settings
+from app.config import Settings
 
-_engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
+_engines: dict[str, AsyncEngine] = {}
 
 
 class DatabaseNotConfigured(RuntimeError):
@@ -29,32 +32,28 @@ def make_engine(url: str) -> AsyncEngine:
     return create_async_engine(url, pool_pre_ping=True, pool_size=2, max_overflow=3)
 
 
-def get_engine(settings: Settings | None = None) -> AsyncEngine:
-    global _engine, _session_factory
-    if _engine is None:
-        settings = settings or get_settings()
-        if settings.database_url is None:
-            raise DatabaseNotConfigured("DATABASE_URL is not set")
-        _engine = make_engine(settings.database_url.get_secret_value())
-        _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
-    return _engine
+def get_engine(settings: Settings) -> AsyncEngine:
+    if settings.database_url is None:
+        raise DatabaseNotConfigured("DATABASE_URL is not set")
+    url = settings.database_url.get_secret_value()
+    engine = _engines.get(url)
+    if engine is None:
+        engine = _engines[url] = make_engine(url)
+    return engine
 
 
-def session_factory() -> async_sessionmaker[AsyncSession]:
-    get_engine()
-    assert _session_factory is not None
-    return _session_factory
+def session_factory(settings: Settings) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(get_engine(settings), expire_on_commit=False)
 
 
-async def get_session() -> AsyncIterator[AsyncSession]:
+async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """FastAPI dependency: one session per request, rolled back unless the service committed."""
-    async with session_factory()() as session:
+    settings: Settings = request.app.state.settings
+    async with session_factory(settings)() as session:
         yield session
 
 
 async def dispose_engine() -> None:
-    global _engine, _session_factory
-    if _engine is not None:
-        await _engine.dispose()
-    _engine = None
-    _session_factory = None
+    for engine in list(_engines.values()):
+        await engine.dispose()
+    _engines.clear()
