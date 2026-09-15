@@ -35,7 +35,9 @@
 
 **Chosen direction (2026-09-12, final):** Directions III — Viraj: "yes this was what I was looking for", "both are so cool". Decision: **K = I Sunlit base + three Postcard touches** (stamp badges on package cards, framed-photo About section with a stamp, notepaper reviews) — approved 2026-09-12 ("done"). Colour palette: **Ocean + Marigold** (chosen 2026-09-12 from six options).
 
-### Design tokens (final — these go into `web/` Tailwind theme)
+**S12 outcome (2026-09-15): K confirmed.** `mockups/s12-direction.html` (published: https://claude.ai/artifact/F9znVzcMRgW4s8z6j5EfLB) showed Home + Package under **A · K Ocean + Marigold**, **B · Sunlit Editorial** (cream, cobalt, Newsreader) and **C · Sea & Sand** (sand, sea-green, Fraunces); Viraj picked **A**. The tokens below are now locked in `web/src/app/globals.css` (Tailwind 4 `@theme`) with DM Sans via `next/font` in the root layout; `web/tests/tokens.test.ts` pins the values.
+
+### Design tokens (final — locked in `web/src/app/globals.css`, S12)
 | Token | Value | Used for |
 |---|---|---|
 | `--bg` / `--bg2` | `#FFFFFF` / `#F3F6FC` | page / tinted surfaces |
