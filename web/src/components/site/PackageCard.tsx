@@ -37,8 +37,14 @@ export function PackageCard({ card }: { card: Card }) {
           <div>
             <small className="block text-xs font-semibold text-mute">From</small>
             <b className="num text-[22px] font-extrabold tracking-tight">
-              {inr(card.startingPricePaise)}{' '}
-              <i className="text-[13px] font-semibold text-mute not-italic">/ person</i>
+              {card.startingPricePaise ? (
+                <>
+                  {inr(card.startingPricePaise)}{' '}
+                  <i className="text-[13px] font-semibold text-mute not-italic">/ person</i>
+                </>
+              ) : (
+                'On request'
+              )}
             </b>
           </div>
           <span className="rounded-[10px] bg-primary px-3.5 py-2 text-[13px] font-bold text-white">

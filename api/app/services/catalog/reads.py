@@ -53,9 +53,11 @@ def related_order(package: Package, candidates: Iterable[Package]) -> list[Packa
             return 0
         return 1 if mine & set(p.themes) else 2
 
+    # starting_price_paise is 0 when every departure has passed (seed / F18 recompute): that is
+    # "no price", not "cheapest" — such packages go last within their tier.
     return sorted(
         (p for p in candidates if p.id != package.id),
-        key=lambda p: (tier(p), p.starting_price_paise, p.name),
+        key=lambda p: (tier(p), p.starting_price_paise or float("inf"), p.name),
     )
 
 
@@ -193,7 +195,8 @@ async def list_destinations(db: AsyncSession) -> list[DestinationCard]:
         select(
             Destination,
             func.count(Package.id),
-            func.min(Package.starting_price_paise),
+            # 0 = no upcoming departure; it must not become the destination's "from" price.
+            func.coalesce(func.min(func.nullif(Package.starting_price_paise, 0)), 0),
         )
         .join(Package, Package.destination_id == Destination.id)
         .where(Package.status == PackageStatus.LIVE)

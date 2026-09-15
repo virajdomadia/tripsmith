@@ -25,13 +25,19 @@ type Params = { slug: string };
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
-/** Tagged + cached until the api revalidates `package:<slug>` (admin edits, F18). Draft/unknown → 404 page. */
+/**
+ * Tagged for on-demand revalidation (`package:<slug>`, admin edits in F18) and re-rendered hourly
+ * anyway: the api filters departures by today's date, so a page cached forever would keep showing
+ * a departure after it has left. Draft/unknown → 404 page.
+ */
+const REVALIDATE_SECONDS = 60 * 60;
+
 async function loadPackage(slug: string) {
   try {
     return await api('/packages/{slug}', {
       params: { slug },
       tags: [`package:${slug}`],
-      revalidate: false,
+      revalidate: REVALIDATE_SECONDS,
     });
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 404) notFound();
@@ -45,7 +51,10 @@ async function loadPackage(slug: string) {
  */
 export async function generateStaticParams(): Promise<Params[]> {
   try {
-    const { items } = await api('/packages', { tags: ['packages'], revalidate: false });
+    const { items } = await api('/packages', {
+      tags: ['packages'],
+      revalidate: REVALIDATE_SECONDS,
+    });
     return items.map((p) => ({ slug: p.slug }));
   } catch (err) {
     console.warn(
@@ -96,7 +105,8 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
         ]}
       />
 
-      <div className="mt-7 grid items-start gap-12 lg:grid-cols-[1fr_380px]">
+      {/* No items-start: the aside must stretch to the row height so PriceBox's sticky has room to travel. */}
+      <div className="mt-7 grid gap-12 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0">
           <Section id="overview" title={null}>
             <p className="max-w-[62ch] text-lg leading-relaxed text-ink2">{pkg.summary}</p>
@@ -115,7 +125,6 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
           </Section>
           <Section id="dates" title="Dates & prices">
             <DeparturesTable departures={pkg.departures} />
-            <h3 className="mt-8 mb-3 text-lg">Price per person</h3>
             <OccupancyPricing departures={pkg.departures} />
           </Section>
           {pkg.faq.length > 0 && (
