@@ -7,7 +7,8 @@ import type { components } from '@/lib/api-types';
 
 type ImageOut = components['schemas']['ImageOut'];
 
-const GRID_MAX = 5;
+const GRID_MAX = 5; // cells on sm+
+const GRID_MAX_PHONE = 3; // cells ≥ 3 are hidden below sm
 
 /**
  * The S5 gallery: one tall cell + four small on desktop, three cells on phones; every cell and
@@ -46,7 +47,10 @@ export function Gallery({ images }: { images: ImageOut[] }) {
   if (images.length < 2) return null;
   // The cover is the hero already; the grid starts from the second photo (lightbox has them all).
   const grid = images.slice(1, 1 + GRID_MAX).map((img, i) => ({ img, index: i + 1 }));
-  const extra = images.length - 1 - grid.length;
+  // "+N photos" counts what the viewer cannot see at their breakpoint (cover excluded).
+  const extraDesktop = images.length - 1 - grid.length;
+  const extraPhone = images.length - 1 - Math.min(grid.length, GRID_MAX_PHONE);
+  const chip = (n: number) => `+ ${n} ${n === 1 ? 'photo' : 'photos'}`;
   const current = index === null ? null : images[index];
 
   return (
@@ -68,9 +72,14 @@ export function Gallery({ images }: { images: ImageOut[] }) {
               sizes="(min-width: 640px) 400px, 50vw"
               className="h-full"
             >
-              {cell === grid.length - 1 && extra > 0 && (
-                <span className="absolute right-2.5 bottom-2.5 rounded-lg bg-bg px-2.5 py-1.5 text-xs font-bold text-ink">
-                  + {extra} {extra === 1 ? 'photo' : 'photos'}
+              {cell === grid.length - 1 && extraDesktop > 0 && (
+                <span className="absolute right-2.5 bottom-2.5 hidden rounded-lg bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block">
+                  {chip(extraDesktop)}
+                </span>
+              )}
+              {cell === Math.min(grid.length, GRID_MAX_PHONE) - 1 && extraPhone > 0 && (
+                <span className="absolute right-2.5 bottom-2.5 rounded-lg bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:hidden">
+                  {chip(extraPhone)}
                 </span>
               )}
             </Photo>
@@ -81,12 +90,15 @@ export function Gallery({ images }: { images: ImageOut[] }) {
       <dialog
         ref={dialog}
         onClose={close}
-        onClick={(e) => e.target === dialog.current && close()}
         aria-label="Photo gallery"
-        className="m-auto h-dvh w-screen max-w-none bg-transparent p-0 backdrop:bg-ink/90"
+        className="m-auto h-dvh max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-ink/90"
       >
         {current && (
-          <div className="relative flex h-full w-full items-center justify-center p-4 sm:p-10">
+          // The wrapper fills the dialog, so "backdrop" clicks land here, not on <dialog>.
+          <div
+            onClick={(e) => e.target === e.currentTarget && close()}
+            className="relative flex h-full w-full items-center justify-center p-4 sm:p-10"
+          >
             <Image
               key={current.url}
               src={current.url}

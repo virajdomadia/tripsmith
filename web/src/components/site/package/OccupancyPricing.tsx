@@ -21,6 +21,7 @@ export function OccupancyPricing({ departures }: { departures: Departure[] }) {
   ];
   return (
     <div>
+      <h3 className="mt-8 mb-3 text-lg">Price per person</h3>
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cells.map(([label, value]) => (
           <div key={label} className="rounded-btn border border-line p-3.5">

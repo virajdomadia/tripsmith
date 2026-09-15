@@ -65,6 +65,20 @@ def test_related_order_same_destination_then_shared_theme_then_rest_cheapest_fir
     ]
 
 
+def test_related_order_puts_packages_without_a_price_last_in_their_tier() -> None:
+    # starting_price_paise is 0 when every departure has passed — not "cheapest".
+    me = P("me", "goa", ["beach"], 100)
+    assert [
+        p.id
+        for p in related_order(
+            me, [P("goa-stale", "goa", ["beach"], 0), P("goa-live", "goa", ["beach"], 500)]
+        )
+    ] == [
+        "goa-live",
+        "goa-stale",
+    ]
+
+
 # --- GET /packages/{slug} -----------------------------------------------------------------------
 
 
@@ -226,6 +240,16 @@ async def test_destinations_list_counts_live_packages(
     assert goa["coverUrl"].startswith("https://blob.test/destinations/goa/")
     assert goa["packageCount"] == 2
     assert goa["startingPricePaise"] == 14_499_00
+
+    # A live package whose departures have all passed carries starting_price 0 — it still counts,
+    # but it must not become the destination's "from" price.
+    await db.execute(
+        update(Package).where(Package.slug == "north-goa-beaches").values(starting_price_paise=0)
+    )
+    await db.commit()
+    goa = (await db_client.get("/destinations")).json()["items"][0]
+    assert goa["packageCount"] == 2
+    assert goa["startingPricePaise"] == 21_499_00
 
 
 @pytest.mark.db
