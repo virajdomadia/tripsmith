@@ -6,8 +6,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import ApiError
 from app.infra.db import get_session
 from app.routers.site.meta import PUBLIC_CACHE_CONTROL
-from app.schemas.catalog import DepartureList, PackageDetail, PackageList
-from app.services.catalog.reads import get_departures_for_month, get_package
+from app.schemas.catalog import (
+    DepartureList,
+    DestinationDetail,
+    DestinationList,
+    PackageDetail,
+    PackageList,
+)
+from app.services.catalog.reads import (
+    get_departures_for_month,
+    get_destination,
+    get_package,
+    list_destinations,
+)
 from app.services.catalog.search import search_packages
 
 router = APIRouter(tags=["public"])
@@ -48,3 +59,18 @@ async def get_departures_route(
     if items is None:
         raise ApiError("not_found", "Package not found")
     return DepartureList(items=items)
+
+
+@router.get("/destinations", operation_id="listDestinations")
+async def get_destinations(db: Session, response: Response) -> DestinationList:
+    response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
+    return DestinationList(items=await list_destinations(db))
+
+
+@router.get("/destinations/{slug}", operation_id="getDestination")
+async def get_destination_route(slug: str, db: Session, response: Response) -> DestinationDetail:
+    response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
+    detail = await get_destination(db, slug)
+    if detail is None:
+        raise ApiError("not_found", "Destination not found")
+    return detail

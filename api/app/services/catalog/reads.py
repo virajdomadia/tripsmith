@@ -8,15 +8,17 @@ leave this module; `seats_left` always comes from the `departure_availability` v
 import datetime as dt
 from collections.abc import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Departure, Package, PackageImage
+from app.models import Departure, Destination, Package, PackageImage
 from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
 from app.schemas.catalog import (
     DepartureOut,
+    DestinationCard,
+    DestinationDetail,
     DestinationRef,
     FaqItem,
     HotelOut,
@@ -183,3 +185,64 @@ async def get_departures_for_month(
     if package_id is None:
         return None
     return await _upcoming_departures(db, package_id, today, month)
+
+
+async def list_destinations(db: AsyncSession) -> list[DestinationCard]:
+    """Destinations with at least one live package, in display order (06 C1)."""
+    rows = await db.execute(
+        select(
+            Destination,
+            func.count(Package.id),
+            func.min(Package.starting_price_paise),
+        )
+        .join(Package, Package.destination_id == Destination.id)
+        .where(Package.status == PackageStatus.LIVE)
+        .group_by(Destination.id)
+        .order_by(Destination.position, Destination.name)
+    )
+    return [
+        DestinationCard(
+            slug=d.slug,
+            name=d.name,
+            tagline=d.tagline,
+            cover_url=d.cover_url,
+            package_count=count,
+            starting_price_paise=cheapest,
+        )
+        for d, count, cheapest in rows
+    ]
+
+
+async def get_destination(
+    db: AsyncSession, slug: str, *, today: dt.date | None = None
+) -> DestinationDetail | None:
+    """A destination with its live packages as cards; `None` if unknown or nothing is live."""
+    today = today or dt.date.today()
+    d = (await db.execute(select(Destination).where(Destination.slug == slug))).scalar_one_or_none()
+    if d is None:
+        return None
+    packages = (
+        (
+            await db.execute(
+                select(Package)
+                .where(Package.destination_id == d.id, Package.status == PackageStatus.LIVE)
+                .options(selectinload(Package.destination), selectinload(Package.cover_image))
+                .order_by(Package.starting_price_paise, Package.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not packages:
+        return None
+    upcoming = await next_departures(db, today)
+    return DestinationDetail(
+        slug=d.slug,
+        name=d.name,
+        tagline=d.tagline,
+        intro=d.intro,
+        cover_url=d.cover_url,
+        region=d.region,
+        best_months=list(d.best_months),
+        packages=[package_card(p, upcoming.get(p.id)) for p in packages],
+    )

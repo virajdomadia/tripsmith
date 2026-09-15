@@ -203,3 +203,61 @@ async def test_departures_reject_a_bad_month_and_404_for_drafts(
     gone = await db_client.get("/packages/north-goa-beaches/departures")
     assert gone.status_code == 404
     assert gone.json()["error"]["code"] == "not_found"
+
+
+# --- GET /destinations --------------------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_destinations_list_counts_live_packages(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+
+    res = await db_client.get("/destinations")
+
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == CACHE
+    items = res.json()["items"]
+    assert len(items) == 1
+    goa = items[0]
+    assert (goa["slug"], goa["name"]) == ("goa", "Goa")
+    assert goa["tagline"]
+    assert goa["coverUrl"].startswith("https://blob.test/destinations/goa/")
+    assert goa["packageCount"] == 2
+    assert goa["startingPricePaise"] == 14_499_00
+
+
+@pytest.mark.db
+async def test_destination_detail_lists_its_live_packages_cheapest_first(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+
+    res = await db_client.get("/destinations/goa")
+
+    assert res.status_code == 200
+    d = res.json()
+    assert d["region"] == "West India"
+    assert d["intro"] and d["tagline"] and d["coverUrl"]
+    assert all(1 <= m <= 12 for m in d["bestMonths"]) and d["bestMonths"]
+    assert [p["slug"] for p in d["packages"]] == ["north-goa-beaches", "goa-quiet-escape"]
+    assert d["packages"][0]["badge"] == "guaranteed"
+
+
+@pytest.mark.db
+async def test_destinations_without_live_packages_are_hidden(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    await set_status(db, "north-goa-beaches", PackageStatus.DRAFT)
+
+    still = (await db_client.get("/destinations")).json()["items"]
+    assert still[0]["packageCount"] == 1 and still[0]["startingPricePaise"] == 21_499_00
+
+    await set_status(db, "goa-quiet-escape", PackageStatus.DRAFT)
+    assert (await db_client.get("/destinations")).json() == {"items": []}
+    gone = await db_client.get("/destinations/goa")
+    assert gone.status_code == 404
+    assert gone.json()["error"]["message"] == "Destination not found"
+    assert (await db_client.get("/destinations/atlantis")).status_code == 404
