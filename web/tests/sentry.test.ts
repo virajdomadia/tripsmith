@@ -23,6 +23,20 @@ describe('sentryOptions', () => {
     ).toMatchObject({ environment: 'preview', release: 'abc' });
   });
 
+  it('the browser gets the same environment/release via the NEXT_PUBLIC_ mirrors', () => {
+    expect(
+      sentryOptions({
+        NEXT_PUBLIC_SENTRY_DSN: 'x',
+        NEXT_PUBLIC_VERCEL_ENV: 'production',
+        NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA: 'def',
+      }),
+    ).toMatchObject({ environment: 'production', release: 'def', tracesSampleRate: 0.1 });
+  });
+
+  it('omits release when unknown so the build-time release injected by withSentryConfig wins', () => {
+    expect('release' in sentryOptions({ SENTRY_DSN: 'x' })).toBe(false);
+  });
+
   it('never sends PII and samples traces lightly outside development', () => {
     const prod = sentryOptions({ SENTRY_DSN: 'x', VERCEL_ENV: 'production' });
     expect(prod.sendDefaultPii).toBe(false);

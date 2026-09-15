@@ -89,6 +89,9 @@ async def test_unhandled_error_is_reported_once_with_the_request_id(
     exc = errors[0]["exception"]["values"][0]
     assert (exc["type"], exc["value"]) == ("RuntimeError", "kaboom")
     assert errors[0]["tags"]["request_id"] == "req-42"
+    # Reported as *unhandled* (Sentry's "Unhandled" badge, `handled:no` alert filters), not as a
+    # handled capture from inside the exception handler.
+    assert exc["mechanism"]["handled"] is False
 
 
 async def test_the_test_app_never_reports_to_sentry(events: list[dict[str, Any]]) -> None:

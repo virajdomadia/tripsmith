@@ -118,10 +118,12 @@ async def _http_exception(_: Request, exc: Exception) -> JSONResponse:
 
 
 async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-    log.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
     # Starlette's ServerErrorMiddleware runs outside the request-id middleware, so echo it here.
     request_id: str | None = getattr(request.state, "request_id", None)
-    observability.capture_exception(exc, request_id=request_id)
+    # Sentry first: the SDK also turns the ERROR log below into an event, and DedupeIntegration
+    # keeps whichever capture of this exception came first — ours carries the unhandled mechanism.
+    observability.capture_unhandled(exc, request_id=request_id)
+    log.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
     headers = {"X-Request-Id": request_id} if request_id else None
     return envelope("internal", INTERNAL_MESSAGE, headers=headers)
 
