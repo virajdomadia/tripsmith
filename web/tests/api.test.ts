@@ -51,8 +51,10 @@ describe('api() — typed server-side fetch', () => {
   });
 
   it('only accepts paths that exist in the contract', () => {
+    // Type-level only: the closure is never invoked, so no real fetch is attempted.
     // @ts-expect-error — /nope is not an operation in api/openapi.json
-    void api('/nope');
+    const call = () => api('/nope');
+    expect(call).toBeTypeOf('function');
   });
 
   it('forwards the request cookies and disables caching when auth is requested', async () => {
