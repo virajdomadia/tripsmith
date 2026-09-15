@@ -167,3 +167,19 @@ async def get_package(
         related=await _related(db, p, today),
         updated_at=p.updated_at,
     )
+
+
+async def get_departures_for_month(
+    db: AsyncSession, slug: str, month: str | None, *, today: dt.date | None = None
+) -> list[DepartureOut] | None:
+    """Upcoming departures of a live package, optionally within one `YYYY-MM` (06 C1; the v3
+    `checkAvailability` tool reuses it). `None` when the package is draft/unknown."""
+    today = today or dt.date.today()
+    package_id = (
+        await db.execute(
+            select(Package.id).where(Package.slug == slug, Package.status == PackageStatus.LIVE)
+        )
+    ).scalar_one_or_none()
+    if package_id is None:
+        return None
+    return await _upcoming_departures(db, package_id, today, month)

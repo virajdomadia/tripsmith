@@ -1,18 +1,20 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.db import get_session
 from app.routers.site.meta import PUBLIC_CACHE_CONTROL
-from app.schemas.catalog import PackageDetail, PackageList
-from app.services.catalog.reads import get_package
+from app.schemas.catalog import DepartureList, PackageDetail, PackageList
+from app.services.catalog.reads import get_departures_for_month, get_package
 from app.services.catalog.search import search_packages
 
 router = APIRouter(tags=["public"])
 
 Session = Annotated[AsyncSession, Depends(get_session)]
+
+MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 
 
 @router.get("/packages", operation_id="searchPackages")
@@ -29,3 +31,20 @@ async def get_package_route(slug: str, db: Session, response: Response) -> Packa
     if detail is None:
         raise ApiError("not_found", "Package not found")
     return detail
+
+
+@router.get("/packages/{slug}/departures", operation_id="getDeparturesForMonth")
+async def get_departures_route(
+    slug: str,
+    db: Session,
+    response: Response,
+    month: Annotated[
+        str | None,
+        Query(pattern=MONTH_PATTERN, description="YYYY-MM; omitted or blank = all upcoming"),
+    ] = None,
+) -> DepartureList:
+    response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
+    items = await get_departures_for_month(db, slug, month)
+    if items is None:
+        raise ApiError("not_found", "Package not found")
+    return DepartureList(items=items)

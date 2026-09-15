@@ -152,3 +152,54 @@ async def test_get_package_404s_for_drafts_and_unknown_slugs(
     # A draft is also no longer "related" to the live one.
     live = (await db_client.get("/packages/north-goa-beaches")).json()
     assert live["related"] == []
+
+
+# --- GET /packages/{slug}/departures ------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_departures_filter_by_month(db: AsyncSession, db_client: AsyncClient) -> None:
+    await seeded(db)
+
+    res = await db_client.get("/packages/north-goa-beaches/departures", params={"month": "2026-12"})
+
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == CACHE
+    items = res.json()["items"]
+    assert [d["date"] for d in items] == ["2026-12-18"]
+    assert items[0]["seatsLeft"] == 4 and items[0]["badge"] == "filling-fast"
+
+    empty = await db_client.get(
+        "/packages/north-goa-beaches/departures", params={"month": "2027-06"}
+    )
+    assert empty.json() == {"items": []}
+
+
+@pytest.mark.db
+async def test_departures_without_month_are_all_upcoming(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+
+    plain = await db_client.get("/packages/north-goa-beaches/departures")
+    blank = await db_client.get("/packages/north-goa-beaches/departures?month=")
+
+    assert len(plain.json()["items"]) == 4
+    assert blank.json() == plain.json()
+
+
+@pytest.mark.db
+async def test_departures_reject_a_bad_month_and_404_for_drafts(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+
+    bad = await db_client.get("/packages/north-goa-beaches/departures", params={"month": "2026-13"})
+    assert bad.status_code == 400
+    assert bad.json()["error"]["code"] == "validation"
+    assert "month" in bad.json()["error"]["fieldErrors"]
+
+    await set_status(db, "north-goa-beaches", PackageStatus.DRAFT)
+    gone = await db_client.get("/packages/north-goa-beaches/departures")
+    assert gone.status_code == 404
+    assert gone.json()["error"]["code"] == "not_found"
