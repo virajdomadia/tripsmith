@@ -6,3 +6,4 @@ api/uv.lock
 **/.pytest_cache/
 **/.ruff_cache/
 api/openapi.json
+web/src/lib/api-types.ts

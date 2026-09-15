@@ -5,7 +5,7 @@ The seven codes and their statuses are the contract in docs/06-data-and-api.md P
 
 import logging
 from collections.abc import Mapping
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -129,3 +129,34 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(StarletteHTTPException, _http_exception)
     app.add_exception_handler(Exception, _unhandled)
+    _document_error_contract(app)
+
+
+def _document_error_contract(app: FastAPI) -> None:
+    """Make the OpenAPI document tell the truth about errors.
+
+    Every operation gets the envelope as its `default` response, and the automatic
+    `422 HTTPValidationError` FastAPI adds to parameterised routes is removed — request
+    validation failures are a 400 `validation` envelope here.
+    """
+    from app.schemas.errors import ApiErrorResponse
+
+    # Merged into every route added afterwards (create_app installs handlers before routers).
+    app.router.responses["default"] = {
+        "model": ApiErrorResponse,
+        "description": "Error envelope (06 C0)",
+    }
+
+    original = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        schema = original()
+        for methods in schema.get("paths", {}).values():
+            for op in methods.values():
+                op.get("responses", {}).pop("422", None)
+        components = schema.get("components", {}).get("schemas", {})
+        components.pop("HTTPValidationError", None)
+        components.pop("ValidationError", None)
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]

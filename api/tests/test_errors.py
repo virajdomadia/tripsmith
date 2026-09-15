@@ -170,3 +170,12 @@ async def test_blank_query_params_are_treated_as_absent(app: FastAPI, client: As
     res = await client.get("/_test/blank", params={"page": "", "q": ""})
     assert res.status_code == 200
     assert res.json() == {"page": None, "q": "default"}
+
+
+def test_contract_error_codes_match_the_handler_codes() -> None:
+    from typing import get_args
+
+    from app.errors import ErrorCode as HandlerCodes
+    from app.schemas.errors import ErrorCode as ContractCodes
+
+    assert [c.value for c in ContractCodes] == list(get_args(HandlerCodes))

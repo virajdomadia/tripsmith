@@ -1,5 +1,111 @@
-import { describe, expect, it } from 'vitest';
-import { ApiRequestError, errorFromResponse } from '../src/lib/api';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { z } from 'zod';
+import {
+  api,
+  ApiRequestError,
+  apiErrorResponseSchema,
+  errorFromResponse,
+  type ApiErrorResponse,
+} from '../src/lib/api';
+import type { components } from '../src/lib/api-types';
+
+type Meta = components['schemas']['Meta'];
+type ErrorCode = components['schemas']['ErrorCode'];
+
+// A base64 token: `+ / =` must reach the api byte-for-byte (Starlette never percent-decodes).
+const RAW_COOKIE = 'session=ab+c/12==; theme=dark';
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ cookie: RAW_COOKIE }),
+}));
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+}
+
+describe('api() — typed server-side fetch', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('GETs API_URL + path and returns the JSON typed from the contract', async () => {
+    const meta: Meta = {
+      themes: [{ value: 'beach', label: 'Beach' }],
+      badges: [],
+      enquiryTypes: [],
+      limits: {
+        maxTravellers: 12,
+        maxThemesPerPackage: 3,
+        enquiryMessageMax: 1000,
+        imageMaxBytes: 1,
+      },
+    };
+    const fetchMock = vi.fn(async () => jsonResponse(meta));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api('/meta', { tags: ['meta'] });
+
+    expect(result).toEqual(meta);
+    expectTypeOf(result).toEqualTypeOf<Meta>();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(url.toString()).toBe('http://localhost:8000/meta');
+    expect(init).toMatchObject({ next: { tags: ['meta'] } });
+  });
+
+  it('only accepts paths that exist in the contract', () => {
+    // Type-level only: the closure is never invoked, so no real fetch is attempted.
+    // @ts-expect-error — /nope is not an operation in api/openapi.json
+    const call = () => api('/nope');
+    expect(call).toBeTypeOf('function');
+  });
+
+  it('forwards the raw cookie header untouched and disables caching when auth is requested', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/health', { auth: true });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(new Headers(init.headers).get('cookie')).toBe(RAW_COOKIE);
+    expect(init.cache).toBe('no-store');
+  });
+
+  it('sends no cookie header by default (public data must not vary by viewer)', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/health');
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(new Headers(init.headers).has('cookie')).toBe(false);
+  });
+
+  it('throws ApiRequestError carrying the envelope on a non-2xx response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({ error: { code: 'not_found', message: 'No such package' } }, { status: 404 }),
+      ),
+    );
+
+    const err = await api('/meta').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).status).toBe(404);
+    expect((err as ApiRequestError).body.code).toBe('not_found');
+    expectTypeOf<ApiRequestError['body']['code']>().toEqualTypeOf<ErrorCode>();
+  });
+});
+
+describe('error envelope', () => {
+  it('the runtime schema is exactly the generated ApiErrorResponse type', () => {
+    expectTypeOf<z.infer<typeof apiErrorResponseSchema>>().toEqualTypeOf<
+      components['schemas']['ApiErrorResponse']
+    >();
+    expectTypeOf<ApiErrorResponse>().toEqualTypeOf<components['schemas']['ApiErrorResponse']>();
+  });
+});
 
 describe('errorFromResponse', () => {
   it('uses the api envelope when the body is one', () => {

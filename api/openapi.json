@@ -1,6 +1,43 @@
 {
   "components": {
     "schemas": {
+      "ApiErrorBody": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "fieldErrors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Present only for `validation`; keyed by dotted field path.",
+            "title": "Fielderrors",
+            "type": "object"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiErrorBody",
+        "type": "object"
+      },
+      "ApiErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ApiErrorResponse",
+        "type": "object"
+      },
       "Badge": {
         "description": "Computed per departure by `services/catalog/pricing.badge_for` (04 §3).",
         "enum": [
@@ -54,6 +91,20 @@
         ],
         "title": "EnquiryTypeOption",
         "type": "object"
+      },
+      "ErrorCode": {
+        "description": "Mirrors `app.errors.ErrorCode` (the Literal the handlers use); a test keeps them equal.",
+        "enum": [
+          "validation",
+          "unauthorized",
+          "forbidden",
+          "not_found",
+          "rate_limited",
+          "conflict",
+          "internal"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
       },
       "Health": {
         "properties": {
@@ -195,6 +246,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
           }
         },
         "summary": "Get Health",
@@ -216,6 +277,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
           }
         },
         "summary": "Get Meta",
