@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel-agency site with an AI concierge that plans an itinerary from real packages and starts the booking for you.
 
-> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate ✅, S2 accounts & keys ✅ — Neon, Upstash, Blob, Resend, Sentry wired into Vercel; S3 toolchains ✅ — uv/ruff/pyright/pytest for api, root scripts run both languages, CI runs both; S4 FastAPI skeleton ✅ — app factory, settings, error envelope, `/health`, `/meta`, committed `openapi.json`, `vercel.json`; S5 contract + typed client ✅ — generated `api-types.ts`, typed `api()` client; next S6 web shell). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live (landing page):** https://tripsmith.vercel.app — api will be at https://tripsmith-api.vercel.app from S9; custom domain `tripsmith.virajdomadia.com` deferred until the domain is bought.
+> Status: step 8 in progress — v1 re-planned as structure C (Skeleton → Browse → Enquire → Manage → Harden); milestone 1.0 *Skeleton live* started 2026-09-13 (S1 clean slate ✅, S2 accounts & keys ✅ — Neon, Upstash, Blob, Resend, Sentry wired into Vercel; S3 toolchains ✅ — uv/ruff/pyright/pytest for api, root scripts run both languages, CI runs both; S4 FastAPI skeleton ✅ — app factory, settings, error envelope, `/health`, `/meta`, committed `openapi.json`, `vercel.json`; S5 contract + typed client ✅ — generated `api-types.ts`, typed `api()` client; S6 web shell ✅ — `(site)`/`(admin)` route groups, unstyled placeholder home showing `/meta`, `/revalidate` hook; next S7 CI). Steps 1–7 of 17 are done for the whole product (v1–v4) in the shared [project lifecycle](../PROCESS.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app). **Live:** https://tripsmith.vercel.app (unstyled skeleton until S12 — the earlier dummy landing page is gone) · api https://tripsmith-api.vercel.app (`/docs`, `/health`, `/meta`); custom domain `tripsmith.virajdomadia.com` deferred until the domain is bought.
 
 ## What it proves
 AI agent with tool calling · MCP server · Razorpay payments · SEO content site
@@ -12,9 +12,9 @@ AI agent with tool calling · MCP server · Razorpay payments · SEO content sit
 
 ## In this repo
 ```
-web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm) — the landing page lives here
-  src/app/            layout.tsx, page.tsx, globals.css
-  src/components/     landing/ (one component per section), ui/
+web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
+  src/app/            layout.tsx · (site)/ public pages · (admin)/admin owner area · revalidate/route.ts · globals.css
+  src/components/     site/ (header, footer, ApiStatus placeholder), ui/
   src/lib/            api.ts (typed client) · api-types.ts (generated from api/openapi.json)
 api/        FastAPI (Python 3.12, uv) REST API — skeleton from S4; services/ infra/ models/ arrive with their parts (target layout:)
   app/      main.py · config.py · errors.py · middleware.py · openapi.py · routers/ · services/ · infra/ · models/ · schemas/
