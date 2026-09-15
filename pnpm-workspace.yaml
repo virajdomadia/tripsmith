@@ -1,6 +1,7 @@
 packages:
   - web
 allowBuilds:
+  '@sentry/cli': false # no source-map upload; the binary download is unnecessary
   esbuild: true
   unrs-resolver: true
 onlyBuiltDependencies:

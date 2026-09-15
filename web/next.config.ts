@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 // Trailing slash stripped: `${API_URL}/:path*` would otherwise proxy to `//health`, which the api 404s.
@@ -10,4 +11,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Runtime error capture only: no source-map upload (no SENTRY_AUTH_TOKEN in CI yet), no telemetry.
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  sourcemaps: { disable: true },
+});
