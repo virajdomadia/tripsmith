@@ -1,6 +1,65 @@
 @import 'tailwindcss';
 
 /*
- * Deliberately no brand tokens, fonts or component styles yet: S12 locks the visual direction,
- * so until then pages render with Tailwind's preflight and the system font stack only.
+ * Design tokens — K · Ocean + Marigold, locked in S12 (docs/04-ui-mockups.md "Design tokens").
+ * Tailwind 4 reads @theme into utilities (bg-primary, text-ink, rounded-card, …); components
+ * take every colour, radius and shadow from here so no page is styled twice.
  */
+@theme {
+  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+
+  --color-bg: #ffffff;
+  --color-bg2: #f3f6fc;
+  --color-ink: #14202a;
+  --color-ink2: #3b4148;
+  --color-mute: #5e6b76;
+  --color-line: #e3e8ec;
+  --color-primary: #1b4fd8; /* ocean: identity, links, icons, secondary buttons */
+  --color-primary-ink: #143ead;
+  --color-primary-soft: #e8eeff;
+  --color-action: #f2a93b; /* marigold: the one primary action, stamps (dark text on it) */
+  --color-action-ink: #d98f1f;
+  --color-ok: #1f7a4d; /* guaranteed */
+  --color-ok-soft: #e3f0ea;
+  --color-warn: #b5541e; /* filling fast */
+  --color-warn-soft: #fff1dd;
+  --color-wa: #25d366; /* WhatsApp buttons only */
+
+  --radius-btn: 12px;
+  --radius-card: 18px;
+  --radius-chip: 999px;
+
+  --shadow-lift: 0 30px 50px -30px rgb(20 32 42 / 0.35);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: var(--color-action);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
