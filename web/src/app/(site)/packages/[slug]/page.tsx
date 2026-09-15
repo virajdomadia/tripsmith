@@ -4,16 +4,19 @@ import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
 import { DeparturesTable } from '@/components/site/package/DeparturesTable';
 import { Faq } from '@/components/site/package/Faq';
+import { Gallery } from '@/components/site/package/Gallery';
 import { Highlights } from '@/components/site/package/Highlights';
 import { Hotels } from '@/components/site/package/Hotels';
 import { Inclusions } from '@/components/site/package/Inclusions';
 import { Itinerary } from '@/components/site/package/Itinerary';
+import { ItineraryMotion } from '@/components/site/package/ItineraryMotion';
 import { OccupancyPricing } from '@/components/site/package/OccupancyPricing';
 import { PackageHero } from '@/components/site/package/PackageHero';
 import { PriceBox } from '@/components/site/package/PriceBox';
 import { QuickFacts } from '@/components/site/package/QuickFacts';
 import { RelatedPackages } from '@/components/site/package/RelatedPackages';
 import { Section } from '@/components/site/package/Section';
+import { SectionNav } from '@/components/site/package/SectionNav';
 import { api, ApiRequestError } from '@/lib/api';
 import { duration, inr } from '@/lib/format';
 import { packageJsonLd } from '@/lib/seo/package-jsonld';
@@ -80,7 +83,18 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
     <Container>
       <JsonLd data={packageJsonLd(pkg, url)} />
       <PackageHero pkg={pkg} />
+      <Gallery images={pkg.images} />
       <QuickFacts pkg={pkg} />
+      <SectionNav
+        sections={[
+          { id: 'overview', label: 'Overview' },
+          { id: 'itinerary', label: 'Itinerary' },
+          { id: 'inclusions', label: 'Inclusions' },
+          { id: 'hotels', label: 'Hotels' },
+          { id: 'dates', label: 'Dates & prices' },
+          ...(pkg.faq.length ? [{ id: 'faq', label: 'FAQ' }] : []),
+        ]}
+      />
 
       <div className="mt-7 grid items-start gap-12 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0">
@@ -89,7 +103,9 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             <Highlights items={pkg.highlights} />
           </Section>
           <Section id="itinerary" title="Day by day">
-            <Itinerary days={pkg.itinerary} />
+            <ItineraryMotion>
+              <Itinerary days={pkg.itinerary} />
+            </ItineraryMotion>
           </Section>
           <Section id="inclusions" title="What's in the price">
             <Inclusions inclusions={pkg.inclusions} exclusions={pkg.exclusions} />
