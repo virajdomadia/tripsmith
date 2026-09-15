@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.config import Settings, get_settings
 from app.errors import install_error_handlers
+from app.infra.db import dispose_engine
 from app.infra.observability import init_sentry
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
 from app.routers.site import health, meta
@@ -14,8 +15,11 @@ from app.routers.site import health, meta
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    # S10: create the SQLAlchemy async engine lazily here (infra/db.py) and dispose on exit.
-    yield
+    # The engine is created lazily by the first session (infra/db.py); only disposal lives here.
+    try:
+        yield
+    finally:
+        await dispose_engine()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
