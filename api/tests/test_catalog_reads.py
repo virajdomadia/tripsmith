@@ -61,3 +61,92 @@ def test_related_order_same_destination_then_shared_theme_then_rest_cheapest_fir
         "himachal-beach",
         "ladakh",
     ]
+
+
+# --- GET /packages/{slug} -----------------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_get_package_returns_the_full_detail(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+
+    res = await db_client.get("/packages/north-goa-beaches")
+
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == CACHE
+    p = res.json()
+    assert p["name"] == "North Goa Beaches"
+    assert p["destination"] == {"slug": "goa", "name": "Goa"}
+    assert (p["nights"], p["days"], p["departureCity"]) == (3, 4, "Ex-Mumbai")
+    assert p["startingPricePaise"] == 14_499_00
+    assert p["themes"] == ["beach", "family"]
+    assert len(p["highlights"]) == 4 and p["inclusions"] and p["exclusions"]
+    assert p["hotels"][0] == {
+        "name": "Lemon Tree Amarante Beach Resort",
+        "city": "Candolim",
+        "stars": 4,
+        "nights": 3,
+    }
+    assert p["faq"][0]["q"] == "Is this package suitable for children?"
+    # Itinerary: one entry per day, in order, with the meals object.
+    assert [d["dayNo"] for d in p["itinerary"]] == [1, 2, 3, 4]
+    assert set(p["itinerary"][0]["meals"]) == {"breakfast", "lunch", "dinner"}
+    assert p["itinerary"][1]["meals"]["breakfast"] is True
+    # Gallery: seed order, cover first, dimensions present.
+    assert len(p["images"]) >= 4
+    assert p["cover"] == p["images"][0]
+    assert p["images"][0]["url"].endswith("/packages/north-goa-beaches/vagator-palms-1.jpg")
+    assert p["images"][0]["width"] > 0 and p["images"][0]["alt"]
+    # Departures: all four are upcoming (seeded 2026-11 to 2027-02), soonest first, seats from the
+    # view, badges by the pricing rules (16 guaranteed / 4 seats / 16 plain / 12 plain).
+    assert [d["date"] for d in p["departures"]] == [
+        "2026-11-20",
+        "2026-12-18",
+        "2027-01-15",
+        "2027-02-12",
+    ]
+    assert [d["seatsLeft"] for d in p["departures"]] == [16, 4, 16, 12]
+    assert [d["badge"] for d in p["departures"]] == ["guaranteed", "filling-fast", None, None]
+    first = p["departures"][0]
+    assert (first["priceDoublePaise"], first["priceTriplePaise"]) == (14_999_00, 13_499_00)
+    assert (first["priceChildPaise"], first["singleSupplementPaise"]) == (8_999_00, 6_000_00)
+    assert first["id"] and first["seatsTotal"] == 16
+    # Related: the only other live package (same destination), as a card with its badge.
+    assert [r["slug"] for r in p["related"]] == ["goa-quiet-escape"]
+    assert p["related"][0]["badge"] == "guaranteed"
+    assert p["updatedAt"]
+
+
+@pytest.mark.db
+async def test_get_package_hides_past_departures(db: AsyncSession, db_client: AsyncClient) -> None:
+    await seeded(db)
+    await db.execute(
+        update(Departure)
+        .where(Departure.date == dt.date(2026, 11, 20))
+        .values(date=dt.date(2020, 1, 1))
+    )
+    await db.commit()
+
+    p = (await db_client.get("/packages/north-goa-beaches")).json()
+
+    assert [d["date"] for d in p["departures"]] == ["2026-12-18", "2027-01-15", "2027-02-12"]
+    assert p["departures"][0]["badge"] == "filling-fast"
+
+
+@pytest.mark.db
+async def test_get_package_404s_for_drafts_and_unknown_slugs(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    await set_status(db, "goa-quiet-escape", PackageStatus.DRAFT)
+
+    for slug in ("goa-quiet-escape", "nope"):
+        res = await db_client.get(f"/packages/{slug}")
+        assert res.status_code == 404, slug
+        assert res.json() == {"error": {"code": "not_found", "message": "Package not found"}}
+
+    # A draft is also no longer "related" to the live one.
+    live = (await db_client.get("/packages/north-goa-beaches")).json()
+    assert live["related"] == []
