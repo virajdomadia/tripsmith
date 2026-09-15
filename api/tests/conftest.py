@@ -10,12 +10,15 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from app.config import Settings
 from app.main import create_app
 
 
 @pytest.fixture
 def app() -> FastAPI:
-    return create_app()
+    # model_validate skips the env / .env.local sources: Sentry stays off in tests even when
+    # the local .env.local carries a real DSN.
+    return create_app(settings=Settings.model_validate({}))
 
 
 @pytest.fixture

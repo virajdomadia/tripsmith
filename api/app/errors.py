@@ -12,6 +12,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.infra import observability
+
 log = logging.getLogger(__name__)
 
 ErrorCode = Literal[
@@ -116,10 +118,10 @@ async def _http_exception(_: Request, exc: Exception) -> JSONResponse:
 
 
 async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-    # S8: Sentry captures this through its middleware; here we only log and hide the detail.
     log.exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
     # Starlette's ServerErrorMiddleware runs outside the request-id middleware, so echo it here.
     request_id: str | None = getattr(request.state, "request_id", None)
+    observability.capture_exception(exc, request_id=request_id)
     headers = {"X-Request-Id": request_id} if request_id else None
     return envelope("internal", INTERNAL_MESSAGE, headers=headers)
 

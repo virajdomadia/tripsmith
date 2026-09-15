@@ -11,6 +11,8 @@ from urllib.parse import parse_qsl, urlencode
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.infra import observability
+
 REQUEST_ID_HEADER = b"x-request-id"
 # Bounded and log-safe: what we accept from a caller before it reaches logs and Sentry tags.
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -30,6 +32,8 @@ class RequestIdMiddleware:
         if not REQUEST_ID_RE.match(request_id):
             request_id = str(uuid.uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
+        # Sentry's ASGI middleware wraps this one, so the tag lands on this request's scope.
+        observability.tag_request(request_id)
 
         async def send_with_id(message: Message) -> None:
             if message["type"] == "http.response.start":

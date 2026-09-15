@@ -96,7 +96,7 @@
 
 ## 12. Environment variables
 **api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
-**web/**: `API_URL` (server-side base for rewrites/fetch), `REVALIDATE_SECRET`, `SENTRY_DSN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_DEMO_EMAIL`, `NEXT_PUBLIC_DEMO_PASSWORD`.
+**web/**: `API_URL` (server-side base for rewrites/fetch), `REVALIDATE_SECRET`, `SENTRY_DSN` (server + edge), `NEXT_PUBLIC_SENTRY_DSN` (browser; same value), `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_DEMO_EMAIL`, `NEXT_PUBLIC_DEMO_PASSWORD`.
 
 ## 13. Trade-offs accepted
 - **Separate api/ instead of server actions**: two deploys and a revalidation hook, in exchange for a real documented API and a backend that other clients (MCP, future mobile) can use.

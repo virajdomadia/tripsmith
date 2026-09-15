@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.config import Settings, get_settings
 from app.errors import install_error_handlers
+from app.infra.observability import init_sentry
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
 from app.routers.site import health, meta
 
@@ -16,7 +18,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
+    """`settings` lets tests build an app with Sentry off regardless of the local .env."""
+    settings = settings or get_settings()
     app = FastAPI(
         title="Tripsmith API",
         version="0.1.0",
@@ -25,8 +29,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # S8 hook point: `infra.observability.init_sentry(get_settings())` goes here, before the
-    # middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
+    # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
+    init_sentry(settings)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
 
