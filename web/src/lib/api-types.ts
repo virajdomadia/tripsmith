@@ -79,7 +79,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Packages */
+        /**
+         * Get Packages
+         * @description R3 search. Every filter lives in `search_packages`; this only adds the cache header.
+         */
         get: operations["searchPackages"];
         put?: never;
         post?: never;
@@ -280,6 +283,18 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
+        /** FacetOption */
+        FacetOption: {
+            /**
+             * Count
+             * @description Live packages in the whole catalog (not the current filter)
+             */
+            count: number;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /** FaqItem */
         FaqItem: {
             /** A */
@@ -461,11 +476,49 @@ export interface components {
         };
         /** PackageList */
         PackageList: {
+            facets: components["schemas"]["SearchFacets"];
             /** Items */
             items: components["schemas"]["PackageCard"][];
             /** Total */
             total: number;
         };
+        /** RangeFacet */
+        RangeFacet: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+        };
+        /**
+         * SearchFacets
+         * @description What the filter panel offers — derived from the live catalog, never hard-coded.
+         */
+        SearchFacets: {
+            /** @description Cheapest / priciest starting price in rupees, rounded out to 1,000; 0/0 if none */
+            budget: components["schemas"]["RangeFacet"];
+            /**
+             * Destinations
+             * @description value = slug; display order
+             */
+            destinations: components["schemas"]["FacetOption"][];
+            /**
+             * Months
+             * @description value = YYYY-MM; upcoming months with a departure that has seats, soonest first
+             */
+            months: components["schemas"]["FacetOption"][];
+            /** @description Shortest / longest live package; 0/0 when none */
+            nights: components["schemas"]["RangeFacet"];
+            /**
+             * Themes
+             * @description Every theme in enum order; count may be 0
+             */
+            themes: components["schemas"]["FacetOption"][];
+        };
+        /**
+         * SortOrder
+         * @enum {string}
+         */
+        SortOrder: "price-asc" | "price-desc" | "duration";
         /**
          * Theme
          * @enum {string}
@@ -606,7 +659,19 @@ export interface operations {
     };
     searchPackages: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Destination slugs; any of */
+                destination?: string[];
+                /** @description Maximum starting price per person, in rupees */
+                maxBudget?: number | null;
+                nightsMin?: number | null;
+                nightsMax?: number | null;
+                /** @description Any of */
+                themes?: components["schemas"]["Theme"][];
+                /** @description YYYY-MM: packages with a departure that month that still has seats */
+                month?: string | null;
+                sort?: components["schemas"]["SortOrder"];
+            };
             header?: never;
             path?: never;
             cookie?: never;

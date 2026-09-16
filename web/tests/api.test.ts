@@ -103,6 +103,26 @@ describe('api() — typed server-side fetch', () => {
     expect(new Headers(init.headers).has('cookie')).toBe(false);
   });
 
+  it('appends array search params once per value and skips blanks', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ items: [], total: 0 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/packages', {
+      searchParams: {
+        destination: ['goa', 'kerala'],
+        themes: [],
+        month: '',
+        maxBudget: undefined,
+        sort: 'duration',
+      },
+    });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.toString()).toBe(
+      'http://localhost:8000/packages?destination=goa&destination=kerala&sort=duration',
+    );
+  });
+
   it('throws ApiRequestError carrying the envelope on a non-2xx response', async () => {
     vi.stubGlobal(
       'fetch',

@@ -20,6 +20,13 @@ const packages: components['schemas']['PackageList'] = {
       badge: 'guaranteed',
     },
   ],
+  facets: {
+    budget: { min: 1000000, max: 2000000 },
+    destinations: [{ value: 'goa', label: 'Goa', count: 1 }],
+    months: [{ value: '2026-12', label: 'December 2026', count: 1 }],
+    nights: { min: 3, max: 4 },
+    themes: [{ value: 'beach', label: 'Beach', count: 1 }],
+  },
 };
 
 const meta: components['schemas']['Meta'] = {
