@@ -194,7 +194,7 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | v4 | 4.0 | 6 | 71 |
 | Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 102 |
 
-The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). Add-ons are taken only from time saved.
+The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 
 ---
 
@@ -203,7 +203,7 @@ The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package 
 2. Each task = its own branch + PR into a protected `main`; Viraj reviews and merges; never push to `main` directly. A merge deploys **both** web and api (Vercel ignores a project whose files didn't change).
 3. Content grows with the pages — 2 packages in S11, 6 in F4, 12 in F7 — so every page is designed around real data without blocking the first deploy.
 4. The visual direction is chosen (variant page, S12) before any customer page is built; no page is styled twice.
-5. Add-ons are only picked up when the enclosing version is fully done, including its docs.
+5. Add-ons are only considered after v4 is fully done, including its docs and the case study; they are optional feel-good features, never a reason to delay a version.
 6. **Lean rule (2026-09-15):** overdo the feature, never the setup. No platform work (observability, uptime, e2e/Lighthouse workflows, contract-freshness tooling, follow-up PRs) unless a feature row needs it; tests only for pricing, availability, search, auth, payments; every PR must change something a visitor or the owner can see.
 
 ## Dependencies to unblock before 1.0
