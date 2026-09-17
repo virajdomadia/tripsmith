@@ -11,10 +11,12 @@ from app.schemas.catalog import (
     DepartureList,
     DestinationDetail,
     DestinationList,
+    HomeData,
     PackageDetail,
     PackageList,
     SearchParams,
 )
+from app.services.catalog.home import get_home_data
 from app.services.catalog.reads import (
     get_departures_for_month,
     get_destination,
@@ -76,3 +78,9 @@ async def get_destination_route(slug: str, db: Session, response: Response) -> D
     if detail is None:
         raise ApiError("not_found", "Destination not found")
     return detail
+
+
+@router.get("/home", operation_id="getHomeData")
+async def get_home_route(db: Session, response: Response) -> HomeData:
+    response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
+    return await get_home_data(db)

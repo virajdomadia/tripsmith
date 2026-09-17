@@ -206,3 +206,25 @@ class DestinationDetail(ApiModel):
     region: str
     best_months: list[int] = Field(description="1-12")
     packages: list[PackageCard] = Field(description="Live packages, cheapest first")
+
+
+class TestimonialOut(ApiModel):
+    name: str
+    city: str
+    text: str
+    rating: int = Field(ge=1, le=5)
+    package_slug: str | None = Field(description="Null when unlinked or the package is not live")
+    package_name: str | None
+
+
+class HomeStats(ApiModel):
+    destinations: int = Field(description="Destinations with at least 1 live package")
+    packages: int = Field(description="Live packages")
+    departures: int = Field(description="Upcoming departures of live packages with seats left")
+
+
+class HomeData(ApiModel):
+    destinations: list[DestinationCard] = Field(description="Display order, at most 6")
+    packages: list[PackageCard] = Field(description="Featured first, then cheapest; at most 6")
+    testimonials: list[TestimonialOut] = Field(description="By position")
+    stats: HomeStats

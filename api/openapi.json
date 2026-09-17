@@ -387,6 +387,71 @@
         "title": "Health",
         "type": "object"
       },
+      "HomeData": {
+        "properties": {
+          "destinations": {
+            "description": "Display order, at most 6",
+            "items": {
+              "$ref": "#/components/schemas/DestinationCard"
+            },
+            "title": "Destinations",
+            "type": "array"
+          },
+          "packages": {
+            "description": "Featured first, then cheapest; at most 6",
+            "items": {
+              "$ref": "#/components/schemas/PackageCard"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/HomeStats"
+          },
+          "testimonials": {
+            "description": "By position",
+            "items": {
+              "$ref": "#/components/schemas/TestimonialOut"
+            },
+            "title": "Testimonials",
+            "type": "array"
+          }
+        },
+        "required": [
+          "destinations",
+          "packages",
+          "testimonials",
+          "stats"
+        ],
+        "title": "HomeData",
+        "type": "object"
+      },
+      "HomeStats": {
+        "properties": {
+          "departures": {
+            "description": "Upcoming departures of live packages with seats left",
+            "title": "Departures",
+            "type": "integer"
+          },
+          "destinations": {
+            "description": "Destinations with at least 1 live package",
+            "title": "Destinations",
+            "type": "integer"
+          },
+          "packages": {
+            "description": "Live packages",
+            "title": "Packages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "destinations",
+          "packages",
+          "departures"
+        ],
+        "title": "HomeStats",
+        "type": "object"
+      },
       "HotelOut": {
         "properties": {
           "city": {
@@ -908,6 +973,61 @@
         "title": "SortOrder",
         "type": "string"
       },
+      "TestimonialOut": {
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packagename"
+          },
+          "packageSlug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when unlinked or the package is not live",
+            "title": "Packageslug"
+          },
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "text",
+          "rating",
+          "packageSlug",
+          "packageName"
+        ],
+        "title": "TestimonialOut",
+        "type": "object"
+      },
       "Theme": {
         "enum": [
           "beach",
@@ -1044,6 +1164,37 @@
           }
         },
         "summary": "Get Health",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/home": {
+      "get": {
+        "operationId": "getHomeData",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Home Route",
         "tags": [
           "public"
         ]

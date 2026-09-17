@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Home Route */
+        get: operations["getHomeData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta": {
         parameters: {
             query?: never;
@@ -315,6 +332,43 @@ export interface components {
              */
             status: "ok";
         };
+        /** HomeData */
+        HomeData: {
+            /**
+             * Destinations
+             * @description Display order, at most 6
+             */
+            destinations: components["schemas"]["DestinationCard"][];
+            /**
+             * Packages
+             * @description Featured first, then cheapest; at most 6
+             */
+            packages: components["schemas"]["PackageCard"][];
+            stats: components["schemas"]["HomeStats"];
+            /**
+             * Testimonials
+             * @description By position
+             */
+            testimonials: components["schemas"]["TestimonialOut"][];
+        };
+        /** HomeStats */
+        HomeStats: {
+            /**
+             * Departures
+             * @description Upcoming departures of live packages with seats left
+             */
+            departures: number;
+            /**
+             * Destinations
+             * @description Destinations with at least 1 live package
+             */
+            destinations: number;
+            /**
+             * Packages
+             * @description Live packages
+             */
+            packages: number;
+        };
         /** HotelOut */
         HotelOut: {
             /** City */
@@ -524,6 +578,24 @@ export interface components {
          * @enum {string}
          */
         SortOrder: "price-asc" | "price-desc" | "duration";
+        /** TestimonialOut */
+        TestimonialOut: {
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+            /** Packagename */
+            packageName: string | null;
+            /**
+             * Packageslug
+             * @description Null when unlinked or the package is not live
+             */
+            packageSlug: string | null;
+            /** Rating */
+            rating: number;
+            /** Text */
+            text: string;
+        };
         /**
          * Theme
          * @enum {string}
@@ -620,6 +692,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getHomeData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomeData"];
                 };
             };
             /** @description Error envelope (06 C0) */
