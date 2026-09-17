@@ -322,6 +322,30 @@
         "title": "ErrorCode",
         "type": "string"
       },
+      "FacetOption": {
+        "properties": {
+          "count": {
+            "description": "Live packages in the whole catalog (not the current filter)",
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "count"
+        ],
+        "title": "FacetOption",
+        "type": "object"
+      },
       "FaqItem": {
         "properties": {
           "a": {
@@ -779,6 +803,9 @@
       },
       "PackageList": {
         "properties": {
+          "facets": {
+            "$ref": "#/components/schemas/SearchFacets"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/PackageCard"
@@ -793,10 +820,84 @@
         },
         "required": [
           "items",
-          "total"
+          "total",
+          "facets"
         ],
         "title": "PackageList",
         "type": "object"
+      },
+      "RangeFacet": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "RangeFacet",
+        "type": "object"
+      },
+      "SearchFacets": {
+        "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/RangeFacet",
+            "description": "Cheapest / priciest starting price in rupees, rounded out to 1,000; 0/0 if none"
+          },
+          "destinations": {
+            "description": "value = slug; display order",
+            "items": {
+              "$ref": "#/components/schemas/FacetOption"
+            },
+            "title": "Destinations",
+            "type": "array"
+          },
+          "months": {
+            "description": "value = YYYY-MM; upcoming months with a departure that has seats, soonest first",
+            "items": {
+              "$ref": "#/components/schemas/FacetOption"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "nights": {
+            "$ref": "#/components/schemas/RangeFacet",
+            "description": "Shortest / longest live package; 0/0 when none"
+          },
+          "themes": {
+            "description": "Every theme in enum order; count may be 0",
+            "items": {
+              "$ref": "#/components/schemas/FacetOption"
+            },
+            "title": "Themes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "destinations",
+          "themes",
+          "months",
+          "nights",
+          "budget"
+        ],
+        "title": "SearchFacets",
+        "type": "object"
+      },
+      "SortOrder": {
+        "enum": [
+          "price-asc",
+          "price-desc",
+          "duration"
+        ],
+        "title": "SortOrder",
+        "type": "string"
       },
       "Theme": {
         "enum": [
@@ -972,7 +1073,123 @@
     },
     "/packages": {
       "get": {
+        "description": "R3 search. Every filter lives in `search_packages`; this only adds the cache header.",
         "operationId": "searchPackages",
+        "parameters": [
+          {
+            "description": "Destination slugs (≤ 20); any of",
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "description": "Destination slugs (≤ 20); any of",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 20,
+              "title": "Destination",
+              "type": "array"
+            }
+          },
+          {
+            "description": "Maximum starting price per person, in rupees",
+            "in": "query",
+            "name": "maxBudget",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 10000000,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum starting price per person, in rupees",
+              "title": "Maxbudget"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nightsMin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nightsmin"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nightsMax",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Nightsmax"
+            }
+          },
+          {
+            "description": "Any of",
+            "in": "query",
+            "name": "themes",
+            "required": false,
+            "schema": {
+              "description": "Any of",
+              "items": {
+                "$ref": "#/components/schemas/Theme"
+              },
+              "title": "Themes",
+              "type": "array"
+            }
+          },
+          {
+            "description": "YYYY-MM: packages with a departure that month that still has seats",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM: packages with a departure that month that still has seats",
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SortOrder",
+              "default": "price-asc"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

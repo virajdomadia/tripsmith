@@ -7,11 +7,13 @@ from app.errors import ApiError
 from app.infra.db import get_session
 from app.routers.site.meta import PUBLIC_CACHE_CONTROL
 from app.schemas.catalog import (
+    MONTH_PATTERN,
     DepartureList,
     DestinationDetail,
     DestinationList,
     PackageDetail,
     PackageList,
+    SearchParams,
 )
 from app.services.catalog.reads import (
     get_departures_for_month,
@@ -25,14 +27,14 @@ router = APIRouter(tags=["public"])
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
-MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
-
 
 @router.get("/packages", operation_id="searchPackages")
-async def get_packages(db: Session, response: Response) -> PackageList:
+async def get_packages(
+    db: Session, response: Response, params: Annotated[SearchParams, Query()]
+) -> PackageList:
+    """R3 search. Every filter lives in `search_packages`; this only adds the cache header."""
     response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
-    items = await search_packages(db)
-    return PackageList(items=items, total=len(items))
+    return await search_packages(db, params)
 
 
 @router.get("/packages/{slug}", operation_id="getPackage")

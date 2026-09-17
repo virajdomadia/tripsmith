@@ -65,7 +65,8 @@ export interface ApiInit {
   /** Cache tags for on-demand revalidation (`/revalidate` route handler). */
   tags?: string[];
   revalidate?: number | false;
-  searchParams?: Record<string, string | undefined>;
+  /** Query string; an array appends one `k=v` per value; blanks and undefined are omitted. */
+  searchParams?: Record<string, string | string[] | undefined>;
   /**
    * Forward the viewer's `Cookie` header (owner session) and never cache. Only for `/admin/**`
    * and `/auth/session`; public data must not vary by viewer.
@@ -85,7 +86,8 @@ export function fillPath(path: string, params: Record<string, string> = {}) {
 /** Server-side typed GET to the api; throws `ApiRequestError` on any non-2xx. */
 export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promise<GetResponse<P>> {
   const url = new URL(fillPath(path, init.params), BASE);
-  for (const [k, v] of Object.entries(init.searchParams ?? {})) if (v) url.searchParams.set(k, v);
+  for (const [k, v] of Object.entries(init.searchParams ?? {}))
+    for (const one of Array.isArray(v) ? v : [v]) if (one) url.searchParams.append(k, one);
 
   const headers = new Headers();
   let cache: RequestCache | undefined;
