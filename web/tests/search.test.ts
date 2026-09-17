@@ -4,6 +4,7 @@ import {
   activeChips,
   type ContractQuery,
   DEFAULT_SORT,
+  EMPTY_QUERY,
   isFiltered,
   monthLabel,
   nightsLabel,
@@ -201,5 +202,16 @@ describe('chips + labels', () => {
     expect(isFiltered({ destination: [], themes: [], month: '2026-12', sort: 'price-asc' })).toBe(
       true,
     );
+  });
+});
+
+describe('home search form', () => {
+  it('a submitted form with every field blank is the empty query', () => {
+    expect(parseSearchQuery({ destination: '', month: '', maxBudget: '' })).toEqual(EMPTY_QUERY);
+  });
+
+  it('destination + month + budget serialise in canonical order', () => {
+    const q = parseSearchQuery({ destination: 'kerala', month: '2026-12', maxBudget: '25000' });
+    expect(searchHref(q)).toBe('/packages?destination=kerala&maxBudget=25000&month=2026-12');
   });
 });

@@ -95,3 +95,20 @@
     animation: none;
   }
 }
+
+/* The hero photo drifts in for 30 s and back (mockup `kb`); still under reduced motion. */
+@keyframes kenburns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
+@utility animate-kenburns {
+  animation: kenburns 30s var(--ease-out) infinite alternate;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
