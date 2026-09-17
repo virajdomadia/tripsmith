@@ -53,9 +53,9 @@ export function AboutBand({ stats }: { stats: Stats }) {
         </p>
         <dl className="mt-5.5 flex flex-wrap gap-6">
           {facts.map(([num, label]) => (
-            <div key={label}>
-              <dd className="num text-[26px] font-extrabold tracking-tight">{num}</dd>
+            <div key={label} className="flex flex-col-reverse">
               <dt className="text-sm font-semibold text-mute">{label}</dt>
+              <dd className="num text-[26px] font-extrabold tracking-tight">{num}</dd>
             </div>
           ))}
         </dl>
