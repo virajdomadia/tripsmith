@@ -2,15 +2,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container } from '@/components/site/Container';
 import { EmptyState } from '@/components/site/packages/EmptyState';
+import { FilterPanel } from '@/components/site/packages/FilterPanel';
 import { ResultsGrid } from '@/components/site/packages/ResultsGrid';
-import { NavLink, Results, SearchTransition } from '@/components/site/packages/SearchTransition';
+import { ResultsToolbar } from '@/components/site/packages/ResultsToolbar';
+import { Results, SearchTransition } from '@/components/site/packages/SearchTransition';
 import { api } from '@/lib/api';
 import {
   activeChips,
   EMPTY_QUERY,
   isFiltered,
   parseSearchQuery,
-  resultCount,
   toApiSearchParams,
   toSearchParams,
   type RawSearchParams,
@@ -54,11 +55,13 @@ export default async function PackagesPage({ searchParams }: Props) {
           Home
         </Link>
         <span aria-hidden>›</span>
-        <span className="text-ink">Holiday packages</span>
+        <span aria-current="page" className="text-ink">
+          Holiday packages
+        </span>
       </nav>
       <header className="pt-5 pb-2">
         <h1 className="text-[clamp(30px,3.6vw,44px)]">Holiday packages</h1>
-        <p className="mt-1.5 max-w-[60ch] text-base text-mute">
+        <p className="num mt-1.5 max-w-[60ch] text-base text-mute">
           {plural(catalogSize, 'trip', 'trips')} across{' '}
           {plural(facets.destinations.length, 'destination', 'destinations')} — every date a real
           departure.
@@ -67,30 +70,9 @@ export default async function PackagesPage({ searchParams }: Props) {
 
       <SearchTransition>
         <div className="grid gap-7 pt-5 lg:grid-cols-[280px_1fr] lg:items-start">
-          {/* Task 6 replaces this with <FilterPanel query={query} facets={facets} /> */}
-          <aside
-            aria-label="Filters"
-            className="rounded-card border border-line p-4.5 text-sm text-mute"
-          >
-            Filters arrive in the next step.
-          </aside>
+          <FilterPanel query={query} facets={facets} />
           <div className="min-w-0">
-            {/* Task 6 replaces this with <ResultsToolbar query={query} total={results.total} chips={chips} /> */}
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <span className="num font-bold" role="status">
-                {resultCount(results.total)}
-              </span>
-              {chips.map((chip) => (
-                <NavLink
-                  key={chip.key}
-                  href={chip.href}
-                  ariaLabel={`Remove ${chip.label}`}
-                  className="inline-flex items-center gap-1.5 rounded-chip bg-primary-soft px-2.5 py-1 text-xs font-bold text-primary no-underline hover:bg-primary hover:text-white"
-                >
-                  {chip.label} <span aria-hidden>×</span>
-                </NavLink>
-              ))}
-            </div>
+            <ResultsToolbar query={query} total={results.total} chips={chips} />
             <Results>
               {results.total > 0 ? (
                 <ResultsGrid key={queryKey} items={results.items} />
