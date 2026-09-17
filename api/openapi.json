@@ -152,6 +152,14 @@
       },
       "DestinationCard": {
         "properties": {
+          "bestMonths": {
+            "description": "1-12, in the destination's display order",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Bestmonths",
+            "type": "array"
+          },
           "coverUrl": {
             "title": "Coverurl",
             "type": "string"
@@ -184,7 +192,8 @@
           "tagline",
           "coverUrl",
           "packageCount",
-          "startingPricePaise"
+          "startingPricePaise",
+          "bestMonths"
         ],
         "title": "DestinationCard",
         "type": "object"

@@ -237,6 +237,7 @@ async def test_destinations_list_counts_live_packages(
     assert (goa["slug"], goa["name"]) == ("goa", "Goa")
     assert goa["tagline"]
     assert goa["coverUrl"].startswith("https://blob.test/destinations/goa/")
+    assert goa["bestMonths"] == [11, 12, 1, 2]  # the S2 pill: "2 trips · best Nov – Feb"
     assert goa["packageCount"] == 2
     assert goa["startingPricePaise"] == 14_499_00
 

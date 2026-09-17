@@ -211,6 +211,7 @@ async def list_destinations(db: AsyncSession) -> list[DestinationCard]:
             cover_url=d.cover_url,
             package_count=count,
             starting_price_paise=cheapest,
+            best_months=list(d.best_months),
         )
         for d, count, cheapest in rows
     ]
