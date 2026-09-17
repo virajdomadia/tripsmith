@@ -44,6 +44,7 @@ export const THEMES = [
   'heritage',
 ] as const satisfies readonly Theme[];
 export const NIGHTS_MAX = 30;
+export const DESTINATION_MAX = 20; // the api caps `destination` at this many slugs
 const BUDGET_MAX = 10_000_000; // rupees — anything above is a typo, not a filter
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const SLUG = /^[a-z0-9-]+$/;
@@ -74,7 +75,7 @@ export function parseSearchQuery(raw: RawSearchParams): SearchQuery {
   const month = first(raw.month);
   const sort = first(raw.sort);
   return {
-    destination: uniq(list(raw.destination).filter((s) => SLUG.test(s))),
+    destination: uniq(list(raw.destination).filter((s) => SLUG.test(s))).slice(0, DESTINATION_MAX),
     maxBudget: int(raw.maxBudget, 1, BUDGET_MAX),
     nightsMin,
     nightsMax,

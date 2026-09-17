@@ -72,6 +72,12 @@ describe('parseSearchQuery', () => {
     expect(q).toEqual({ destination: ['goa'], themes: ['beach'], sort: 'price-asc' });
   });
 
+  it('caps destinations at the api limit', () => {
+    expect(
+      parseSearchQuery({ destination: Array.from({ length: 25 }, (_, i) => `d${i}`) }).destination,
+    ).toHaveLength(20);
+  });
+
   it('swaps a reversed nights range', () => {
     expect(parseSearchQuery({ nightsMin: '5', nightsMax: '3' })).toMatchObject({
       nightsMin: 3,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { inr } from '@/lib/format';
 import {
   DEFAULT_SORT,
@@ -15,41 +15,30 @@ import { NavLink, useSearch } from './SearchTransition';
 type Props = { query: SearchQuery; facets: Facets };
 
 const BUDGET_STEP = 1000; // rupees — the api rounds its facet bounds to the same step
-const SLIDER_DEBOUNCE_MS = 350;
 
 /**
  * S4 filter rail. A real GET form to `/packages`, so the URL is the state: with JS every change
- * navigates through the search transition; without it "Show trips" submits the same params.
- * Options (destinations, months, ranges) come from the api's facets — nothing is hard-coded.
+ * navigates through the search transition and the slider navigates on release; without it
+ * "Show trips" submits the same params. Options (destinations, months, ranges) come from the
+ * api's facets — nothing is hard-coded.
  */
 export function FilterPanel({ query, facets }: Props) {
   const { navigate, pending } = useSearch();
   const [draft, setDraft] = useState(query);
   const [open, setOpen] = useState(false); // phones: collapsed above the grid (S4)
   const [hydrated, setHydrated] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => setHydrated(true), []);
   // Chips, "Clear all" and back/forward change the URL behind the rail's back: follow the
   // server's query once nothing is in flight.
   useEffect(() => {
-    if (!pending && timer.current === undefined) setDraft(query);
+    if (!pending) setDraft(query);
   }, [pending, query]);
-  useEffect(() => () => clearTimeout(timer.current), []);
 
-  /** Show the change now; navigate now, or after a pause for the slider. */
-  const commit = (next: SearchQuery, delay = 0) => {
+  /** Show the change now and navigate now. */
+  const commit = (next: SearchQuery) => {
     setDraft(next);
-    clearTimeout(timer.current);
-    timer.current = undefined;
-    if (delay) {
-      timer.current = setTimeout(() => {
-        navigate(searchHref(next));
-        timer.current = undefined;
-      }, delay);
-    } else {
-      navigate(searchHref(next));
-    }
+    navigate(searchHref(next));
   };
   const toggleDestination = (slug: string, on: boolean) =>
     commit({
@@ -136,10 +125,24 @@ export function FilterPanel({ query, facets }: Props) {
                 }
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  commit(
-                    { ...draft, maxBudget: v >= facets.budget.max ? undefined : v },
-                    SLIDER_DEBOUNCE_MS,
-                  );
+                  setDraft({ ...draft, maxBudget: v >= facets.budget.max ? undefined : v });
+                }}
+                onPointerUp={() => navigate(searchHref(draft))}
+                onKeyUp={(e) => {
+                  if (
+                    [
+                      'ArrowLeft',
+                      'ArrowRight',
+                      'ArrowUp',
+                      'ArrowDown',
+                      'Home',
+                      'End',
+                      'PageUp',
+                      'PageDown',
+                    ].includes(e.key)
+                  ) {
+                    navigate(searchHref(draft));
+                  }
                 }}
                 className="accent-primary"
               />
