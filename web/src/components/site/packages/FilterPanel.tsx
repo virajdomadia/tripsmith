@@ -41,6 +41,7 @@ export function FilterPanel({ query, facets }: Props) {
   const commit = (next: SearchQuery, delay = 0) => {
     setDraft(next);
     clearTimeout(timer.current);
+    timer.current = undefined;
     if (delay) {
       timer.current = setTimeout(() => {
         navigate(searchHref(next));
