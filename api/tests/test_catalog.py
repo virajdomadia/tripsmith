@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.meta import Badge
 from app.services.catalog.pricing import badge_for, starting_price
-from content import load_content
 from scripts.seed import seed
-from tests.settings import make_settings
+from tests.settings import fixture_content, make_settings
 
 
 class D:  # a departure-like duck for the pure helpers
@@ -45,7 +44,7 @@ class RecordingStore:
 async def test_get_packages_lists_live_packages_as_cards(
     db: AsyncSession, db_client: AsyncClient
 ) -> None:
-    await seed(db, load_content(), RecordingStore(), make_settings())
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
 
     res = await db_client.get("/packages")
 
@@ -77,7 +76,7 @@ async def test_get_packages_hides_drafts(db: AsyncSession, db_client: AsyncClien
     from app.models import Package
     from app.models.enums import PackageStatus
 
-    await seed(db, load_content(), RecordingStore(), make_settings())
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
     await db.execute(
         update(Package).where(Package.slug == "goa-quiet-escape").values(status=PackageStatus.DRAFT)
     )
@@ -96,7 +95,7 @@ async def test_badge_uses_the_next_upcoming_departure(
 
     from app.models import Departure
 
-    await seed(db, load_content(), RecordingStore(), make_settings())
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
     # Make the earliest North Goa departure (2026-11-20) a 3-seat one → filling fast.
     await db.execute(
         update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(seats_total=3)

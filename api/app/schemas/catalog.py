@@ -188,6 +188,7 @@ class DestinationCard(ApiModel):
     cover_url: str
     package_count: int = Field(description="Live packages")
     starting_price_paise: int
+    best_months: list[int] = Field(description="1-12, in the destination's display order")
 
 
 class DestinationList(ApiModel):

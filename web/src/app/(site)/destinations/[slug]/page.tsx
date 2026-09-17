@@ -1,0 +1,143 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { Container } from '@/components/site/Container';
+import { BestMonths } from '@/components/site/destinations/BestMonths';
+import { DestinationHero } from '@/components/site/destinations/DestinationHero';
+import { PackageCard } from '@/components/site/PackageCard';
+import { Prose } from '@/components/site/Prose';
+import { api, ApiRequestError } from '@/lib/api';
+import { inr, monthRange } from '@/lib/format';
+import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
+
+type Params = { slug: string };
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+/** Tagged `destination:<slug>` for F18's on-demand purge; hourly anyway (from-prices follow today's date). */
+const REVALIDATE_SECONDS = 60 * 60;
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** Cheapest priced trip; 0 when every trip is "on request" (the api sorts 0 first, so min over > 0). */
+function cheapest(prices: number[]): number {
+  const priced = prices.filter((p) => p > 0);
+  return priced.length ? Math.min(...priced) : 0;
+}
+
+async function loadDestination(slug: string) {
+  try {
+    return await api('/destinations/{slug}', {
+      params: { slug },
+      tags: [`destination:${slug}`],
+      revalidate: REVALIDATE_SECONDS,
+    });
+  } catch (err) {
+    // Unknown slug and "no live trips" are both 404s from the api (R2: hidden, not empty).
+    if (err instanceof ApiRequestError && err.status === 404) notFound();
+    throw err;
+  }
+}
+
+/** Prerender every destination with live trips; an unreachable api at build means "none". */
+export async function generateStaticParams(): Promise<Params[]> {
+  try {
+    const { items } = await api('/destinations', {
+      tags: ['destinations'],
+      revalidate: REVALIDATE_SECONDS,
+    });
+    return items.map((d) => ({ slug: d.slug }));
+  } catch (err) {
+    console.warn(
+      `generateStaticParams: api unreachable, prerendering no destinations (${String(err)})`,
+    );
+    return [];
+  }
+}
+
+export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
+  const { slug } = await params;
+  const d = await loadDestination(slug);
+  const from = cheapest(d.packages.map((p) => p.startingPricePaise));
+  const trips = plural(d.packages.length, 'trip', 'trips');
+  return {
+    title: `${d.name} holiday packages — ${trips}${from ? ` from ${inr(from)}` : ''}`,
+    description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
+    alternates: { canonical: `${SITE_URL}/destinations/${d.slug}` },
+    openGraph: {
+      title: d.name,
+      description: d.tagline,
+      type: 'website',
+      images: [{ url: d.coverUrl, alt: `${d.name} — ${d.tagline}` }],
+    },
+  };
+}
+
+export default async function DestinationPage({ params }: { params: Promise<Params> }) {
+  const { slug } = await params;
+  const d = await loadDestination(slug);
+  const url = `${SITE_URL}/destinations/${d.slug}`;
+  const from = cheapest(d.packages.map((p) => p.startingPricePaise));
+  const h2 = 'mb-4 text-[clamp(24px,2.8vw,30px)]';
+
+  return (
+    <Container className="pb-20">
+      <JsonLd data={destinationJsonLd(d, url)} />
+      <DestinationHero d={d} from={from} />
+
+      <div className="mt-7 grid gap-12 lg:grid-cols-[1fr_380px] lg:items-start">
+        <div className="min-w-0">
+          <Prose markdown={d.intro} />
+
+          <section aria-labelledby="best-time" className="pt-11">
+            <h2 id="best-time" className={h2}>
+              Best time to visit
+            </h2>
+            <BestMonths months={d.bestMonths} />
+          </section>
+
+          <section aria-labelledby="trips" className="pt-11">
+            <h2 id="trips" className={h2}>
+              Trips to {d.name}
+            </h2>
+            <ul className="grid gap-5 sm:grid-cols-2">
+              {d.packages.map((card, i) => (
+                <li
+                  key={card.slug}
+                  className="animate-rise"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
+                  <PackageCard card={card} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 rounded-card border border-line p-5">
+            <small className="label-caps">Trips from</small>
+            <b className="num block text-[32px] font-extrabold tracking-tight">
+              {from ? inr(from) : 'On request'}
+            </b>
+            <span className="text-[13px] text-mute">per person, double sharing</span>
+            <Link
+              href={`/packages?destination=${d.slug}`}
+              className="mt-4 block rounded-btn bg-primary px-4 py-3 text-center text-sm font-bold text-white no-underline hover:bg-primary-ink"
+            >
+              Compare {plural(d.packages.length, 'trip', 'trips')} →
+            </Link>
+            <p className="mt-3 text-[13px] text-mute">
+              Every date listed is a departure we run ourselves.
+            </p>
+          </div>
+        </aside>
+      </div>
+
+      <p className="mt-12 text-sm font-semibold">
+        <Link href="/destinations">← All destinations</Link>
+      </p>
+    </Container>
+  );
+}

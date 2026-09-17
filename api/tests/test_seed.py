@@ -18,9 +18,8 @@ from app.models import (
     User,
 )
 from app.models.enums import PackageStatus, UserRole
-from content import load_content
 from scripts.seed import SeedResult, seed
-from tests.settings import make_settings
+from tests.settings import fixture_content, make_settings
 
 pytestmark = pytest.mark.db
 
@@ -43,7 +42,7 @@ async def count(db: AsyncSession, model: type) -> int:  # type: ignore[type-arg]
 
 
 async def test_seed_writes_the_whole_content_tree(db: AsyncSession) -> None:
-    content = load_content()
+    content = fixture_content()
     store = RecordingStore()
 
     result = await seed(db, content, store, owner_settings())
@@ -59,7 +58,7 @@ async def test_seed_writes_the_whole_content_tree(db: AsyncSession) -> None:
 
 
 async def test_seed_twice_changes_nothing(db: AsyncSession) -> None:
-    content = load_content()
+    content = fixture_content()
     first = await seed(db, content, RecordingStore(), owner_settings())
     ids = {p.slug: p.id for p in (await db.execute(select(Package))).scalars()}
 
@@ -73,7 +72,7 @@ async def test_seed_twice_changes_nothing(db: AsyncSession) -> None:
 
 
 async def test_seed_derives_price_cover_and_image_dimensions(db: AsyncSession) -> None:
-    content = load_content()
+    content = fixture_content()
     await seed(db, content, RecordingStore(), owner_settings())
 
     pkg = (
@@ -102,7 +101,7 @@ async def test_seed_derives_price_cover_and_image_dimensions(db: AsyncSession) -
 
 
 async def test_starting_price_ignores_departures_already_gone(db: AsyncSession) -> None:
-    content = load_content()
+    content = fixture_content()
     source = next(p for p in content.packages if p.slug == "goa-quiet-escape")
     # Pretend today is after the cheapest (first) departure: the price must move to the next one.
     today = source.departures[0].date + dt.timedelta(days=1)
@@ -115,7 +114,7 @@ async def test_starting_price_ignores_departures_already_gone(db: AsyncSession) 
 
 
 async def test_seed_uploads_every_photo_to_a_stable_pathname(db: AsyncSession) -> None:
-    content = load_content()
+    content = fixture_content()
     store = RecordingStore()
     await seed(db, content, store, owner_settings())
 
@@ -128,7 +127,7 @@ async def test_seed_uploads_every_photo_to_a_stable_pathname(db: AsyncSession) -
 
 
 async def test_seed_creates_the_owner_with_an_argon2_hash(db: AsyncSession) -> None:
-    await seed(db, load_content(), RecordingStore(), owner_settings())
+    await seed(db, fixture_content(), RecordingStore(), owner_settings())
 
     owner = (await db.execute(select(User))).scalar_one()
     assert owner.email == "owner@tripsmith.demo"
@@ -137,7 +136,7 @@ async def test_seed_creates_the_owner_with_an_argon2_hash(db: AsyncSession) -> N
 
 
 async def test_seed_without_owner_env_skips_the_user(db: AsyncSession) -> None:
-    result = await seed(db, load_content(), RecordingStore(), make_settings())
+    result = await seed(db, fixture_content(), RecordingStore(), make_settings())
     assert await count(db, User) == 0
     assert "owner" in result.warnings[0]
 

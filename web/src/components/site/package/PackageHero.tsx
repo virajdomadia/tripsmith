@@ -13,7 +13,9 @@ export function PackageHero({ pkg }: { pkg: PackageDetail }) {
           Home
         </Link>
         <span aria-hidden>›</span>
-        <span>{pkg.destination.name}</span>
+        <Link href={`/destinations/${pkg.destination.slug}`} className="hover:text-ink">
+          {pkg.destination.name}
+        </Link>
         <span aria-hidden>›</span>
         <span className="text-ink">{pkg.name}</span>
       </nav>

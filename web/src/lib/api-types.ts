@@ -203,6 +203,11 @@ export interface components {
         };
         /** DestinationCard */
         DestinationCard: {
+            /**
+             * Bestmonths
+             * @description 1-12, in the destination's display order
+             */
+            bestMonths: number[];
             /** Coverurl */
             coverUrl: string;
             /** Name */
