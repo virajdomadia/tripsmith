@@ -65,3 +65,11 @@ def test_no_photo_is_unused() -> None:
 def test_photo_dirs_are_destination_slugs() -> None:
     slugs = {d.slug for d in load_content().destinations}
     assert {p.name for p in PHOTOS_DIR.iterdir() if p.is_dir()} <= slugs
+
+
+def test_load_content_takes_a_package_name() -> None:
+    """The frozen copy the db tests seed (tests/fixture_content/) is the 2f52be9 catalog."""
+    frozen = load_content("tests.fixture_content")
+    assert [d.slug for d in frozen.destinations] == ["goa"]
+    assert sorted(p.slug for p in frozen.packages) == ["goa-quiet-escape", "north-goa-beaches"]
+    assert len(frozen.testimonials) == 3

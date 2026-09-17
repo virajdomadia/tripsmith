@@ -92,14 +92,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("dest", help="path under content/photos, e.g. himachal/solang-valley.jpg")
     args = parser.parse_args(argv)
     title = args.title if args.title.startswith("File:") else f"File:{args.title}"
-    dest = PHOTOS_DIR / args.dest
+    rel = Path(args.dest)
+    if rel.is_absolute() or ".." in rel.parts or len(rel.parts) != 2 or rel.suffix != ".jpg":
+        raise SystemExit(f"dest must be <destination>/<name>.jpg, got {args.dest}")
+    dest_rel = rel.as_posix()  # the credit row is POSIX whatever the shell passed
+    dest = PHOTOS_DIR / rel
     if dest.exists():
-        raise SystemExit(f"{args.dest} already exists — pick another name or delete it first")
+        raise SystemExit(f"{dest_rel} already exists — pick another name or delete it first")
     info = lookup(title)
     licence, artist = check(info, title)
     save(info, dest)
-    credit(args.dest, title, licence, artist, info["descriptionurl"])
-    print(f"{args.dest}  {licence}  by {artist}  ({info['width']}x{info['height']} -> {RENDITION})")
+    credit(dest_rel, title, licence, artist, info["descriptionurl"])
+    print(f"{dest_rel}  {licence}  by {artist}  ({info['width']}x{info['height']} -> {RENDITION})")
     return 0
 
 

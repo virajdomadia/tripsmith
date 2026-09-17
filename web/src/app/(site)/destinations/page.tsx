@@ -7,9 +7,12 @@ import { api } from '@/lib/api';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /**
- * Static with hourly ISR like the package page: counts and from-prices follow today's date.
- * Tagged `destinations` so admin edits (F18) can purge it on demand.
+ * Rendered on request like `/packages` (CI builds with no api reachable, and a static page would
+ * bake whatever the api said at deploy time). The fetch itself is cached for an hour and tagged
+ * `destinations` so admin edits (F18) can purge it on demand.
  */
+export const dynamic = 'force-dynamic';
+
 const REVALIDATE_SECONDS = 60 * 60;
 
 const load = () => api('/destinations', { tags: ['destinations'], revalidate: REVALIDATE_SECONDS });

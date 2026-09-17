@@ -18,7 +18,6 @@ from app.models import (
     User,
 )
 from app.models.enums import PackageStatus, UserRole
-from content import load_content
 from scripts.seed import SeedResult, seed
 from tests.settings import fixture_content, make_settings
 
@@ -151,10 +150,3 @@ async def test_cli_without_blob_token_explains_instead_of_crashing(
     code = await cli.main(["--database-url", "postgresql+asyncpg://x@127.0.0.1:1/none"])
     assert code == 2
     assert "BLOB_READ_WRITE_TOKEN" in capsys.readouterr().err
-
-
-def test_load_content_takes_a_package_name() -> None:
-    frozen = load_content("tests.fixture_content")
-    assert [d.slug for d in frozen.destinations] == ["goa"]
-    assert sorted(p.slug for p in frozen.packages) == ["goa-quiet-escape", "north-goa-beaches"]
-    assert len(frozen.testimonials) == 3
