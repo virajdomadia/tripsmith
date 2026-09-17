@@ -12,9 +12,8 @@ from app.models import Departure, Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import RangeFacet, SearchParams, SortOrder
 from app.services.catalog.search import budget_range, month_label, search_packages
-from content import load_content
 from scripts.seed import seed
-from tests.settings import make_settings
+from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
 NGB, GQE, KER = "north-goa-beaches", "goa-quiet-escape", "kerala-backwaters"
@@ -57,7 +56,7 @@ def test_search_params_validates_the_nights_range_and_reads_camel_case() -> None
 
 @pytest.fixture
 async def catalog(db: AsyncSession) -> None:
-    await seed(db, load_content(), RecordingStore(), make_settings())
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
     kerala = Destination(
         slug="kerala",
         name="Kerala",

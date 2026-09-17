@@ -10,16 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Departure, Package
 from app.models.enums import PackageStatus, Theme
 from app.services.catalog.reads import month_bounds, related_order
-from content import load_content
 from scripts.seed import seed
-from tests.settings import make_settings
+from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
 CACHE = "public, s-maxage=60, stale-while-revalidate=300"
 
 
 async def seeded(db: AsyncSession) -> None:
-    await seed(db, load_content(), RecordingStore(), make_settings())
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
 
 
 async def set_status(db: AsyncSession, slug: str, status: PackageStatus) -> None:
