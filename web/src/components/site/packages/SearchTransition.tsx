@@ -25,8 +25,7 @@ export function Results({ children }: { children: ReactNode }) {
   return (
     <div
       aria-busy={pending}
-      aria-live="polite"
-      className={`transition-opacity duration-300 ${pending ? 'opacity-40' : 'opacity-100'}`}
+      className={`motion-reduce:transition-none transition-opacity duration-300 ${pending ? 'opacity-40' : 'opacity-100'}`}
     >
       {children}
     </div>

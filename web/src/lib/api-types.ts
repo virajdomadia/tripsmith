@@ -660,7 +660,7 @@ export interface operations {
     searchPackages: {
         parameters: {
             query?: {
-                /** @description Destination slugs; any of */
+                /** @description Destination slugs (≤ 20); any of */
                 destination?: string[];
                 /** @description Maximum starting price per person, in rupees */
                 maxBudget?: number | null;

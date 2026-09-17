@@ -34,6 +34,10 @@ from app.services.catalog.reads import month_bounds
 
 BUDGET_STEP_RUPEES = 1_000
 
+# `app.schemas.meta.Theme` and `app.models.enums.Theme` are distinct classes with the same values
+# (the DB/contract split, 06 C0); key by the plain string value to satisfy pyright.
+THEME_LABELS_BY_VALUE: dict[str, str] = {t.value: label for t, label in THEME_LABELS.items()}
+
 
 # --- pure ---------------------------------------------------------------------------------------
 
@@ -135,11 +139,10 @@ async def search_facets(db: AsyncSession, today: dt.date) -> SearchFacets:
         for themes in (await db.execute(select(Package.themes).where(live))).scalars()
         for theme in themes
     )
-    # `app.schemas.meta.Theme` and `app.models.enums.Theme` are distinct classes with the same
-    # values (the DB/contract split, 06 C0); key by the plain string value to satisfy pyright.
-    theme_labels: dict[str, str] = {t.value: label for t, label in THEME_LABELS.items()}
     themes = [
-        FacetOption(value=t.value, label=theme_labels[t.value], count=theme_counts.get(t, 0))
+        FacetOption(
+            value=t.value, label=THEME_LABELS_BY_VALUE[t.value], count=theme_counts.get(t, 0)
+        )
         for t in Theme
     ]
 

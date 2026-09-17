@@ -135,6 +135,9 @@ async def test_destination_is_any_of(catalog: None, db_client: AsyncClient) -> N
     assert await slugs(db_client, "?destination=kerala") == [KER]
     assert await slugs(db_client, "?destination=kerala&destination=goa") == [NGB, GQE, KER]
     assert await slugs(db_client, "?destination=mars") == []
+    assert await field_errors(db_client, "?" + "&".join(["destination=goa"] * 21)) == [
+        "destination"
+    ]
 
 
 @pytest.mark.db
@@ -153,6 +156,7 @@ async def test_max_budget_is_rupees_against_the_starting_price(
 
     assert await field_errors(db_client, "?maxBudget=0") == ["maxBudget"]
     assert await field_errors(db_client, "?maxBudget=cheap") == ["maxBudget"]
+    assert await field_errors(db_client, "?maxBudget=99999999999") == ["maxBudget"]
 
 
 @pytest.mark.db

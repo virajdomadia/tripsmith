@@ -33,7 +33,7 @@ export function FilterPanel({ query, facets }: Props) {
   // Chips, "Clear all" and back/forward change the URL behind the rail's back: follow the
   // server's query once nothing is in flight.
   useEffect(() => {
-    if (!pending) setDraft(query);
+    if (!pending && timer.current === undefined) setDraft(query);
   }, [pending, query]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -41,8 +41,14 @@ export function FilterPanel({ query, facets }: Props) {
   const commit = (next: SearchQuery, delay = 0) => {
     setDraft(next);
     clearTimeout(timer.current);
-    if (delay) timer.current = setTimeout(() => navigate(searchHref(next)), delay);
-    else navigate(searchHref(next));
+    if (delay) {
+      timer.current = setTimeout(() => {
+        navigate(searchHref(next));
+        timer.current = undefined;
+      }, delay);
+    } else {
+      navigate(searchHref(next));
+    }
   };
   const toggleDestination = (slug: string, on: boolean) =>
     commit({
@@ -253,10 +259,10 @@ const range = (min: number, max: number) =>
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="grid gap-2">
-      <h3 className="label-caps">{title}</h3>
+    <fieldset className="grid gap-2 min-w-0 border-0 p-0 m-0">
+      <legend className="label-caps mb-2">{title}</legend>
       {children}
-    </div>
+    </fieldset>
   );
 }
 

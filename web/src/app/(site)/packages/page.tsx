@@ -20,6 +20,8 @@ import {
 
 type Props = { searchParams: Promise<RawSearchParams> };
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 /** Cached 60 s per distinct query (the api's own s-maxage); tagged so admin edits (F18) can purge it. */
 const search = (query: SearchQuery) =>
   api('/packages', { searchParams: toApiSearchParams(query), tags: ['packages'], revalidate: 60 });
@@ -31,7 +33,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     description:
       'Every Tripsmith trip with real departure dates and per-person prices. Filter by destination, budget, nights, theme and travel month.',
     // One indexable URL. Filtered views are shareable, but crawlers are pointed at the listing.
-    alternates: { canonical: '/packages' },
+    alternates: { canonical: `${SITE_URL}/packages` },
     robots: isFiltered(query) ? { index: false, follow: true } : undefined,
   };
 }

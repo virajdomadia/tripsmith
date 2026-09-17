@@ -11,6 +11,7 @@ from app.schemas.meta import Badge
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
+BUDGET_MAX_RUPEES = 10_000_000
 
 
 class SortOrder(StrEnum):
@@ -26,9 +27,14 @@ class SearchParams(ApiModel):
     whole rupees here (responses stay paise).
     """
 
-    destination: list[str] = Field(default_factory=list, description="Destination slugs; any of")
+    destination: list[str] = Field(
+        default_factory=list, max_length=20, description="Destination slugs (≤ 20); any of"
+    )
     max_budget: int | None = Field(
-        default=None, gt=0, description="Maximum starting price per person, in rupees"
+        default=None,
+        gt=0,
+        le=BUDGET_MAX_RUPEES,
+        description="Maximum starting price per person, in rupees",
     )
     nights_min: int | None = Field(default=None, ge=1, le=NIGHTS_MAX)
     nights_max: int | None = Field(default=None, ge=1, le=NIGHTS_MAX)

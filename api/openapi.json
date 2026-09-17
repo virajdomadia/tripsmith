@@ -1077,15 +1077,16 @@
         "operationId": "searchPackages",
         "parameters": [
           {
-            "description": "Destination slugs; any of",
+            "description": "Destination slugs (≤ 20); any of",
             "in": "query",
             "name": "destination",
             "required": false,
             "schema": {
-              "description": "Destination slugs; any of",
+              "description": "Destination slugs (≤ 20); any of",
               "items": {
                 "type": "string"
               },
+              "maxItems": 20,
               "title": "Destination",
               "type": "array"
             }
@@ -1099,6 +1100,7 @@
               "anyOf": [
                 {
                   "exclusiveMinimum": 0,
+                  "maximum": 10000000,
                   "type": "integer"
                 },
                 {

@@ -302,7 +302,7 @@ package = define_package(
 ### C1. Public reads — v1 (`api services/catalog`, `services/analytics`)
 | Function | Params | Returns |
 |---|---|---|
-| `searchPackages` | `{ destination?: string[]; maxBudget?: number; nightsMin?: number; nightsMax?: number; themes?: Theme[]; month?: 'YYYY-MM'; sort?: 'price-asc'\|'price-desc'\|'duration' }` | `{ items: PackageCard[]; total: number }` — `PackageCard = { slug, name, destination, nights, days, startingPricePaise, themes, coverUrl, highlights, badge }` |
+| `searchPackages` | `{ destination?: string[]; maxBudget?: number; nightsMin?: number; nightsMax?: number; themes?: Theme[]; month?: 'YYYY-MM'; sort?: 'price-asc'\|'price-desc'\|'duration' }` | `{ items: PackageCard[]; total: number; facets: SearchFacets }` — `PackageCard = { slug, name, destination, nights, days, startingPricePaise, themes, coverUrl, highlights, badge }` — `SearchFacets = { destinations, themes, months: { value, label, count }[]; nights, budget: { min, max } }` (whole-catalog counts; budget in rupees) |
 | `getPackage` | `slug` | full package with days, departures (+ `seatsLeft`, `badge`), images, faq, related[3]; `null` if draft/missing |
 | `listDestinations` | — | `{ slug, name, coverUrl, packageCount, startingPricePaise }[]` (only with ≥1 live package) |
 | `getDestination` | `slug` | destination + its live `PackageCard[]` |
