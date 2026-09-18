@@ -283,6 +283,7 @@ async def test_honeypot_and_dedupe_send_nothing(
     assert bot.status_code == 201 and bot.json()["emailed"] is False
     assert sender.sent == []
     first = await db_client.post("/enquiries", json=BODY)
+    assert first.json()["emailed"] is True
     again = await db_client.post("/enquiries", json=BODY)
     assert first.json()["ref"] == again.json()["ref"]
     assert again.json()["emailed"] is False

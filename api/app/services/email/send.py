@@ -35,35 +35,38 @@ def is_test_mode(email_from: str) -> bool:
 async def send_enquiry_emails(
     sender: EmailSender, settings: Settings, ctx: EnquiryEmailContext
 ) -> EmailOutcome:
-    owner = render_owner(ctx, settings=settings) if settings.owner_notify_email else None
-    visitor: EmailMessage | None = render_visitor(ctx, settings=settings)
-    visitor_is_real = True
-    if is_test_mode(settings.email_from) and visitor is not None:
-        visitor_is_real = False
-        if settings.owner_notify_email:
-            visitor = replace(
-                visitor,
-                to=settings.owner_notify_email,
-                subject=f"[Test → {ctx.email}] {visitor.subject}",
-            )
-        else:
-            visitor = None
+    try:
+        owner = render_owner(ctx, settings=settings) if settings.owner_notify_email else None
+        visitor: EmailMessage | None = render_visitor(ctx, settings=settings)
+        visitor_is_real = True
+        if is_test_mode(settings.email_from) and visitor is not None:
+            visitor_is_real = False
+            if settings.owner_notify_email:
+                visitor = replace(
+                    visitor,
+                    to=settings.owner_notify_email,
+                    subject=f"[Test → {ctx.email}] {visitor.subject}",
+                )
+            else:
+                visitor = None
+    except Exception as exc:
+        log.exception("Could not render enquiry emails for %s", ctx.ref)
+        sentry_sdk.capture_exception(exc)
+        return EmailOutcome(EmailStatus.FAILED, False)
 
     messages = [m for m in (owner, visitor) if m is not None]
     if not messages:
         return EmailOutcome(EmailStatus.SKIPPED, False)
 
     results = await asyncio.gather(*(sender.send(m) for m in messages), return_exceptions=True)
-    outcome = dict(zip(messages, results, strict=True))
 
-    failures = [(m, r) for m, r in outcome.items() if isinstance(r, BaseException)]
+    failures = [(m, r) for m, r in zip(messages, results, strict=True) if isinstance(r, Exception)]
     for m, exc in failures:
         log.error("Email to %s failed for enquiry %s: %s", m.to, ctx.ref, exc)
         sentry_sdk.capture_exception(exc)
 
-    visitor_emailed = (
-        visitor_is_real and visitor is not None and isinstance(outcome.get(visitor), str)
-    )
+    visitor_result = results[messages.index(visitor)] if visitor is not None else None
+    visitor_emailed = visitor_is_real and isinstance(visitor_result, str)
     if failures:
         return EmailOutcome(EmailStatus.FAILED, visitor_emailed)
     if any(r is None for r in results):

@@ -1,4 +1,5 @@
-"""Sentry — the only module that imports `sentry_sdk` (05 §3, 04 §10).
+"""Sentry init and the unhandled-error capture path (05 §3, 04 §10). Other modules call
+sentry_sdk.capture_exception directly for handled failures.
 
 `init_sentry` runs once in `create_app()` before the middleware stack, so the SDK's Starlette /
 FastAPI integrations wrap every request. No DSN = Sentry off (local dev, CI, tests).

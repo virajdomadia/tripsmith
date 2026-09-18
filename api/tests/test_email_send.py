@@ -85,3 +85,16 @@ async def test_visitor_failure_is_failed_and_not_emailed() -> None:
 async def test_null_sender_is_skipped() -> None:
     out = await send_enquiry_emails(FakeSender(off=True), LIVE, ctx())
     assert out.status == EmailStatus.SKIPPED and not out.visitor_emailed
+
+
+async def test_render_failure_is_failed_and_sends_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.services.email.send.render_visitor", boom)
+    sender = FakeSender()
+    out = await send_enquiry_emails(sender, LIVE, ctx())
+    assert out.status == EmailStatus.FAILED and out.visitor_emailed is False
+    assert sender.sent == []
