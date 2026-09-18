@@ -18,7 +18,7 @@
 |---|---|---|
 | Media storage | **Vercel Blob** via its REST API from `infra/storage.py` (no official Python SDK); uploads go through the api as a **server-side proxy** (Pillow checks dimensions, resizes to ≤ 2000 px); `next/image` does resize/format on the way out | Cloudinary — transforms we don't need, second vendor; Blob client uploads from the browser — need a token endpoint and a JS SDK we no longer share |
 | PDF | **fpdf2** (pure Python; DM Sans TTF bundled in `api/assets/fonts`) in a route, cached in Blob | Headless Chrome — heavy on serverless; WeasyPrint — native deps on Vercel |
-| Email | **Resend Python SDK + Jinja2 HTML templates** | — |
+| Email | **Resend REST API (httpx) + Jinja2 HTML/text templates** | Resend Python SDK — synchronous (requests) for a one-POST API |
 | Rate limiting | **Upstash Redis REST** (`upstash-redis` package) behind a small sliding-window helper in `infra/ratelimit.py` | Postgres counters — Upstash is reused in v3 for chat quotas (v2 seat holds are Postgres, see the v2/v3 design) |
 | Page-view analytics | **Own `package_views` table** + `sendBeacon` | Vercel Analytics — no per-page API on the free tier |
 | Search | **Single SQLAlchemy query** `search_packages()` | Search service — 12 rows |
@@ -65,8 +65,10 @@
 - Target: A4, < 2 MB, < 3 s cold.
 
 ## 6. Email
-- Resend Python SDK via `api/app/services/email/send.py`; Jinja2 HTML templates in `api/app/services/email/templates/`: `enquiry_owner.html` (all fields, link to admin detail), `enquiry_customer.html` (thanks, what happens next, PDF attached, WhatsApp link), plus a plain-text alternative per template.
-- Sent **after** the DB write, inside a `try/except`; failure → `sentry_sdk.capture_exception`, enquiry flagged `email_status = 'failed'` for the owner to see. The visitor still gets the thanks page.
+- Resend over its REST API from `infra/email.py` (`EmailSender` protocol; `ResendSender` with httpx, `NullSender` when `RESEND_API_KEY` is unset — the official SDK is synchronous, and the API is one POST). Jinja2 templates in `services/email/templates/`: `enquiry_owner` (every field, reply-to the visitor, link to the admin detail) and `enquiry_visitor` (thanks, reference, what happens next, WhatsApp link; the PDF attaches in F11), each as HTML + plain text, rendered from a plain `EnquiryEmailContext`.
+- Sent **after** the enquiry commits, both concurrently, inside the request (nothing after the response is guaranteed on Vercel). Any failure → log + `sentry_sdk.capture_exception`, `email_status = 'failed'`; unconfigured → `'skipped'`; the visitor still gets the 201 and the thanks page. `EnquiryCreated.emailed` is true only when the confirmation reached the visitor's own address.
+- **Resend test mode** (`EMAIL_FROM` at `@resend.dev`, no verified domain): Resend delivers only to the account's inbox, so the visitor copy is redirected to `OWNER_NOTIFY_EMAIL` with a `[Test → visitor]` subject and `emailed` stays false. Verifying a domain and changing `EMAIL_FROM` turns real delivery on with no code change.
+- The IST timestamp in emails uses a fixed +05:30 offset (no tzdata dependency).
 
 ## 7. Auth
 - **Own implementation in api/** (`app/services/auth`, `app/routers/auth.py`): `users` (with `role`) and `sessions` tables (see 06 §A2); passwords hashed with argon2 (`argon2-cffi`); no sign-up route in v1 — the owner row is created by the seed script from `OWNER_EMAIL` / `OWNER_PASSWORD` env. Routes: `POST /auth/login` (rate-limited `10 / 10 min / IP`), `POST /auth/logout`, `GET /auth/session`.
@@ -95,7 +97,7 @@
 - web: `@sentry/nextjs` (client, server, edge), source maps uploaded in CI. api: `sentry-sdk[fastapi]` initialised in `infra/observability.py` (the only place it is imported), request + exception capture, release tagged from the Vercel commit SHA. Vercel Analytics for traffic. UptimeRobot HTTP check on `/` and `/api/health` every 5 min.
 
 ## 12. Environment variables
-**api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
+**api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `WHATSAPP_NUMBER`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
 **web/**: `API_URL` (server-side base for rewrites/fetch), `REVALIDATE_SECRET`, `SENTRY_DSN` (server + edge), `NEXT_PUBLIC_SENTRY_DSN` (browser; same value), `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_DEMO_EMAIL`, `NEXT_PUBLIC_DEMO_PASSWORD`.
 
 ## 13. Trade-offs accepted
