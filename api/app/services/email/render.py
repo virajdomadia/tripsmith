@@ -4,7 +4,6 @@ rows, so they can be rendered in a unit test and (F11) attached to without a ses
 import datetime as dt
 from dataclasses import dataclass
 from typing import NamedTuple
-from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -14,7 +13,7 @@ from app.infra.email import EmailMessage
 from app.models import Enquiry, Package
 from app.models.enums import EnquiryType
 
-IST = ZoneInfo("Asia/Kolkata")
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30), "IST")
 TYPE_LABEL = {
     EnquiryType.STANDARD: "Standard",
     EnquiryType.CUSTOM: "Customise this trip",
