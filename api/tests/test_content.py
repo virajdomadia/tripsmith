@@ -27,7 +27,9 @@ def test_every_destination_has_a_live_package_and_every_theme_is_covered() -> No
     live = [p for p in content.packages if p.status == PackageStatus.LIVE]
     assert {p.destination for p in live} == {d.slug for d in content.destinations}
     assert {t for p in live for t in p.themes} == set(Theme)
-    assert len(live) >= 6 and len(content.destinations) >= 3  # F4's floor, not a ceiling
+    # F7's floor (07-plan: 6 destinations, 12 packages, 6 testimonials), not a ceiling.
+    assert len(live) >= 12 and len(content.destinations) >= 6
+    assert len(content.testimonials) >= 6
 
 
 def test_every_package_has_three_or_four_future_departures() -> None:
@@ -39,7 +41,7 @@ def test_every_package_has_three_or_four_future_departures() -> None:
 
 
 def test_from_prices_match_the_locked_list() -> None:
-    """The mockup's from-prices are what home and listing were designed around (07-plan F4)."""
+    """The mockup's from-prices are what home and listing were designed around (07-plan F4, F7)."""
     cheapest = {
         p.slug: min(d.price_double_inr for d in p.departures) for p in load_content().packages
     }
@@ -47,6 +49,22 @@ def test_from_prices_match_the_locked_list() -> None:
     assert cheapest["kochi-thekkady-kovalam"] == 27_999
     assert cheapest["shimla-manali-classic"] == 18_499
     assert cheapest["manali-kasol-tosh"] == 19_999
+    assert cheapest["jaipur-jodhpur-udaipur"] == 26_499
+    assert cheapest["jaisalmer-desert-nights"] == 19_499
+    assert cheapest["port-blair-havelock-neil"] == 32_999
+    assert cheapest["havelock-honeymoon"] == 34_999
+    assert cheapest["leh-nubra-pangong"] == 29_999
+    assert cheapest["leh-turtuk"] == 27_499
+
+
+def test_destination_positions_are_unique_and_ordered() -> None:
+    positions = [d.position for d in sorted(load_content().destinations, key=lambda d: d.position)]
+    assert positions == sorted(set(positions)), "every destination needs its own position"
+
+
+def test_every_testimonial_names_a_different_trip() -> None:
+    linked = [t.package for t in load_content().testimonials if t.package]
+    assert len(linked) == len(set(linked)), "spread testimonials across trips"
 
 
 def test_every_photo_is_credited_and_every_credit_exists() -> None:
