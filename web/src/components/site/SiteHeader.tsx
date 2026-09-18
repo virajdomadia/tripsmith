@@ -21,7 +21,7 @@ export function SiteHeader() {
           className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight text-ink no-underline"
         >
           <BrandMark />
-          <span className="hidden min-[420px]:inline">Tripsmith</span>
+          <span className="sr-only min-[420px]:not-sr-only">Tripsmith</span>
         </Link>
         <nav
           aria-label="Main"

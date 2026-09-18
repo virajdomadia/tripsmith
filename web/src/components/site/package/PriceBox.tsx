@@ -36,7 +36,8 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
       </p>
       <p className="text-[13px] leading-relaxed text-mute">
         {CANCELLATION_SCHEDULE[0].window}: {cap(CANCELLATION_SCHEDULE[0].refund)}. One free date
-        change. <Link href="/cancellation-policy">Cancellation &amp; refunds</Link>
+        change up to 30 days out.{' '}
+        <Link href="/cancellation-policy">Cancellation &amp; refunds</Link>
       </p>
     </div>
   );

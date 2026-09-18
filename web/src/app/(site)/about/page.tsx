@@ -51,10 +51,10 @@ export default async function AboutPage() {
             planned your trip.
           </p>
           <p>
-            We don&rsquo;t sell flights, we don&rsquo;t do Europe, and we won&rsquo;t list a date we
-            can&rsquo;t run. {stats.destinations} destinations is all we can know properly — every
-            hotel on this site is one of us has stayed in, and every departure has real seats behind
-            it.
+            We don&rsquo;t do Europe, we don&rsquo;t do fourteen-day marathons, and we won&rsquo;t
+            list a date we can&rsquo;t run. {stats.destinations} destinations is all we can know
+            properly — every hotel on this site is one that one of us has stayed in, and every
+            departure has real seats behind it.
           </p>
           <p>
             Prices are per person and say what they include. If something goes wrong on the road — a
