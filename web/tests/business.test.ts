@@ -13,4 +13,12 @@ describe('business constants', () => {
       `${whatsappHref()}?text=Hi%20Tripsmith%2C%20I%20want%20to%20plan%20a%20trip`,
     );
   });
+
+  it('has the contact-page facts', () => {
+    expect(BUSINESS.addressLine2).toMatch(/floor/i);
+    expect(BUSINESS.mapEmbedSrc).toMatch(/^https:\/\/maps\.google\.com\/maps\?q=.*&output=embed$/);
+    expect(BUSINESS.mapsHref).toMatch(/^https:\/\/maps\.google\.com\//);
+    expect(BUSINESS.founded).toBe(2019);
+    expect(BUSINESS.afterHours.length).toBeGreaterThan(10);
+  });
 });

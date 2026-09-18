@@ -17,5 +17,5 @@ describe('generated contract', () => {
     const out = join(mkdtempSync(join(tmpdir(), 'api-types-')), 'api-types.ts');
     execFileSync(process.execPath, [cli, OPENAPI_JSON, '-o', out], { stdio: 'pipe' });
     expect(readFileSync(API_TYPES, 'utf8')).toBe(readFileSync(out, 'utf8'));
-  });
+  }, 30_000); // spawns the CLI — slower than vitest's 5 s default on a busy machine
 });

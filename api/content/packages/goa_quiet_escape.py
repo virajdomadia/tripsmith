@@ -152,5 +152,5 @@ PACKAGE = define_package(
         {"file": "goa/cola-bay-sunrise.jpg", "alt": "Outrigger boat at sunrise off Cola bay"},
     ],
     status="live",
-    featured=True,
+    featured=False,
 )

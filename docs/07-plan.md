@@ -49,8 +49,8 @@ Goal: a visitor can find and read a package. Content grows 2 → 6 → 12 inside
 | F4+F5 ⤵ | **Content → 6 packages** ✅ PR #24 | 🟢 | — | 6 genuine packages across 3 destinations, 3–4 departures each, photos | 0.5 h | Every package passes the live-status rules; seeded to production |
 | ↳ F5 | **Destinations** ✅ PR #24 | 🟢 | `/destinations` grid (cover, name, package count, from-price), `/destinations/[slug]` (cover, intro, best months, live packages); JSON-LD `TouristDestination` | `GET /destinations`, `GET /destinations/:slug` (destinations with 0 live packages hidden) | 1 h | Unique title/description per page |
 | F6 | **Home** ✅ PR #25 | 🟢 | `/`: full-width hero + search form (destination · budget · nights → `/packages?…`), 6 destination tiles, 6 package cards, why-us strip, testimonials, full footer (address / phone / WhatsApp / policy links); hero is the LCP element | `get_home_data` + `GET /home`; `testimonials` seeded | 1.5 h | Search submit lands on `/packages` with matching params; fully server-rendered |
-| F7+F8 ⤵ | **Content → 12 packages** | 🟢 | — | 6 destinations, 12 packages (full itineraries, real hotels, 2026 prices), ~40 departures, 6 testimonials | 1 h | Home shows 6 + 6 real tiles; seeded to production |
-| ↳ F8 | **Trust pages** | 🟢 | `/about`, `/contact` (address, phone, WhatsApp, hours, map embed; form placeholder until F9), `/terms`, `/privacy`, `/cancellation-policy` — real copy; footer links | — | 0.5 h | No lorem ipsum; all linked from the footer |
+| F7+F8 ⤵ | **Content → 12 packages** ✅ PR #26 | 🟢 | — | 6 destinations, 12 packages (full itineraries, real hotels, 2026 prices), ~40 departures, 6 testimonials | 1 h | Home shows 6 + 6 real tiles; seeded to production |
+| ↳ F8 | **Trust pages** ✅ PR #26 | 🟢 | `/about`, `/contact` (address, phone, WhatsApp, hours, map embed; form placeholder until F9), `/terms`, `/privacy`, `/cancellation-policy` — real copy; footer links | — | 0.5 h | No lorem ipsum; all linked from the footer |
 | Done | | | A stranger can browse 12 real packages on a phone at the production URL | | **8.5 h** | |
 
 ### Milestone 1.2 — Enquire (≈ 6 h) 🟢 customer

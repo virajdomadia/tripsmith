@@ -36,4 +36,40 @@ TESTIMONIALS = [
         package=None,
         position=3,
     ),
+    TestimonialContent(
+        name="Kavya and Arjun Reddy",
+        city="Hyderabad",
+        text=(
+            "The houseboat night was the best of our honeymoon — the crew cooked karimeen "
+            "on deck and then left us alone. Munnar was cold enough for the jackets we "
+            "nearly didn't pack. Every hotel was the one in the photos."
+        ),
+        rating=5,
+        package="munnar-alleppey-houseboat",
+        position=4,
+    ),
+    TestimonialContent(
+        name="Devansh Gupta",
+        city="Delhi",
+        text=(
+            "Eight of us from office. Riverside cottages in Kasol, and the Kheerganga day "
+            "was organised down to the packed lunch and the hot-spring towels. Nobody had "
+            "to plan a thing, which for our group is a miracle."
+        ),
+        rating=5,
+        package="manali-kasol-tosh",
+        position=5,
+    ),
+    TestimonialContent(
+        name="Meera and Kiran Shah",
+        city="Ahmedabad",
+        text=(
+            "Havelis instead of chain hotels made all the difference for my parents. The "
+            "Jaipur–Jodhpur drive is long — the Pushkar stop helped — but Mehrangarh at "
+            "sunset was worth every hour of it."
+        ),
+        rating=4,
+        package="jaipur-jodhpur-udaipur",
+        position=6,
+    ),
 ]
