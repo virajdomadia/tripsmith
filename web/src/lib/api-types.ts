@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Enquiry */
+        post: operations["submitEnquiry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -283,6 +300,58 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+        };
+        /** EnquiryCreate */
+        EnquiryCreate: {
+            /** Adults */
+            adults: number;
+            /**
+             * Budget
+             * @description Rupees per person on the wire; paise here
+             */
+            budget?: number | null;
+            /** Changes */
+            changes?: string | null;
+            /**
+             * Children
+             * @default 0
+             */
+            children: number;
+            /** Email */
+            email: string;
+            /** Message */
+            message?: string | null;
+            /** Name */
+            name: string;
+            /** Packageslug */
+            packageSlug?: string | null;
+            /** Phone */
+            phone: string;
+            /** Preferreddates */
+            preferredDates?: string | null;
+            /**
+             * Travelmonth
+             * @description First of the month
+             */
+            travelMonth?: string | null;
+            type: components["schemas"]["EnquiryType"];
+            /**
+             * Website
+             * @description Honeypot — humans never fill it
+             * @default
+             */
+            website: string;
+        };
+        /** EnquiryCreated */
+        EnquiryCreated: {
+            /** Firstname */
+            firstName: string;
+            package: components["schemas"]["PackageRef"] | null;
+            /**
+             * Ref
+             * @example TS-7F3K2Q
+             */
+            ref: string;
         };
         /**
          * EnquiryType
@@ -541,6 +610,13 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** PackageRef */
+        PackageRef: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
         /** RangeFacet */
         RangeFacet: {
             /** Max */
@@ -663,6 +739,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DestinationDetail"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    submitEnquiry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnquiryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnquiryCreated"];
                 };
             };
             /** @description Error envelope (06 C0) */

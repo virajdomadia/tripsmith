@@ -95,7 +95,9 @@ def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
 
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
-    return envelope(exc.code, exc.message, field_errors=exc.field_errors)
+    retry_after = getattr(exc, "retry_after", None)
+    headers = {"Retry-After": str(retry_after)} if retry_after else None
+    return envelope(exc.code, exc.message, field_errors=exc.field_errors, headers=headers)
 
 
 async def _validation_error(_: Request, exc: Exception) -> JSONResponse:

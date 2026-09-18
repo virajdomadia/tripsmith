@@ -290,6 +290,162 @@
         "title": "DestinationRef",
         "type": "object"
       },
+      "EnquiryCreate": {
+        "properties": {
+          "adults": {
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Adults",
+            "type": "integer"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rupees per person on the wire; paise here",
+            "title": "Budget"
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes"
+          },
+          "children": {
+            "default": 0,
+            "maximum": 11.0,
+            "minimum": 0.0,
+            "title": "Children",
+            "type": "integer"
+          },
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "packageSlug": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "pattern": "^[a-z0-9-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packageslug"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferredDates": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferreddates"
+          },
+          "travelMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First of the month",
+            "title": "Travelmonth"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EnquiryType"
+          },
+          "website": {
+            "default": "",
+            "description": "Honeypot — humans never fill it",
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "phone",
+          "email",
+          "adults"
+        ],
+        "title": "EnquiryCreate",
+        "type": "object"
+      },
+      "EnquiryCreated": {
+        "properties": {
+          "firstName": {
+            "title": "Firstname",
+            "type": "string"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackageRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ref": {
+            "examples": [
+              "TS-7F3K2Q"
+            ],
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "firstName",
+          "package"
+        ],
+        "title": "EnquiryCreated",
+        "type": "object"
+      },
       "EnquiryType": {
         "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3).",
         "enum": [
@@ -900,6 +1056,24 @@
         "title": "PackageList",
         "type": "object"
       },
+      "PackageRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "PackageRef",
+        "type": "object"
+      },
       "RangeFacet": {
         "properties": {
           "max": {
@@ -1133,6 +1307,47 @@
           }
         },
         "summary": "Get Destination Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/enquiries": {
+      "post": {
+        "operationId": "submitEnquiry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnquiryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnquiryCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Enquiry",
         "tags": [
           "public"
         ]
