@@ -1,54 +1,22 @@
 import { headers as requestHeaders } from 'next/headers';
-import { z } from 'zod';
-import type { components, paths } from './api-types';
+import { errorFromResponse } from './api-errors';
+import type { paths } from './api-types';
+
+export {
+  ApiRequestError,
+  apiErrorResponseSchema,
+  errorFromResponse,
+  type ApiErrorResponse,
+  type ErrorCode,
+} from './api-errors';
 
 /**
  * Typed server-side client for the api. Paths, responses and the error envelope all come from
  * `api-types.ts`, generated from `api/openapi.json` (`pnpm gen:api`) — nothing here is typed by hand.
  */
 
-export type ErrorCode = components['schemas']['ErrorCode'];
-export type ApiErrorResponse = components['schemas']['ApiErrorResponse'];
-
-/** Every non-2xx response from the api. `fieldErrors` is present only for `validation`. */
-export const apiErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.enum([
-      'validation',
-      'unauthorized',
-      'forbidden',
-      'not_found',
-      'rate_limited',
-      'conflict',
-      'internal',
-    ]),
-    message: z.string(),
-    fieldErrors: z.record(z.string(), z.string()).optional(),
-  }),
-}) satisfies z.ZodType<ApiErrorResponse>; // drifts from the contract → typecheck fails
-
 // `new URL(path, BASE)` tolerates a trailing slash on API_URL; next.config.ts strips it for rewrites.
 const BASE = process.env.API_URL ?? 'http://localhost:8000';
-
-export class ApiRequestError extends Error {
-  constructor(
-    public status: number,
-    public body: ApiErrorResponse['error'],
-  ) {
-    super(body.message);
-  }
-}
-
-/**
- * Build the error for a non-2xx response. Only a body matching the api envelope is trusted;
- * anything else (a gateway's own JSON, an empty body) becomes a generic `internal` error that
- * still carries the real HTTP status.
- */
-export function errorFromResponse(status: number, statusText: string, raw: unknown) {
-  const parsed = apiErrorResponseSchema.safeParse(raw);
-  if (parsed.success) return new ApiRequestError(status, parsed.data.error);
-  return new ApiRequestError(status, { code: 'internal', message: statusText || `HTTP ${status}` });
-}
 
 /** Paths that have a GET operation in the contract. */
 export type GetPath = {
