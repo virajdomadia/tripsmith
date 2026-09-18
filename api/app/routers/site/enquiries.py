@@ -75,6 +75,12 @@ async def post_enquiry(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EnquiryCreated:
     response.headers["Cache-Control"] = "no-store"
+    state = request.app.state
     return await submit_enquiry(
-        db, payload, ip=client_ip(request), user_agent=request.headers.get("user-agent")
+        db,
+        payload,
+        ip=client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        sender=state.email_sender,
+        settings=state.settings,
     )

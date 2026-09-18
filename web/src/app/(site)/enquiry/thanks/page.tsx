@@ -46,6 +46,7 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
   const first = (one('name') ?? '').trim().slice(0, 40);
   const pkgSlug = one('package');
   const pkgName = await packageName(pkgSlug);
+  const emailed = one('emailed') === '1';
   const wa = whatsappHref(
     `Hi Tripsmith, this is ${first || 'a visitor'}${pkgName ? ` about ${pkgName}` : ''}${ref ? ` (enquiry ${ref})` : ''}.`,
   );
@@ -70,6 +71,11 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
         {pkgName ? `We have your enquiry about ${pkgName}. ` : ''}Our office hours are{' '}
         {BUSINESS.hours}; if it is later than that, we call first thing tomorrow.
       </p>
+      {emailed && (
+        <p className="text-mute">
+          We’ve also emailed this to you — check spam if it isn’t there in a minute.
+        </p>
+      )}
       <ol className="mt-3 grid w-full gap-3 text-left sm:grid-cols-3">
         {STEPS.map(([title, text], i) => (
           <li key={title} className="rounded-[14px] border border-line p-4">

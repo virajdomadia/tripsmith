@@ -153,3 +153,6 @@ class EnquiryCreated(ApiModel):
     ref: str = Field(examples=["TS-7F3K2Q"])
     first_name: str
     package: PackageRef | None
+    emailed: bool = Field(
+        default=False, description="A confirmation email reached the visitor's address"
+    )

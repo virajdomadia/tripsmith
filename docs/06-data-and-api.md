@@ -312,7 +312,7 @@ package = define_package(
 ### C2. Public writes — v1 (`POST /enquiries`)
 | Action | Input (pydantic `EnquiryCreate`) | Effects | Result |
 |---|---|---|---|
-| `submitEnquiry` | `{ type: 'standard'\|'custom'\|'contact'; packageSlug?; name; phone; email; travelMonth?; adults; children; message?; preferredDates?; budget?; changes?; website: '' (honeypot) }` | rate-limit; dedupe; insert; PDF; two emails; Sentry on mail failure | `201 { ref }` → web navigates to `/enquiry/thanks?ref=` |
+| `submitEnquiry` | `{ type: 'standard'\|'custom'\|'contact'; packageSlug?; name; phone; email; travelMonth?; adults; children; message?; preferredDates?; budget?; changes?; website: '' (honeypot) }` | rate-limit; dedupe; insert; PDF; two emails; Sentry on mail failure | `201 { ref, firstName, package, emailed }` → web navigates to `/enquiry/thanks?ref=…[&emailed=1]` |
 
 ### C3. Non-JSON routes — v1
 | Where | Method + path | Behaviour |

@@ -344,6 +344,12 @@ export interface components {
         };
         /** EnquiryCreated */
         EnquiryCreated: {
+            /**
+             * Emailed
+             * @description A confirmation email reached the visitor's address
+             * @default false
+             */
+            emailed: boolean;
             /** Firstname */
             firstName: string;
             package: components["schemas"]["PackageRef"] | null;

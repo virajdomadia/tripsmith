@@ -1,0 +1,32 @@
+New enquiry {{ e.ref }} — {{ e.type_label }}
+{{ e.created_at }}
+
+Name:            {{ e.name }}
+Phone:           {{ e.phone }}
+Email:           {{ e.email }}
+{% if e.package_name %}
+Trip:            {{ e.package_name }} · {{ e.package_nights }} nights / {{ e.package_days }} days
+                 {{ package_url }}
+{% endif %}
+{% if e.travel_month %}
+Travel month:    {{ e.travel_month }}
+{% endif %}
+Travellers:      {{ e.party }}
+{% if e.preferred_dates %}
+Preferred dates: {{ e.preferred_dates }}
+{% endif %}
+{% if e.budget %}
+Budget / person: {{ e.budget }}
+{% endif %}
+{% if e.changes %}
+What to change:  {{ e.changes }}
+{% endif %}
+{% if e.message %}
+Message:         {{ e.message }}
+{% endif %}
+
+Open in admin: {{ admin_url }}
+Reply to this email to write to {{ e.first_name }} directly.
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ business.hours }} · {{ site_url }}

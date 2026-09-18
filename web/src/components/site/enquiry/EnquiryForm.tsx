@@ -78,7 +78,12 @@ export function EnquiryForm({
       if (res.status === 201) {
         const body = (await res.json()) as EnquiryCreated;
         router.push(
-          thanksHref({ ref: body.ref, firstName: body.firstName, packageSlug: body.package?.slug }),
+          thanksHref({
+            ref: body.ref,
+            firstName: body.firstName,
+            packageSlug: body.package?.slug,
+            emailed: body.emailed,
+          }),
         );
         return;
       }

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% set title = "Your Tripsmith enquiry " ~ e.ref %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Thanks, {{ e.first_name }} — we'll call you within 2 hours.</h1>
+<p style="margin:0 0 16px;">Your enquiry reference is <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ e.ref }}</span></p>
+{% if e.package_name %}
+<p style="margin:0 0 16px;">We have your enquiry about <a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">{{ e.package_name }}</a>{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.</p>
+{% else %}
+<p style="margin:0 0 16px;">We have your enquiry{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.</p>
+{% endif %}
+<p style="margin:0 0 6px;font-weight:700;">What happens next</p>
+<ol style="margin:0 0 16px;padding-left:20px;">
+<li style="margin:0 0 6px;"><b>We call you</b> from {{ business.phone_display }} — save the number so you know it is us.</li>
+<li style="margin:0 0 6px;"><b>We confirm the details</b> — dates, room type, flights if you want them.</li>
+<li style="margin:0;"><b>You decide</b> — no payment until you say so.</li>
+</ol>
+<p style="margin:0 0 18px;color:#5e6b76;">Our office hours are {{ business.hours }}; if it is later than that, we call first thing tomorrow. {{ business.after_hours }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ whatsapp_url }}" style="display:inline-block;background:#25d366;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Chat on WhatsApp</a>
+</p>
+{% endblock %}

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     resend_api_key: SecretStr | None = None
     email_from: str = "Tripsmith <onboarding@resend.dev>"
     owner_notify_email: str | None = None
+    whatsapp_number: str = "919845012345"  # E.164 digits, no "+"; printed in the visitor email
 
     # --- Storage (Vercel Blob) ---
     blob_read_write_token: SecretStr | None = None

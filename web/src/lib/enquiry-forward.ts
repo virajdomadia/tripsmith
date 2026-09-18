@@ -21,6 +21,7 @@ export type EnquiryCreated = {
   ref: string;
   firstName: string;
   package: { slug: string; name: string } | null;
+  emailed: boolean;
 };
 
 /** POSTs to the api; returns the raw response (201 or an envelope) or `undefined` when unreachable. */

@@ -37,7 +37,12 @@ export async function POST(request: Request): Promise<Response> {
     const body = (await res.json()) as EnquiryCreated;
     return Response.redirect(
       new URL(
-        thanksHref({ ref: body.ref, firstName: body.firstName, packageSlug: body.package?.slug }),
+        thanksHref({
+          ref: body.ref,
+          firstName: body.firstName,
+          packageSlug: body.package?.slug,
+          emailed: body.emailed,
+        }),
         request.url,
       ),
       303,

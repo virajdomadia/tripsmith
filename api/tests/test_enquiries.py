@@ -16,6 +16,7 @@ from app.services.enquiries import make_ref
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
+from tests.test_email_send import FakeSender
 
 BODY = {
     "type": "standard",
@@ -67,6 +68,7 @@ async def test_submit_saves_a_new_enquiry(db: AsyncSession, db_client: AsyncClie
     body = res.json()
     assert re.fullmatch(r"TS-[A-Z2-9]{6}", body["ref"])
     assert body["firstName"] == "Priya"
+    assert body["emailed"] is False
     assert body["package"] == {"slug": "north-goa-beaches", "name": "North Goa Beaches"}
 
     row = (await db.execute(select(Enquiry))).scalar_one()
@@ -212,3 +214,131 @@ async def test_rate_limit_is_per_ip_and_returns_429(
     # The limiter is consulted before validation, so junk cannot be used to probe rules for free.
     other = await db_client.post("/enquiries", json=BODY, headers={"X-Forwarded-For": "8.8.8.8"})
     assert other.status_code == 201
+
+
+def mailing(db_app: FastAPI, sender: FakeSender, **settings_over: object) -> FakeSender:
+    """Point the app at a fake sender and live-mode email settings."""
+    db_app.state.email_sender = sender
+    db_app.state.settings = make_settings(
+        **{
+            "email_from": "Tripsmith <hello@tripsmith.in>",
+            "owner_notify_email": "owner@example.com",
+            "site_url": "https://tripsmith.vercel.app",
+            **settings_over,
+        }
+    )
+    return sender
+
+
+@pytest.mark.db
+async def test_submit_sends_both_emails_and_marks_sent(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["emailed"] is True
+    assert sorted(m.to for m in sender.sent) == ["owner@example.com", "priya@example.com"]
+    owner = next(m for m in sender.sent if m.to == "owner@example.com")
+    assert res.json()["ref"] in owner.subject and "North Goa Beaches" in owner.subject
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SENT
+    assert f"/admin/enquiries/{row.id}" in owner.html
+
+
+@pytest.mark.db
+async def test_mail_failure_keeps_the_201_and_marks_failed(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    mailing(db_app, FakeSender(fail_for=frozenset({"priya@example.com"})))
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["emailed"] is False
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.FAILED
+
+
+@pytest.mark.db
+async def test_test_mode_redirects_and_does_not_claim_emailed(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender(), email_from="Tripsmith <onboarding@resend.dev>")
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201 and res.json()["emailed"] is False
+    assert [m.to for m in sender.sent] == ["owner@example.com", "owner@example.com"]
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SENT
+
+
+@pytest.mark.db
+async def test_honeypot_and_dedupe_send_nothing(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    bot = await db_client.post("/enquiries", json={**BODY, "website": "http://spam"})
+    assert bot.status_code == 201 and bot.json()["emailed"] is False
+    assert sender.sent == []
+    first = await db_client.post("/enquiries", json=BODY)
+    assert first.json()["emailed"] is True
+    again = await db_client.post("/enquiries", json=BODY)
+    assert first.json()["ref"] == again.json()["ref"]
+    assert again.json()["emailed"] is False
+    assert len(sender.sent) == 2  # only the first submit mailed
+
+
+@pytest.mark.db
+async def test_status_write_failure_keeps_the_201(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A DB error while recording email_status must not cost the already-sent, already-saved
+    lead its 201 — the row simply keeps `skipped` from the first commit."""
+    await seeded(db)
+    mailing(db_app, FakeSender())
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("app.services.enquiries.update", boom)
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["emailed"] is True
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SKIPPED
+
+
+@pytest.mark.db
+async def test_ref_collision_retries_with_a_fresh_ref(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    db.add(
+        Enquiry(
+            ref="TS-AAAAAA",
+            type=EnquiryType.CONTACT,
+            name="Existing Person",
+            phone="9999999999",
+            email="existing@example.com",
+            adults=1,
+            children=0,
+            status=EnquiryStatus.NEW,
+            email_status=EmailStatus.SKIPPED,
+        )
+    )
+    await db.commit()
+
+    refs = iter(["TS-AAAAAA", "TS-BBBBBB"])
+    monkeypatch.setattr("app.services.enquiries.make_ref", lambda: next(refs))
+
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["ref"] == "TS-BBBBBB"
+    assert res.json()["emailed"] is True
+
+    row = (await db.execute(select(Enquiry).where(Enquiry.ref == "TS-BBBBBB"))).scalar_one()
+    assert row.email_status == EmailStatus.SENT
+    assert len(sender.sent) == 2
