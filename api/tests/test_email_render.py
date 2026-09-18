@@ -71,6 +71,8 @@ def test_owner_message_has_every_field_and_replies_to_the_visitor() -> None:
         "3 nights / 4 days",
         "https://tripsmith.vercel.app/admin/enquiries/ck1",
         "https://tripsmith.vercel.app/packages/north-goa-beaches",
+        "Tripsmith Holidays",
+        "+91 98450 12345",
     ):
         assert needle in msg.html, needle
         assert needle in msg.text, needle

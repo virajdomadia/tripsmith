@@ -27,3 +27,6 @@ Message:         {{ e.message }}
 
 Open in admin: {{ admin_url }}
 Reply to this email to write to {{ e.first_name }} directly.
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ business.hours }} · {{ site_url }}
