@@ -416,6 +416,12 @@
       },
       "EnquiryCreated": {
         "properties": {
+          "emailed": {
+            "default": false,
+            "description": "A confirmation email reached the visitor's address",
+            "title": "Emailed",
+            "type": "boolean"
+          },
           "firstName": {
             "title": "Firstname",
             "type": "string"

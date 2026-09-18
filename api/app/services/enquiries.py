@@ -1,18 +1,22 @@
-"""submitEnquiry (06 C2): honeypot, package lookup, 60 s dedupe, ref, insert. Emails and the PDF
-attach here in F10/F11 — this row only writes the row."""
+"""submitEnquiry (06 C2): honeypot, package lookup, 60 s dedupe, ref, insert, then the two emails
+(services/email). The PDF attaches in F11."""
 
 import datetime as dt
 import hashlib
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings
 from app.errors import ApiError
+from app.infra.email import EmailSender
 from app.models import Enquiry, Package
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
+from app.services.email.render import PackageFacts, context_from
+from app.services.email.send import EmailOutcome, send_enquiry_emails
 
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
 DEDUPE_WINDOW = dt.timedelta(seconds=60)
@@ -64,6 +68,8 @@ async def submit_enquiry(
     ip: str,
     user_agent: str | None,
     now: dt.datetime | None = None,
+    sender: EmailSender | None = None,
+    settings: Settings | None = None,
 ) -> EnquiryCreated:
     now = now or dt.datetime.now(dt.UTC)
     package = await _live_package(db, payload.package_slug) if payload.package_slug else None
@@ -71,6 +77,7 @@ async def submit_enquiry(
     # instance on an AsyncSession raises MissingGreenlet.
     package_id = package.id if package else None
     ref_of = PackageRef(slug=package.slug, name=package.name) if package else None
+    facts = PackageFacts.of(package) if package else None
 
     if payload.website:
         # A bot filled the honeypot: look successful, keep nothing.
@@ -102,9 +109,25 @@ async def submit_enquiry(
         )
         db.add(enquiry)
         try:
-            await db.commit()
+            await db.flush()
         except IntegrityError:
             await db.rollback()  # ref collision (1 in 2^30) — draw again
             continue
-        return EnquiryCreated(ref=enquiry.ref, first_name=payload.first_name, package=ref_of)
-    raise ApiError("internal", "Could not allocate an enquiry reference")
+        await db.refresh(enquiry, ["created_at"])  # server default, printed in the emails
+        ctx = context_from(enquiry, facts)
+        await db.commit()
+        break
+    else:
+        raise ApiError("internal", "Could not allocate an enquiry reference")
+
+    outcome = EmailOutcome(EmailStatus.SKIPPED, False)
+    if sender is not None and settings is not None:
+        outcome = await send_enquiry_emails(sender, settings, ctx)
+        if outcome.status != EmailStatus.SKIPPED:
+            await db.execute(
+                update(Enquiry).where(Enquiry.id == ctx.id).values(email_status=outcome.status)
+            )
+            await db.commit()
+    return EnquiryCreated(
+        ref=ctx.ref, first_name=payload.first_name, package=ref_of, emailed=outcome.visitor_emailed
+    )
