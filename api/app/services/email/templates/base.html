@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>{{ title }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f6fc;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#14202a;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f6fc;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e3e8ec;border-radius:14px;">
+<tr><td style="padding:22px 28px 6px;font-size:20px;font-weight:800;color:#1b4fd8;letter-spacing:-0.01em;">{{ business.name }}</td></tr>
+<tr><td style="padding:6px 28px 24px;font-size:16px;line-height:1.55;">
+{% block body %}{% endblock %}
+</td></tr>
+<tr><td style="padding:16px 28px 22px;border-top:1px solid #e3e8ec;font-size:13px;line-height:1.5;color:#5e6b76;">
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}<br>
+<a href="tel:{{ business.phone_e164 }}" style="color:#5e6b76;">{{ business.phone_display }}</a> · {{ business.hours }}<br>
+<a href="{{ site_url }}" style="color:#1b4fd8;">{{ site_url | replace('https://', '') | replace('http://', '') }}</a>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,22 @@
+Thanks, {{ e.first_name }} — we'll call you within 2 hours.
+
+Your enquiry reference is {{ e.ref }}.
+{% if e.package_name %}
+We have your enquiry about {{ e.package_name }}{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.
+{{ package_url }}
+{% else %}
+We have your enquiry{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.
+{% endif %}
+
+What happens next
+1. We call you from {{ business.phone_display }} — save the number so you know it is us.
+2. We confirm the details — dates, room type, flights if you want them.
+3. You decide — no payment until you say so.
+
+Our office hours are {{ business.hours }}; if it is later than that, we call first thing tomorrow.
+{{ business.after_hours }}
+
+Chat on WhatsApp: {{ whatsapp_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}
