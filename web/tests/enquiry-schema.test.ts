@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { formStateFrom } from '../src/lib/enquiry-form-state';
+import { formStateFrom, thanksHref } from '../src/lib/enquiry-form-state';
 import {
   enquirySchema,
   fieldErrorsOf,
@@ -110,5 +110,21 @@ describe('formStateFrom', () => {
       fieldErrors: {},
       error: undefined,
     });
+  });
+});
+
+describe('thanksHref', () => {
+  it('carries ref, first name and package', () => {
+    expect(
+      thanksHref({ ref: 'TS-ABC234', firstName: 'Priya', packageSlug: 'north-goa-beaches' }),
+    ).toBe('/enquiry/thanks?ref=TS-ABC234&name=Priya&package=north-goa-beaches');
+  });
+  it('adds emailed=1 only when the confirmation really went out', () => {
+    expect(thanksHref({ ref: 'TS-ABC234', firstName: 'Priya', emailed: true })).toBe(
+      '/enquiry/thanks?ref=TS-ABC234&name=Priya&emailed=1',
+    );
+    expect(thanksHref({ ref: 'TS-ABC234', firstName: 'Priya', emailed: false })).not.toContain(
+      'emailed',
+    );
   });
 });

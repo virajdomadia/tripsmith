@@ -10,9 +10,15 @@ export type FormState = {
 
 export const enquireHref = (slug: string) => `/packages/${slug}/enquire`;
 
-export function thanksHref(p: { ref: string; firstName: string; packageSlug?: string | null }) {
+export function thanksHref(p: {
+  ref: string;
+  firstName: string;
+  packageSlug?: string | null;
+  emailed?: boolean;
+}) {
   const q = new URLSearchParams({ ref: p.ref, name: p.firstName });
   if (p.packageSlug) q.set('package', p.packageSlug);
+  if (p.emailed) q.set('emailed', '1');
   return `/enquiry/thanks?${q}`;
 }
 
