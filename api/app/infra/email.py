@@ -62,7 +62,7 @@ class ResendSender:
     ) -> None:
         self._from = sender
         self._headers = {"Authorization": f"Bearer {api_key}"}
-        self._client = client or httpx.AsyncClient(timeout=10.0)
+        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=3.0))
 
     async def send(self, message: EmailMessage) -> str | None:
         payload: dict[str, Any] = {

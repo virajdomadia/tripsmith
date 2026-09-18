@@ -288,3 +288,57 @@ async def test_honeypot_and_dedupe_send_nothing(
     assert first.json()["ref"] == again.json()["ref"]
     assert again.json()["emailed"] is False
     assert len(sender.sent) == 2  # only the first submit mailed
+
+
+@pytest.mark.db
+async def test_status_write_failure_keeps_the_201(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A DB error while recording email_status must not cost the already-sent, already-saved
+    lead its 201 — the row simply keeps `skipped` from the first commit."""
+    await seeded(db)
+    mailing(db_app, FakeSender())
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("app.services.enquiries.update", boom)
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["emailed"] is True
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SKIPPED
+
+
+@pytest.mark.db
+async def test_ref_collision_retries_with_a_fresh_ref(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    db.add(
+        Enquiry(
+            ref="TS-AAAAAA",
+            type=EnquiryType.CONTACT,
+            name="Existing Person",
+            phone="9999999999",
+            email="existing@example.com",
+            adults=1,
+            children=0,
+            status=EnquiryStatus.NEW,
+            email_status=EmailStatus.SKIPPED,
+        )
+    )
+    await db.commit()
+
+    refs = iter(["TS-AAAAAA", "TS-BBBBBB"])
+    monkeypatch.setattr("app.services.enquiries.make_ref", lambda: next(refs))
+
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    assert res.json()["ref"] == "TS-BBBBBB"
+    assert res.json()["emailed"] is True
+
+    row = (await db.execute(select(Enquiry).where(Enquiry.ref == "TS-BBBBBB"))).scalar_one()
+    assert row.email_status == EmailStatus.SENT
+    assert len(sender.sent) == 2

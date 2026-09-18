@@ -3,9 +3,10 @@ rows, so they can be rendered in a unit test and (F11) attached to without a ses
 
 import datetime as dt
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NamedTuple
 
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.business import BUSINESS, whatsapp_href
 from app.config import Settings
@@ -20,8 +21,12 @@ TYPE_LABEL = {
     EnquiryType.CONTACT: "General enquiry",
 }
 
+# A FileSystemLoader (not PackageLoader) so a missing templates dir cannot fail API boot at
+# import time — it only raises TemplateNotFound lazily, at render, which send_enquiry_emails
+# already maps to `failed`.
+TEMPLATES_DIR = Path(__file__).with_name("templates")
 _env = Environment(
-    loader=PackageLoader("app.services.email", "templates"),
+    loader=FileSystemLoader(TEMPLATES_DIR),
     autoescape=select_autoescape(["html"]),  # .txt templates are verbatim
     trim_blocks=True,
     lstrip_blocks=True,

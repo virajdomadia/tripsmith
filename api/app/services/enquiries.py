@@ -3,8 +3,10 @@
 
 import datetime as dt
 import hashlib
+import logging
 import secrets
 
+import sentry_sdk
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +23,8 @@ from app.services.email.send import EmailOutcome, send_enquiry_emails
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
 DEDUPE_WINDOW = dt.timedelta(seconds=60)
 PACKAGE_GONE = "That trip is no longer available"
+
+log = logging.getLogger(__name__)
 
 
 def make_ref() -> str:
@@ -124,10 +128,14 @@ async def submit_enquiry(
     if sender is not None and settings is not None:
         outcome = await send_enquiry_emails(sender, settings, ctx)
         if outcome.status != EmailStatus.SKIPPED:
-            await db.execute(
-                update(Enquiry).where(Enquiry.id == ctx.id).values(email_status=outcome.status)
-            )
-            await db.commit()
+            try:
+                await db.execute(
+                    update(Enquiry).where(Enquiry.id == ctx.id).values(email_status=outcome.status)
+                )
+                await db.commit()
+            except Exception as exc:
+                log.exception("Could not record email_status for enquiry %s", ctx.ref)
+                sentry_sdk.capture_exception(exc)
     return EnquiryCreated(
         ref=ctx.ref, first_name=payload.first_name, package=ref_of, emailed=outcome.visitor_emailed
     )

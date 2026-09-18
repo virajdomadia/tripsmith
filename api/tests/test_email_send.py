@@ -29,7 +29,7 @@ class FakeSender:
 
     async def send(self, message: EmailMessage) -> str | None:
         if message.to in self.fail_for:
-            raise EmailSendError(f"Resend 500 for {message.to}")
+            raise EmailSendError("Resend 500")
         self.sent.append(message)
         return None if self.off else f"em_{len(self.sent)}"
 
@@ -73,7 +73,20 @@ async def test_owner_failure_is_failed_but_visitor_still_counts(
     with caplog.at_level(logging.ERROR, logger="app.services.email.send"):
         out = await send_enquiry_emails(sender, LIVE, ctx())
     assert out.status == EmailStatus.FAILED and out.visitor_emailed
-    assert any("owner@example.com" in r.message for r in caplog.records)
+    assert any("owner email failed" in r.message for r in caplog.records)
+    assert not any("owner@example.com" in r.message for r in caplog.records)
+
+
+async def test_live_without_owner_address_sends_only_the_visitor() -> None:
+    settings = make_settings(
+        email_from="Tripsmith <hello@tripsmith.in>",
+        owner_notify_email=None,
+        site_url="https://tripsmith.vercel.app",
+    )
+    sender = FakeSender()
+    out = await send_enquiry_emails(sender, settings, ctx())
+    assert out.status == EmailStatus.SENT and out.visitor_emailed is True
+    assert [m.to for m in sender.sent] == ["priya@example.com"]
 
 
 async def test_visitor_failure_is_failed_and_not_emailed() -> None:

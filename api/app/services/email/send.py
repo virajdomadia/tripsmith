@@ -54,18 +54,25 @@ async def send_enquiry_emails(
         sentry_sdk.capture_exception(exc)
         return EmailOutcome(EmailStatus.FAILED, False)
 
-    messages = [m for m in (owner, visitor) if m is not None]
-    if not messages:
+    # (role, message) pairs — never log the recipient address, only the role (`owner`/`visitor`).
+    labelled = [(role, m) for role, m in (("owner", owner), ("visitor", visitor)) if m is not None]
+    if not labelled:
         return EmailOutcome(EmailStatus.SKIPPED, False)
 
-    results = await asyncio.gather(*(sender.send(m) for m in messages), return_exceptions=True)
+    results = await asyncio.gather(*(sender.send(m) for _, m in labelled), return_exceptions=True)
 
-    failures = [(m, r) for m, r in zip(messages, results, strict=True) if isinstance(r, Exception)]
-    for m, exc in failures:
-        log.error("Email to %s failed for enquiry %s: %s", m.to, ctx.ref, exc)
+    visitor_result: str | None = None
+    failures: list[tuple[str, BaseException]] = []
+    for (role, _), result in zip(labelled, results, strict=True):
+        if isinstance(result, BaseException):
+            failures.append((role, result))
+        elif role == "visitor":
+            visitor_result = result
+
+    for role, exc in failures:
+        log.error("%s email failed for enquiry %s: %s", role, ctx.ref, exc)
         sentry_sdk.capture_exception(exc)
 
-    visitor_result = results[messages.index(visitor)] if visitor is not None else None
     visitor_emailed = visitor_is_real and isinstance(visitor_result, str)
     if failures:
         return EmailOutcome(EmailStatus.FAILED, visitor_emailed)
