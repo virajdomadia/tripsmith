@@ -1,0 +1,65 @@
+{
+  "valid": [
+    {
+      "type": "standard",
+      "packageSlug": "north-goa-beaches",
+      "name": "Priya Sharma",
+      "phone": "98450 22110",
+      "email": "Priya.S@Gmail.com",
+      "travelMonth": "2026-11",
+      "adults": 2,
+      "children": 0,
+      "message": "Looking at the 14 Nov departure. Are early check-ins possible?",
+      "website": ""
+    },
+    {
+      "type": "custom",
+      "packageSlug": "goa-quiet-escape",
+      "name": "Anand Kulkarni",
+      "phone": "+91 98450-22110",
+      "email": "anand@example.com",
+      "travelMonth": "2027-01",
+      "adults": 4,
+      "children": 2,
+      "message": "",
+      "preferredDates": "Around Republic Day weekend",
+      "budget": 25000,
+      "changes": "One extra night at Palolem",
+      "website": ""
+    },
+    {
+      "type": "contact",
+      "name": "Sneha Iyer",
+      "phone": "09845022110",
+      "email": "sneha@example.com",
+      "adults": 1,
+      "children": 0,
+      "message": "Do you run anything in Coorg?",
+      "website": ""
+    },
+    {
+      "type": "contact",
+      "packageSlug": "north-goa-beaches",
+      "name": "Ignored Slug",
+      "phone": "9845022110",
+      "email": "x@y.io",
+      "adults": 2,
+      "children": 0,
+      "website": ""
+    }
+  ],
+  "invalid": [
+    { "field": "phone", "body": { "type": "contact", "name": "Bad Phone", "phone": "12345", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "phone", "body": { "type": "contact", "name": "Bad Phone", "phone": "5845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "phone", "body": { "type": "contact", "name": "Bad Phone", "phone": "+44 7700 900123", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "email", "body": { "type": "contact", "name": "Bad Email", "phone": "9845022110", "email": "nope", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "A", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "adults", "body": { "type": "contact", "name": "No Adults", "phone": "9845022110", "email": "a@b.co", "adults": 0, "children": 1, "website": "" } },
+    { "field": "children", "body": { "type": "contact", "name": "Too Many", "phone": "9845022110", "email": "a@b.co", "adults": 10, "children": 5, "website": "" } },
+    { "field": "travelMonth", "body": { "type": "contact", "name": "Bad Month", "phone": "9845022110", "email": "a@b.co", "travelMonth": "2026-13", "adults": 1, "children": 0, "website": "" } },
+    { "field": "packageSlug", "body": { "type": "standard", "name": "No Package", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "type", "body": { "type": "group", "name": "Wrong Type", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "budget", "body": { "type": "custom", "packageSlug": "north-goa-beaches", "name": "Low Budget", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "budget": 500, "website": "" } },
+    { "field": "message", "body": { "type": "contact", "name": "Long Message", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "message": "@@LONG_1001@@", "website": "" } }
+  ]
+}

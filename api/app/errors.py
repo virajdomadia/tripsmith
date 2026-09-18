@@ -89,13 +89,17 @@ def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
         else:
             # Drop the source (body/query/path/header/cookie) unless it is all there is.
             path = ".".join(loc[1:]) if len(loc) > 1 else ".".join(loc)
-        errors.setdefault(path, str(err["msg"]))
+        # pydantic prefixes messages raised from validators; the form shows the message as-is.
+        msg = str(err["msg"]).removeprefix("Value error, ").removeprefix("Assertion failed, ")
+        errors.setdefault(path, msg)
     return errors
 
 
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
-    return envelope(exc.code, exc.message, field_errors=exc.field_errors)
+    retry_after = getattr(exc, "retry_after", None)
+    headers = {"Retry-After": str(retry_after)} if retry_after else None
+    return envelope(exc.code, exc.message, field_errors=exc.field_errors, headers=headers)
 
 
 async def _validation_error(_: Request, exc: Exception) -> JSONResponse:

@@ -1,0 +1,152 @@
+import { z } from 'zod';
+import type { components } from './api-types';
+
+/**
+ * zod mirror of the api's `EnquiryCreate` (api/app/schemas/enquiries.py) — same normalisation,
+ * same limits, same messages — so the browser and the no-JS proxy can reject junk before a round
+ * trip. api/tests/fixtures/enquiry_cases.json is run against both; drift fails CI.
+ */
+
+export const MESSAGE_MAX = 1000;
+export const TRAVELLERS = {
+  maxTotal: 12,
+  adults: Array.from({ length: 12 }, (_, i) => i + 1),
+  children: Array.from({ length: 12 }, (_, i) => i),
+} as const;
+export const BUDGET = { min: 1_000, max: 10_00_000 } as const;
+export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
+
+const PHONE_RE = /^[6-9][0-9]{9}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])(-[0-9]{2})?$/; // YYYY-MM (the form) or a date (the contract)
+
+/** `+91 98450-22110` / `09845022110` / `919845022110` → `9845022110`. Never invents digits. */
+export function normalisePhone(raw: string): string {
+  let digits = raw.trim().replace(/[\s\-.()]/g, '');
+  if (digits.startsWith('+91')) digits = digits.slice(3);
+  else if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+/** Native forms post '' for untouched fields; the api wants them absent. */
+const blankToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+const trimmed = (max: number) =>
+  z.preprocess(blankToUndefined, z.string().trim().max(max).optional());
+const int = (min: number, max: number, message?: string) =>
+  z.coerce.number({ message }).int().min(min, message).max(max, message);
+
+export const enquirySchema = z
+  .object({
+    type: z.enum(['standard', 'custom', 'contact']),
+    packageSlug: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .regex(/^[a-z0-9-]+$/)
+        .max(80)
+        .optional(),
+    ),
+    name: z.string().trim().min(2, 'Enter your name').max(80),
+    phone: z
+      .string()
+      .transform(normalisePhone)
+      .refine((p) => PHONE_RE.test(p), PHONE_MESSAGE),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(120)
+      .refine((e) => EMAIL_RE.test(e), 'Enter a valid email address'),
+    travelMonth: z.preprocess(
+      blankToUndefined,
+      z.string().regex(MONTH_RE, 'Pick a month').optional(),
+    ),
+    adults: int(1, TRAVELLERS.maxTotal, 'How many adults?'),
+    children: z.preprocess((v) => (v === '' || v == null ? 0 : v), int(0, TRAVELLERS.maxTotal - 1)),
+    message: trimmed(MESSAGE_MAX),
+    preferredDates: trimmed(200),
+    budget: z.preprocess(
+      blankToUndefined,
+      z.coerce
+        .number({ message: 'Enter a budget in rupees' })
+        .int()
+        .min(BUDGET.min, `At least ₹${BUDGET.min.toLocaleString('en-IN')} per person`)
+        .max(BUDGET.max)
+        .optional(),
+    ),
+    changes: trimmed(MESSAGE_MAX),
+    website: z.string().default(''),
+  })
+  .superRefine((v, ctx) => {
+    if (v.adults + v.children > TRAVELLERS.maxTotal)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['children'],
+        message: `Up to ${TRAVELLERS.maxTotal} travellers per enquiry — for more, call us`,
+      });
+    if (v.type !== 'contact' && !v.packageSlug)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['packageSlug'],
+        message: 'Choose a trip to enquire about',
+      });
+  })
+  .transform((v) => ({
+    ...v,
+    packageSlug: v.type === 'contact' ? undefined : v.packageSlug,
+    preferredDates: v.type === 'custom' ? v.preferredDates : undefined,
+    budget: v.type === 'custom' ? v.budget : undefined,
+    changes: v.type === 'custom' ? v.changes : undefined,
+  }));
+
+export type EnquiryInput = z.input<typeof enquirySchema>;
+export type EnquiryBody = z.output<typeof enquirySchema>;
+// The wire shape must stay assignable to the generated contract type.
+export const _contract = (b: EnquiryBody): components['schemas']['EnquiryCreate'] => b;
+
+/** First message per top-level field — the same shape as the api envelope's `fieldErrors`. */
+export function fieldErrorsOf(err: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of err.issues) {
+    const key = String(issue.path[0] ?? 'body');
+    if (!(key in out)) out[key] = issue.message;
+  }
+  return out;
+}
+
+/** Raw strings from a native form post, `website` included; numbers stay strings for zod. */
+export function enquiryFromForm(data: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of data.entries()) if (typeof v === 'string') out[k] = v;
+  return out;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/** The next twelve months, this one first: `{ value: '2026-11', label: 'November 2026' }`. */
+export function travelMonthOptions(today = new Date()): { value: string; label: string }[] {
+  const y = today.getUTCFullYear();
+  const m = today.getUTCMonth();
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m + i, 1));
+    const month = d.getUTCMonth();
+    return {
+      value: `${d.getUTCFullYear()}-${String(month + 1).padStart(2, '0')}`,
+      label: `${MONTH_NAMES[month]} ${d.getUTCFullYear()}`,
+    };
+  });
+}
