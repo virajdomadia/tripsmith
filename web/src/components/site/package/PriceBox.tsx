@@ -1,7 +1,11 @@
+import Link from 'next/link';
 import type { components } from '@/lib/api-types';
 import { formatDate, inr } from '@/lib/format';
+import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 
 type PackageDetail = components['schemas']['PackageDetail'];
+
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** Sticky price box (desktop). Informational until the CTAs land (F11 PDF, F12 Enquire/WhatsApp). */
 export function PriceBox({ pkg }: { pkg: PackageDetail }) {
@@ -29,6 +33,10 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
       <p className="border-t border-line pt-3 text-[13px] leading-relaxed text-mute">
         Enquiries open soon — a person calls you back within 2 hours, 10 am – 8 pm IST. Nothing to
         pay online.
+      </p>
+      <p className="text-[13px] leading-relaxed text-mute">
+        {CANCELLATION_SCHEDULE[0].window}: {cap(CANCELLATION_SCHEDULE[0].refund)}. One free date
+        change. <Link href="/cancellation-policy">Cancellation &amp; refunds</Link>
       </p>
     </div>
   );
