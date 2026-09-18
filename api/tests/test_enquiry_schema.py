@@ -56,6 +56,22 @@ def test_contact_drops_a_stray_package_slug_and_custom_keeps_its_fields() -> Non
     assert custom.travel_month is not None and custom.travel_month.isoformat() == "2027-01-01"
 
 
+def test_unicode_digits_are_not_a_phone_number() -> None:
+    arabic_indic = "9" + "".join(chr(0x0660 + d) for d in range(1, 10))
+    with pytest.raises(ValidationError):
+        EnquiryCreate.model_validate({**CASES["valid"][2], "phone": arabic_indic})
+
+
+def test_travel_month_accepts_a_full_date_as_the_contract_documents() -> None:
+    e = EnquiryCreate.model_validate({**CASES["valid"][2], "travelMonth": "2026-11-20"})
+    assert e.travel_month is not None and e.travel_month.isoformat() == "2026-11-01"
+
+
+def test_budget_accepts_what_a_number_input_can_post() -> None:
+    e = EnquiryCreate.model_validate({**CASES["valid"][1], "budget": "1e3"})
+    assert e.budget_paise == 100_000
+
+
 def test_honeypot_is_a_plain_string_that_defaults_to_empty() -> None:
     e = EnquiryCreate.model_validate({**CASES["valid"][2], "website": "http://spam"})
     assert e.website == "http://spam"

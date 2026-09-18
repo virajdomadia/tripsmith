@@ -14,6 +14,7 @@ import {
   TRAVELLERS,
 } from '@/lib/enquiry-schema';
 import { type ServerError, thanksHref } from '@/lib/enquiry-form-state';
+import type { EnquiryCreated } from '@/lib/enquiry-forward';
 import { control, Field } from './Field';
 
 export type EnquiryKind = 'package' | 'contact';
@@ -75,11 +76,7 @@ export function EnquiryForm({
         body: JSON.stringify(parsed.data),
       });
       if (res.status === 201) {
-        const body = (await res.json()) as {
-          ref: string;
-          firstName: string;
-          package: { slug: string } | null;
-        };
+        const body = (await res.json()) as EnquiryCreated;
         router.push(
           thanksHref({ ref: body.ref, firstName: body.firstName, packageSlug: body.package?.slug }),
         );
@@ -152,6 +149,19 @@ export function EnquiryForm({
           >
             WhatsApp us
           </a>
+        </p>
+      )}
+
+      {errors.packageSlug && (
+        <p
+          role="alert"
+          className="rounded-btn border border-warn/40 bg-warn-soft px-3.5 py-2.5 text-sm font-semibold text-warn"
+        >
+          {errors.packageSlug} —{' '}
+          <Link href="/packages" className="underline">
+            browse the trips we run
+          </Link>
+          .
         </p>
       )}
 

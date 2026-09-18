@@ -16,9 +16,9 @@ export const TRAVELLERS = {
 export const BUDGET = { min: 1_000, max: 10_00_000 } as const;
 export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
 
-const PHONE_RE = /^[6-9]\d{9}$/;
+const PHONE_RE = /^[6-9][0-9]{9}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])(-[0-9]{2})?$/; // YYYY-MM (the form) or a date (the contract)
 
 /** `+91 98450-22110` / `09845022110` / `919845022110` → `9845022110`. Never invents digits. */
 export function normalisePhone(raw: string): string {

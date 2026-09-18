@@ -10,9 +10,9 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 from app.schemas import ApiModel
 from app.schemas.meta import ENQUIRY_MESSAGE_MAX, MAX_TRAVELLERS, EnquiryType
 
-PHONE_RE = re.compile(r"^[6-9]\d{9}$")
+PHONE_RE = re.compile(r"^[6-9][0-9]{9}$")  # ASCII digits only (`\d` takes Unicode digits)
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
-MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+MONTH_RE = re.compile(r"^([0-9]{4})-(0[1-9]|1[0-2])(?:-[0-9]{2})?$")  # YYYY-MM or a date
 BUDGET_MIN_INR = 1_000
 BUDGET_MAX_INR = 10_00_000
 
@@ -86,9 +86,11 @@ class EnquiryCreate(ApiModel):
     def _month(cls, v: object) -> dt.date | None:
         if v in (None, ""):
             return None
-        if isinstance(v, str) and MONTH_RE.match(v):
-            year, month = v.split("-")
-            return dt.date(int(year), int(month), 1)
+        if isinstance(v, dt.date):
+            return v.replace(day=1)
+        m = MONTH_RE.match(v) if isinstance(v, str) else None
+        if m:
+            return dt.date(int(m.group(1)), int(m.group(2)), 1)
         raise ValueError("Pick a month")
 
     @field_validator("budget_paise", mode="before")
@@ -99,7 +101,7 @@ class EnquiryCreate(ApiModel):
         if isinstance(v, bool) or not isinstance(v, int | float | str):
             raise ValueError("Enter a budget in rupees")
         try:
-            rupees = int(v)
+            rupees = int(float(v))  # a number input can post "1e3"; zod coerces the same way
         except ValueError as e:
             raise ValueError("Enter a budget in rupees") from e
         if not BUDGET_MIN_INR <= rupees <= BUDGET_MAX_INR:

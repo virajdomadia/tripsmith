@@ -67,15 +67,16 @@ async def submit_enquiry(
 ) -> EnquiryCreated:
     now = now or dt.datetime.now(dt.UTC)
     package = await _live_package(db, payload.package_slug) if payload.package_slug else None
+    # Plain values: a rollback on the retry path below expires `package`, and touching an expired
+    # instance on an AsyncSession raises MissingGreenlet.
+    package_id = package.id if package else None
     ref_of = PackageRef(slug=package.slug, name=package.name) if package else None
 
     if payload.website:
         # A bot filled the honeypot: look successful, keep nothing.
         return EnquiryCreated(ref=make_ref(), first_name=payload.first_name, package=ref_of)
 
-    existing = await _recent_duplicate(
-        db, payload.phone, package.id if package else None, now - DEDUPE_WINDOW
-    )
+    existing = await _recent_duplicate(db, payload.phone, package_id, now - DEDUPE_WINDOW)
     if existing is not None:
         return EnquiryCreated(ref=existing.ref, first_name=payload.first_name, package=ref_of)
 
@@ -83,7 +84,7 @@ async def submit_enquiry(
         enquiry = Enquiry(
             ref=make_ref(),
             type=EnquiryType(payload.type.value),
-            package_id=package.id if package else None,
+            package_id=package_id,
             name=payload.name,
             phone=payload.phone,
             email=payload.email,

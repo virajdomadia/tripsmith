@@ -1,5 +1,6 @@
 import { errorFromResponse } from '@/lib/api-errors';
 import { ECHOED_FIELDS, thanksHref } from '@/lib/enquiry-form-state';
+import { type EnquiryCreated, forwardEnquiry } from '@/lib/enquiry-forward';
 import { enquiryFromForm, enquirySchema, fieldErrorsOf } from '@/lib/enquiry-schema';
 
 /**
@@ -7,8 +8,6 @@ import { enquiryFromForm, enquirySchema, fieldErrorsOf } from '@/lib/enquiry-sch
  * rejects junk locally, otherwise the body goes to the api. Every outcome is a 303 redirect: the
  * thanks page on success, back to the form (values + errors in the query) otherwise.
  */
-
-const API_URL = (process.env.API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 function formUrl(raw: Record<string, string>, request: Request): URL {
   const back =
@@ -32,24 +31,10 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success)
     return backWith(url, raw, { fieldErrors: JSON.stringify(fieldErrorsOf(parsed.error)) });
 
-  const forwarded = request.headers.get('x-forwarded-for');
-  const res = await fetch(`${API_URL}/enquiries`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(forwarded ? { 'X-Forwarded-For': forwarded } : {}),
-      'User-Agent': request.headers.get('user-agent') ?? 'tripsmith-web',
-    },
-    body: JSON.stringify(parsed.data),
-    cache: 'no-store',
-  }).catch(() => undefined);
+  const res = await forwardEnquiry(parsed.data, request);
 
   if (res?.status === 201) {
-    const body = (await res.json()) as {
-      ref: string;
-      firstName: string;
-      package: { slug: string } | null;
-    };
+    const body = (await res.json()) as EnquiryCreated;
     return Response.redirect(
       new URL(
         thanksHref({ ref: body.ref, firstName: body.firstName, packageSlug: body.package?.slug }),

@@ -124,7 +124,7 @@ async def test_validation_errors_use_wire_names(db: AsyncSession, db_client: Asy
     err = res.json()["error"]
     assert err["code"] == "validation"
     assert set(err["fieldErrors"]) == {"phone", "packageSlug"}
-    assert err["fieldErrors"]["phone"].endswith("Enter a 10-digit Indian mobile number")
+    assert err["fieldErrors"]["phone"] == "Enter a 10-digit Indian mobile number"
     assert await count(db) == 0
 
 
@@ -165,6 +165,31 @@ async def test_duplicate_within_a_minute_returns_the_same_ref(
     third = await db_client.post("/enquiries", json={**BODY, "packageSlug": "goa-quiet-escape"})
     assert third.status_code == 201 and third.json()["ref"] != first.json()["ref"]
     assert await count(db) == 2
+
+
+@pytest.mark.db
+async def test_web_proxy_ip_is_trusted_only_with_the_shared_secret(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    db_app.state.settings = make_settings(revalidate_secret="s3cret")
+    limiter = CountingLimiter(limit=5)
+    db_app.state.rate_limiter = limiter
+    base = {"X-Forwarded-For": "76.76.21.21"}  # what Vercel stamps on the web -> api hop
+    await db_client.post("/enquiries", json=BODY, headers={**base, "X-Client-Ip": "1.1.1.1"})
+    await db_client.post(
+        "/enquiries",
+        json={**BODY, "phone": "9000000009"},
+        headers={**base, "X-Client-Ip": "2.2.2.2", "X-Internal-Secret": "wrong"},
+    )
+    await db_client.post(
+        "/enquiries",
+        json={**BODY, "phone": "9000000008"},
+        headers={**base, "X-Client-Ip": "3.3.3.3", "X-Internal-Secret": "s3cret"},
+    )
+    assert limiter.hits == ["enquiry:76.76.21.21", "enquiry:76.76.21.21", "enquiry:3.3.3.3"]
+    rows = (await db.execute(select(Enquiry.ip_hash).order_by(Enquiry.created_at))).scalars().all()
+    assert rows[0] == rows[1] != rows[2]
 
 
 @pytest.mark.db

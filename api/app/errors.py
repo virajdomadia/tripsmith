@@ -89,7 +89,9 @@ def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
         else:
             # Drop the source (body/query/path/header/cookie) unless it is all there is.
             path = ".".join(loc[1:]) if len(loc) > 1 else ".".join(loc)
-        errors.setdefault(path, str(err["msg"]))
+        # pydantic prefixes messages raised from validators; the form shows the message as-is.
+        msg = str(err["msg"]).removeprefix("Value error, ").removeprefix("Assertion failed, ")
+        errors.setdefault(path, msg)
     return errors
 
 
