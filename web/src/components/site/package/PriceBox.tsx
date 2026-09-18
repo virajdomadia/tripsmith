@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
+import { BUSINESS } from '@/lib/business';
+import { enquireHref } from '@/lib/enquiry-form-state';
 import { formatDate, inr } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 
@@ -7,7 +9,7 @@ type PackageDetail = components['schemas']['PackageDetail'];
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-/** Sticky price box (desktop). Informational until the CTAs land (F11 PDF, F12 Enquire/WhatsApp). */
+/** Sticky price box (desktop): from-price, next departure, Enquire (F9). PDF + WhatsApp join in F11/F12. */
 export function PriceBox({ pkg }: { pkg: PackageDetail }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   return (
@@ -30,9 +32,14 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
           </span>
         </div>
       )}
+      <Link
+        href={enquireHref(pkg.slug)}
+        className="block rounded-btn bg-action px-5 py-3 text-center font-bold text-ink no-underline transition-colors hover:bg-action-ink"
+      >
+        Enquire about this trip
+      </Link>
       <p className="border-t border-line pt-3 text-[13px] leading-relaxed text-mute">
-        Enquiries open soon — a person calls you back within 2 hours, 10 am – 8 pm IST. Nothing to
-        pay online.
+        A person calls you back within 2 hours, {BUSINESS.hours}. Nothing to pay online.
       </p>
       <p className="text-[13px] leading-relaxed text-mute">
         {CANCELLATION_SCHEDULE[0].window}: {cap(CANCELLATION_SCHEDULE[0].refund)}. One free date
