@@ -43,6 +43,11 @@ async def owner(db: AsyncSession) -> User:
     return (await db.execute(select(User).where(User.email == OWNER_EMAIL))).scalar_one()
 
 
+def with_cookie(token: str) -> dict[str, str]:
+    """Send the session cookie as a header — httpx 0.28 deprecates per-request `cookies=`."""
+    return {"Cookie": f"{COOKIE_NAME}={token}"}
+
+
 # --- service ------------------------------------------------------------------------------------
 
 
@@ -144,12 +149,12 @@ async def test_require_owner_rejects_missing_and_expired_sessions(
     res = await db_client.get("/_test/owner")
     assert res.status_code == 401 and res.json()["error"]["code"] == "unauthorized"
 
-    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: "garbage"})
+    res = await db_client.get("/_test/owner", headers=with_cookie("garbage"))
     assert res.status_code == 401
 
     session = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
     assert session is not None
-    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: session.token})
+    res = await db_client.get("/_test/owner", headers=with_cookie(session.token))
     assert res.status_code == 200 and res.json() == {"email": OWNER_EMAIL}
 
 
@@ -169,7 +174,7 @@ async def test_require_owner_forbids_customers(
     await db.commit()
     session = await login(db, "priya@example.com", "pw", ip=None, user_agent=None)
     assert session is not None
-    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: session.token})
+    res = await db_client.get("/_test/owner", headers=with_cookie(session.token))
     assert res.status_code == 403 and res.json()["error"]["code"] == "forbidden"
 
 
@@ -260,21 +265,23 @@ async def test_session_route_round_trip_and_logout(
     no_cookie = await db_client.get("/auth/session")
     assert no_cookie.status_code == 401
     assert no_cookie.headers["cache-control"] == "no-store"
-    assert (await db_client.get("/auth/session", cookies={COOKIE_NAME: "nope"})).status_code == 401
+    assert (await db_client.get("/auth/session", headers=with_cookie("nope"))).status_code == 401
 
     login_res = await db_client.post(
         "/auth/login", json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}
     )
     token = login_res.cookies[COOKIE_NAME]
-    res = await db_client.get("/auth/session", cookies={COOKIE_NAME: token})
+    res = await db_client.get("/auth/session", headers=with_cookie(token))
     assert res.status_code == 200 and res.json()["user"]["email"] == OWNER_EMAIL
     assert res.headers["cache-control"] == "no-store"
 
-    out = await db_client.post("/auth/logout", cookies={COOKIE_NAME: token})
+    out = await db_client.post("/auth/logout", headers=with_cookie(token))
     assert out.status_code == 204
     assert "max-age=0" in out.headers["set-cookie"].lower()
     assert await session_count(db) == 0
-    assert (await db_client.get("/auth/session", cookies={COOKIE_NAME: token})).status_code == 401
+    # Same token, resent explicitly (not via any client-jar carryover): now 401 — a real check
+    # that logout actually deleted the session row, not an artifact of a missing cookie.
+    assert (await db_client.get("/auth/session", headers=with_cookie(token))).status_code == 401
     # Logging out again (or with no cookie) is still a 204.
     assert (await db_client.post("/auth/logout")).status_code == 204
 
@@ -293,6 +300,6 @@ async def test_expired_session_is_401_and_pruned_by_the_route(
         )
     )
     await db.commit()
-    res = await db_client.get("/auth/session", cookies={COOKIE_NAME: "stale"})
+    res = await db_client.get("/auth/session", headers=with_cookie("stale"))
     assert res.status_code == 401
     assert await session_count(db) == 0
