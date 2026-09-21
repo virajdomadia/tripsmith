@@ -18,6 +18,7 @@ from app.models import (
     User,
 )
 from app.models.enums import PackageStatus, UserRole
+from app.services.auth.sessions import login
 from scripts.seed import SeedResult, seed
 from tests.settings import fixture_content, make_settings
 
@@ -133,6 +134,16 @@ async def test_seed_creates_the_owner_with_an_argon2_hash(db: AsyncSession) -> N
     assert owner.email == "owner@tripsmith.demo"
     assert owner.role is UserRole.OWNER
     assert owner.password_hash and PasswordHasher().verify(owner.password_hash, "demo-pass")
+
+
+async def test_seed_normalises_owner_email(db: AsyncSession) -> None:
+    settings = make_settings(owner_email="  Owner@Tripsmith.DEMO ", owner_password="pw")
+    await seed(db, fixture_content(), RecordingStore(), settings)
+
+    owner = (await db.execute(select(User))).scalar_one()
+    assert owner.email == "owner@tripsmith.demo"
+    session = await login(db, "OWNER@tripsmith.demo", "pw", ip=None, user_agent=None)
+    assert session is not None
 
 
 async def test_seed_without_owner_env_skips_the_user(db: AsyncSession) -> None:

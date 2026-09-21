@@ -64,11 +64,10 @@ async def _seed_owner(db: AsyncSession, settings: Settings, result: SeedResult) 
     if not settings.owner_email or settings.owner_password is None:
         result.warnings.append("OWNER_EMAIL / OWNER_PASSWORD not set — owner user not created")
         return
-    user = (
-        await db.execute(select(User).where(User.email == settings.owner_email))
-    ).scalar_one_or_none()
+    email = settings.owner_email.strip().lower()
+    user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if user is None:
-        user = User(email=settings.owner_email, name="Owner")
+        user = User(email=email, name="Owner")
         db.add(user)
     user.role = UserRole.OWNER
     user.password_hash = hash_password(settings.owner_password.get_secret_value())
