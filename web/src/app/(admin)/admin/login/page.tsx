@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="grid min-h-dvh lg:grid-cols-2">
       <section className="relative h-[220px] lg:h-auto">
         <Image
-          src="/admin/login.jpg"
+          src="/auth/login.jpg"
           alt="Pangong lake, Ladakh"
           fill
           priority
