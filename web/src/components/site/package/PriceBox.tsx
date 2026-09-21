@@ -45,7 +45,7 @@ export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
         Enquire about this trip
       </Link>
       <div className="grid grid-cols-2 gap-2">
-        <ItineraryPdfLink slug={pkg.slug} variant="button" label="Itinerary PDF" className="px-3" />
+        <ItineraryPdfLink slug={pkg.slug} variant="button" label="Itinerary PDF" />
         <a
           href={whatsappHref(whatsappInterest(pkg.name, url))}
           target="_blank"

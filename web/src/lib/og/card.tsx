@@ -33,10 +33,15 @@ function fonts() {
   fontsPromise ??= Promise.all([
     readFile(join(dir, 'DMSans-Regular.ttf')),
     readFile(join(dir, 'DMSans-Bold.ttf')),
-  ]).then(([regular, bold]) => [
-    { name: 'DM Sans', data: regular, weight: 400 as const },
-    { name: 'DM Sans', data: bold, weight: 700 as const },
-  ]);
+  ])
+    .then(([regular, bold]) => [
+      { name: 'DM Sans', data: regular, weight: 400 as const },
+      { name: 'DM Sans', data: bold, weight: 700 as const },
+    ])
+    .catch((err: unknown) => {
+      fontsPromise = undefined; // never memoise a failed read for the lambda's lifetime
+      throw err;
+    });
   return fontsPromise;
 }
 
