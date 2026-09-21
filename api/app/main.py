@@ -13,7 +13,7 @@ from app.infra.db import dispose_engine
 from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
-from app.infra.storage import LOCAL_STORE_DIR
+from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
 from app.routers.site import catalog, enquiries, health, meta
 
@@ -40,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings  # read by infra.db.get_session
     app.state.rate_limiter = build_rate_limiter(settings)  # swapped by tests; read by routers
     app.state.email_sender = build_email_sender(settings)  # swapped by tests; read by routers
+    app.state.store = build_store(settings)  # Vercel Blob or None; read by services/pdf
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
