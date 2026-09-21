@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { demoCredentials } from '@/lib/auth/demo';
 import { api } from '@/lib/api';
 import { BUSINESS, whatsappHref } from '@/lib/business';
 import { BrandMark } from './BrandMark';
@@ -49,6 +50,7 @@ function Column({ title, links }: { title: string; links: Links }) {
 /** Full footer (S1): contact block, destinations, company, policies, fine print. No year baked in. */
 export async function SiteFooter() {
   const destinations = await destinationLinks();
+  const demo = demoCredentials();
   return (
     <footer className="mt-20 bg-ink pt-12 pb-6 text-sm text-[#b7c0c8]">
       <Container>
@@ -81,7 +83,13 @@ export async function SiteFooter() {
           <Column title="Policies" links={POLICIES} />
         </div>
         <div className="mt-8 flex flex-wrap justify-between gap-2.5 border-t border-[#2a3944] pt-4 text-xs">
-          <span>© {BUSINESS.legalName} · a portfolio project by Viraj Domadia</span>
+          <span>
+            © {BUSINESS.legalName} · a portfolio project by Viraj Domadia ·{' '}
+            <Link href="/admin/login" className="hover:text-white">
+              Owner sign in
+            </Link>
+            {demo && ` · Demo: ${demo.email} / ${demo.password}`}
+          </span>
           <span>Photos: Wikimedia Commons contributors (CC BY / CC BY-SA)</span>
         </div>
       </Container>

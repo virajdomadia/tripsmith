@@ -73,8 +73,11 @@ def envelope(
     error: dict[str, object] = {"code": code, "message": message}
     if field_errors is not None:
         error["fieldErrors"] = field_errors
+    # An error response is never cacheable (04 §Auth / 06 C0); merge with any caller headers
+    # (Retry-After, X-Request-Id, …) so every envelope — success or not — carries it.
+    all_headers = {"Cache-Control": "no-store", **(headers or {})}
     return JSONResponse(
-        {"error": error}, status_code=status or STATUS_FOR_CODE[code], headers=headers
+        {"error": error}, status_code=status or STATUS_FOR_CODE[code], headers=all_headers
     )
 
 
