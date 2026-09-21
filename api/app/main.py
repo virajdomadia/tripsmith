@@ -13,9 +13,11 @@ from app.infra.db import dispose_engine
 from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
-from app.infra.storage import LOCAL_STORE_DIR
+from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
-from app.routers.site import catalog, enquiries, health, meta
+from app.routers.cron import pdf_gc
+from app.routers.site import catalog, enquiries, health, meta, pdf
+from app.services.pdf.service import PdfService
 
 
 @asynccontextmanager
@@ -40,6 +42,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings  # read by infra.db.get_session
     app.state.rate_limiter = build_rate_limiter(settings)  # swapped by tests; read by routers
     app.state.email_sender = build_email_sender(settings)  # swapped by tests; read by routers
+    app.state.store = build_store(settings)  # Vercel Blob or None; read by services/pdf
+    app.state.pdf = PdfService(app.state.store, settings)  # swapped by tests; read by routers
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
@@ -51,7 +55,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(meta.router)
     app.include_router(catalog.router)
+    app.include_router(pdf.router)
     app.include_router(enquiries.router)
+    app.include_router(pdf_gc.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`

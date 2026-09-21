@@ -1,6 +1,6 @@
 import { Bed, File, Phone, Shield } from './icons';
 
-// The mockup's four points; the PDF point is worded for what exists today (the PDF lands in F10).
+// The mockup's four points; the PDF shipped in F11.
 const WHY = [
   [
     Shield,
@@ -15,7 +15,7 @@ const WHY = [
   [
     File,
     'Itineraries you can forward',
-    'Day-by-day plans written out in full. Send the link to the family group and decide together.',
+    'Day-by-day plans written out in full, as a PDF you can send to the family group and decide together.',
   ],
   [Bed, 'Hotels we have stayed in', 'Every property checked by us. No surprises on arrival.'],
 ] as const;

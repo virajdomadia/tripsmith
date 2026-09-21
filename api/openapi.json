@@ -1701,6 +1701,50 @@
           "public"
         ]
       }
+    },
+    "/packages/{slug}/itinerary.pdf": {
+      "get": {
+        "operationId": "getItineraryPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF (no Blob store)"
+          },
+          "302": {
+            "description": "Redirect to the cached PDF"
+          },
+          "404": {
+            "description": "Draft or unknown package"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Itinerary Pdf",
+        "tags": [
+          "public"
+        ]
+      }
     }
   }
 }

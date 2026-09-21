@@ -4,10 +4,12 @@ import type { ReactNode } from 'react';
 export function Section({
   id,
   title,
+  action,
   children,
 }: {
   id: string;
   title: string | null;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -17,9 +19,12 @@ export function Section({
       className="scroll-mt-32 pt-11 first:pt-0"
     >
       {title && (
-        <h2 id={`${id}-title`} className="mb-4 text-[clamp(24px,2.8vw,30px)]">
-          {title}
-        </h2>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <h2 id={`${id}-title`} className="text-[clamp(24px,2.8vw,30px)]">
+            {title}
+          </h2>
+          {action}
+        </div>
       )}
       {children}
     </section>

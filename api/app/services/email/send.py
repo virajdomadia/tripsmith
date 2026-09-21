@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 import sentry_sdk
 
 from app.config import Settings
-from app.infra.email import EmailMessage, EmailSender
+from app.infra.email import EmailAttachment, EmailMessage, EmailSender
 from app.models.enums import EmailStatus
 from app.services.email.render import EnquiryEmailContext, render_owner, render_visitor
 
@@ -33,11 +33,19 @@ def is_test_mode(email_from: str) -> bool:
 
 
 async def send_enquiry_emails(
-    sender: EmailSender, settings: Settings, ctx: EnquiryEmailContext
+    sender: EmailSender,
+    settings: Settings,
+    ctx: EnquiryEmailContext,
+    *,
+    attachment: EmailAttachment | None = None,
 ) -> EmailOutcome:
     try:
         owner = render_owner(ctx, settings=settings) if settings.owner_notify_email else None
-        visitor: EmailMessage | None = render_visitor(ctx, settings=settings)
+        visitor: EmailMessage | None = render_visitor(
+            ctx, settings=settings, attached=attachment is not None
+        )
+        if attachment is not None and visitor is not None:
+            visitor = replace(visitor, attachments=(attachment,))  # the owner gets a link instead
         visitor_is_real = True
         if is_test_mode(settings.email_from) and visitor is not None:
             visitor_is_real = False

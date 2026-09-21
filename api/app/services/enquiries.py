@@ -1,6 +1,7 @@
 """submitEnquiry (06 C2): honeypot, package lookup, 60 s dedupe, ref, insert, then the two emails
-(services/email). The PDF attaches in F11."""
+(services/email); the visitor copy carries the itinerary PDF (services/pdf)."""
 
+import asyncio
 import datetime as dt
 import hashlib
 import logging
@@ -19,10 +20,15 @@ from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageSta
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
 from app.services.email.render import PackageFacts, context_from
 from app.services.email.send import EmailOutcome, send_enquiry_emails
+from app.services.pdf.service import PdfService
 
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
 DEDUPE_WINDOW = dt.timedelta(seconds=60)
 PACKAGE_GONE = "That trip is no longer available"
+# Budget for the itinerary PDF on the enquiry path: photo fetch ≤ 5 s + Blob put ≤ 10 s + Resend
+# ≤ 13 s can otherwise approach Vercel's `maxDuration 30` on the api function; drop the PDF, not
+# the lead, past this.
+PDF_ATTACHMENT_TIMEOUT = 8.0
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +80,7 @@ async def submit_enquiry(
     now: dt.datetime | None = None,
     sender: EmailSender | None = None,
     settings: Settings | None = None,
+    pdf: PdfService | None = None,
 ) -> EnquiryCreated:
     now = now or dt.datetime.now(dt.UTC)
     package = await _live_package(db, payload.package_slug) if payload.package_slug else None
@@ -126,7 +133,26 @@ async def submit_enquiry(
 
     outcome = EmailOutcome(EmailStatus.SKIPPED, False)
     if sender is not None and settings is not None:
-        outcome = await send_enquiry_emails(sender, settings, ctx)
+        # After the commit: the lead is safe whatever the renderer or Blob do (R6 attaches only
+        # when a package is on the enquiry; `attachment_for` never raises, but a slow render or
+        # Blob upload could otherwise block the request past Vercel's function budget).
+        attachment = None
+        if pdf and facts:
+            try:
+                attachment = await asyncio.wait_for(
+                    pdf.attachment_for(db, facts.slug), timeout=PDF_ATTACHMENT_TIMEOUT
+                )
+            except TimeoutError:
+                log.warning(
+                    "Itinerary PDF for %s timed out after %ss for enquiry %s; sending without it",
+                    facts.slug,
+                    PDF_ATTACHMENT_TIMEOUT,
+                    ctx.ref,
+                )
+                sentry_sdk.capture_message(
+                    f"Itinerary PDF timed out after {PDF_ATTACHMENT_TIMEOUT}s for enquiry {ctx.ref}"
+                )
+        outcome = await send_enquiry_emails(sender, settings, ctx, attachment=attachment)
         if outcome.status != EmailStatus.SKIPPED:
             try:
                 await db.execute(

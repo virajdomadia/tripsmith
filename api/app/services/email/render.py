@@ -13,6 +13,7 @@ from app.config import Settings
 from app.infra.email import EmailMessage
 from app.models import Enquiry, Package
 from app.models.enums import EnquiryType
+from app.services.format import inr  # re-exported; tests import it from here
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30), "IST")
 TYPE_LABEL = {
@@ -31,16 +32,6 @@ _env = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-
-
-def inr(rupees: int) -> str:
-    """Indian grouping: ₹12,34,567."""
-    s = str(abs(rupees))
-    if len(s) > 3:
-        head, tail = s[:-3], s[-3:]
-        groups = [head[max(i - 2, 0) : i] for i in range(len(head), 0, -2)][::-1]
-        s = ",".join(groups) + "," + tail
-    return ("-" if rupees < 0 else "") + "₹" + s
 
 
 def _ist(when: dt.datetime) -> str:
@@ -136,6 +127,9 @@ def _common(ctx: EnquiryEmailContext, settings: Settings) -> dict[str, object]:
         "business": BUSINESS,
         "site_url": site,
         "package_url": f"{site}/packages/{ctx.package_slug}" if ctx.package_slug else None,
+        "pdf_url": f"{site}/api/packages/{ctx.package_slug}/itinerary.pdf"
+        if ctx.package_slug
+        else None,
         "admin_url": f"{site}/admin/enquiries/{ctx.id}",
         "whatsapp_url": whatsapp_href(
             settings.whatsapp_number,
@@ -156,8 +150,11 @@ def render_owner(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessag
     )
 
 
-def render_visitor(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessage:
+def render_visitor(
+    ctx: EnquiryEmailContext, *, settings: Settings, attached: bool = False
+) -> EmailMessage:
     vars = _common(ctx, settings)
+    vars["pdf_attached"] = attached
     return EmailMessage(
         to=ctx.email,
         subject=f"Your Tripsmith enquiry {ctx.ref} — we'll call you within 2 hours",

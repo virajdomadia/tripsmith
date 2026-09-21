@@ -150,3 +150,44 @@ def test_context_from_the_row() -> None:
     assert c.budget == "₹25,000" and c.package_days == 4
     assert c.created_at == "18 Sep 2026, 3:42 pm IST"
     assert context_from(row, None).package_name is None
+
+
+def test_visitor_email_links_the_pdf_when_a_package_is_attached() -> None:
+    settings = make_settings(site_url="https://tripsmith.vercel.app")
+    url = "https://tripsmith.vercel.app/api/packages/north-goa-beaches/itinerary.pdf"
+
+    attached = render_visitor(ctx(), settings=settings, attached=True)
+    assert url in attached.html and url in attached.text
+    assert "attached as a PDF" in attached.text
+    assert "attached as a PDF" in attached.html
+
+    not_attached = render_visitor(ctx(), settings=settings, attached=False)
+    assert url in not_attached.html and url in not_attached.text
+    assert "Download your day-by-day itinerary" in not_attached.text
+    assert "Download your day-by-day itinerary" in not_attached.html
+    assert "attached as a PDF" not in not_attached.text
+    assert "attached as a PDF" not in not_attached.html
+
+    # `attached` defaults to False — a caller that forgets the flag cannot over-claim.
+    default = render_visitor(ctx(), settings=settings)
+    assert "attached as a PDF" not in default.text
+
+    owner = render_owner(
+        ctx(),
+        settings=make_settings(
+            site_url="https://tripsmith.vercel.app", owner_notify_email="o@x.io"
+        ),
+    )
+    assert url in owner.text
+
+
+def test_contact_enquiry_email_has_no_pdf_line() -> None:
+    contact = ctx(
+        type="contact",
+        package_slug=None,
+        package_name=None,
+        package_nights=None,
+        package_days=None,
+    )
+    msg = render_visitor(contact, settings=make_settings())
+    assert "itinerary.pdf" not in msg.html and "PDF" not in msg.text

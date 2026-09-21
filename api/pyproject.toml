@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "cuid2>=2.0.1",
     "fastapi>=0.141.1",
+    "fpdf2>=2.8.8",
     "httpx>=0.28.1",
     "jinja2>=3.1",
     "pillow>=12.3.0",
@@ -19,7 +20,14 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff", "pyright", "pytest", "pytest-asyncio", "httpx"]
+dev = [
+    "ruff",
+    "pyright",
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+    "pypdf>=6.19.0",
+]
 
 [tool.ruff]
 line-length = 100
