@@ -36,8 +36,8 @@ def long_date(d: dt.date) -> str:
 
 
 def duration(nights: int, days: int) -> str:
-    """Format duration as `3 nights / 4 days` or `1 night / 2 days`."""
-    return f"{nights} night{'s' if nights != 1 else ''} / {days} day{'s' if days != 1 else ''}"
+    """The web's `duration` — short form, everywhere on the site."""
+    return f"{nights}N / {days}D"
 
 
 def meals_label(breakfast: bool, lunch: bool, dinner: bool) -> str:

@@ -13,7 +13,7 @@ from app.config import Settings
 from app.infra.email import EmailMessage
 from app.models import Enquiry, Package
 from app.models.enums import EnquiryType
-from app.services.format import inr  # noqa: F401 — re-exported; tests import it from here
+from app.services.format import inr  # re-exported; tests import it from here
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30), "IST")
 TYPE_LABEL = {

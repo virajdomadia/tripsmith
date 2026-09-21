@@ -19,9 +19,9 @@ def test_long_date_matches_the_web() -> None:
     assert long_date(dt.date(2027, 1, 3)) == "Sun 3 Jan 2027"
 
 
-def test_duration_pluralises() -> None:
-    assert duration(3, 4) == "3 nights / 4 days"
-    assert duration(1, 2) == "1 night / 2 days"
+def test_duration_matches_the_web() -> None:
+    assert duration(3, 4) == "3N / 4D"
+    assert duration(1, 2) == "1N / 2D"
 
 
 def test_meals_label() -> None:
