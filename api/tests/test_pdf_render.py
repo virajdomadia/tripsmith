@@ -171,8 +171,9 @@ def test_gallery_is_dropped_when_the_cover_page_is_full() -> None:
 # Regression for a bug where a hand-positioned row/chip that started in roughly the last 10 mm
 # above the footer margin (~257.5-269.8 mm on an A4 page whose page_break_trigger is ~275 mm)
 # could have its check pass but its own cell/pill auto-break mid-draw, scattering content across
-# a cascade of near-empty pages. Both sweeps walk every possible start position across that
-# danger zone (and well beyond it) and assert the section always lands cleanly.
+# a cascade of near-empty pages. Both sweeps walk start positions across that danger zone (and
+# well beyond it) at 1 mm steps — the danger band is only ~3 mm wide, so this still lands inside
+# it 2-3 times per cycle — and assert the section always lands cleanly.
 
 
 def _itinerary(pkg: object) -> _Itinerary:
@@ -188,7 +189,7 @@ def _itinerary(pkg: object) -> _Itinerary:
 def test_departures_table_never_breaks_inside_a_row() -> None:
     pkg = package(departures=24)
     max_pages = 0
-    for tenth_mm in range(1500, 2760, 5):  # start_y 150.0 .. 275.5 mm, 0.5 mm steps
+    for tenth_mm in range(1500, 2760, 10):  # start_y 150 .. 275 mm, 1 mm steps
         start_y = tenth_mm / 10
         it = _itinerary(pkg)
         it.doc.add_page()
@@ -212,7 +213,7 @@ def test_day_chips_never_split_across_pages() -> None:
     # "Dinner" auto-broke onto its own near-empty page, "Stay · ..." onto a third).
     pkg = package(days=2)
     max_pages = 0
-    for tenth_mm in range(1500, 2760, 5):  # start_y 150.0 .. 275.5 mm, 0.5 mm steps
+    for tenth_mm in range(1500, 2760, 10):  # start_y 150 .. 275 mm, 1 mm steps
         start_y = tenth_mm / 10
         it = _itinerary(pkg)
         it.doc.add_page()
