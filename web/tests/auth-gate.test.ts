@@ -12,6 +12,14 @@ describe('safeNext', () => {
     expect(safeNext('/admin/login')).toBe('/admin'); // never bounce back to the form
     expect(safeNext(undefined)).toBe('/admin');
   });
+
+  it('normalises dot-segments and backslashes before scoping to /admin', () => {
+    expect(safeNext('/admin/../x')).toBe('/admin');
+    expect(safeNext('/admin/..\\..\\x')).toBe('/admin');
+    expect(safeNext('/admin/packages/../enquiries')).toBe('/admin/enquiries');
+    expect(safeNext('/admin#frag')).toBe('/admin');
+    expect(safeNext('/admin/x?a=1#f')).toBe('/admin/x?a=1');
+  });
 });
 
 describe('loginHref', () => {

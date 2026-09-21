@@ -10,13 +10,27 @@ export const LOGIN_PATH = '/admin/login';
 
 export type LoginError = 'credentials' | 'rate_limited' | 'unavailable';
 
-/** A post-login target: an in-site `/admin…` path or the dashboard. Never an open redirect. */
+const SAFE_NEXT_PROBE = 'http://safe-next.invalid';
+
+/**
+ * A post-login target: an in-site `/admin…` path or the dashboard. Never an open redirect.
+ * Resolved through the URL parser (not string prefix checks) so dot-segments and backslashes
+ * are normalised away before the `/admin` scope check runs — `new URL(next, request.url)`
+ * downstream would otherwise collapse `/admin/../x` to `/x`, escaping the scope.
+ */
 export function safeNext(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith('/admin') || raw.startsWith('//')) return ADMIN_HOME;
-  const path = raw.split('?')[0];
-  if (path !== '/admin' && !path.startsWith('/admin/')) return ADMIN_HOME;
+  if (!raw || !raw.startsWith('/')) return ADMIN_HOME;
+  let url: URL;
+  try {
+    url = new URL(raw, SAFE_NEXT_PROBE);
+  } catch {
+    return ADMIN_HOME;
+  }
+  if (url.origin !== SAFE_NEXT_PROBE) return ADMIN_HOME; // e.g. '//evil.example/admin'
+  const path = url.pathname; // dot segments + backslashes already collapsed
+  if (path !== ADMIN_HOME && !path.startsWith('/admin/')) return ADMIN_HOME;
   if (path === LOGIN_PATH) return ADMIN_HOME;
-  return raw;
+  return path + url.search; // never the hash
 }
 
 export function loginHref(opts: {
