@@ -1,7 +1,7 @@
 """argon2 verification: constant shape whether or not the user exists (04 §Auth)."""
 
 from app.schemas.auth import LoginRequest
-from app.services.auth.passwords import hash_password, needs_rehash, verify_password
+from app.services.auth.passwords import dummy_hash, hash_password, needs_rehash, verify_password
 
 
 def test_round_trip() -> None:
@@ -16,6 +16,11 @@ def test_missing_or_broken_hash_never_verifies() -> None:
     assert not verify_password(None, "anything")
     assert not verify_password("", "anything")
     assert not verify_password("not-a-hash", "anything")
+    assert verify_password(None, "x") is False
+
+
+def test_dummy_hash_is_computed_lazily_and_cached() -> None:
+    assert dummy_hash() is dummy_hash()
 
 
 def test_login_request_normalises_email() -> None:

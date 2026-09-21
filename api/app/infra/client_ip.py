@@ -23,7 +23,7 @@ def client_ip(request: Request) -> str:
     secret = settings.revalidate_secret.get_secret_value() if settings.revalidate_secret else None
     given = request.headers.get(INTERNAL_SECRET_HEADER, "")
     trusted = request.headers.get(TRUSTED_IP_HEADER, "").strip()
-    if secret and trusted and secrets.compare_digest(given, secret):
+    if secret and trusted and secrets.compare_digest(given.encode(), secret.encode()):
         return trusted
     forwarded = request.headers.get("x-forwarded-for", "")
     if forwarded:
