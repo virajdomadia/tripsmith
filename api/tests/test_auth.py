@@ -3,11 +3,16 @@
 import datetime as dt
 
 import pytest
+from fastapi import Depends, FastAPI, Response
+from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Session, User
 from app.models.enums import UserRole
+from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
+from app.services.auth.deps import require_owner
+from app.services.auth.passwords import hash_password
 from app.services.auth.sessions import (
     SESSION_TTL,
     delete_session,
@@ -95,3 +100,73 @@ async def test_delete_session_is_idempotent(db: AsyncSession) -> None:
     await delete_session(db, session.token)
     await delete_session(db, session.token)
     assert await session_count(db) == 0
+
+
+# --- cookie + dependency --------------------------------------------------------------------------
+
+
+def test_cookie_is_httponly_lax_and_secure_only_on_https() -> None:
+    expires = dt.datetime.now(dt.UTC) + dt.timedelta(days=30)
+    res = Response()
+    set_session_cookie(res, "tok", expires, make_settings(site_url="http://localhost:3000"))
+    header = res.headers["set-cookie"].lower()
+    assert header.startswith(f"{COOKIE_NAME}=tok;")
+    assert "httponly" in header and "samesite=lax" in header and "path=/" in header
+    assert "max-age=259" in header  # ≈ 30 days, allowing for the seconds elapsed
+    assert "secure" not in header and "domain" not in header
+
+    res = Response()
+    set_session_cookie(res, "tok", expires, make_settings(site_url="https://tripsmith.vercel.app"))
+    assert "secure" in res.headers["set-cookie"].lower()
+
+    res = Response()
+    clear_session_cookie(res, make_settings())
+    header = res.headers["set-cookie"].lower()
+    assert header.startswith(f"{COOKIE_NAME}=") and "max-age=0" in header
+
+
+def protect(app: FastAPI) -> None:
+    """Mount a throwaway owner-only route — the first real `/admin/*` route lands in F16."""
+
+    async def whoami(user: User = Depends(require_owner)) -> dict[str, str]:  # noqa: B008
+        return {"email": user.email}
+
+    app.add_api_route("/_test/owner", whoami, methods=["GET"])
+
+
+@pytest.mark.db
+async def test_require_owner_rejects_missing_and_expired_sessions(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded_with_owner(db)
+    protect(db_app)
+    res = await db_client.get("/_test/owner")
+    assert res.status_code == 401 and res.json()["error"]["code"] == "unauthorized"
+
+    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: "garbage"})
+    assert res.status_code == 401
+
+    session = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
+    assert session is not None
+    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: session.token})
+    assert res.status_code == 200 and res.json() == {"email": OWNER_EMAIL}
+
+
+@pytest.mark.db
+async def test_require_owner_forbids_customers(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded_with_owner(db)
+    protect(db_app)
+    customer = User(
+        name="Priya",
+        email="priya@example.com",
+        role=UserRole.CUSTOMER,
+        password_hash=hash_password("pw"),
+    )
+    db.add(customer)
+    await db.commit()
+    session = await login(db, "priya@example.com", "pw", ip=None, user_agent=None)
+    assert session is not None
+    res = await db_client.get("/_test/owner", cookies={COOKIE_NAME: session.token})
+    assert res.status_code == 403 and res.json()["error"]["code"] == "forbidden"
