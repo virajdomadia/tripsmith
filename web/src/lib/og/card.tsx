@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import jpeg from 'jpeg-js';
 import { ImageResponse } from 'next/og';
-import sharp from 'sharp';
+import { PNG } from 'pngjs';
 
 /**
  * The OG card (F13, R7): 1200×630, cover full-bleed under an ocean-ink gradient, the brand mark,
@@ -10,9 +11,13 @@ import sharp from 'sharp';
  * api/assets/fonts, OFL).
  */
 export const OG_SIZE = { width: 1200, height: 630 } as const;
-/** JPEG, not satori's PNG: a photo card is ~1 MB as PNG and WhatsApp drops previews over ~300 KB. */
+/**
+ * JPEG, not satori's PNG: a photo card is ~1 MB as PNG and WhatsApp drops previews over ~300 KB.
+ * Encoded in pure JS (pngjs → jpeg-js, ~150 KB in ~150 ms) rather than sharp: Turbopack's file
+ * trace never ships sharp's platform binary to the Vercel function, so sharp 500s in production.
+ */
 export const OG_CONTENT_TYPE = 'image/jpeg';
-const JPEG_QUALITY = 82;
+const JPEG_QUALITY = 80;
 /** Matches the page's hourly ISR (lib/catalog): prices and departures move at most that often. */
 const CACHE_CONTROL = 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400';
 
@@ -75,9 +80,9 @@ function BrandMark() {
 }
 
 export async function ogCard(card: OgCard): Promise<Response> {
-  const png = await renderPng(card);
-  const jpeg = await sharp(png).jpeg({ quality: JPEG_QUALITY, mozjpeg: true }).toBuffer();
-  return new Response(new Uint8Array(jpeg), {
+  const { data, width, height } = PNG.sync.read(await renderPng(card));
+  const body = jpeg.encode({ data, width, height }, JPEG_QUALITY).data;
+  return new Response(new Uint8Array(body), {
     headers: { 'Content-Type': OG_CONTENT_TYPE, 'Cache-Control': CACHE_CONTROL },
   });
 }
