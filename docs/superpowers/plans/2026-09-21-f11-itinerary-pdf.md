@@ -30,7 +30,7 @@
 |---|---|
 | Renderer | fpdf2 2.8.x, A4 portrait, mm units, margins 18 mm, auto page break 22 mm. DM Sans in the site's four weights — 400 / 600 (`font-semibold`) / 700 (`font-bold`) / 800 (headings, `font-extrabold`) — each registered as its own fpdf2 family (`DMSans`, `DMSansSB`, `DMSansB`, `DMSansXB`; fpdf2 styles are only B/I). Headings carry the site's `letter-spacing: -0.03em`. Prototyped 2026-09-21 on the real north-goa-beaches content with its five photos: 4 pages, 334 KB, 0.25 s. |
 | Photos | `PackageDetail.cover.url` + up to four more `images[1:5]` fetched concurrently with httpx (5 s timeout, ≤ 6 MB, `image/*` only). `prepare_cover` bakes the `PackageHero` treatment with Pillow: centre-crop to 21:9 (1400×600), the bottom gradient `rgb(10 20 30 / 0.7)`, rounded-card corners flattened onto the page white, JPEG q82. `prepare_gallery_image` crops each gallery photo to the strip's cell (700×296). Any fetch failure → that photo is simply absent (no cover → a bg2 panel with ink text). The renderer itself never does I/O: it takes `cover: bytes \| None` and `gallery: Sequence[bytes]`. |
-| Page plan | **The package page, section for section, with the same components** (Viraj, 2026-09-21: "same as our UI"). **p1:** the site header's `BrandMark` + wordmark (drawn as vectors, clickable) and the breadcrumb `Home › Goa › North Goa Beaches`; the `PackageHero` — rounded-card 21:9 photo, dark bottom gradient, white 800 title, `3 nights / 4 days   Ex-Mumbai   Beach · Family`; the `QuickFacts` strip (one bordered bg2 panel, five cells split by hairlines: Duration · From · Departs · Stay · Next date, label-caps over 800 values that shrink to fit); the summary; `Highlights` as a two-column list with the green `Check` mark; the `Gallery` strip (one tall cell + up to four small, `rounded-[10px]`, drawn only when the page has room); and the `PriceBox` **pinned above the footer** — From / ₹price 800 / "per person, double sharing", the bordered Next-departure box with seats, the marigold **Enquire about this trip** button, the WhatsApp-green **Chat on WhatsApp** button, `Call +91 …` (all real links), then the callback promise, hours and the legal line. **p2+:** `Itinerary` (primary route line, 800-weight numbered badges, title, ragged-right body, bg2 pill chips `Breakfast · Dinner` / `Stay · …`, hairline between days); `Inclusions` (Included / Not included side by side, `Check` in ok-green, `Cross` in mute); `Hotels` (one bordered card each: name, five drawn marigold stars, `city · n nights`); `DeparturesTable` (bordered `rounded-[14px]` table, bg2 label-caps header, date bold, price, seat bar in primary — warn when ≤ 4 — with `n left`, status pill in the site's tones) + `OccupancyPricing` (2×2 bordered boxes) + the "prices vary" note; `Faq` as hairline rows (question bold, answer open). Header from p2 (mark + wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). Every heading is kept with the block that follows it (`h2(keep=…)`). |
+| Page plan | **The package page, section for section, with the same components** (Viraj, 2026-09-21: "same as our UI"). **p1:** the site header's `BrandMark` + wordmark (drawn as vectors, clickable) and the breadcrumb `Home › Goa › North Goa Beaches`; the `PackageHero` — rounded-card 21:9 photo, dark bottom gradient, white 800 title, `3N / 4D   Ex-Mumbai   Beach · Family`; the `QuickFacts` strip (one bordered bg2 panel, five cells split by hairlines: Duration · From · Departs · Stay · Next date, label-caps over 800 values that shrink to fit); the summary; `Highlights` as a two-column list with the green `Check` mark; the `Gallery` strip (one tall cell + up to four small, `rounded-[10px]`, drawn only when the page has room); and the `PriceBox` **pinned above the footer** — From / ₹price 800 / "per person, double sharing", the bordered Next-departure box with seats, the marigold **Enquire about this trip** button, the WhatsApp-green **Chat on WhatsApp** button, `Call +91 …` (all real links), then the callback promise, hours and the legal line. **p2+:** `Itinerary` (primary route line, 800-weight numbered badges, title, ragged-right body, bg2 pill chips `Breakfast · Dinner` / `Stay · …`, hairline between days); `Inclusions` (Included / Not included side by side, `Check` in ok-green, `Cross` in mute); `Hotels` (one bordered card each: name, five drawn marigold stars, `city · n nights`); `DeparturesTable` (bordered `rounded-[14px]` table, bg2 label-caps header, date bold, price, seat bar in primary — warn when ≤ 4 — with `n left`, status pill in the site's tones) + `OccupancyPricing` (2×2 bordered boxes) + the "prices vary" note; `Faq` as hairline rows (question bold, answer open). Header from p2 (mark + wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). Every heading is kept with the block that follows it (`h2(keep=…)`). |
 | Cache key | `pdf_pathname(slug, updated_at)` = `pdf/{slug}/{int(updated_at.timestamp())}/Tripsmith-{slug}-itinerary.pdf`. `updated_at` has `onupdate=func.now()` (models/base.py) so any F18 save invalidates. Lookup = Blob `list(prefix="pdf/{slug}/")` and exact pathname match (the public host of the store is not derivable without a first put, and list is needed for GC anyway). |
 | Route responses | Cached → `302` Location = Blob URL, `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (`PUBLIC_CACHE_CONTROL`, same staleness as the JSON routes after an edit). Not cached → render → put → `302`. No store (dev/CI) or Blob failed → `200 application/pdf`, `Content-Disposition: inline; filename="Tripsmith-{slug}-itinerary.pdf"`. Draft/unknown slug → `404 not_found` envelope. Blob objects are served inline by Vercel (`?download=1` would force attachment — not used). |
 | Blob REST | `GET https://blob.vercel-storage.com/?prefix=…&limit=1000[&cursor=…]` → `{blobs:[{url,downloadUrl,pathname,size,uploadedAt}],cursor,hasMore}`; `POST https://blob.vercel-storage.com/delete` JSON `{"urls":[…]}`; both with `Authorization: Bearer <token>`, `x-api-version: 7`. (What `@vercel/blob` does under the hood; verified on prod in Task 10 — if a call 4xx's, the SDK source at github.com/vercel/storage/tree/main/packages/blob/src is the reference.) The app's `BlobStore` uses a 10 s timeout (the seed keeps 60 s). |
@@ -84,7 +84,7 @@ The PDF prints the same money, dates, durations and meal labels as the web (`web
 - Modify: `api/tests/test_email_render.py` (unchanged imports still work — verify only)
 
 **Interfaces:**
-- Produces: `inr(rupees: int) -> str`, `long_date(d: dt.date) -> str` (`Fri 18 Dec 2026`), `duration(nights: int, days: int) -> str` (`3 nights / 4 days`, `1 night / 2 days`), `meals_label(breakfast: bool, lunch: bool, dinner: bool) -> str` (`Breakfast · Dinner`, `No meals`), `seats_label(seats_left: int) -> str` (`6 seats`, `1 seat`, `Sold out`).
+- Produces: `inr(rupees: int) -> str`, `long_date(d: dt.date) -> str` (`Fri 18 Dec 2026`), `duration(nights: int, days: int) -> str` (`3N / 4D` — exactly the web's `duration`, which the hero, cards and quick facts print), `meals_label(breakfast: bool, lunch: bool, dinner: bool) -> str` (`Breakfast · Dinner`, `No meals`), `seats_label(seats_left: int) -> str` (`6 seats`, `1 seat`, `Sold out`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -111,9 +111,9 @@ def test_long_date_matches_the_web() -> None:
     assert long_date(dt.date(2027, 1, 3)) == "Sun 3 Jan 2027"
 
 
-def test_duration_pluralises() -> None:
-    assert duration(3, 4) == "3 nights / 4 days"
-    assert duration(1, 2) == "1 night / 2 days"
+def test_duration_matches_the_web() -> None:
+    assert duration(3, 4) == "3N / 4D"
+    assert duration(1, 2) == "1N / 2D"
 
 
 def test_meals_label() -> None:
@@ -163,7 +163,7 @@ def long_date(d: dt.date) -> str:
 
 
 def duration(nights: int, days: int) -> str:
-    return f"{nights} night{'s' if nights != 1 else ''} / {days} day{'s' if days != 1 else ''}"
+    return f"{nights}N / {days}D"  # the web's `duration` — short form, everywhere on the site
 
 
 def meals_label(breakfast: bool, lunch: bool, dinner: bool) -> str:
@@ -828,7 +828,7 @@ def test_cover_page_mirrors_the_package_page() -> None:
     p1 = _pages(pdf)[0]
     # Wordmark + breadcrumb, hero title + meta, the quick-facts strip.
     assert p1.startswith("Tripsmith Home › Goa › North Goa Beaches")
-    assert "6 nights / 7 days" in p1 and "Ex-Mumbai" in p1 and "Beach · Family" in p1
+    assert "6N / 7D" in p1 and "Ex-Mumbai" in p1 and "Beach · Family" in p1
     assert "DURATION" in p1 and "DEPARTS Mumbai" in p1 and "STAY 4-star Calangute" in p1
     assert "NEXT DATE 6 Nov" in p1
     assert pkg.summary in p1
