@@ -19,7 +19,6 @@ from pathlib import Path
 # Runnable both as `python scripts/seed.py` and `python -m scripts.seed` from api/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from argon2 import PasswordHasher  # noqa: E402
 from PIL import Image  # noqa: E402
 from sqlalchemy import delete, select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: E402
@@ -37,6 +36,7 @@ from app.models import (  # noqa: E402
     User,
 )
 from app.models.enums import UserRole  # noqa: E402
+from app.services.auth.passwords import hash_password  # noqa: E402
 from app.services.catalog.pricing import starting_price  # noqa: E402
 from content import Content, load_content  # noqa: E402
 from content._schema import DestinationContent, PackageContent, Photo  # noqa: E402
@@ -71,7 +71,7 @@ async def _seed_owner(db: AsyncSession, settings: Settings, result: SeedResult) 
         user = User(email=settings.owner_email, name="Owner")
         db.add(user)
     user.role = UserRole.OWNER
-    user.password_hash = PasswordHasher().hash(settings.owner_password.get_secret_value())
+    user.password_hash = hash_password(settings.owner_password.get_secret_value())
     await db.flush()
     result.counts["users"] = 1
 
