@@ -1,5 +1,5 @@
 import { SESSION_COOKIE } from '@/lib/auth/cookie';
-import { forwardAuth, seeOther } from '@/lib/auth/forward';
+import { forwardAuth, isSameOriginPost, seeOther } from '@/lib/auth/forward';
 import { loginHref } from '@/lib/auth/gate';
 
 /**
@@ -7,6 +7,7 @@ import { loginHref } from '@/lib/auth/gate';
  * the browser is signed out regardless by expiring the host-only cookie here.
  */
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginPost(request)) return new Response('Forbidden', { status: 403 });
   await forwardAuth('/auth/logout', request);
   const out = seeOther(new URL(loginHref({ signedOut: true }), request.url));
   out.headers.set('set-cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);

@@ -7,6 +7,17 @@ import { visitorIp } from '@/lib/enquiry-forward';
  * Cookie header is forwarded untouched (never re-encoded — see api.ts).
  */
 
+/**
+ * True for a POST the browser marks as ours: `Sec-Fetch-Site` is `same-origin` (a form on the
+ * site) or `none` (typed/bookmarked navigation). Cross-site form posts (`cross-site`,
+ * `same-site`) are refused; a missing header (old browsers, curl) is allowed — the cookie's
+ * SameSite=Lax already stops those from carrying the session anyway.
+ */
+export function isSameOriginPost(request: Request): boolean {
+  const site = request.headers.get('sec-fetch-site');
+  return site === null || site === 'same-origin' || site === 'none';
+}
+
 export async function forwardAuth(
   path: '/auth/login' | '/auth/logout',
   request: Request,

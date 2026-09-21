@@ -1,4 +1,4 @@
-import { forwardAuth, seeOther } from '@/lib/auth/forward';
+import { forwardAuth, isSameOriginPost, seeOther } from '@/lib/auth/forward';
 import { type LoginError, loginHref, safeNext } from '@/lib/auth/gate';
 
 /**
@@ -7,6 +7,7 @@ import { type LoginError, loginHref, safeNext } from '@/lib/auth/gate';
  * the form with an error code and the email (never the password) in the query.
  */
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginPost(request)) return new Response('Forbidden', { status: 403 });
   let form: FormData;
   try {
     form = await request.formData();

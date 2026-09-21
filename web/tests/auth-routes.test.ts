@@ -41,7 +41,7 @@ describe('POST /api/auth/login', () => {
       formPost(
         '/api/auth/login',
         { email: 'owner@tripsmith.demo', password: 'pw', next: '/admin/enquiries' },
-        { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
+        { 'x-forwarded-for': '1.2.3.4, 10.0.0.1', 'sec-fetch-site': 'same-origin' },
       ),
     );
     expect(res.status).toBe(303);
@@ -104,6 +104,18 @@ describe('POST /api/auth/login', () => {
     expect(res.headers.get('location')).toBe('http://web.test/admin/login?error=unavailable');
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('refuses a cross-site form post', async () => {
+    const res = await login(
+      formPost(
+        '/api/auth/login',
+        { email: 'owner@tripsmith.demo', password: 'pw' },
+        { 'sec-fetch-site': 'cross-site' },
+      ),
+    );
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/auth/logout', () => {
@@ -124,5 +136,12 @@ describe('POST /api/auth/logout', () => {
     const res = await logout(formPost('/api/auth/logout', {}));
     expect(res.status).toBe(303);
     expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
+  });
+
+  it('refuses a cross-site form post without clearing the cookie', async () => {
+    const res = await logout(formPost('/api/auth/logout', {}, { 'sec-fetch-site': 'cross-site' }));
+    expect(res.status).toBe(403);
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
