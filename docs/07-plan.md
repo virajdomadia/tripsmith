@@ -63,7 +63,7 @@ Goal: the funnel closes — a visitor can enquire, get the PDF, and share.
 | F11 | **Itinerary PDF** ✅ PR #29 | 🟢 | "Download itinerary (PDF)" link (plain `<a>` to the API) | `services/pdf.render_itinerary` (fpdf2, DM Sans TTF, `Document` base): cover, facts, itinerary, inclusions, hotels, departures, pricing, contact block; `GET /packages/:slug/itinerary.pdf` (404 if draft → Blob cache keyed by `updated_at` → 302); attached to the confirmation email; `GET /cron/pdf-gc` | 2 h | Valid A4 PDF < 2 MB, < 3 s cold; content matches the page |
 | F12+F13 ⤵ | **CTAs + WhatsApp** ✅ PR #30 | 🟢 | Sticky mobile CTA bar on the package page (price · Enquire · PDF · WhatsApp); site-wide floating WhatsApp button pre-filled "Hi, I'm interested in <package> (<url>)" | — | 0.5 h | CTA visible at 360 px without covering content |
 | ↳ F13 | **Share + OG images** ✅ PR #30 | 🟢 | Share buttons (WhatsApp, copy link, `navigator.share`); `opengraph-image` routes for packages and destinations (cover + name + price) | — | 0.5 h | Pasting a package URL into WhatsApp shows the OG card |
-| F14 | **Page views** | ⚪ | `recordView` beacon from the package page — *(lean: no Playwright journey, no `e2e.yml`; a manual phone walk-through before merge)* | `POST /views` (UA bot filter, upsert `package_views`, 204) | 0.25 h | View count increments in the DB |
+| F14 | **Page views** | 🟢 | `recordView` beacon from the package page — *(lean: no Playwright journey, no `e2e.yml`; a manual phone walk-through before merge)* | `POST /views` (UA bot filter, upsert `package_views`, 204) | 0.25 h | View count increments in the DB |
 | Done | | | A stranger can enquire from a phone and both emails arrive with the PDF attached | | **6 h** | |
 
 ### Milestone 1.3 — Manage (≈ 9 h) 🔴 admin
