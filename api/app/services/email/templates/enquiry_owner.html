@@ -13,6 +13,9 @@
 {% if package_url %}
 {% call row("Trip") %}<a href="{{ package_url }}" style="color:#1b4fd8;">{{ e.package_name }}</a> · {{ e.package_nights }} nights / {{ e.package_days }} days{% endcall %}
 {% endif %}
+{% if pdf_url %}
+{% call row("Itinerary PDF") %}<a href="{{ pdf_url }}" style="color:#1b4fd8;">Itinerary PDF</a>{% endcall %}
+{% endif %}
 {% if e.travel_month %}{% call row("Travel month") %}{{ e.travel_month }}{% endcall %}{% endif %}
 {% call row("Travellers") %}{{ e.party }}{% endcall %}
 {% if e.preferred_dates %}{% call row("Preferred dates") %}{{ e.preferred_dates }}{% endcall %}{% endif %}

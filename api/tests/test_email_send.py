@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from app.infra.email import EmailMessage, EmailSendError
+from app.infra.email import EmailAttachment, EmailMessage, EmailSendError
 from app.models.enums import EmailStatus
 from app.services.email.send import is_test_mode, send_enquiry_emails
 from tests.settings import make_settings
@@ -111,3 +111,23 @@ async def test_render_failure_is_failed_and_sends_nothing(
     out = await send_enquiry_emails(sender, LIVE, ctx())
     assert out.status == EmailStatus.FAILED and out.visitor_emailed is False
     assert sender.sent == []
+
+
+async def test_attachment_goes_to_the_visitor_only() -> None:
+    sender = FakeSender()
+    att = EmailAttachment(filename="Tripsmith-north-goa-beaches-itinerary.pdf", content=b"%PDF-")
+    settings = make_settings(
+        email_from="Tripsmith <hello@tripsmith.in>", owner_notify_email="owner@example.com"
+    )
+    out = await send_enquiry_emails(sender, settings, ctx(), attachment=att)
+    assert out.status == EmailStatus.SENT
+    by_to = {m.to: m for m in sender.sent}
+    assert by_to["priya@example.com"].attachments == (att,)
+    assert by_to["owner@example.com"].attachments == ()
+
+
+async def test_no_attachment_when_none_given() -> None:
+    sender = FakeSender()
+    settings = make_settings(email_from="Tripsmith <hello@tripsmith.in>")
+    await send_enquiry_emails(sender, settings, ctx())
+    assert sender.sent[0].attachments == ()

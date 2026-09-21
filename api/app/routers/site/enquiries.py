@@ -83,4 +83,5 @@ async def post_enquiry(
         user_agent=request.headers.get("user-agent"),
         sender=state.email_sender,
         settings=state.settings,
+        pdf=state.pdf,
     )

@@ -13,10 +13,12 @@ from app.infra.ratelimit import RateLimitResult
 from app.models import Enquiry
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType
 from app.services.enquiries import make_ref
+from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 from tests.test_email_send import FakeSender
+from tests.test_pdf_service import FakeBlobStore, cover_transport
 
 BODY = {
     "type": "standard",
@@ -342,3 +344,63 @@ async def test_ref_collision_retries_with_a_fresh_ref(
     row = (await db.execute(select(Enquiry).where(Enquiry.ref == "TS-BBBBBB"))).scalar_one()
     assert row.email_status == EmailStatus.SENT
     assert len(sender.sent) == 2
+
+
+def with_pdf(db_app: FastAPI, store: FakeBlobStore | None) -> FakeBlobStore | None:
+    db_app.state.pdf = PdfService(store, db_app.state.settings, transport=cover_transport())  # type: ignore[arg-type]
+    return store
+
+
+@pytest.mark.db
+async def test_submit_attaches_the_itinerary_pdf_to_the_visitor_email(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    store = with_pdf(db_app, FakeBlobStore())
+    assert store is not None
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201, res.text
+    visitor = next(m for m in sender.sent if m.to == "priya@example.com")
+    owner = next(m for m in sender.sent if m.to == "owner@example.com")
+    assert len(visitor.attachments) == 1
+    assert visitor.attachments[0].filename == "Tripsmith-north-goa-beaches-itinerary.pdf"
+    assert visitor.attachments[0].content.startswith(b"%PDF-")
+    assert owner.attachments == ()
+    assert "/api/packages/north-goa-beaches/itinerary.pdf" in visitor.html
+    assert len(store.objects) == 1  # the cache is warm for the emailed link
+
+
+@pytest.mark.db
+async def test_contact_enquiry_sends_no_attachment(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    store = with_pdf(db_app, FakeBlobStore())
+    assert store is not None
+    res = await db_client.post(
+        "/enquiries", json={**BODY, "type": "contact", "packageSlug": None, "travelMonth": None}
+    )
+    assert res.status_code == 201
+    assert all(m.attachments == () for m in sender.sent)
+    assert store.objects == {}
+
+
+@pytest.mark.db
+async def test_pdf_failure_keeps_the_201_and_the_emails(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    with_pdf(db_app, FakeBlobStore())
+
+    def boom(*a: object, **k: object) -> bytes:
+        raise RuntimeError("fpdf exploded")
+
+    monkeypatch.setattr("app.services.pdf.service.render_itinerary", boom)
+    res = await db_client.post("/enquiries", json=BODY)
+    assert res.status_code == 201 and res.json()["emailed"] is True
+    assert len(sender.sent) == 2 and all(m.attachments == () for m in sender.sent)
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SENT

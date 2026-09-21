@@ -127,6 +127,9 @@ def _common(ctx: EnquiryEmailContext, settings: Settings) -> dict[str, object]:
         "business": BUSINESS,
         "site_url": site,
         "package_url": f"{site}/packages/{ctx.package_slug}" if ctx.package_slug else None,
+        "pdf_url": f"{site}/api/packages/{ctx.package_slug}/itinerary.pdf"
+        if ctx.package_slug
+        else None,
         "admin_url": f"{site}/admin/enquiries/{ctx.id}",
         "whatsapp_url": whatsapp_href(
             settings.whatsapp_number,

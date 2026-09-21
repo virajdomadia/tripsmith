@@ -8,6 +8,9 @@ Email:           {{ e.email }}
 Trip:            {{ e.package_name }} · {{ e.package_nights }} nights / {{ e.package_days }} days
                  {{ package_url }}
 {% endif %}
+{% if pdf_url %}
+Itinerary PDF:   {{ pdf_url }}
+{% endif %}
 {% if e.travel_month %}
 Travel month:    {{ e.travel_month }}
 {% endif %}
