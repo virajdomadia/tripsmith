@@ -6,7 +6,11 @@
 {% if e.package_name %}
 <p style="margin:0 0 16px;">We have your enquiry about <a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">{{ e.package_name }}</a>{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.</p>
 {% if pdf_url %}
+{% if pdf_attached %}
 <p style="margin:0 0 16px;">Your day-by-day itinerary is attached as a PDF — forward it to whoever is travelling with you. You can also <a href="{{ pdf_url }}" style="color:#1b4fd8;font-weight:700;">download it again</a> any time.</p>
+{% else %}
+<p style="margin:0 0 16px;">Download your day-by-day itinerary (PDF): <a href="{{ pdf_url }}" style="color:#1b4fd8;font-weight:700;">{{ pdf_url }}</a></p>
+{% endif %}
 {% endif %}
 {% else %}
 <p style="margin:0 0 16px;">We have your enquiry{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.</p>

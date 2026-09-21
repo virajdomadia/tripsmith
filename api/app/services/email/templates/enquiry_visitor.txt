@@ -5,7 +5,11 @@ Your enquiry reference is {{ e.ref }}.
 We have your enquiry about {{ e.package_name }}{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.
 {{ package_url }}
 {% if pdf_url %}
+{% if pdf_attached %}
 Your day-by-day itinerary is attached as a PDF. Download it again any time: {{ pdf_url }}
+{% else %}
+Download your day-by-day itinerary (PDF): {{ pdf_url }}
+{% endif %}
 {% endif %}
 {% else %}
 We have your enquiry{% if e.travel_month %} for {{ e.travel_month }}{% endif %}, {{ e.party }}.

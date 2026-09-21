@@ -150,8 +150,11 @@ def render_owner(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessag
     )
 
 
-def render_visitor(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessage:
+def render_visitor(
+    ctx: EnquiryEmailContext, *, settings: Settings, attached: bool = False
+) -> EmailMessage:
     vars = _common(ctx, settings)
+    vars["pdf_attached"] = attached
     return EmailMessage(
         to=ctx.email,
         subject=f"Your Tripsmith enquiry {ctx.ref} — we'll call you within 2 hours",

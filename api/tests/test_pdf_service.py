@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.storage import BlobInfo
 from app.models import Package
+from app.services.catalog.reads import get_package
 from app.services.pdf.itinerary import pdf_pathname
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
@@ -141,6 +142,23 @@ async def test_attachment_for_renders_warms_the_cache_and_names_the_file(db: Asy
     assert len(store.objects) == 1
     assert next(iter(store.objects)).startswith("pdf/north-goa-beaches/")
     assert await service(store).attachment_for(db, "no-such-trip") is None
+
+
+@pytest.mark.db
+async def test_attachment_for_skips_the_put_when_the_cache_is_warm(db: AsyncSession) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    pkg = await get_package(db, "north-goa-beaches")
+    assert pkg is not None
+    key = pdf_pathname(pkg.slug, pkg.updated_at)
+    store = FakeBlobStore()
+    store.objects[key] = b"already-cached"
+
+    att = await service(store).attachment_for(db, "north-goa-beaches")
+
+    assert att is not None
+    assert att.filename == "Tripsmith-north-goa-beaches-itinerary.pdf"
+    assert att.content.startswith(b"%PDF-")
+    assert store.puts == []  # rendering still happens (cheap); the upload is what's skipped
 
 
 @pytest.mark.db

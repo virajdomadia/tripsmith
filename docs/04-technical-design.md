@@ -61,7 +61,7 @@
 
 ## 5. PDF
 - api `GET /packages/:slug/itinerary.pdf`: look up the live package + `updated_at`; pathname `pdf/{slug}/{updated_at_epoch}/Tripsmith-{slug}-itinerary.pdf` (the basename is the download filename). Blob `list(prefix=pdf/{slug}/)` finds the current object → 302; else `render_itinerary` (fpdf2) → put → 302. No store (dev/CI) or Blob down → the bytes are streamed inline. Old versions are garbage-collected weekly (`GET /cron/pdf-gc`, api `vercel.json`, bearer `CRON_SECRET`).
-- The same `render_itinerary` is used by the enquiry confirmation email to attach the PDF (R6). Renderer lives in `api/app/services/pdf/itinerary.py` (a small `Document` base so the v2 voucher reuses page chrome); DM Sans TTF (regular/bold) bundled in `api/assets/fonts` and registered with `add_font` — Unicode (₹, en dashes) works only through registered TTFs, never the core fonts. `services/pdf/service.py` (`PdfService` on `app.state.pdf`) owns the cover fetch, the cache and the attachment; the renderer is pure.
+- The same `render_itinerary` is used by the enquiry confirmation email to attach the PDF (R6). Renderer lives in `api/app/services/pdf/itinerary.py` (a small `Document` base so the v2 voucher reuses page chrome); DM Sans TTF (regular / semibold / bold / extrabold) bundled in `api/assets/fonts` and registered with `add_font` — Unicode (₹, en dashes) works only through registered TTFs, never the core fonts. `services/pdf/service.py` (`PdfService` on `app.state.pdf`) owns the cover fetch, the cache and the attachment; the renderer is pure.
 - Target: A4, < 2 MB, < 3 s cold.
 
 ## 6. Email

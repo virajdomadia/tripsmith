@@ -3,16 +3,19 @@ content matches the package page section for section."""
 
 import datetime as dt
 import io
+import re
 import time
 from pathlib import Path
 
 from PIL import Image
 from pypdf import PdfReader
 
+from app.services.format import meals_label
 from app.services.pdf.itinerary import (
     GALLERY_CELL,
     HERO_SIZE,
     PDF_PREFIX,
+    _Itinerary,
     pdf_filename,
     pdf_pathname,
     pdf_prefix,
@@ -162,3 +165,75 @@ def test_gallery_is_dropped_when_the_cover_page_is_full() -> None:
     pdf = render(summary=long_summary)
     assert len(PdfReader(io.BytesIO(pdf)).pages[0].images) == 1  # hero only, box still pinned
     assert "From ₹18,499 per person" in _pages(pdf)[0]
+
+
+# --- page-break-safety sweeps -------------------------------------------------------------
+# Regression for a bug where a hand-positioned row/chip that started in roughly the last 10 mm
+# above the footer margin (~257.5-269.8 mm on an A4 page whose page_break_trigger is ~275 mm)
+# could have its check pass but its own cell/pill auto-break mid-draw, scattering content across
+# a cascade of near-empty pages. Both sweeps walk every possible start position across that
+# danger zone (and well beyond it) and assert the section always lands cleanly.
+
+
+def _itinerary(pkg: object) -> _Itinerary:
+    return _Itinerary(
+        pkg,  # type: ignore[arg-type]
+        cover=None,
+        gallery=(),
+        site_url=SITE,
+        whatsapp_number="919845012345",
+    )
+
+
+def test_departures_table_never_breaks_inside_a_row() -> None:
+    pkg = package(departures=24)
+    max_pages = 0
+    for tenth_mm in range(1500, 2760, 5):  # start_y 150.0 .. 275.5 mm, 0.5 mm steps
+        start_y = tenth_mm / 10
+        it = _itinerary(pkg)
+        it.doc.add_page()
+        it.doc.set_y(start_y)
+        it.dates_and_prices()
+        pages = _pages(bytes(it.doc.output()))
+        max_pages = max(max_pages, len(pages))
+        for text in pages:
+            if re.search(r"Fri \d{1,2} \w{3} 20\d\d", text):
+                assert "DEPARTURE PER PERSON SEATS STATUS" in text, (start_y, text[:200])
+    # The fixed loop opens at most one extra page for the header re-print plus the occupancy
+    # grid section that follows in the same call — never a cascade.
+    assert max_pages <= 3, max_pages
+
+
+def test_day_chips_never_split_across_pages() -> None:
+    # The fix only promises the chip *row* is atomic (its rect and its text move together);
+    # it does not promise the chips stay glued to the day's title/description above them, so
+    # the invariant under test is "meals chip and stay chip land on the same page", not "same
+    # page as the day". The pre-fix bug split exactly this pair across two pages (rect for
+    # "Dinner" auto-broke onto its own near-empty page, "Stay · ..." onto a third).
+    pkg = package(days=2)
+    max_pages = 0
+    for tenth_mm in range(1500, 2760, 5):  # start_y 150.0 .. 275.5 mm, 0.5 mm steps
+        start_y = tenth_mm / 10
+        it = _itinerary(pkg)
+        it.doc.add_page()
+        it.doc.set_y(start_y)
+        it.days()
+        pages = _pages(bytes(it.doc.output()))
+        max_pages = max(max_pages, len(pages))
+        for day in pkg.itinerary:  # type: ignore[attr-defined]
+            meals = meals_label(day.meals.breakfast, day.meals.lunch, day.meals.dinner)
+            meal_pages = [i for i, t in enumerate(pages) if meals in t]
+            assert meal_pages, (start_y, day.day_no, "meals chip missing")
+            if day.stay:
+                stay_text = f"Stay · {day.stay}"
+                stay_pages = [i for i, t in enumerate(pages) if stay_text in t]
+                assert stay_pages, (start_y, day.day_no, "stay chip missing")
+                assert set(meal_pages) & set(stay_pages), (
+                    start_y,
+                    day.day_no,
+                    "chip row split across pages",
+                    meal_pages,
+                    stay_pages,
+                )
+    # Two days, each ensure()d individually: never more than one break per day plus one spare.
+    assert max_pages <= 3, max_pages

@@ -1,7 +1,8 @@
 """`PdfService`: everything around `render_itinerary` that touches the network — the cover
 photo, the Blob cache (find / put), the email attachment and the weekly GC. Lives on
-`app.state.pdf`. Every method degrades (logs + Sentry) instead of raising: a package download
-falls back to streaming, an enquiry goes out without the attachment.
+`app.state.pdf`. Every method degrades (logs + Sentry) instead of raising, except `gc()`, which
+raises so the cron log shows failures: a package download falls back to streaming, an enquiry
+goes out without the attachment.
 """
 
 import asyncio
@@ -118,7 +119,8 @@ class PdfService:
             if pkg is None:
                 return None
             pdf = await self.build(pkg)
-            await self.put(pkg, pdf)
+            if await self.cached_url(pkg) is None:  # a warm cache needs no upload on this path
+                await self.put(pkg, pdf)
             return EmailAttachment(filename=pdf_filename(slug), content=pdf)
         except Exception as exc:
             self._degrade("Itinerary PDF failed for %s", slug, exc)

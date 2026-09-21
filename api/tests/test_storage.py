@@ -6,7 +6,14 @@ import httpx
 import pytest
 
 from app.config import Settings
-from app.infra.storage import BlobInfo, BlobStore, LocalStore, StorageNotConfigured, build_store
+from app.infra.storage import (
+    LIST_MAX_PAGES,
+    BlobInfo,
+    BlobStore,
+    LocalStore,
+    StorageNotConfigured,
+    build_store,
+)
 from tests.settings import make_settings
 
 
@@ -132,6 +139,22 @@ async def test_list_raises_on_a_non_2xx() -> None:
     )
     with pytest.raises(httpx.HTTPStatusError):
         await store.list("pdf/")
+
+
+async def test_list_stops_after_the_page_cap_and_raises() -> None:
+    """A `hasMore: true` that never clears (a broken or malicious endpoint) must not spin the
+    request forever."""
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"blobs": [], "cursor": "c", "hasMore": True})
+
+    store = BlobStore(_settings(), transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="did not terminate"):
+        await store.list("pdf/")
+    assert calls == LIST_MAX_PAGES
 
 
 def test_build_store_is_none_without_a_token() -> None:

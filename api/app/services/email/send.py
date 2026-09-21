@@ -41,7 +41,9 @@ async def send_enquiry_emails(
 ) -> EmailOutcome:
     try:
         owner = render_owner(ctx, settings=settings) if settings.owner_notify_email else None
-        visitor: EmailMessage | None = render_visitor(ctx, settings=settings)
+        visitor: EmailMessage | None = render_visitor(
+            ctx, settings=settings, attached=attachment is not None
+        )
         if attachment is not None and visitor is not None:
             visitor = replace(visitor, attachments=(attachment,))  # the owner gets a link instead
         visitor_is_real = True

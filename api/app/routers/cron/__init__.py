@@ -14,5 +14,8 @@ async def require_cron(request: Request) -> None:
     expected = settings.cron_secret.get_secret_value() if settings.cron_secret else None
     given = request.headers.get("authorization", "")
     scheme, _, token = given.partition(" ")
-    if not expected or scheme.lower() != "bearer" or not secrets.compare_digest(token, expected):
+    # `.encode()`: compare_digest on `str` requires ASCII-only input and raises `TypeError` on
+    # anything else — a non-ASCII bearer token must be a 401, not a 500.
+    matches = bool(expected) and secrets.compare_digest(token.encode(), expected.encode())
+    if not expected or scheme.lower() != "bearer" or not matches:
         raise ApiError("unauthorized", "Cron secret missing or wrong")

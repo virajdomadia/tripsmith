@@ -1,5 +1,6 @@
 """GET /cron/pdf-gc — bearer CRON_SECRET (06 §Auth), deletes stale itinerary PDFs."""
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
@@ -43,7 +44,15 @@ async def test_gc_rejects_a_missing_or_wrong_bearer(
     db_app: FastAPI, db_client: AsyncClient
 ) -> None:
     configured(db_app, FakeBlobStore())
-    for headers in ({}, {"Authorization": "Bearer nope"}, {"Authorization": "Basic s3cret"}):
+    non_ascii = httpx.Headers([(b"authorization", "Bearer sécrét".encode())])
+    for headers in (
+        {},
+        {"Authorization": "Bearer nope"},
+        {"Authorization": "Basic s3cret"},
+        # non-ASCII must 401, not 500 (`compare_digest` on `str` is ASCII-only); raw bytes get a
+        # non-ASCII value onto the wire without httpx trying (and failing) to ascii-encode it.
+        non_ascii,
+    ):
         res = await db_client.get("/cron/pdf-gc", headers=headers)
         assert res.status_code == 401, headers
         assert res.json()["error"]["code"] == "unauthorized"

@@ -1,5 +1,6 @@
 """POST /enquiries (06 C2): saves with status=new, dedupes 60 s, honeypot, rate limit, envelope."""
 
+import asyncio
 import datetime as dt
 import re
 
@@ -385,6 +386,28 @@ async def test_contact_enquiry_sends_no_attachment(
     assert res.status_code == 201
     assert all(m.attachments == () for m in sender.sent)
     assert store.objects == {}
+
+
+@pytest.mark.db
+async def test_slow_pdf_is_dropped_and_the_enquiry_still_mails(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    sender = mailing(db_app, FakeSender())
+    with_pdf(db_app, FakeBlobStore())
+    monkeypatch.setattr("app.services.enquiries.PDF_ATTACHMENT_TIMEOUT", 0.05)
+
+    async def slow(*a: object, **k: object) -> None:
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(PdfService, "attachment_for", slow)
+
+    res = await db_client.post("/enquiries", json=BODY)
+
+    assert res.status_code == 201, res.text
+    assert res.json()["emailed"] is True
+    assert len(sender.sent) == 2
+    assert all(m.attachments == () for m in sender.sent)
 
 
 @pytest.mark.db

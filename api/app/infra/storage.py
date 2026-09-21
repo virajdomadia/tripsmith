@@ -19,6 +19,7 @@ BLOB_API = "https://blob.vercel-storage.com"
 TIMEOUT_SECONDS = 60.0  # the seed's uploads
 APP_TIMEOUT_SECONDS = 10.0  # inside a request
 LIST_PAGE = 1000
+LIST_MAX_PAGES = 100  # a `hasMore: true` that never clears must not spin the request forever
 DELETE_BATCH = 100
 
 
@@ -70,11 +71,11 @@ class BlobStore:
         return str(res.json()["url"])
 
     async def list(self, prefix: str) -> list[BlobInfo]:
-        """Every object under `prefix`, following the cursor."""
+        """Every object under `prefix`, following the cursor, capped at `LIST_MAX_PAGES`."""
         out: list[BlobInfo] = []
         cursor: str | None = None
         async with self._client() as client:
-            while True:
+            for _ in range(LIST_MAX_PAGES):
                 params = {"prefix": prefix, "limit": str(LIST_PAGE)}
                 if cursor:
                     params["cursor"] = cursor
@@ -96,6 +97,7 @@ class BlobStore:
                 cursor = body.get("cursor") if body.get("hasMore") else None
                 if not cursor:
                     return out
+        raise RuntimeError("Blob list did not terminate")
 
     async def delete(self, urls: Sequence[str]) -> None:
         if not urls:

@@ -22,6 +22,7 @@ from app.services.format import duration, inr, long_date, meals_label, seats_lab
 from app.services.pdf.document import (
     ACTION,
     BG2,
+    FOOTER_HEIGHT,
     INK,
     INK2,
     LINE,
@@ -420,6 +421,9 @@ class _Itinerary:
             chips = [meals_label(day.meals.breakfast, day.meals.lunch, day.meals.dinner)]
             if day.stay:
                 chips.append(f"Stay · {day.stay}")
+            # `pill`'s own `cell` auto-breaks mid-draw when the chip row starts too close to the
+            # footer (its rect lands on this page, its text on the next) — keep the chips whole.
+            d.ensure(5.2 + 4.5)
             cx, cy = TEXT_X, d.get_y()
             for chip in chips:
                 cx += d.pill(cx, cy, chip, fill=BG2, color=MUTE) + 2
@@ -533,8 +537,14 @@ class _Itinerary:
         d.ensure(head_h + row_h * min(len(rows), 3) + 6)
         seg_top = d.get_y()
         y = header(seg_top)
+        # These rows are hand-positioned (`set_xy`/`cell` against the row's own `y`, not fpdf2's
+        # running `d.y`), so fpdf2's implicit auto break — which reads `d.y` — cannot be trusted
+        # here: after a row's last `cell`/`pill`, `d.y` sits ~7.5 mm above the row's real top and
+        # an implicit break can fire mid-row. Break on the row's real top ourselves, and disable
+        # auto page break for the loop as a backstop so a stray cell can never trigger one.
+        d.set_auto_page_break(False, margin=FOOTER_HEIGHT + 6)
         for k, dep in enumerate(rows):
-            if d.will_page_break(row_h + 2):
+            if y + row_h + 2 > d.page_break_trigger:
                 self._table_frame(seg_top, y)
                 d.add_page()
                 seg_top = d.get_y()
@@ -576,6 +586,7 @@ class _Itinerary:
                 )
             y += row_h
         self._table_frame(seg_top, y)
+        d.set_auto_page_break(True, margin=FOOTER_HEIGHT + 6)
         d.set_y(y + 3)
         if len(p.departures) > MAX_DEPARTURE_ROWS:
             d.para(
