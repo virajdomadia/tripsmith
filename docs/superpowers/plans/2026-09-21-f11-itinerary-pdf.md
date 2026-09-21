@@ -29,8 +29,8 @@
 | Question | Decision |
 |---|---|
 | Renderer | fpdf2 2.8.x, A4 portrait, mm units, margins 18 mm, auto page break 22 mm. Fonts `DMSans` regular / `B` bold / `SB` semibold (fpdf2 style keys: `""`, `"B"`, and a second family `DMSansSB` for semibold, since fpdf2 styles are only `B`/`I`). Prototype (2026-09-21): 3 pages with a 1400 px cover + 30-row table = 186 KB in 0.6 s including font load. |
-| Cover photo | `PackageDetail.cover.url` fetched with httpx (5 s timeout, ≤ 6 MB, `image/*` only) → Pillow `ImageOps.fit` to 1400×800 (the 210×120 mm band's ratio) → JPEG q80 → `pdf.image`. Fetch failure or no cover → a primary-soft band with the wordmark. The renderer itself never does I/O: it takes `cover: bytes \| None`. |
-| Page plan | p1: cover band, "ITINERARY" chip, name, destination · duration · departure city, summary, from-price, 4 fact boxes (Duration / Departure city / Next departure / From), highlights. p2+: Day by day (numbered days, meals · stay line), What's in the price (included ● ok-green dots, not included – mute dashes), Where you stay (table), Dates & prices (table + occupancy boxes + "prices vary" note), Good to know (FAQ, only if any), Book this trip (contact block: call, WhatsApp prefilled, enquire URL, package URL, hours, legal name + address). Header from p2 (wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). |
+| Cover photo | `PackageDetail.cover.url` fetched with httpx (5 s timeout, ≤ 6 MB, `image/*` only) → Pillow `ImageOps.fit` to 1400×700 (the 210×105 mm band's ratio) → JPEG q80 → `pdf.image`. Fetch failure or no cover → a primary-soft band with the wordmark. The renderer itself never does I/O: it takes `cover: bytes \| None`. |
+| Page plan | **p1 (cover page):** photo band 105 mm, "ITINERARY" marigold chip on its edge, name, destination · duration · departure city, summary, "From ₹x per person, double sharing", 4 fact boxes (Duration / Departure city / Next departure / Hotel — values shrink then ellipsise to fit), highlights (marigold dots), and the **contact card pinned above the footer** (callback promise, Call, WhatsApp prefilled, Enquire online URL, This trip URL, hours, legal name + address) — the promise travels with a forwarded PDF. **p2+:** Day by day (numbered primary badges, ragged-right body, meals · stay line, hairline between days), What's in the price (included ● ok-green dots, not included – mute dashes), Where you stay (zebra table), Dates & prices (table: date · seats/badge · per adult; then 2×2 occupancy boxes + "prices vary" note), Good to know (FAQ, only if any). Header from p2 (wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). Prototyped 2026-09-21 on the real north-goa-beaches content: 3 pages, 170 KB, 0.1 s. |
 | Cache key | `pdf_pathname(slug, updated_at)` = `pdf/{slug}/{int(updated_at.timestamp())}/Tripsmith-{slug}-itinerary.pdf`. `updated_at` has `onupdate=func.now()` (models/base.py) so any F18 save invalidates. Lookup = Blob `list(prefix="pdf/{slug}/")` and exact pathname match (the public host of the store is not derivable without a first put, and list is needed for GC anyway). |
 | Route responses | Cached → `302` Location = Blob URL, `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (`PUBLIC_CACHE_CONTROL`, same staleness as the JSON routes after an edit). Not cached → render → put → `302`. No store (dev/CI) or Blob failed → `200 application/pdf`, `Content-Disposition: inline; filename="Tripsmith-{slug}-itinerary.pdf"`. Draft/unknown slug → `404 not_found` envelope. Blob objects are served inline by Vercel (`?download=1` would force attachment — not used). |
 | Blob REST | `GET https://blob.vercel-storage.com/?prefix=…&limit=1000[&cursor=…]` → `{blobs:[{url,downloadUrl,pathname,size,uploadedAt}],cursor,hasMore}`; `POST https://blob.vercel-storage.com/delete` JSON `{"urls":[…]}`; both with `Authorization: Bearer <token>`, `x-api-version: 7`. (What `@vercel/blob` does under the hood; verified on prod in Task 10 — if a call 4xx's, the SDK source at github.com/vercel/storage/tree/main/packages/blob/src is the reference.) The app's `BlobStore` uses a 10 s timeout (the seed keeps 60 s). |
@@ -399,7 +399,7 @@ class Document(FPDF):
         self, text: str, *, size: float = 10.5, color: RGB = INK2, w: float = 0, line: float = 5.6
     ) -> None:
         self.font(size, "", color)
-        self.multi_cell(w, line, text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.multi_cell(w, line, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     def dotted(self, items: Iterable[str], color: RGB, *, dash: bool = False) -> None:
         """A list with a coloured dot (or a short dash) in the gutter — no bullet glyphs."""
@@ -413,7 +413,7 @@ class Document(FPDF):
                 self.ellipse(MARGIN + 0.6, y + 1.7, 2.6, 2.6, style="F")
             self.set_xy(MARGIN + 6, y)
             self.font(10.5, "", INK2)
-            self.multi_cell(self.epw - 6, 5.6, item, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.multi_cell(self.epw - 6, 5.6, item, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.set_y(self.get_y() + 0.8)
 
     def ensure(self, height: float) -> None:
@@ -468,7 +468,7 @@ git commit -m "feat(F11): fpdf2 Document base — DM Sans, palette, header/foote
 
 **Interfaces:**
 - Consumes: `Document` and helpers (Task 2); `inr`, `long_date`, `duration`, `meals_label`, `seats_label` (Task 1); `PackageDetail`, `DepartureOut`, `HotelOut` (`app.schemas.catalog`); `BADGE_LABELS` (`app.schemas.meta`); `BUSINESS`, `whatsapp_href` (`app.business`).
-- Produces: `render_itinerary(pkg: PackageDetail, *, cover: bytes | None, site_url: str, whatsapp_number: str) -> bytes`; `PDF_PREFIX = "pdf/"`; `pdf_prefix(slug) -> str`; `pdf_pathname(slug, updated_at: dt.datetime) -> str`; `pdf_filename(slug) -> str`; `COVER_SIZE = (1400, 800)`; `prepare_cover(data: bytes) -> bytes | None` (Pillow fit + JPEG; `None` if Pillow cannot open it).
+- Produces: `render_itinerary(pkg: PackageDetail, *, cover: bytes | None, site_url: str, whatsapp_number: str) -> bytes`; `PDF_PREFIX = "pdf/"`; `pdf_prefix(slug) -> str`; `pdf_pathname(slug, updated_at: dt.datetime) -> str`; `pdf_filename(slug) -> str`; `COVER_SIZE = (1400, 700)`; `prepare_cover(data: bytes) -> bytes | None` (Pillow fit + JPEG; `None` if Pillow cannot open it).
 
 - [ ] **Step 1: Write the fixture and the failing tests**
 
@@ -735,8 +735,8 @@ from app.services.pdf.document import (
 )
 
 PDF_PREFIX = "pdf/"
-COVER_SIZE = (1400, 800)  # 210 × 120 mm band at ~170 dpi
-COVER_BAND_MM = 120.0
+COVER_SIZE = (1400, 700)  # 210 × 105 mm band at ~170 dpi
+COVER_BAND_MM = 105.0
 MAX_DEPARTURE_ROWS = 24
 
 
@@ -769,6 +769,18 @@ def _price_range(values: Sequence[int]) -> str:
     return inr(lo) if lo == hi else f"{inr(lo)} – {inr(hi)}"
 
 
+def _fit(d: Document, value: str, width: float) -> str:
+    """Shrink to 9 pt, then trim words with an ellipsis, so a box value never overflows."""
+    size = 11.0
+    while size > 9 and d.get_string_width(value) > width:
+        size -= 0.5
+        d.font(size, "B", INK)
+    words = value.split()
+    while len(words) > 1 and d.get_string_width(" ".join(words) + "…") > width:
+        words.pop()
+    return value if d.get_string_width(value) <= width else " ".join(words) + "…"
+
+
 def _next_departure(departures: Sequence[DepartureOut]) -> DepartureOut | None:
     return next((d for d in departures if d.seats_left > 0), departures[0] if departures else None)
 
@@ -796,12 +808,12 @@ class _Itinerary:
         self.title_block()
         self.facts()
         self.highlights()
+        self.contact()  # on the cover page: the callback promise travels with a forwarded PDF
         self.days()
         self.price_lists()
         self.hotels()
         self.dates_and_prices()
         self.faq()
-        self.contact()
         return bytes(d.output())
 
     # --- page 1 -----------------------------------------------------------------------------
@@ -837,9 +849,10 @@ class _Itinerary:
         d.gap(3)
         d.font(15, "B", INK)
         price = inr(p.starting_price_paise // 100) if p.starting_price_paise else "On request"
-        d.cell(0, 8, f"From {price}", new_x=XPos.RIGHT, new_y=YPos.TOP)
+        lead = f"From {price}"
+        d.cell(d.get_string_width(lead) + 2, 8, lead, new_x=XPos.RIGHT, new_y=YPos.TOP)
         d.font(10, "", MUTE)
-        d.cell(0, 8, " per person, double sharing", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        d.cell(0, 8, "per person, double sharing", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         d.gap(4)
 
     def facts(self) -> None:
@@ -849,31 +862,31 @@ class _Itinerary:
             ("Duration", duration(p.nights, p.days)),
             ("Departure city", p.departure_city),
             ("Next departure", long_date(nxt.date) if nxt else "To be announced"),
-            (
-                "From",
-                inr(p.starting_price_paise // 100) if p.starting_price_paise else "On request",
-            ),
+            ("Hotel", p.hotels[0].name if p.hotels else "Hand-picked stays"),
         ]
         self._boxes(cells)
 
     def _boxes(self, cells: list[tuple[str, str]], *, cols: int = 4) -> None:
+        """Label-over-value boxes in a grid (the web's fact strip / occupancy grid)."""
         d = self.doc
         gutter, h = 3.0, 17.0
         w = (d.epw - gutter * (cols - 1)) / cols
-        d.ensure(h + 4)
+        rows = (len(cells) + cols - 1) // cols
+        d.ensure(rows * (h + gutter) + 4)
         top = d.get_y()
         for i, (label, value) in enumerate(cells):
-            x = MARGIN + i * (w + gutter)
-            d.box(x, top, w, h)
-            d.set_xy(x + 3.5, top + 3)
+            x = MARGIN + (i % cols) * (w + gutter)
+            y = top + (i // cols) * (h + gutter)
+            d.box(x, y, w, h)
+            d.set_xy(x + 3.5, y + 3)
             d.font(7.5, "B", MUTE)
             d.set_char_spacing(0.4)
             d.cell(w - 7, 4, label.upper())
             d.set_char_spacing(0)
-            d.set_xy(x + 3.5, top + 8)
+            d.set_xy(x + 3.5, y + 8)
             d.font(11, "B", INK)
-            d.cell(w - 7, 6, value)
-        d.set_y(top + h + 6)
+            d.cell(w - 7, 6, _fit(d, value, w - 7))
+        d.set_y(top + rows * (h + gutter) - gutter + 6)
 
     def highlights(self) -> None:
         if not self.pkg.highlights:
@@ -886,7 +899,7 @@ class _Itinerary:
 
     def days(self) -> None:
         d = self.doc
-        d.add_page()
+        d.ensure(70)  # the heading and the first day stay together
         d.h2("Day by day")
         for day in self.pkg.itinerary:
             d.ensure(30)
@@ -963,7 +976,8 @@ class _Itinerary:
                 ("Adult · triple sharing", _price_range([x.price_triple_paise for x in deps])),
                 ("Child 5–11 · with parents", _price_range([x.price_child_paise for x in deps])),
                 ("Single supplement", "+ " + _price_range([x.single_supplement_paise for x in deps])),
-            ]
+            ],
+            cols=2,
         )
         d.para(
             "Prices vary by departure date; the table above is per adult on double sharing.",
@@ -985,10 +999,13 @@ class _Itinerary:
 
     def contact(self) -> None:
         d = self.doc
-        d.h2("Book this trip")
-        h = 46.0
-        d.ensure(h + 4)
-        top = d.get_y()
+        h = 47.0
+        bottom_slot = d.h - d.b_margin - h - 2
+        if d.get_y() + 4 <= bottom_slot:
+            top = bottom_slot  # cover page: pin the card above the footer
+        else:
+            d.ensure(h + 4)
+            top = d.get_y()
         d.box(MARGIN, top, d.epw, h)
         d.set_xy(MARGIN + 6, top + 5)
         d.font(11, "B", INK)
@@ -1008,16 +1025,15 @@ class _Itinerary:
         d.set_x(MARGIN + 6)
         d.font(8.5, "", MUTE)
         d.cell(0, 5, f"{BUSINESS['hours']}. {BUSINESS['after_hours']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        d.set_y(top + h + 4)
-        d.font(8.5, "", MUTE)
+        d.set_x(MARGIN + 6)
         d.cell(
             0,
             5,
-            f"{BUSINESS['legal_name']} · {BUSINESS['address']}, {BUSINESS['city']} · "
-            f"{BUSINESS['email']}",
+            f"{BUSINESS['legal_name']} · {BUSINESS['address']}, {BUSINESS['city']}",
             new_x=XPos.LMARGIN,
             new_y=YPos.NEXT,
         )
+        d.set_y(top + h + 4)
 
     # --- shared ------------------------------------------------------------------------------
 
@@ -1031,6 +1047,8 @@ class _Itinerary:
     ) -> None:
         d = self.doc
         d.font(9.5, "", INK2)
+        d.set_fill_color(*WHITE)  # fpdf2 seeds row styles from the current fill colour
+        d.set_draw_color(*LINE)
         with d.table(
             col_widths=widths,
             text_align=align or tuple("LEFT" for _ in head),
