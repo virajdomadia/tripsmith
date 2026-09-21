@@ -78,6 +78,7 @@ async def test_api_error_is_rendered_as_envelope(app: FastAPI, client: AsyncClie
             "fieldErrors": {"slug": "taken"},
         }
     }
+    assert res.headers["cache-control"] == "no-store"
 
 
 async def test_api_error_omits_field_errors_when_none(app: FastAPI, client: AsyncClient) -> None:

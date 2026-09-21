@@ -208,6 +208,7 @@ async def test_login_route_rejects_bad_credentials_with_one_message(
     assert wrong.status_code == ghost.status_code == 401
     assert wrong.json() == ghost.json()
     assert wrong.json()["error"] == {"code": "unauthorized", "message": "Wrong email or password"}
+    assert wrong.headers["cache-control"] == "no-store"
     assert "set-cookie" not in wrong.headers
     assert await session_count(db) == 0
 
@@ -239,6 +240,7 @@ async def test_login_is_rate_limited_per_ip(
         headers={"X-Forwarded-For": "9.9.9.9"},
     )
     assert res.status_code == 429 and res.headers["retry-after"] == "600"
+    assert res.headers["cache-control"] == "no-store"
     assert res.json()["error"]["code"] == "rate_limited"
     assert limiter.hits == ["login:9.9.9.9"] * 11
     # Another address is unaffected.
@@ -255,7 +257,9 @@ async def test_session_route_round_trip_and_logout(
     db: AsyncSession, db_client: AsyncClient
 ) -> None:
     await seeded_with_owner(db)
-    assert (await db_client.get("/auth/session")).status_code == 401
+    no_cookie = await db_client.get("/auth/session")
+    assert no_cookie.status_code == 401
+    assert no_cookie.headers["cache-control"] == "no-store"
     assert (await db_client.get("/auth/session", cookies={COOKIE_NAME: "nope"})).status_code == 401
 
     login_res = await db_client.post(
