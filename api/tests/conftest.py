@@ -11,6 +11,7 @@ before every test all tables are truncated. Without the variable, `db` tests are
 import os
 from collections.abc import AsyncIterator, Iterator
 
+import httpx
 import pytest
 import sentry_sdk
 from alembic import command
@@ -25,6 +26,7 @@ from app.infra import db as db_module
 from app.infra.db import get_session
 from app.main import create_app
 from app.models import Base
+from app.services.pdf.service import PdfService
 from tests.settings import make_settings
 
 API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,7 +56,13 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 @pytest.fixture
 def app() -> FastAPI:
     # Pure defaults (tests/settings.py): no env, no .env.local — Sentry and the DB stay off.
-    return create_app(settings=make_settings())
+    settings = make_settings()
+    app = create_app(settings=settings)
+    # No store, and a cover fetch that always 404s: PDFs render, nothing leaves the process.
+    app.state.pdf = PdfService(
+        None, settings, transport=httpx.MockTransport(lambda r: httpx.Response(404))
+    )
+    return app
 
 
 @pytest.fixture
