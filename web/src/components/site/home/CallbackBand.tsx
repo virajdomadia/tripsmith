@@ -1,4 +1,4 @@
-import { BUSINESS, whatsappHref } from '@/lib/business';
+import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { Phone, WhatsApp } from './icons';
 
 /** Ocean-gradient band: WhatsApp + phone. The callback form joins it with the enquiry flow (F9). */
@@ -16,7 +16,7 @@ export function CallbackBand() {
       </div>
       <div className="flex flex-wrap gap-2.5 md:justify-end">
         <a
-          href={whatsappHref('Hi Tripsmith, I want to plan a trip')}
+          href={whatsappHref(whatsappInterest())}
           className="inline-flex items-center gap-2 rounded-btn bg-wa px-5 py-3 font-bold text-white no-underline shadow-[0_8px_20px_-10px_rgb(37_211_102/0.7)] transition-[filter] hover:brightness-105"
         >
           <WhatsApp className="size-5" />

@@ -28,3 +28,13 @@ export function whatsappHref(text?: string): string {
   const base = `https://wa.me/${WHATSAPP_NUMBER}`;
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
+
+/**
+ * The pre-filled WhatsApp opener (R5): package-specific on a package page, generic elsewhere.
+ * One string for the FAB, the mobile CTA bar and the price box.
+ */
+export function whatsappInterest(packageName?: string, url?: string): string {
+  return packageName && url
+    ? `Hi, I'm interested in ${packageName} (${url})`
+    : 'Hi Tripsmith, I want to plan a trip';
+}

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
 import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
@@ -11,6 +10,7 @@ import { Hotels } from '@/components/site/package/Hotels';
 import { Inclusions } from '@/components/site/package/Inclusions';
 import { Itinerary } from '@/components/site/package/Itinerary';
 import { ItineraryMotion } from '@/components/site/package/ItineraryMotion';
+import { MobileCtaBar } from '@/components/site/package/MobileCtaBar';
 import { OccupancyPricing } from '@/components/site/package/OccupancyPricing';
 import { PackageHero } from '@/components/site/package/PackageHero';
 import { PriceBox } from '@/components/site/package/PriceBox';
@@ -18,33 +18,16 @@ import { QuickFacts } from '@/components/site/package/QuickFacts';
 import { RelatedPackages } from '@/components/site/package/RelatedPackages';
 import { Section } from '@/components/site/package/Section';
 import { SectionNav } from '@/components/site/package/SectionNav';
-import { api, ApiRequestError } from '@/lib/api';
+import { WhatsAppPageMessage } from '@/components/site/whatsapp/WhatsAppContext';
+import { api } from '@/lib/api';
+import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
+import { whatsappInterest } from '@/lib/business';
 import { duration, inr } from '@/lib/format';
 import { packageJsonLd } from '@/lib/seo/package-jsonld';
 
 type Params = { slug: string };
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-
-/**
- * Tagged for on-demand revalidation (`package:<slug>`, admin edits in F18) and re-rendered hourly
- * anyway: the api filters departures by today's date, so a page cached forever would keep showing
- * a departure after it has left. Draft/unknown → 404 page.
- */
-const REVALIDATE_SECONDS = 60 * 60;
-
-async function loadPackage(slug: string) {
-  try {
-    return await api('/packages/{slug}', {
-      params: { slug },
-      tags: [`package:${slug}`],
-      revalidate: REVALIDATE_SECONDS,
-    });
-  } catch (err) {
-    if (err instanceof ApiRequestError && err.status === 404) notFound();
-    throw err;
-  }
-}
 
 /**
  * Prerender every live package at build; new slugs render on first request. CI builds with no
@@ -73,14 +56,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title,
     description: p.summary,
     alternates: { canonical: `${SITE_URL}/packages/${p.slug}` },
-    openGraph: {
-      title: p.name,
-      description: p.summary,
-      type: 'website',
-      images: p.cover
-        ? [{ url: p.cover.url, width: p.cover.width, height: p.cover.height, alt: p.cover.alt }]
-        : [],
-    },
+    // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
+    openGraph: { title: p.name, description: p.summary, type: 'website' },
+    twitter: { card: 'summary_large_image' },
   };
 }
 
@@ -92,7 +70,8 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
   return (
     <Container>
       <JsonLd data={packageJsonLd(pkg, url)} />
-      <PackageHero pkg={pkg} />
+      <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
+      <PackageHero pkg={pkg} url={url} />
       <Gallery images={pkg.images} />
       <QuickFacts pkg={pkg} />
       <SectionNav
@@ -135,11 +114,12 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
           )}
         </div>
         <aside className="hidden lg:block">
-          <PriceBox pkg={pkg} />
+          <PriceBox pkg={pkg} url={url} />
         </aside>
       </div>
 
       <RelatedPackages cards={pkg.related} />
+      <MobileCtaBar pkg={pkg} url={url} />
     </Container>
   );
 }

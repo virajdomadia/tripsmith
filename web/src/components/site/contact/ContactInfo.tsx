@@ -1,5 +1,5 @@
 import type { ReactNode, SVGProps } from 'react';
-import { BUSINESS, whatsappHref } from '@/lib/business';
+import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { Clock, Mail, Phone, Pin, WhatsApp } from '../home/icons';
 
 type Row = { icon: (p: SVGProps<SVGSVGElement>) => ReactNode; main: ReactNode; sub?: ReactNode };
@@ -20,7 +20,7 @@ export function ContactInfo() {
       icon: WhatsApp,
       main: (
         <a
-          href={whatsappHref('Hi Tripsmith, I want to plan a trip')}
+          href={whatsappHref(whatsappInterest())}
           className="font-bold no-underline hover:underline"
         >
           WhatsApp

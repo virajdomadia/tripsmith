@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
-import { BUSINESS } from '@/lib/business';
+import { WhatsApp } from '@/components/site/home/icons';
+import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { formatDate, inr } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
@@ -10,8 +11,8 @@ type PackageDetail = components['schemas']['PackageDetail'];
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-/** Sticky price box (desktop): from-price, next departure, Enquire (F9), PDF (F11). WhatsApp joins in F12. */
-export function PriceBox({ pkg }: { pkg: PackageDetail }) {
+/** Sticky price box (desktop): from-price, next departure, Enquire (F9), PDF (F11), WhatsApp (F12). */
+export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   return (
     <div className="sticky top-24 grid gap-3 rounded-card border border-line bg-bg p-5.5 shadow-[0_30px_60px_-40px_rgb(20_32_42/0.35)]">
@@ -43,7 +44,18 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
       >
         Enquire about this trip
       </Link>
-      <ItineraryPdfLink slug={pkg.slug} variant="button" />
+      <div className="grid grid-cols-2 gap-2">
+        <ItineraryPdfLink slug={pkg.slug} variant="button" label="Itinerary PDF" className="px-3" />
+        <a
+          href={whatsappHref(whatsappInterest(pkg.name, url))}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex items-center justify-center gap-2 rounded-btn border-[1.5px] border-line px-3 py-2.5 font-bold text-ink no-underline transition-colors hover:border-ink"
+        >
+          <WhatsApp className="size-4.5 text-wa" />
+          WhatsApp
+        </a>
+      </div>
       <p className="border-t border-line pt-3 text-[13px] leading-relaxed text-mute">
         A person calls you back within 2 hours, {BUSINESS.hours}. Nothing to pay online.
       </p>

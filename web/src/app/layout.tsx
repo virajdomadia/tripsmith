@@ -11,7 +11,11 @@ const dmSans = DM_Sans({
   display: 'swap',
 });
 
+/** Absolute base for the generated OG image URLs (F13) — a crawler cannot resolve a relative one. */
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: 'Tripsmith', template: '%s · Tripsmith' },
   description:
     'Browse holiday packages, pay online, and chat with an AI concierge that plans an itinerary and books it for you.',
