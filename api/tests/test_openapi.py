@@ -25,6 +25,10 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert schemas["EnquiryType"]["enum"] == ["standard", "custom", "contact"]
     assert doc["paths"]["/health"]["get"]["operationId"] == "getHealth"
     assert doc["paths"]["/meta"]["get"]["operationId"] == "getMeta"
+    assert doc["paths"]["/auth/login"]["post"]["operationId"] == "login"
+    assert doc["paths"]["/auth/logout"]["post"]["operationId"] == "logout"
+    assert doc["paths"]["/auth/session"]["get"]["operationId"] == "getSession"
+    assert schemas["UserRole"]["enum"] == ["owner", "customer"]
 
 
 def test_rendered_document_is_stable_and_newline_terminated() -> None:

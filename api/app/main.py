@@ -15,6 +15,7 @@ from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
 from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
+from app.routers import auth
 from app.routers.cron import pdf_gc
 from app.routers.site import catalog, enquiries, health, meta, pdf, views
 from app.services.pdf.service import PdfService
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(meta.router)
+    app.include_router(auth.router)
     app.include_router(catalog.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)
