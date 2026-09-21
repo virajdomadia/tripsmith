@@ -16,8 +16,8 @@
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` (root) green; `pnpm gen:api` output committed (freshness tests both sides). Python: ruff line 100, rules E/F/I/B/UP; pyright basic.
 - Tests seed `tests/fixture_content` (2 Goa packages: `north-goa-beaches` "North Goa Beaches" 3 nights / 4 days, cover `agonda-sunset.jpg`; `goa-quiet-escape`) — never edit the fixture. Db tests use the `db` / `db_client` / `db_app` fixtures; unit tests need no database. **Tests never touch the network**: Blob through `httpx.MockTransport` or `FakeBlobStore`; the cover fetch through `PdfService(transport=…)`; routes through a `FakeSender`.
 - R6 acceptance, asserted by tests: valid PDF (`%PDF-` header, pypdf opens it), A4, **< 2 MB**, **< 3 s** to render on the test machine, content matches the page (name, summary, every day title, every hotel, inclusions/exclusions, departures with prices, occupancy prices, contact block).
-- Unicode only through the registered DM Sans TTFs (₹ U+20B9, en dash, `·`, `•` are all in the font; **never** `Helvetica`/core fonts — they are Latin-1 and would drop ₹). No glyphs outside DM Sans (no ✓ ★ emoji): stars are "4-star", checks are drawn dots.
-- Palette = the web tokens: ink `#14202a`, ink2 `#3b4148`, mute `#5e6b76`, line `#e3e8ec`, bg2 `#f3f6fc`, primary `#1b4fd8`, primary-soft `#e8eeff`, action `#f2a93b`, ok `#1f7a4d`, warn `#b5541e`. Money = `inr()` Indian grouping in whole rupees (paise // 100). Dates = `Fri 18 Dec 2026` (web `formatDate`). Copy: short, concrete, Indian English; business facts from `app/business.py`.
+- Unicode only through the registered DM Sans TTFs (₹ U+20B9, en dash, `·`, `•`, `›` are all in the font; **never** `Helvetica`/core fonts — they are Latin-1 and would drop ₹). DM Sans has no ✓ ✕ ★: the site's `Check` / `Cross` icons and the hotel stars are **drawn** (`Document.check/cross/star`), and the `BrandMark` is drawn from its SVG path — never an emoji, never a glyph the font lacks.
+- Palette = the web tokens: ink `#14202a`, ink2 `#3b4148`, mute `#5e6b76`, line `#e3e8ec`, bg2 `#f3f6fc`, primary `#1b4fd8`, primary-soft `#e8eeff`, action `#f2a93b`, ok `#1f7a4d` / ok-soft `#e3f0ea`, warn `#b5541e` / warn-soft `#fff1dd`, wa `#25d366`. Radii scaled from the site: card 18 px → 2.6 mm, panel 14 px → 2.0 mm, button 12 px → 1.7 mm, chips fully round. The PDF's components are the web's components (`web/src/components/site/package/*`, `PriceBox`, `BrandMark`) — when in doubt, open the .tsx and copy what it does. Money = `inr()` Indian grouping in whole rupees (paise // 100). Dates = `Fri 18 Dec 2026` (web `formatDate`). Copy: short, concrete, Indian English; business facts from `app/business.py`.
 - Blob objects are public (marketing material, 06 §Storage). Pathname `pdf/{slug}/{updated_at_epoch}/Tripsmith-{slug}-itinerary.pdf` (the basename is the download filename; the prefix `pdf/{slug}/` scopes lookups, `pdf/` scopes the GC). **Amends 04 §5's `pdf/{slug}-{epoch}.pdf`** — Task 10 updates the doc.
 - Nothing the PDF or Blob does may turn a saved enquiry into a non-201, or a package download into a 5xx: the route falls back to streaming the bytes; the email goes out without the attachment; failures log + Sentry.
 - Secrets never logged; the Blob token travels only in the `Authorization` header. No new env vars (`BLOB_READ_WRITE_TOKEN`, `CRON_SECRET`, `SITE_URL`, `WHATSAPP_NUMBER` exist).
@@ -28,9 +28,9 @@
 
 | Question | Decision |
 |---|---|
-| Renderer | fpdf2 2.8.x, A4 portrait, mm units, margins 18 mm, auto page break 22 mm. Fonts `DMSans` regular / `B` bold / `SB` semibold (fpdf2 style keys: `""`, `"B"`, and a second family `DMSansSB` for semibold, since fpdf2 styles are only `B`/`I`). Prototype (2026-09-21): 3 pages with a 1400 px cover + 30-row table = 186 KB in 0.6 s including font load. |
-| Cover photo | `PackageDetail.cover.url` fetched with httpx (5 s timeout, ≤ 6 MB, `image/*` only) → Pillow `ImageOps.fit` to 1400×700 (the 210×105 mm band's ratio) → JPEG q80 → `pdf.image`. Fetch failure or no cover → a primary-soft band with the wordmark. The renderer itself never does I/O: it takes `cover: bytes \| None`. |
-| Page plan | **p1 (cover page):** photo band 105 mm, "ITINERARY" marigold chip on its edge, name, destination · duration · departure city, summary, "From ₹x per person, double sharing", 4 fact boxes (Duration / Departure city / Next departure / Hotel — values shrink then ellipsise to fit), highlights (marigold dots), and the **contact card pinned above the footer** (callback promise, Call, WhatsApp prefilled, Enquire online URL, This trip URL, hours, legal name + address) — the promise travels with a forwarded PDF. **p2+:** Day by day (numbered primary badges, ragged-right body, meals · stay line, hairline between days), What's in the price (included ● ok-green dots, not included – mute dashes), Where you stay (zebra table), Dates & prices (table: date · seats/badge · per adult; then 2×2 occupancy boxes + "prices vary" note), Good to know (FAQ, only if any). Header from p2 (wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). Prototyped 2026-09-21 on the real north-goa-beaches content: 3 pages, 170 KB, 0.1 s. |
+| Renderer | fpdf2 2.8.x, A4 portrait, mm units, margins 18 mm, auto page break 22 mm. DM Sans in the site's four weights — 400 / 600 (`font-semibold`) / 700 (`font-bold`) / 800 (headings, `font-extrabold`) — each registered as its own fpdf2 family (`DMSans`, `DMSansSB`, `DMSansB`, `DMSansXB`; fpdf2 styles are only B/I). Headings carry the site's `letter-spacing: -0.03em`. Prototyped 2026-09-21 on the real north-goa-beaches content with its five photos: 4 pages, 334 KB, 0.25 s. |
+| Photos | `PackageDetail.cover.url` + up to four more `images[1:5]` fetched concurrently with httpx (5 s timeout, ≤ 6 MB, `image/*` only). `prepare_cover` bakes the `PackageHero` treatment with Pillow: centre-crop to 21:9 (1400×600), the bottom gradient `rgb(10 20 30 / 0.7)`, rounded-card corners flattened onto the page white, JPEG q82. `prepare_gallery_image` crops each gallery photo to the strip's cell (700×296). Any fetch failure → that photo is simply absent (no cover → a bg2 panel with ink text). The renderer itself never does I/O: it takes `cover: bytes \| None` and `gallery: Sequence[bytes]`. |
+| Page plan | **The package page, section for section, with the same components** (Viraj, 2026-09-21: "same as our UI"). **p1:** the site header's `BrandMark` + wordmark (drawn as vectors, clickable) and the breadcrumb `Home › Goa › North Goa Beaches`; the `PackageHero` — rounded-card 21:9 photo, dark bottom gradient, white 800 title, `3 nights / 4 days   Ex-Mumbai   Beach · Family`; the `QuickFacts` strip (one bordered bg2 panel, five cells split by hairlines: Duration · From · Departs · Stay · Next date, label-caps over 800 values that shrink to fit); the summary; `Highlights` as a two-column list with the green `Check` mark; the `Gallery` strip (one tall cell + up to four small, `rounded-[10px]`, drawn only when the page has room); and the `PriceBox` **pinned above the footer** — From / ₹price 800 / "per person, double sharing", the bordered Next-departure box with seats, the marigold **Enquire about this trip** button, the WhatsApp-green **Chat on WhatsApp** button, `Call +91 …` (all real links), then the callback promise, hours and the legal line. **p2+:** `Itinerary` (primary route line, 800-weight numbered badges, title, ragged-right body, bg2 pill chips `Breakfast · Dinner` / `Stay · …`, hairline between days); `Inclusions` (Included / Not included side by side, `Check` in ok-green, `Cross` in mute); `Hotels` (one bordered card each: name, five drawn marigold stars, `city · n nights`); `DeparturesTable` (bordered `rounded-[14px]` table, bg2 label-caps header, date bold, price, seat bar in primary — warn when ≤ 4 — with `n left`, status pill in the site's tones) + `OccupancyPricing` (2×2 bordered boxes) + the "prices vary" note; `Faq` as hairline rows (question bold, answer open). Header from p2 (mark + wordmark left, `Itinerary · {name}` right, rule); footer on every page (rule, contact line, `Page x of {nb}`). Every heading is kept with the block that follows it (`h2(keep=…)`). |
 | Cache key | `pdf_pathname(slug, updated_at)` = `pdf/{slug}/{int(updated_at.timestamp())}/Tripsmith-{slug}-itinerary.pdf`. `updated_at` has `onupdate=func.now()` (models/base.py) so any F18 save invalidates. Lookup = Blob `list(prefix="pdf/{slug}/")` and exact pathname match (the public host of the store is not derivable without a first put, and list is needed for GC anyway). |
 | Route responses | Cached → `302` Location = Blob URL, `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` (`PUBLIC_CACHE_CONTROL`, same staleness as the JSON routes after an edit). Not cached → render → put → `302`. No store (dev/CI) or Blob failed → `200 application/pdf`, `Content-Disposition: inline; filename="Tripsmith-{slug}-itinerary.pdf"`. Draft/unknown slug → `404 not_found` envelope. Blob objects are served inline by Vercel (`?download=1` would force attachment — not used). |
 | Blob REST | `GET https://blob.vercel-storage.com/?prefix=…&limit=1000[&cursor=…]` → `{blobs:[{url,downloadUrl,pathname,size,uploadedAt}],cursor,hasMore}`; `POST https://blob.vercel-storage.com/delete` JSON `{"urls":[…]}`; both with `Authorization: Bearer <token>`, `x-api-version: 7`. (What `@vercel/blob` does under the hood; verified on prod in Task 10 — if a call 4xx's, the SDK source at github.com/vercel/storage/tree/main/packages/blob/src is the reference.) The app's `BlobStore` uses a 10 s timeout (the seed keeps 60 s). |
@@ -62,7 +62,7 @@ uv run --directory api pytest -q -p no:cacheprovider   # baseline: 193 passed
 pnpm --filter web test                                 # baseline: 89 passed
 ```
 
-The fonts are already downloaded into `api/assets/fonts/` (untracked): `DMSans-Regular.ttf`, `DMSans-SemiBold.ttf`, `DMSans-Bold.ttf` — 48 KB static instances from Google Fonts (`fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700`, fetched with a non-woff2 User-Agent; no `fvar` table; cmap has U+20B9 ₹, U+2013, U+00B7, U+2022). If missing, re-fetch the same way. Licence: SIL OFL 1.1 — Task 2 adds `assets/fonts/OFL.txt`.
+The fonts are already downloaded into `api/assets/fonts/` (untracked): `DMSans-Regular.ttf`, `DMSans-SemiBold.ttf`, `DMSans-Bold.ttf`, `DMSans-ExtraBold.ttf` — 48 KB static instances from Google Fonts (`fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800`, fetched with a non-woff2 User-Agent such as `Mozilla/4.0`; no `fvar` table; cmap has U+20B9 ₹, U+2013, U+00B7, U+2022, U+203A — and no ★ ✓ ✕). If missing, re-fetch the same way. Licence: SIL OFL 1.1 — Task 2 adds `assets/fonts/OFL.txt`.
 
 Commit this plan first:
 
@@ -204,12 +204,12 @@ git commit -m "feat(F11): shared money/date/label formatting for the PDF and ema
 **Files:**
 - Create: `api/app/services/pdf/__init__.py` (empty docstring module)
 - Create: `api/app/services/pdf/document.py`
-- Create: `api/assets/fonts/OFL.txt` (the SIL OFL 1.1 text — copy from https://openfontlicense.org/open-font-license-official-text/ with the copyright line `Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)`)
+- Create: `api/assets/fonts/OFL.txt` (the SIL OFL 1.1 text — copy from https://openfontlicense.org/open-font-license-official-text/ with the copyright line `Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)`); the four TTFs (Regular / SemiBold / Bold / ExtraBold, see Local environment) are committed in this task
 - Modify: `api/pyproject.toml` (`fpdf2>=2.8.8` runtime; `pypdf` dev)
 - Test: `api/tests/test_pdf_document.py`
 
 **Interfaces:**
-- Produces: `Document(title: str, running_title: str)` — an `FPDF` subclass with `add_page()` chrome, and helpers used by Task 3: `font(size, style="", color=INK)`, `h1(text)`, `h2(text)`, `label(text)`, `para(text, *, size=10.5, color=INK2, w=0, line=5.6)`, `dotted(items, color)`, `ensure(height_mm)`, `gap(mm)`, `box(x, y, w, h, fill=BG2, stroke=LINE, radius=3)`; palette constants `INK, INK2, MUTE, LINE, BG2, PRIMARY, PRIMARY_SOFT, ACTION, OK, WARN, WHITE`; `FONT = "DMSans"`, `FONT_SB = "DMSansSB"`, `MARGIN = 18`, `FONTS_DIR`.
+- Produces: `Document(title: str, running_title: str)` — an `FPDF` subclass with `add_page()` chrome (header from page 2 = drawn `BrandMark` + wordmark + `Itinerary · {running_title}`; footer = contact line + `Page x of {nb}`), and the helpers Task 3 builds the sections from: type `font(size, weight=""|"SB"|"B"|"XB", color=INK)`, `heading(text, size, color=INK, *, h=None)` (800, −0.03 em), `h2(text, *, keep=30)` (section title kept with `keep` mm of what follows), `label(text, *, w=0, new_line=True)` (`.label-caps`), `para(text, *, size=10.5, color=INK2, w=0, line=5.6)`, `lines_of(text, w, size=10.5) -> int`; marks `check(x, y, color=OK, s=3.2)`, `cross(x, y, color=MUTE, s=3.2)`, `star(cx, cy, r, *, filled)`, `pill(x, y, text, *, fill, color, size=7.5) -> width`, `button(x, y, w, text, *, fill, color, link)`, `brand_mark(x, y, size)`, `wordmark(x, y, *, size=7.0, link="") -> width`; surfaces `card(x, y, w, h, *, fill=WHITE, stroke=LINE, r=R_CARD)`, `hairline(y, x1=MARGIN, x2=None)`, `ensure(height_mm)`, `gap(mm)`. Constants: `INK, INK2, MUTE, LINE, BG2, PRIMARY, PRIMARY_SOFT, ACTION, OK, OK_SOFT, WARN, WARN_SOFT, WA, WHITE`, `R_CARD, R_PANEL, R_BTN`, `MARGIN = 18`, `PT`, `WEIGHTS`, `FONTS_DIR`.
 
 - [ ] **Step 1: Add the dependencies**
 
@@ -220,30 +220,31 @@ Expected: `uv.lock` and `pyproject.toml` updated (`fpdf2` under `dependencies`, 
 
 ```python
 # api/tests/test_pdf_document.py
-"""services/pdf/document.py — page chrome, fonts and the glyphs the itinerary needs."""
+"""services/pdf/document.py — page chrome, the four DM Sans weights, the glyphs the itinerary
+needs, and the drawn marks (the font has no ★ ✓ ✕)."""
 
 import io
 
 from pypdf import PdfReader
 
-from app.services.pdf.document import FONTS_DIR, Document
+from app.services.pdf.document import ACTION, BG2, FONTS_DIR, INK, MUTE, OK_SOFT, Document
 
 
 def _text(pdf_bytes: bytes) -> list[str]:
     reader = PdfReader(io.BytesIO(pdf_bytes))
-    return [page.extract_text() for page in reader.pages]
+    return [" ".join(page.extract_text().split()) for page in reader.pages]
 
 
 def test_fonts_are_bundled() -> None:
-    for name in ("DMSans-Regular.ttf", "DMSans-SemiBold.ttf", "DMSans-Bold.ttf"):
-        assert (FONTS_DIR / name).is_file(), name
+    for weight in ("Regular", "SemiBold", "Bold", "ExtraBold"):
+        assert (FONTS_DIR / f"DMSans-{weight}.ttf").is_file(), weight
     assert (FONTS_DIR / "OFL.txt").is_file()
 
 
 def test_document_is_a4_with_header_from_page_two_and_a_footer_on_every_page() -> None:
     doc = Document(title="North Goa Beaches — itinerary", running_title="North Goa Beaches")
     doc.add_page()
-    doc.h1("North Goa Beaches")
+    doc.heading("North Goa Beaches", 24)
     doc.para("From ₹18,499 per person · 3 nights / 4 days – Ex-Mumbai • beaches")
     doc.add_page()
     doc.h2("Day by day")
@@ -261,8 +262,35 @@ def test_document_is_a4_with_header_from_page_two_and_a_footer_on_every_page() -
     assert "₹18,499" in p1 and "–" in p1 and "•" in p1  # registered TTF, not a core font
     assert "Page 1 of 2" in p1 and "Page 2 of 2" in p2
     assert "Itinerary · North Goa Beaches" not in p1  # no running header on the cover page
-    assert "Itinerary · North Goa Beaches" in p2
+    assert p2.startswith("Tripsmith Itinerary · North Goa Beaches")  # wordmark + running title
     assert "Tripsmith Holidays" in p1 and "Tripsmith Holidays" in p2  # footer contact line
+
+
+def test_every_weight_and_mark_renders() -> None:
+    doc = Document(title="t", running_title="t")
+    doc.add_page()
+    for weight in ("", "SB", "B", "XB"):
+        doc.font(11, weight, INK)
+        doc.cell(0, 6, f"weight {weight or 'regular'}", new_x="LMARGIN", new_y="NEXT")
+    doc.label("Included")
+    doc.check(20, 60)
+    doc.cross(26, 60)
+    for k in range(5):
+        doc.star(40 + k * 4, 62, 1.6, filled=k < 3)
+    w = doc.pill(20, 70, "Filling fast", fill=OK_SOFT, color=MUTE)
+    assert w > 10
+    doc.button(20, 80, 60, "Enquire about this trip", fill=ACTION, color=INK, link="https://x")
+    doc.brand_mark(20, 95, 7)
+    used = doc.wordmark(20, 105, size=7, link="https://x")
+    assert used > 20
+    doc.card(20, 120, 60, 20, fill=BG2)
+    out = bytes(doc.output())
+    text = _text(out)[0]
+    assert "INCLUDED" in text and "Filling fast" in text and "Enquire about this trip" in text
+    assert "Tripsmith" in text  # the wordmark is real text, not an image
+    page = PdfReader(io.BytesIO(out)).pages[0]
+    uris = [a.get_object()["/A"]["/URI"] for a in page.get("/Annots", [])]
+    assert uris.count("https://x") == 2  # the button and the wordmark are clickable
 
 
 def test_ensure_breaks_the_page_when_the_block_would_not_fit() -> None:
@@ -272,6 +300,21 @@ def test_ensure_breaks_the_page_when_the_block_would_not_fit() -> None:
     doc.ensure(30)
     assert doc.page_no() == 2
     assert doc.get_y() == doc.t_margin
+
+
+def test_h2_keeps_the_heading_with_what_follows() -> None:
+    doc = Document(title="t", running_title="t")
+    doc.add_page()
+    doc.set_y(doc.h - doc.b_margin - 40)
+    doc.h2("Questions", keep=60)  # 60 mm must follow: not on this page
+    assert doc.page_no() == 2
+
+
+def test_lines_of_counts_wrapped_lines() -> None:
+    doc = Document(title="t", running_title="t")
+    doc.add_page()
+    assert doc.lines_of("short", 80) == 1
+    assert doc.lines_of("a fairly long line of body copy that cannot fit in forty mm", 40) >= 3
 ```
 
 - [ ] **Step 3: Run the tests to verify they fail**
@@ -288,25 +331,33 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'app.services.pdf'`
 
 ```python
 # api/app/services/pdf/document.py
-"""`Document`: the A4 page chrome every Tripsmith PDF shares — DM Sans, the web's palette, a
-running header from page 2, a footer with the contact line and page numbers, and small text
-helpers. Pure fpdf2; no I/O beyond reading the bundled fonts.
+"""`Document`: the A4 page chrome every Tripsmith PDF shares — DM Sans in the site's four
+weights, the web's palette and radii, a running header from page 2, a footer with the contact
+line and page numbers, and the drawing helpers the site's components translate to (label-caps,
+check / cross marks, stars, pills, rounded cards). Pure fpdf2; no I/O beyond the bundled fonts.
 
 Only the registered TTFs may be used: the core fonts are Latin-1 and would drop ₹ and dashes.
+DM Sans has no ★ ✓ ✕ either — those are drawn, never typed.
 """
 
-from collections.abc import Iterable
+import math
 from pathlib import Path
 
 from fpdf import FPDF, XPos, YPos
+from fpdf.drawing import DeviceRGB
 
 from app.business import BUSINESS
 
 FONTS_DIR = Path(__file__).resolve().parents[3] / "assets" / "fonts"
-FONT = "DMSans"
-FONT_SB = "DMSansSB"  # fpdf2 styles are only B/I, so semibold is its own family
+# fpdf2 styles are only B/I, so each weight the site uses is its own family.
+WEIGHTS = {"": "Regular", "SB": "SemiBold", "B": "Bold", "XB": "ExtraBold"}
 MARGIN = 18.0
 FOOTER_HEIGHT = 16.0
+PT = 0.3528  # mm per pt
+# The web's radii (px at ~1220 px content width) scaled to the 174 mm text column.
+R_CARD = 2.6  # rounded-card 18px
+R_PANEL = 2.0  # rounded-[14px]
+R_BTN = 1.7  # rounded-btn 12px
 
 RGB = tuple[int, int, int]
 INK: RGB = (0x14, 0x20, 0x2A)
@@ -318,7 +369,10 @@ PRIMARY: RGB = (0x1B, 0x4F, 0xD8)
 PRIMARY_SOFT: RGB = (0xE8, 0xEE, 0xFF)
 ACTION: RGB = (0xF2, 0xA9, 0x3B)
 OK: RGB = (0x1F, 0x7A, 0x4D)
+OK_SOFT: RGB = (0xE3, 0xF0, 0xEA)
 WARN: RGB = (0xB5, 0x54, 0x1E)
+WARN_SOFT: RGB = (0xFF, 0xF1, 0xDD)
+WA: RGB = (0x25, 0xD3, 0x66)
 WHITE: RGB = (0xFF, 0xFF, 0xFF)
 
 
@@ -326,9 +380,8 @@ class Document(FPDF):
     def __init__(self, *, title: str, running_title: str) -> None:
         super().__init__(orientation="P", unit="mm", format="A4")
         self.running_title = running_title
-        self.add_font(FONT, "", FONTS_DIR / "DMSans-Regular.ttf")
-        self.add_font(FONT, "B", FONTS_DIR / "DMSans-Bold.ttf")
-        self.add_font(FONT_SB, "", FONTS_DIR / "DMSans-SemiBold.ttf")
+        for key, weight in WEIGHTS.items():
+            self.add_font(f"DMSans{key}", "", FONTS_DIR / f"DMSans-{weight}.ttf")
         self.set_margins(MARGIN, MARGIN, MARGIN)
         self.set_auto_page_break(True, margin=FOOTER_HEIGHT + 6)
         self.alias_nb_pages()
@@ -336,6 +389,7 @@ class Document(FPDF):
         self.set_author(BUSINESS["name"])
         self.set_creator(BUSINESS["name"])
         self.set_lang("en-IN")
+        self.set_line_width(0.25)
         self.font(10.5)
 
     # --- chrome (fpdf2 calls these itself) -----------------------------------------------------
@@ -343,56 +397,57 @@ class Document(FPDF):
     def header(self) -> None:
         if self.page_no() == 1:
             return
-        self.set_y(8)
-        self.font(9, "B", PRIMARY)
-        self.cell(0, 6, BUSINESS["name"], new_x=XPos.LMARGIN, new_y=YPos.TOP)
+        self.wordmark(MARGIN, 7.5, size=5.2)
+        self.set_xy(MARGIN, 7.5)
         self.font(9, "", MUTE)
-        self.cell(0, 6, f"Itinerary · {self.running_title}", align="R")
-        self.set_draw_color(*LINE)
-        self.line(MARGIN, 14.5, self.w - MARGIN, 14.5)
+        self.cell(0, 5.2, f"Itinerary · {self.running_title}", align="R")
+        self.hairline(14.5)
         self.set_y(MARGIN)
 
     def footer(self) -> None:
         self.set_y(-FOOTER_HEIGHT)
-        self.set_draw_color(*LINE)
-        self.line(MARGIN, self.get_y(), self.w - MARGIN, self.get_y())
+        self.hairline(self.get_y())
         self.set_y(self.get_y() + 2.5)
         self.font(8, "", MUTE)
-        contact = (
-            f"{BUSINESS['legal_name']} · {BUSINESS['phone_display']} · {BUSINESS['email']}"
-        )
+        contact = f"{BUSINESS['legal_name']} · {BUSINESS['phone_display']} · {BUSINESS['email']}"
         self.cell(0, 5, contact, new_x=XPos.LMARGIN, new_y=YPos.TOP)
         self.cell(0, 5, f"Page {self.page_no()} of {{nb}}", align="R")
 
-    # --- text helpers ----------------------------------------------------------------------------
+    # --- type ------------------------------------------------------------------------------------
 
-    def font(self, size: float, style: str = "", color: RGB = INK) -> None:
-        """Select DM Sans at `size` pt: style "" regular, "B" bold, "SB" semibold."""
-        family, st = (FONT_SB, "") if style == "SB" else (FONT, style)
-        self.set_font(family, st, size)
+    def font(self, size: float, weight: str = "", color: RGB = INK) -> None:
+        """DM Sans at `size` pt: weight "" 400, "SB" 600, "B" 700, "XB" 800."""
+        self.set_font(f"DMSans{weight}", "", size)
         self.set_text_color(*color)
 
-    def h1(self, text: str) -> None:
-        self.font(26, "B", INK)
-        self.multi_cell(0, 11, text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    def heading(self, text: str, size: float, color: RGB = INK, *, h: float | None = None) -> None:
+        """h1–h3 as the site sets them: 800, letter-spacing -0.03em, line-height 1.1."""
+        self.font(size, "XB", color)
+        self.set_char_spacing(-0.03 * size)
+        self.multi_cell(
+            0, h or size * PT * 1.1, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT
+        )
+        self.set_char_spacing(0)
 
-    def h2(self, text: str) -> None:
-        """Section heading with the marigold tick the web's section titles carry."""
-        self.ensure(24)
-        self.gap(4)
-        y = self.get_y()
-        self.set_fill_color(*ACTION)
-        self.rect(MARGIN, y + 1.5, 6, 2.2, style="F")
-        self.set_y(y + 5)
-        self.font(17, "B", INK)
-        self.cell(0, 9, text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.gap(2)
+    def h2(self, text: str, *, keep: float = 30) -> None:
+        """Section title (`Section`): 800 at ~28px, 16 px below; kept with `keep` mm of what
+        follows so a heading never ends a page alone."""
+        self.ensure(min(keep, 150) + 18)
+        self.gap(6)
+        self.heading(text, 19)
+        self.gap(3.5)
 
-    def label(self, text: str) -> None:
-        """Small caps label (the web's `.label-caps`)."""
+    def label(self, text: str, *, w: float = 0, new_line: bool = True) -> None:
+        """`.label-caps`: 11px 700, tracking 0.12em, uppercase, mute."""
         self.font(7.5, "B", MUTE)
-        self.set_char_spacing(0.4)
-        self.cell(0, 4, text.upper(), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_char_spacing(0.12 * 7.5)
+        self.cell(
+            w,
+            4,
+            text.upper(),
+            new_x=XPos.LMARGIN if new_line else XPos.RIGHT,
+            new_y=YPos.NEXT if new_line else YPos.TOP,
+        )
         self.set_char_spacing(0)
 
     def para(
@@ -401,20 +456,119 @@ class Document(FPDF):
         self.font(size, "", color)
         self.multi_cell(w, line, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    def dotted(self, items: Iterable[str], color: RGB, *, dash: bool = False) -> None:
-        """A list with a coloured dot (or a short dash) in the gutter — no bullet glyphs."""
-        for item in items:
-            self.ensure(8)
-            y = self.get_y()
-            self.set_fill_color(*color)
-            if dash:
-                self.rect(MARGIN + 0.6, y + 2.6, 2.6, 0.9, style="F")
-            else:
-                self.ellipse(MARGIN + 0.6, y + 1.7, 2.6, 2.6, style="F")
-            self.set_xy(MARGIN + 6, y)
-            self.font(10.5, "", INK2)
-            self.multi_cell(self.epw - 6, 5.6, item, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            self.set_y(self.get_y() + 0.8)
+    def lines_of(self, text: str, w: float, size: float = 10.5) -> int:
+        """How many lines `text` wraps to at `w` mm in the body face (for column planning)."""
+        self.font(size, "", INK2)
+        return len(self.multi_cell(w, 5.6, text, dry_run=True, output="LINES"))
+
+    # --- marks (the site's icons, drawn) -------------------------------------------------------
+
+    def check(self, x: float, y: float, color: RGB = OK, s: float = 3.2) -> None:
+        """`Check` icon: `M20 6 9 17l-5-5` on a 24-grid, stroked."""
+        self.set_draw_color(*color)
+        self.set_line_width(0.55)
+        u = s / 24
+        self.line(x + 4 * u, y + 12 * u, x + 9 * u, y + 17 * u)
+        self.line(x + 9 * u, y + 17 * u, x + 20 * u, y + 6 * u)
+        self.set_line_width(0.25)
+
+    def cross(self, x: float, y: float, color: RGB = MUTE, s: float = 3.2) -> None:
+        """`Cross` icon: two diagonals."""
+        self.set_draw_color(*color)
+        self.set_line_width(0.55)
+        u = s / 24
+        self.line(x + 6 * u, y + 6 * u, x + 18 * u, y + 18 * u)
+        self.line(x + 18 * u, y + 6 * u, x + 6 * u, y + 18 * u)
+        self.set_line_width(0.25)
+
+    def star(self, cx: float, cy: float, r: float, *, filled: bool) -> None:
+        """Marigold ★ (filled) / ☆ (outline) as the hotel cards show them."""
+        pts = []
+        for i in range(10):
+            radius = r if i % 2 == 0 else r * 0.45
+            angle = -math.pi / 2 + i * math.pi / 5
+            pts.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
+        self.set_fill_color(*ACTION)
+        self.set_draw_color(*ACTION)
+        self.set_line_width(0.3)
+        self.polygon(pts, style="F" if filled else "D")
+        self.set_line_width(0.25)
+
+    def pill(
+        self, x: float, y: float, text: str, *, fill: RGB, color: RGB, size: float = 7.5
+    ) -> float:
+        """`rounded-chip` tag; returns its width."""
+        self.font(size, "B", color)
+        w = self.get_string_width(text) + 5
+        self.set_fill_color(*fill)
+        self.rect(x, y, w, 5.2, style="F", round_corners=True, corner_radius=2.6)
+        self.set_xy(x, y)
+        self.cell(w, 5.2, text, align="C")
+        return w
+
+    def button(
+        self, x: float, y: float, w: float, text: str, *, fill: RGB, color: RGB, link: str
+    ) -> None:
+        """`rounded-btn` primary action: 12 px radius, bold, centred, clickable."""
+        self.set_fill_color(*fill)
+        self.rect(x, y, w, 9.5, style="F", round_corners=True, corner_radius=R_BTN)
+        self.set_xy(x, y)
+        self.font(10, "B", color)
+        self.cell(w, 9.5, text, align="C", link=link)
+
+    def brand_mark(self, x: float, y: float, size: float) -> None:
+        """The site's `BrandMark`: primary rounded square, white dashed route, marigold end."""
+        u = size / 64
+        self.card(x, y, size, size, fill=PRIMARY, stroke=None, r=size / 4)
+        with self.new_path(x + 14 * u, y + 44 * u) as path:
+            path.style.stroke_color = DeviceRGB(1, 1, 1)
+            path.style.stroke_width = 4 * u
+            path.style.stroke_cap_style = "round"
+            path.style.stroke_dash_pattern = [6 * u, 6 * u]
+            path.style.fill_color = None
+            path.curve_to(x + 22 * u, y + 44 * u, x + 22 * u, y + 26 * u, x + 32 * u, y + 26 * u)
+            path.curve_to(x + 42 * u, y + 26 * u, x + 42 * u, y + 40 * u, x + 50 * u, y + 22 * u)
+        self.set_fill_color(*ACTION)
+        self.circle(x + 50 * u, y + 22 * u, 6 * u, style="F")
+        self.set_fill_color(*WHITE)
+        self.circle(x + 14 * u, y + 44 * u, 4 * u, style="F")
+
+    def wordmark(self, x: float, y: float, *, size: float = 7.0, link: str = "") -> float:
+        """Mark + "Tripsmith" as the header sets it (800, tight); returns the width used."""
+        self.brand_mark(x, y, size)
+        self.set_xy(x + size + 2.2, y)
+        pt = size * 1.9
+        self.font(pt, "XB", INK)
+        self.set_char_spacing(-0.025 * pt)
+        w = self.get_string_width(BUSINESS["name"]) + 1
+        self.cell(w, size, BUSINESS["name"], link=link)
+        self.set_char_spacing(0)
+        return size + 2.2 + w
+
+    # --- surfaces --------------------------------------------------------------------------------
+
+    def card(
+        self,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        *,
+        fill: RGB = WHITE,
+        stroke: RGB | None = LINE,
+        r: float = R_CARD,
+    ) -> None:
+        self.set_fill_color(*fill)
+        style = "F"
+        if stroke is not None:
+            self.set_draw_color(*stroke)
+            style = "DF"
+        self.rect(x, y, w, h, style=style, round_corners=True, corner_radius=r)
+
+    def hairline(self, y: float, x1: float = MARGIN, x2: float | None = None) -> None:
+        self.set_draw_color(*LINE)
+        self.set_line_width(0.25)
+        self.line(x1, y, x2 if x2 is not None else self.w - MARGIN, y)
 
     def ensure(self, height: float) -> None:
         """Start a new page if `height` mm would not fit above the footer."""
@@ -423,32 +577,14 @@ class Document(FPDF):
 
     def gap(self, mm: float) -> None:
         self.set_y(self.get_y() + mm)
-
-    def box(
-        self,
-        x: float,
-        y: float,
-        w: float,
-        h: float,
-        *,
-        fill: RGB = BG2,
-        stroke: RGB | None = LINE,
-        radius: float = 3,
-    ) -> None:
-        self.set_fill_color(*fill)
-        style = "F"
-        if stroke is not None:
-            self.set_draw_color(*stroke)
-            style = "DF"
-        self.rect(x, y, w, h, style=style, round_corners=True, corner_radius=radius)
 ```
 
-Notes for the implementer: the helper is named `font(...)`, not `text(...)`, because `FPDF.text(x, y, txt)` is fpdf2's positioned-text primitive and must stay reachable. `set_char_spacing` exists in fpdf2 ≥ 2.7. fpdf2 2.8 accepts `text=` on `cell`/`multi_cell` (positional works too, as written).
+Notes for the implementer: the helper is named `font(...)`, not `text(...)`, because `FPDF.text(x, y, txt)` is fpdf2's positioned-text primitive and must stay reachable. `set_char_spacing` exists in fpdf2 ≥ 2.7; `multi_cell(dry_run=True, output="LINES")` returns the wrapped lines without drawing; `rect(round_corners=("TOP_LEFT", "TOP_RIGHT"))` rounds only those corners; the drawing API (`new_path`) wants `fpdf.drawing.DeviceRGB(0–1 floats)`, not the 0–255 tuples the rest of the module uses. `set_y()` resets x to the left margin — use `set_xy` when the x matters (the itinerary text column).
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `uv run --directory api pytest tests/test_pdf_document.py -q && uv run --directory api ruff check . && uv run --directory api ruff format --check . && uv run --directory api pyright`
-Expected: 3 passed, clean. If pypdf's `extract_text` returns `Page 1 of 2` with odd spacing, compare on `" ".join(text.split())`.
+Expected: 6 passed, clean (verified against the prototype 2026-09-21). pyright: `fpdf.drawing.DeviceRGB` and `new_path` are typed; if `path.style.stroke_cap_style = "round"` is flagged, the enum is `fpdf.enums.StrokeCapStyle.ROUND`.
 
 - [ ] **Step 6: Commit**
 
@@ -468,7 +604,7 @@ git commit -m "feat(F11): fpdf2 Document base — DM Sans, palette, header/foote
 
 **Interfaces:**
 - Consumes: `Document` and helpers (Task 2); `inr`, `long_date`, `duration`, `meals_label`, `seats_label` (Task 1); `PackageDetail`, `DepartureOut`, `HotelOut` (`app.schemas.catalog`); `BADGE_LABELS` (`app.schemas.meta`); `BUSINESS`, `whatsapp_href` (`app.business`).
-- Produces: `render_itinerary(pkg: PackageDetail, *, cover: bytes | None, site_url: str, whatsapp_number: str) -> bytes`; `PDF_PREFIX = "pdf/"`; `pdf_prefix(slug) -> str`; `pdf_pathname(slug, updated_at: dt.datetime) -> str`; `pdf_filename(slug) -> str`; `COVER_SIZE = (1400, 700)`; `prepare_cover(data: bytes) -> bytes | None` (Pillow fit + JPEG; `None` if Pillow cannot open it).
+- Produces: `render_itinerary(pkg: PackageDetail, *, cover: bytes | None, gallery: Sequence[bytes] = (), site_url: str, whatsapp_number: str) -> bytes`; `PDF_PREFIX = "pdf/"`; `pdf_prefix(slug) -> str`; `pdf_pathname(slug, updated_at: dt.datetime) -> str`; `pdf_filename(slug) -> str`; `HERO_SIZE = (1400, 600)`, `GALLERY_CELL = (700, 296)`, `GALLERY_MAX = 4`; `prepare_cover(data: bytes) -> bytes | None` (21:9 crop + gradient + rounded corners, JPEG; `None` if Pillow cannot open it); `prepare_gallery_image(data: bytes) -> bytes | None`.
 
 - [ ] **Step 1: Write the fixture and the failing tests**
 
@@ -521,12 +657,24 @@ def departure(i: int, seats_left: int, *, guaranteed: bool = False) -> Departure
     )
 
 
-def package(*, days: int = 7, departures: int = 12, faq: bool = True) -> PackageDetail:
+def package(
+    *,
+    days: int = 7,
+    departures: int = 12,
+    faq: bool = True,
+    summary: str | None = None,
+    images: int = 1,
+) -> PackageDetail:
+    photos = [
+        ImageOut(url=f"https://blob.test/photo-{k}.jpg", alt=f"Photo {k}", width=1400, height=933)
+        for k in range(images)
+    ]
     return PackageDetail(
         slug="north-goa-beaches",
         name="North Goa Beaches",
-        summary="Four easy days between Calangute and Morjim — beach mornings, a spice farm, "
-        "a Portuguese quarter walk and one sunset cruise, with the hotel a minute from the sand.",
+        summary=summary
+        or "Easy days between Calangute and Morjim — beach mornings, a spice farm, a heritage "
+        "walk and one sunset cruise, with the hotel a minute from the sand.",
         destination=DestinationRef(slug="goa", name="Goa"),
         themes=["beach", "family"],
         nights=days - 1,
@@ -564,8 +712,8 @@ def package(*, days: int = 7, departures: int = 12, faq: bool = True) -> Package
             )
             for i in range(1, days + 1)
         ],
-        images=[ImageOut(url="https://blob.test/cover.jpg", alt="Agonda", width=1400, height=933)],
-        cover=ImageOut(url="https://blob.test/cover.jpg", alt="Agonda", width=1400, height=933),
+        images=photos,
+        cover=photos[0],
         departures=[
             departure(i, seats_left=(0 if i == 1 else 3 if i == 2 else 9), guaranteed=i == 0)
             for i in range(departures)
@@ -578,7 +726,7 @@ def package(*, days: int = 7, departures: int = 12, faq: bool = True) -> Package
 ```python
 # api/tests/test_pdf_render.py
 """services/pdf/itinerary.py — R6: a valid A4 PDF under 2 MB, rendered in under 3 s, whose
-content matches the package page."""
+content matches the package page section for section."""
 
 import datetime as dt
 import io
@@ -589,17 +737,21 @@ from PIL import Image
 from pypdf import PdfReader
 
 from app.services.pdf.itinerary import (
-    COVER_SIZE,
+    GALLERY_CELL,
+    HERO_SIZE,
     PDF_PREFIX,
     pdf_filename,
     pdf_pathname,
     pdf_prefix,
     prepare_cover,
+    prepare_gallery_image,
     render_itinerary,
 )
 from tests.pdf_fixture import UPDATED_AT, package
 
-COVER_JPEG = Path(__file__).resolve().parents[1] / "content" / "photos" / "goa" / "agonda-sunset.jpg"
+PHOTOS = Path(__file__).resolve().parents[1] / "content" / "photos" / "goa"
+COVER_JPEG = PHOTOS / "agonda-sunset.jpg"
+GALLERY_JPEGS = [PHOTOS / n for n in ("aguada-fort.jpg", "anjuna-curlies.jpg")]
 SITE = "https://tripsmith.vercel.app"
 
 
@@ -607,10 +759,16 @@ def _pages(pdf: bytes) -> list[str]:
     return [" ".join(p.extract_text().split()) for p in PdfReader(io.BytesIO(pdf)).pages]
 
 
-def render(**kw: object) -> bytes:
+def _links(pdf: bytes, page: int = 0) -> list[str]:
+    p = PdfReader(io.BytesIO(pdf)).pages[page]
+    return [a.get_object()["/A"]["/URI"] for a in p.get("/Annots", []) if "/A" in a.get_object()]
+
+
+def render(*, gallery: bool = True, **kw: object) -> bytes:
     return render_itinerary(
         package(**kw),  # type: ignore[arg-type]
         cover=COVER_JPEG.read_bytes(),
+        gallery=[p.read_bytes() for p in GALLERY_JPEGS] if gallery else (),
         site_url=SITE,
         whatsapp_number="919845012345",
     )
@@ -630,12 +788,23 @@ def test_pathname_scheme() -> None:
     assert pdf_pathname("north-goa-beaches", ist) == pdf_pathname("north-goa-beaches", UPDATED_AT)
 
 
-def test_prepare_cover_crops_to_the_band_ratio_as_jpeg() -> None:
+def test_prepare_cover_bakes_the_hero_treatment_as_jpeg() -> None:
     out = prepare_cover(COVER_JPEG.read_bytes())
     assert out is not None
     im = Image.open(io.BytesIO(out))
-    assert im.format == "JPEG" and im.size == COVER_SIZE
+    assert im.format == "JPEG" and im.size == HERO_SIZE
+    # Rounded corners are flattened onto the page white; the bottom band is darkened.
+    assert all(c >= 245 for c in im.getpixel((0, 0)))  # JPEG-white
+    top = sum(im.getpixel((HERO_SIZE[0] // 2, 40)))
+    bottom = sum(im.getpixel((HERO_SIZE[0] // 2, HERO_SIZE[1] - 10)))
+    assert bottom < top
     assert prepare_cover(b"not an image") is None
+
+
+def test_prepare_gallery_image_crops_to_the_cell() -> None:
+    out = prepare_gallery_image(GALLERY_JPEGS[0].read_bytes())
+    assert out is not None and Image.open(io.BytesIO(out)).size == GALLERY_CELL
+    assert prepare_gallery_image(b"nope") is None
 
 
 def test_renders_a_valid_a4_pdf_within_budget() -> None:
@@ -653,39 +822,73 @@ def test_renders_a_valid_a4_pdf_within_budget() -> None:
     assert reader.metadata.title == "North Goa Beaches — itinerary · Tripsmith"
 
 
-def test_content_matches_the_page() -> None:
+def test_cover_page_mirrors_the_package_page() -> None:
     pkg = package()
-    text = " ".join(_pages(render()))
-    assert pkg.name in text and "Goa" in text
-    assert "6 nights / 7 days" in text and "Ex-Mumbai" in text
-    assert "From ₹18,499" in text and "per person" in text
-    assert pkg.summary[:40] in text
+    pdf = render()
+    p1 = _pages(pdf)[0]
+    # Wordmark + breadcrumb, hero title + meta, the quick-facts strip.
+    assert p1.startswith("Tripsmith Home › Goa › North Goa Beaches")
+    assert "6 nights / 7 days" in p1 and "Ex-Mumbai" in p1 and "Beach · Family" in p1
+    assert "DURATION" in p1 and "DEPARTS Mumbai" in p1 and "STAY 4-star Calangute" in p1
+    assert "NEXT DATE 6 Nov" in p1
+    assert pkg.summary in p1
     for h in pkg.highlights:
-        assert h in text
+        assert h in p1
+    # The price box: from-price, next departure with seats, the promise.
+    assert "From ₹18,499 per person, double sharing" in p1
+    assert "NEXT DEPARTURE Fri 6 Nov 2026 9 seats" in p1
+    assert "A person calls you back within two hours" in p1
+    assert "tripsmith.vercel.app/packages/north-goa-beaches" in p1
+    # Its actions are real links.
+    links = _links(pdf)
+    assert f"{SITE}/packages/north-goa-beaches/enquire" in links
+    assert any(u.startswith("https://wa.me/919845012345?text=") for u in links)
+    assert "tel:+919845012345" in links
+    # Photos: the hero plus the gallery strip (two cells here).
+    assert len(PdfReader(io.BytesIO(pdf)).pages[0].images) == 3
+
+
+def test_inner_pages_match_the_page_sections() -> None:
+    pkg = package()
+    text = " ".join(_pages(render())[1:])
+    assert "Day by day" in text
     for day in pkg.itinerary:
         assert day.title in text
-    assert "Breakfast · Lunch" in text and "No meals" in text
-    assert "Stay · Sea Breeze Resort, Calangute" in text
+    assert "Dinner Stay · Sea Breeze Resort, Calangute" in text  # day 1: chips in order
+    assert "Breakfast · Lunch Stay · Sea Breeze Resort, Calangute" in text  # day 2
+    assert "INCLUDED" in text and "NOT INCLUDED" in text
     for item in pkg.inclusions + pkg.exclusions:
         assert item in text
-    assert "Sea Breeze Resort" in text and "Morjim Beach House" in text and "4-star" in text
-    assert "Fri 6 Nov 2026" in text and "Sold out" in text and "3 seats" in text
-    assert "Filling fast" in text and "Guaranteed departure" in text
-    assert "Adult · double sharing" in text and "₹18,499 – ₹24,499" in text
-    assert "Child 5–11" in text and "₹9,999" in text and "+ ₹6,500" in text
-    assert "Is this okay for kids?" in text
-    assert "+91 98450 12345" in text and "hello@tripsmith.in" in text
-    assert f"{SITE}/packages/north-goa-beaches" in text
-    assert f"{SITE}/packages/north-goa-beaches/enquire" in text
+    assert "Where you stay" in text
+    assert "Sea Breeze Resort Calangute · 2 nights" in text
+    assert "Morjim Beach House Morjim · 4 nights" in text
+    assert "DEPARTURE PER PERSON SEATS STATUS" in text
+    assert "Fri 6 Nov 2026 ₹18,499 9 left Guaranteed departure" in text
+    assert "Fri 13 Nov 2026 ₹18,999 — Sold out" in text
+    assert "Fri 20 Nov 2026 ₹19,499 3 left Filling fast" in text
+    assert "Price per person" in text
+    assert "Adult · double sharing ₹18,499 – ₹23,999" in text
+    assert "Child 5–11 · with parents ₹9,999" in text and "Single supplement + ₹6,500" in text
+    assert "Questions Is this okay for kids?" in text
 
 
-def test_without_cover_faq_or_departures() -> None:
+def test_without_cover_gallery_faq_or_departures() -> None:
     pdf = render_itinerary(
         package(departures=0, faq=False), cover=None, site_url=SITE, whatsapp_number="91"
     )
-    text = " ".join(_pages(pdf))
-    assert "No dates announced yet" in text and "Good to know" not in text
-    assert "On request" in text  # from-price when starting_price_paise is 0
+    pages = _pages(pdf)
+    text = " ".join(pages)
+    assert "No fixed departures are open right now" in text
+    assert "Questions" not in text
+    assert "FROM On request" in pages[0] and "NEXT DATE On request" in pages[0]
+    assert len(PdfReader(io.BytesIO(pdf)).pages[0].images) == 0
+
+
+def test_gallery_is_dropped_when_the_cover_page_is_full() -> None:
+    long_summary = package().summary + " " + "More about the trip. " * 12
+    pdf = render(summary=long_summary)
+    assert len(PdfReader(io.BytesIO(pdf)).pages[0].images) == 1  # hero only, box still pinned
+    assert "From ₹18,499 per person" in _pages(pdf)[0]
 ```
 
 
@@ -698,9 +901,11 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'app.services.pdf.itine
 
 ```python
 # api/app/services/pdf/itinerary.py
-"""`render_itinerary`: the package page as an A4 PDF (R6). Pure and synchronous — takes a
-`PackageDetail` (the same object the page renders) and the cover photo's bytes; every network
-step lives in services/pdf/service.py so this can be tested without I/O.
+"""`render_itinerary`: the package page as an A4 PDF (R6), section for section — hero, quick
+facts, highlights, the price box, day by day, what's in the price, where you stay, dates &
+prices, questions — drawn with the same tokens, radii and marks as the web components in
+web/src/components/site/package/. Pure and synchronous: takes a `PackageDetail` (the object
+the page renders) and the cover photo's bytes; every network step lives in service.py.
 
 Blob pathnames: `pdf/{slug}/{updated_at epoch}/Tripsmith-{slug}-itinerary.pdf` — the basename
 is the download filename, `pdf/{slug}/` scopes a package's versions, `pdf/` scopes the GC.
@@ -711,14 +916,12 @@ import io
 from collections.abc import Sequence
 
 from fpdf import XPos, YPos
-from fpdf.enums import TableBordersLayout, TableCellFillMode
-from fpdf.fonts import FontFace
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from app.business import BUSINESS, whatsapp_href
 from app.schemas.catalog import DepartureOut, PackageDetail
-from app.schemas.meta import BADGE_LABELS
-from app.services.format import duration, inr, long_date, meals_label, seats_label
+from app.schemas.meta import BADGE_LABELS, Badge
+from app.services.format import duration, inr, long_date, meals_label
 from app.services.pdf.document import (
     ACTION,
     BG2,
@@ -728,16 +931,31 @@ from app.services.pdf.document import (
     MARGIN,
     MUTE,
     OK,
+    OK_SOFT,
     PRIMARY,
-    PRIMARY_SOFT,
+    R_BTN,
+    R_CARD,
+    R_PANEL,
+    WA,
+    WARN,
+    WARN_SOFT,
     WHITE,
     Document,
 )
 
 PDF_PREFIX = "pdf/"
-COVER_SIZE = (1400, 700)  # 210 × 105 mm band at ~170 dpi
-COVER_BAND_MM = 105.0
+HERO_SIZE = (1400, 600)  # the hero's 21:9 crop; 174 mm wide on the page
+HERO_RADIUS_PX = 21  # rounded-card 18 px at the site's 1220 px content width, scaled
+GALLERY_MAX = 4  # the web's grid: one tall cell + four small (cover excluded)
+GALLERY_CELL = (700, 296)  # every cell is 2.36:1 (86 × 37 mm tall, 42 × 17.5 mm small)
 MAX_DEPARTURE_ROWS = 24
+TEXT_X = MARGIN + 13  # itinerary text column (the web's 46 px indent)
+BADGE = 7.5  # day number badge (the web's 34 px)
+PILL_TONE = {
+    Badge.FILLING_FAST: (WARN_SOFT, WARN),
+    Badge.SOLD_OUT: (LINE, MUTE),
+    Badge.GUARANTEED: (OK_SOFT, OK),
+}
 
 
 def pdf_prefix(slug: str) -> str:
@@ -753,14 +971,40 @@ def pdf_pathname(slug: str, updated_at: dt.datetime) -> str:
 
 
 def prepare_cover(data: bytes) -> bytes | None:
-    """Centre-crop to the cover band's ratio and re-encode as a JPEG fpdf2 embeds as-is."""
+    """The `PackageHero` treatment, baked: centre-crop to 21:9, the bottom gradient
+    (`from-[rgb(10_20_30/0.7)]`), rounded-card corners flattened onto the page white, JPEG."""
     try:
         with Image.open(io.BytesIO(data)) as im:
-            rgb = ImageOps.fit(im.convert("RGB"), COVER_SIZE)
+            photo = ImageOps.fit(im.convert("RGB"), HERO_SIZE)
+    except (UnidentifiedImageError, OSError, ValueError):
+        return None
+    w, h = HERO_SIZE
+    shade = Image.new("RGBA", (w, h), (10, 20, 30, 0))
+    px = shade.load()
+    start = int(h * 0.45)
+    for y in range(start, h):
+        alpha = int(178 * (y - start) / (h - start))  # 0 → 0.7
+        for x in range(w):
+            px[x, y] = (10, 20, 30, alpha)
+    photo = Image.alpha_composite(photo.convert("RGBA"), shade)
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), HERO_RADIUS_PX, fill=255)
+    flat = Image.new("RGB", (w, h), WHITE)
+    flat.paste(photo.convert("RGB"), mask=mask)
+    out = io.BytesIO()
+    flat.save(out, "JPEG", quality=82, optimize=True)
+    return out.getvalue()
+
+
+def prepare_gallery_image(data: bytes) -> bytes | None:
+    """One `Gallery` cell: centre-crop to the cell ratio, small JPEG."""
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            cell = ImageOps.fit(im.convert("RGB"), GALLERY_CELL)
     except (UnidentifiedImageError, OSError, ValueError):
         return None
     out = io.BytesIO()
-    rgb.save(out, "JPEG", quality=80, optimize=True)
+    cell.save(out, "JPEG", quality=78, optimize=True)
     return out.getvalue()
 
 
@@ -769,28 +1013,53 @@ def _price_range(values: Sequence[int]) -> str:
     return inr(lo) if lo == hi else f"{inr(lo)} – {inr(hi)}"
 
 
-def _fit(d: Document, value: str, width: float) -> str:
-    """Shrink to 9 pt, then trim words with an ellipsis, so a box value never overflows."""
-    size = 11.0
-    while size > 9 and d.get_string_width(value) > width:
-        size -= 0.5
-        d.font(size, "B", INK)
-    words = value.split()
-    while len(words) > 1 and d.get_string_width(" ".join(words) + "…") > width:
-        words.pop()
-    return value if d.get_string_width(value) <= width else " ".join(words) + "…"
-
-
 def _next_departure(departures: Sequence[DepartureOut]) -> DepartureOut | None:
     return next((d for d in departures if d.seats_left > 0), departures[0] if departures else None)
 
 
+def _fit(d: Document, value: str, width: float, size: float, weight: str) -> float:
+    """Shrink a one-line value until it fits `width`; returns the size that fits (≥ 7 pt)."""
+    d.font(size, weight, INK)
+    while size > 7 and d.get_string_width(value) > width:
+        size -= 0.5
+        d.font(size, weight, INK)
+    return size
+
+
+PRICE_BOX_H = 58.5
+
+
+def price_box_slot_top(d: Document) -> float:
+    """Where the cover page's price box is pinned (just above the footer)."""
+    return d.h - d.b_margin - PRICE_BOX_H - 1
+
+
+def _rounded(jpeg: bytes, w_mm: float) -> bytes:
+    """Round a gallery cell's corners (`rounded-[10px]`) against the page white."""
+    with Image.open(io.BytesIO(jpeg)) as im:
+        rgb = im.convert("RGB")
+        r = int(rgb.width * 1.45 / w_mm)  # 10 px of 1220 → 1.45 mm
+        mask = Image.new("L", rgb.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, rgb.width - 1, rgb.height - 1), r, fill=255)
+        flat = Image.new("RGB", rgb.size, WHITE)
+        flat.paste(rgb, mask=mask)
+    out = io.BytesIO()
+    flat.save(out, "JPEG", quality=78)
+    return out.getvalue()
+
+
 class _Itinerary:
     def __init__(
-        self, pkg: PackageDetail, cover: bytes | None, site_url: str, whatsapp_number: str
+        self,
+        pkg: PackageDetail,
+        cover: bytes | None,
+        gallery: Sequence[bytes],
+        site_url: str,
+        whatsapp_number: str,
     ) -> None:
         self.pkg = pkg
         self.cover = prepare_cover(cover) if cover else None
+        self.gallery = [g for g in (prepare_gallery_image(b) for b in gallery[:GALLERY_MAX]) if g]
         self.site = site_url.rstrip("/")
         self.package_url = f"{self.site}/packages/{pkg.slug}"
         self.enquire_url = f"{self.package_url}/enquire"
@@ -804,13 +1073,14 @@ class _Itinerary:
     def render(self) -> bytes:
         d = self.doc
         d.add_page()
-        self.cover_band()
-        self.title_block()
-        self.facts()
-        self.highlights()
-        self.contact()  # on the cover page: the callback promise travels with a forwarded PDF
+        self.top_bar()
+        self.hero()
+        self.quick_facts()
+        self.overview()
+        self.gallery_strip()
+        self.price_box()  # on the cover page: the enquiry path travels with a forwarded PDF
         self.days()
-        self.price_lists()
+        self.inclusions()
         self.hotels()
         self.dates_and_prices()
         self.faq()
@@ -818,262 +1088,473 @@ class _Itinerary:
 
     # --- page 1 -----------------------------------------------------------------------------
 
-    def cover_band(self) -> None:
-        d = self.doc
-        if self.cover:
-            d.image(io.BytesIO(self.cover), x=0, y=0, w=d.w, h=COVER_BAND_MM)
-        else:
-            d.set_fill_color(*PRIMARY_SOFT)
-            d.rect(0, 0, d.w, COVER_BAND_MM, style="F")
-            d.set_xy(MARGIN, COVER_BAND_MM / 2 - 8)
-            d.font(30, "B", PRIMARY)
-            d.cell(0, 16, BUSINESS["name"])
-        # "ITINERARY" chip, marigold, overlapping the band's lower edge.
-        chip_w, chip_h = 34, 8
-        d.box(MARGIN, COVER_BAND_MM - chip_h / 2, chip_w, chip_h, fill=ACTION, stroke=None, radius=4)
-        d.set_xy(MARGIN, COVER_BAND_MM - chip_h / 2)
-        d.font(8, "B", INK)
-        d.set_char_spacing(0.6)
-        d.cell(chip_w, chip_h, "ITINERARY", align="C")
-        d.set_char_spacing(0)
-        d.set_y(COVER_BAND_MM + 10)
-
-    def title_block(self) -> None:
+    def top_bar(self) -> None:
+        """Wordmark + the page's breadcrumb (`Home › Goa › North Goa Beaches`)."""
         d, p = self.doc, self.pkg
-        d.h1(p.name)
-        d.font(10.5, "SB", MUTE)
-        meta = f"{p.destination.name} · {duration(p.nights, p.days)} · {p.departure_city}"
-        d.cell(0, 6, meta, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        d.gap(3)
-        d.para(p.summary, size=11, color=INK2, line=6)
-        d.gap(3)
-        d.font(15, "B", INK)
-        price = inr(p.starting_price_paise // 100) if p.starting_price_paise else "On request"
-        lead = f"From {price}"
-        d.cell(d.get_string_width(lead) + 2, 8, lead, new_x=XPos.RIGHT, new_y=YPos.TOP)
-        d.font(10, "", MUTE)
-        d.cell(0, 8, "per person, double sharing", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        d.gap(4)
+        d.wordmark(MARGIN, 11.5, size=7, link=self.site)
+        d.set_xy(MARGIN, 11.5)
+        d.font(8.5, "", MUTE)
+        d.cell(0, 7, f"Home  ›  {p.destination.name}  ›  {p.name}", align="R")
+        d.set_y(22.5)
 
-    def facts(self) -> None:
+    def hero(self) -> None:
         d, p = self.doc, self.pkg
-        nxt = _next_departure(p.departures)
-        cells = [
-            ("Duration", duration(p.nights, p.days)),
-            ("Departure city", p.departure_city),
-            ("Next departure", long_date(nxt.date) if nxt else "To be announced"),
-            ("Hotel", p.hotels[0].name if p.hotels else "Hand-picked stays"),
-        ]
-        self._boxes(cells)
-
-    def _boxes(self, cells: list[tuple[str, str]], *, cols: int = 4) -> None:
-        """Label-over-value boxes in a grid (the web's fact strip / occupancy grid)."""
-        d = self.doc
-        gutter, h = 3.0, 17.0
-        w = (d.epw - gutter * (cols - 1)) / cols
-        rows = (len(cells) + cols - 1) // cols
-        d.ensure(rows * (h + gutter) + 4)
+        w = d.epw
+        h = w * HERO_SIZE[1] / HERO_SIZE[0]
         top = d.get_y()
-        for i, (label, value) in enumerate(cells):
-            x = MARGIN + (i % cols) * (w + gutter)
-            y = top + (i // cols) * (h + gutter)
-            d.box(x, y, w, h)
-            d.set_xy(x + 3.5, y + 3)
-            d.font(7.5, "B", MUTE)
-            d.set_char_spacing(0.4)
-            d.cell(w - 7, 4, label.upper())
-            d.set_char_spacing(0)
-            d.set_xy(x + 3.5, y + 8)
-            d.font(11, "B", INK)
-            d.cell(w - 7, 6, _fit(d, value, w - 7))
-        d.set_y(top + rows * (h + gutter) - gutter + 6)
+        if self.cover:
+            d.image(io.BytesIO(self.cover), x=MARGIN, y=top, w=w, h=h)
+        else:
+            d.card(MARGIN, top, w, h, fill=BG2, stroke=None)
+        # Title block sits on the photo's dark gradient, white, like the web's overlay.
+        color = WHITE if self.cover else INK
+        pad = 6.5
+        meta = f"{duration(p.nights, p.days)}    {p.departure_city}    " + " · ".join(
+            t.capitalize() for t in p.themes
+        )
+        d.set_xy(MARGIN + pad, top + h - pad - 6)
+        d.font(9, "SB", color)
+        d.cell(w - 2 * pad, 6, meta)
+        size = 24.0
+        d.font(size, "XB", color)
+        d.set_char_spacing(-0.03 * size)
+        while size > 16 and d.get_string_width(p.name) > w - 2 * pad:
+            size -= 1
+            d.font(size, "XB", color)
+            d.set_char_spacing(-0.03 * size)
+        d.set_xy(MARGIN + pad, top + h - pad - 6 - size * 0.42)
+        d.cell(w - 2 * pad, 6, p.name)
+        d.set_char_spacing(0)
+        d.set_y(top + h + 4)
 
-    def highlights(self) -> None:
-        if not self.pkg.highlights:
+    def quick_facts(self) -> None:
+        """`QuickFacts`: one bordered bg2 strip, five cells divided by hairlines."""
+        d, p = self.doc, self.pkg
+        stay = p.hotels[0] if p.hotels else None
+        nxt = p.departures[0] if p.departures else None
+        facts = [
+            ("Duration", duration(p.nights, p.days)),
+            (
+                "From",
+                inr(p.starting_price_paise // 100) if p.starting_price_paise else "On request",
+            ),
+            ("Departs", p.departure_city.removeprefix("Ex-")),
+            ("Stay", f"{stay.stars}-star {stay.city}" if stay else "—"),
+            ("Next date", f"{nxt.date.day} {nxt.date:%b}" if nxt else "On request"),
+        ]
+        h, top, cw = 16.0, d.get_y(), d.epw / len(facts)
+        d.card(MARGIN, top, d.epw, h, fill=BG2, r=R_PANEL)
+        for i, (label, value) in enumerate(facts):
+            x = MARGIN + i * cw
+            if i:
+                d.set_draw_color(*LINE)
+                d.line(x, top, x, top + h)
+            d.set_xy(x + 4, top + 3.2)
+            d.label(label, w=cw - 8)
+            d.set_xy(x + 4, top + 8)
+            _fit(d, value, cw - 8, 11.5, "XB")
+            d.cell(cw - 8, 6, value)
+        d.set_y(top + h + 5.5)
+
+    def overview(self) -> None:
+        d, p = self.doc, self.pkg
+        d.para(p.summary, size=10.5, color=INK2, line=5.8)
+        if not p.highlights:
             return
-        self.doc.label("Highlights")
-        self.doc.gap(1.5)
-        self.doc.dotted(self.pkg.highlights, ACTION)
+        d.gap(2)
+        d.heading("Highlights", 15)
+        d.gap(2.5)
+        col = (d.epw - 6) / 2
+        y = d.get_y()
+        for r in range(0, len(p.highlights), 2):
+            pair = p.highlights[r : r + 2]
+            row_h = max(d.lines_of(t, col - 5.5, 10) for t in pair) * 5.2
+            for k, text in enumerate(pair):
+                x = MARGIN + k * (col + 6)
+                d.check(x, y + 1.0)
+                d.set_xy(x + 5.5, y)
+                d.font(10, "", INK)
+                d.multi_cell(col - 5.5, 5.2, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            y += row_h + 1.8
+        d.set_y(y + 1)
+
+    def gallery_strip(self) -> None:
+        """`Gallery`: one tall cell + up to four small, only when the cover page has the room."""
+        d = self.doc
+        if not self.gallery:
+            return
+        gap, small_h = 2.0, 17.5
+        h = 2 * small_h + gap
+        if d.get_y() + 3 + h > price_box_slot_top(d) - 4:
+            return
+        top = d.get_y() + 3
+        tall_w = (d.epw - 2 * gap) / 2
+        small_w = (d.epw - 2 * gap) / 4
+        cells = [(MARGIN, top, tall_w, h)]
+        for k in range(4):
+            x = MARGIN + tall_w + gap + (k % 2) * (small_w + gap)
+            cells.append((x, top + (k // 2) * (small_h + gap), small_w, small_h))
+        for img, (x, y, w, ch) in zip(self.gallery, cells, strict=False):
+            d.image(io.BytesIO(_rounded(img, w)), x=x, y=y, w=w, h=ch)
+        d.set_y(top + h + 2)
+
+    def price_box(self) -> None:
+        """`PriceBox` + the WhatsApp/phone lines: pinned above the footer of the cover page."""
+        d, p = self.doc, self.pkg
+        h = PRICE_BOX_H
+        slot = price_box_slot_top(d)
+        if d.get_y() + 4 <= slot:
+            top = slot
+        else:
+            d.ensure(h + 4)
+            top = d.get_y()
+        pad = 5.5
+        d.card(MARGIN, top, d.epw, h, r=R_CARD)
+        left_w = 62.0
+        x = MARGIN + pad
+        # Left: from-price and the next departure box.
+        d.set_xy(x, top + pad)
+        d.font(8.5, "SB", MUTE)
+        d.cell(left_w, 4.5, "From", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        price = inr(p.starting_price_paise // 100) if p.starting_price_paise else "On request"
+        d.set_xy(x, top + pad + 4.5)
+        d.font(21, "XB", INK)
+        d.set_char_spacing(-0.5)
+        d.cell(left_w, 9.5, price)
+        d.set_char_spacing(0)
+        d.set_xy(x, top + pad + 14)
+        d.font(8.5, "", MUTE)
+        d.cell(left_w, 4.5, "per person, double sharing")
+        nxt = _next_departure(p.departures)
+        if nxt:
+            by = top + pad + 21
+            d.set_draw_color(*LINE)
+            d.set_line_width(0.4)
+            d.rect(x, by, left_w, 12.5, style="D", round_corners=True, corner_radius=R_BTN)
+            d.set_line_width(0.25)
+            d.set_xy(x + 3, by + 2)
+            d.label("Next departure", w=left_w - 6)
+            d.set_xy(x + 3, by + 6.2)
+            d.font(9.5, "B", INK)
+            d.cell(left_w - 6, 5, long_date(nxt.date), new_x=XPos.RIGHT, new_y=YPos.TOP)
+            d.set_xy(x + 3, by + 6.2)
+            seats = f"{nxt.seats_left} seats" if nxt.seats_left > 0 else "Sold out"
+            d.cell(left_w - 6, 5, seats, align="R")
+        # Right: the actions.
+        bx = x + left_w + 8
+        bw = d.epw - 2 * pad - left_w - 8
+        d.button(
+            bx,
+            top + pad,
+            bw,
+            "Enquire about this trip",
+            fill=ACTION,
+            color=INK,
+            link=self.enquire_url,
+        )
+        d.button(
+            bx,
+            top + pad + 12.5,
+            bw,
+            "Chat on WhatsApp",
+            fill=WA,
+            color=WHITE,
+            link=self.whatsapp_url,
+        )
+        d.set_xy(bx, top + pad + 25)
+        d.font(9, "B", PRIMARY)
+        d.cell(
+            bw,
+            6,
+            f"Call {BUSINESS['phone_display']}",
+            align="C",
+            link=f"tel:{BUSINESS['phone_e164']}",
+        )
+        # Foot: the promise, as the price box prints it.
+        fy = top + pad + 35
+        d.hairline(fy, x, d.w - MARGIN - pad)
+        d.set_xy(x, fy + 2.5)
+        d.font(8.5, "", MUTE)
+        d.multi_cell(
+            d.epw - 2 * pad,
+            4.6,
+            f"{BUSINESS['callback_promise']}, {BUSINESS['hours']}. Nothing to pay online. "
+            f"{BUSINESS['after_hours']}",
+            align="L",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        d.set_x(x)
+        d.font(8, "", MUTE)
+        shown = self.package_url.removeprefix("https://").removeprefix("http://")
+        d.cell(
+            0,
+            4.6,
+            f"{BUSINESS['legal_name']} · {BUSINESS['address']}, {BUSINESS['city']} · {shown}",
+            link=self.package_url,
+        )
+        d.set_y(top + h + 4)
 
     # --- page 2+ ----------------------------------------------------------------------------
 
     def days(self) -> None:
-        d = self.doc
-        d.ensure(70)  # the heading and the first day stay together
-        d.h2("Day by day")
-        for day in self.pkg.itinerary:
-            d.ensure(30)
-            y = d.get_y()
-            d.box(MARGIN, y, 9, 9, fill=PRIMARY, stroke=None, radius=2.5)
-            d.set_xy(MARGIN, y)
-            d.font(10, "B", WHITE)
-            d.cell(9, 9, str(day.day_no), align="C")
-            d.set_xy(MARGIN + 13, y)
-            d.font(13, "B", INK)
-            d.multi_cell(d.epw - 13, 9, day.title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            d.set_x(MARGIN + 13)
-            d.para(day.description, w=d.epw - 13)
-            line = meals_label(day.meals.breakfast, day.meals.lunch, day.meals.dinner)
-            if day.stay:
-                line += f"   ·   Stay · {day.stay}"
-            d.set_x(MARGIN + 13)
-            d.font(8.5, "B", MUTE)
-            d.cell(d.epw - 13, 5, line, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            d.gap(3)
-            d.set_draw_color(*LINE)
-            d.line(MARGIN, d.get_y(), d.w - MARGIN, d.get_y())
-            d.gap(4)
-
-    def price_lists(self) -> None:
+        """`Itinerary`: the route line, numbered badges, title, description, meal/stay chips."""
         d, p = self.doc, self.pkg
-        d.h2("What's in the price")
-        d.label("Included")
-        d.gap(1.5)
-        d.dotted(p.inclusions, OK)
-        d.gap(3)
-        d.label("Not included")
-        d.gap(1.5)
-        d.dotted(p.exclusions, MUTE, dash=True)
+        d.ensure(60)
+        d.h2("Day by day")
+        line_x = MARGIN + BADGE / 2
+        text_w = d.epw - (TEXT_X - MARGIN)
+        last = len(p.itinerary) - 1
+        for i, day in enumerate(p.itinerary):
+            d.ensure(34)
+            d.hairline(d.get_y())
+            top = d.get_y() + 4.5
+            page = d.page_no()
+            # Badge: primary square, radius 10 px, white number.
+            d.card(MARGIN, top, BADGE, BADGE, fill=PRIMARY, stroke=None, r=1.6)
+            d.set_xy(MARGIN, top + 0.3)
+            d.font(9.5, "XB", WHITE)
+            d.cell(BADGE, BADGE, str(day.day_no), align="C")
+            d.set_xy(TEXT_X, top - 0.5)
+            d.heading(day.title, 12.5, h=6.2)
+            d.set_xy(TEXT_X, d.get_y() + 0.5)
+            d.para(day.description, w=min(text_w, 128))
+            d.gap(1.5)
+            chips = [meals_label(day.meals.breakfast, day.meals.lunch, day.meals.dinner)]
+            if day.stay:
+                chips.append(f"Stay · {day.stay}")
+            cx, cy = TEXT_X, d.get_y()
+            for chip in chips:
+                cx += d.pill(cx, cy, chip, fill=BG2, color=MUTE) + 2
+            d.set_y(cy + 5.2 + 4.5)
+            # Route line from this badge down to the next day (or to the page foot mid-day).
+            if i < last:
+                d.set_draw_color(*PRIMARY)
+                d.set_line_width(0.5)
+                if d.page_no() == page:
+                    d.line(line_x, top + BADGE, line_x, d.get_y())
+                else:
+                    d.line(line_x, MARGIN, line_x, d.get_y())
+                d.set_line_width(0.25)
+        d.hairline(d.get_y())
+        d.gap(2)
+
+    def inclusions(self) -> None:
+        """`Inclusions`: Included / Not included side by side, check and cross marks."""
+        d, p = self.doc, self.pkg
+        col = (d.epw - 8) / 2
+        cols = [("Included", p.inclusions, True), ("Not included", p.exclusions, False)]
+        heights = [
+            6 + sum(d.lines_of(t, col - 6, 10) * 5.2 + 2.2 for t in items) for _, items, _ in cols
+        ]
+        block = max(heights)
+        d.h2("What's in the price", keep=block + 4)
+        if block <= d.h - d.t_margin - d.b_margin - 20:
+            d.ensure(block + 4)
+            top = d.get_y()
+            for k, (label, items, included) in enumerate(cols):
+                self._mark_list(MARGIN + k * (col + 8), top, col, label, items, included)
+            d.set_y(top + block + 2)
+        else:  # very long lists: stack, let the page flow
+            for label, items, included in cols:
+                d.ensure(20)
+                y = self._mark_list(MARGIN, d.get_y(), d.epw, label, items, included)
+                d.set_y(y + 4)
+
+    def _mark_list(
+        self, x: float, top: float, w: float, label: str, items: list[str], included: bool
+    ) -> float:
+        d = self.doc
+        d.set_xy(x, top)
+        d.label(label)
+        y = top + 6
+        for text in items:
+            (d.check if included else d.cross)(x, y + 1.0)
+            d.set_xy(x + 6, y)
+            d.font(10, "", INK)
+            d.multi_cell(w - 6, 5.2, text, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            y = d.get_y() + 2.2
+        return y
 
     def hotels(self) -> None:
+        """`Hotels`: one bordered card per property — name, marigold stars, city · nights."""
         d, p = self.doc, self.pkg
         if not p.hotels:
             return
-        d.h2("Where you stay")
-        rows = [
-            (h.name, h.city, f"{h.stars}-star", f"{h.nights} night{'s' if h.nights != 1 else ''}")
-            for h in p.hotels
-        ]
-        self._table(("Hotel", "City", "Category", "Nights"), rows, widths=(4, 2.5, 1.6, 1.4))
+        h = 14.0
+        d.h2("Where you stay", keep=h + 6)
+        for hotel in p.hotels:
+            d.ensure(h + 3)
+            top = d.get_y()
+            d.card(MARGIN, top, d.epw, h, r=R_PANEL)
+            d.set_xy(MARGIN + 4.5, top + 3)
+            d.font(11.5, "B", INK)
+            d.cell(
+                d.get_string_width(hotel.name) + 4, 6, hotel.name, new_x=XPos.RIGHT, new_y=YPos.TOP
+            )
+            sx = d.get_x() + 1
+            for k in range(5):
+                d.star(sx + k * 3.6, top + 6, 1.55, filled=k < hotel.stars)
+            d.set_xy(MARGIN + 4.5, top + 8.6)
+            d.font(8.5, "", MUTE)
+            nights = f"{hotel.nights} night{'s' if hotel.nights != 1 else ''}"
+            d.cell(0, 4, f"{hotel.city} · {nights}")
+            d.set_y(top + h + 3)
 
     def dates_and_prices(self) -> None:
+        """`DeparturesTable` (bordered, header row, seat bar, status pill) + `OccupancyPricing`."""
         d, p = self.doc, self.pkg
-        d.h2("Dates & prices")
+        d.h2("Dates & prices", keep=40)
         if not p.departures:
-            d.para("No dates announced yet — enquire and we will tell you first.", color=MUTE)
+            d.card(MARGIN, d.get_y(), d.epw, 14, fill=BG2, r=R_PANEL)
+            d.set_xy(MARGIN + 5, d.get_y() + 4)
+            d.font(10, "", MUTE)
+            d.cell(0, 6, "No fixed departures are open right now — dates on request.")
+            d.gap(18)
             return
-        rows = []
-        for dep in p.departures[:MAX_DEPARTURE_ROWS]:
-            status = seats_label(dep.seats_left)
-            if dep.badge and dep.seats_left > 0:
-                status = BADGE_LABELS[dep.badge] + " · " + status
-            rows.append((long_date(dep.date), status, inr(dep.price_double_paise // 100)))
-        self._table(
-            ("Departure", "Seats", "Per adult, double"),
-            rows,
-            widths=(3, 3, 2),
-            align=("LEFT", "LEFT", "RIGHT"),
-        )
+        widths = (52.0, 36.0, 46.0, 40.0)
+        xs = [MARGIN + sum(widths[:k]) for k in range(4)]
+        row_h, head_h = 10.0, 9.0
+
+        def header(y: float) -> float:
+            d.set_fill_color(*BG2)
+            d.rect(
+                MARGIN,
+                y,
+                d.epw,
+                head_h,
+                style="F",
+                round_corners=("TOP_LEFT", "TOP_RIGHT"),
+                corner_radius=R_PANEL,
+            )
+            for x, text in zip(xs, ("Departure", "Per person", "Seats", "Status"), strict=True):
+                d.set_xy(x + 3.5, y + 2.6)
+                d.label(text, w=30, new_line=False)
+            return y + head_h
+
+        rows = p.departures[:MAX_DEPARTURE_ROWS]
+        d.ensure(head_h + row_h * min(len(rows), 3) + 6)
+        seg_top = d.get_y()
+        y = header(seg_top)
+        for k, dep in enumerate(rows):
+            if d.will_page_break(row_h + 2):
+                self._table_frame(seg_top, y)
+                d.add_page()
+                seg_top = d.get_y()
+                y = header(seg_top)
+            if k:
+                d.hairline(y)
+            d.set_xy(xs[0] + 3.5, y + 2.5)
+            d.font(9.5, "B", INK)
+            d.cell(widths[0] - 4, 5, long_date(dep.date))
+            d.set_xy(xs[1] + 3.5, y + 2.5)
+            d.font(9.5, "", INK)
+            d.cell(widths[1] - 4, 5, inr(dep.price_double_paise // 100))
+            # Seat bar: line track, primary fill (warn when ≤ 4 left), then "N left".
+            fill = max(0.0, min(1.0, dep.seats_left / dep.seats_total if dep.seats_total else 0))
+            bar_x, bar_y, bar_w = xs[2] + 3.5, y + 4.3, 13.0
+            d.set_fill_color(*LINE)
+            d.rect(bar_x, bar_y, bar_w, 1.4, style="F", round_corners=True, corner_radius=0.7)
+            if fill > 0:
+                low = 0 < dep.seats_left <= 4
+                d.set_fill_color(*(WARN if low else PRIMARY))
+                d.rect(
+                    bar_x,
+                    bar_y,
+                    max(bar_w * fill, 1.4),
+                    1.4,
+                    style="F",
+                    round_corners=True,
+                    corner_radius=0.7,
+                )
+            d.set_xy(bar_x + bar_w + 2.5, y + 2.5)
+            d.font(9.5, "", INK)
+            d.cell(
+                widths[2] - bar_w - 6, 5, f"{dep.seats_left} left" if dep.seats_left > 0 else "—"
+            )
+            if dep.badge:
+                soft, tone = PILL_TONE[dep.badge]
+                d.pill(
+                    xs[3] + 3.5, y + 2.4, BADGE_LABELS[dep.badge], fill=soft, color=tone, size=7.5
+                )
+            y += row_h
+        self._table_frame(seg_top, y)
+        d.set_y(y + 3)
         if len(p.departures) > MAX_DEPARTURE_ROWS:
-            d.para(f"+ {len(p.departures) - MAX_DEPARTURE_ROWS} more dates on the website.", color=MUTE)
-        d.gap(4)
-        d.label("Price per person")
-        d.gap(2)
+            d.para(
+                f"+ {len(p.departures) - MAX_DEPARTURE_ROWS} more dates on the website.",
+                size=8.5,
+                color=MUTE,
+            )
+        # Price per person (the occupancy grid), 2 × 2.
+        d.ensure(46)
+        d.gap(5)
+        d.heading("Price per person", 13)
+        d.gap(3)
         deps = p.departures
-        self._boxes(
-            [
-                ("Adult · double sharing", _price_range([x.price_double_paise for x in deps])),
-                ("Adult · triple sharing", _price_range([x.price_triple_paise for x in deps])),
-                ("Child 5–11 · with parents", _price_range([x.price_child_paise for x in deps])),
-                ("Single supplement", "+ " + _price_range([x.single_supplement_paise for x in deps])),
-            ],
-            cols=2,
-        )
+        cells = [
+            ("Adult · double sharing", _price_range([x.price_double_paise for x in deps])),
+            ("Adult · triple sharing", _price_range([x.price_triple_paise for x in deps])),
+            ("Child 5–11 · with parents", _price_range([x.price_child_paise for x in deps])),
+            ("Single supplement", "+ " + _price_range([x.single_supplement_paise for x in deps])),
+        ]
+        gutter, bh = 3.0, 15.0
+        bw = (d.epw - gutter) / 2
+        top = d.get_y()
+        for i, (label, value) in enumerate(cells):
+            x = MARGIN + (i % 2) * (bw + gutter)
+            by = top + (i // 2) * (bh + gutter)
+            d.card(x, by, bw, bh, r=R_BTN)
+            d.set_xy(x + 3.5, by + 2.8)
+            d.font(7.5, "SB", MUTE)
+            d.cell(bw - 7, 4, label)
+            d.set_xy(x + 3.5, by + 7.2)
+            d.font(12.5, "XB", INK)
+            d.cell(bw - 7, 6, value)
+        d.set_y(top + 2 * bh + gutter + 3)
         d.para(
             "Prices vary by departure date; the table above is per adult on double sharing.",
             size=8.5,
             color=MUTE,
         )
 
+    def _table_frame(self, top: float, bottom: float) -> None:
+        d = self.doc
+        d.set_draw_color(*LINE)
+        d.rect(
+            MARGIN, top, d.epw, bottom - top, style="D", round_corners=True, corner_radius=R_PANEL
+        )
+
     def faq(self) -> None:
+        """`Faq`: hairline rows, the question bold, the answer open (no accordion on paper)."""
         d, p = self.doc, self.pkg
         if not p.faq:
             return
-        d.h2("Good to know")
+        d.h2("Questions", keep=22)
         for item in p.faq:
-            d.ensure(16)
-            d.font(11, "B", INK)
-            d.multi_cell(0, 6, item.q, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            d.para(item.a)
-            d.gap(3)
-
-    def contact(self) -> None:
-        d = self.doc
-        h = 47.0
-        bottom_slot = d.h - d.b_margin - h - 2
-        if d.get_y() + 4 <= bottom_slot:
-            top = bottom_slot  # cover page: pin the card above the footer
-        else:
-            d.ensure(h + 4)
-            top = d.get_y()
-        d.box(MARGIN, top, d.epw, h)
-        d.set_xy(MARGIN + 6, top + 5)
-        d.font(11, "B", INK)
-        d.cell(0, 6, BUSINESS["callback_promise"] + ".", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        lines = [
-            ("Call", BUSINESS["phone_display"], f"tel:{BUSINESS['phone_e164']}"),
-            ("WhatsApp", "Chat with us — tap to open", self.whatsapp_url),
-            ("Enquire online", self.enquire_url, self.enquire_url),
-            ("This trip", self.package_url, self.package_url),
-        ]
-        for label, value, link in lines:
-            d.set_x(MARGIN + 6)
-            d.font(9, "B", MUTE)
-            d.cell(30, 6, label)
-            d.font(9.5, "SB", PRIMARY)
-            d.cell(0, 6, value, link=link, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        d.set_x(MARGIN + 6)
-        d.font(8.5, "", MUTE)
-        d.cell(0, 5, f"{BUSINESS['hours']}. {BUSINESS['after_hours']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        d.set_x(MARGIN + 6)
-        d.cell(
-            0,
-            5,
-            f"{BUSINESS['legal_name']} · {BUSINESS['address']}, {BUSINESS['city']}",
-            new_x=XPos.LMARGIN,
-            new_y=YPos.NEXT,
-        )
-        d.set_y(top + h + 4)
-
-    # --- shared ------------------------------------------------------------------------------
-
-    def _table(
-        self,
-        head: tuple[str, ...],
-        rows: list[tuple[str, ...]],
-        *,
-        widths: tuple[float, ...],
-        align: tuple[str, ...] | None = None,
-    ) -> None:
-        d = self.doc
-        d.font(9.5, "", INK2)
-        d.set_fill_color(*WHITE)  # fpdf2 seeds row styles from the current fill colour
-        d.set_draw_color(*LINE)
-        with d.table(
-            col_widths=widths,
-            text_align=align or tuple("LEFT" for _ in head),
-            borders_layout=TableBordersLayout.HORIZONTAL_LINES,
-            line_height=7,
-            padding=(1.2, 2),
-            headings_style=FontFace(emphasis="BOLD", color=MUTE, size_pt=8, fill_color=BG2),
-            cell_fill_color=BG2,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-        ) as table:
-            header = table.row()
-            for h in head:
-                header.cell(h.upper())
-            for r in rows:
-                row = table.row()
-                for cell in r:
-                    row.cell(cell)
-        d.gap(2)
+            d.ensure(20)
+            d.hairline(d.get_y())
+            d.gap(3.5)
+            d.font(10.5, "B", INK)
+            d.multi_cell(0, 5.6, item.q, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            d.gap(1)
+            d.para(item.a, w=min(d.epw, 130))
+            d.gap(3.5)
+        d.hairline(d.get_y())
 
 
 def render_itinerary(
-    pkg: PackageDetail, *, cover: bytes | None, site_url: str, whatsapp_number: str
+    pkg: PackageDetail,
+    *,
+    cover: bytes | None,
+    gallery: Sequence[bytes] = (),
+    site_url: str,
+    whatsapp_number: str,
 ) -> bytes:
-    """A4 itinerary for a live package. `cover` = the raw cover photo (any Pillow format) or None."""
-    return _Itinerary(pkg, cover, site_url, whatsapp_number).render()
+    """A4 itinerary for a live package. `cover` = the raw cover photo (any Pillow format) or
+    None; `gallery` = up to four more photos in gallery order (drawn only if the cover page has
+    room for the strip)."""
+    return _Itinerary(pkg, cover, gallery, site_url, whatsapp_number).render()
 ```
 
 Implementer notes: fpdf2's `table()` draws its own borders with the current draw colour — set `d.set_draw_color(*LINE)` before the `with`. `FontFace(size_pt=…)` and `TableCellFillMode.EVEN_ROWS` exist in 2.8; if a keyword is rejected, check `uv run python -c "import fpdf.fonts, fpdf.enums; help(fpdf.fonts.FontFace)"`. Long words never overflow because `multi_cell` wraps at the cell width.
@@ -1081,7 +1562,7 @@ Implementer notes: fpdf2's `table()` draws its own borders with the current draw
 - [ ] **Step 4: Run the tests, then look at the PDF**
 
 Run: `uv run --directory api pytest tests/test_pdf_render.py tests/test_pdf_document.py -q`
-Expected: all PASS. Then write one out and read it: `uv run --directory api python -c "from tests.pdf_fixture import package; from app.services.pdf.itinerary import render_itinerary; from pathlib import Path; Path('../.pdf-preview.pdf').write_bytes(render_itinerary(package(), cover=Path('content/photos/goa/agonda-sunset.jpg').read_bytes(), site_url='https://tripsmith.vercel.app', whatsapp_number='919845012345'))"` and open `.pdf-preview.pdf` (repo root, gitignored? — if `git status` shows it, delete it after looking; do not commit). Check: the cover crops without stretching; chip sits on the band edge; fact boxes align; day badges align with titles; tables zebra; no orphan headings at page bottoms (`ensure` values); footer never overlaps content.
+Expected: 9 passed (verified against the prototype 2026-09-21). Then write one out and read it: `uv run --directory api python -c "from tests.pdf_fixture import package; from tests.test_pdf_render import render; from pathlib import Path; Path('../.pdf-preview.pdf').write_bytes(render())"` and open `.pdf-preview.pdf` (repo root; if `git status` shows it, delete it after looking; do not commit). Compare against `http://localhost:3003/packages/north-goa-beaches` (or the prod page): hero, quick facts, highlights, gallery, price box, route-line itinerary with chips, two-column inclusions, hotel cards with stars, bordered departures table with seat bars and pills, occupancy grid, FAQ rows — same order, same tones. The design preview Viraj approved is at https://claude.ai/artifact/PP3nAzp18HhXMez49Gere3.
 
 - [ ] **Step 5: Lint, type-check, commit**
 
@@ -1331,7 +1812,7 @@ git commit -m "feat(F11): BlobStore.list/delete + app.state.store"
 
 **Interfaces:**
 - Consumes: `BlobStore`, `BlobInfo` (Task 4); `render_itinerary`, `prepare_cover`, `pdf_pathname`, `pdf_prefix`, `pdf_filename`, `PDF_PREFIX` (Task 3); `get_package` (`app.services.catalog.reads`); `EmailAttachment` (`app.infra.email`); `Package` model.
-- Produces: `PdfService(store: BlobStore | None, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None)` with `cached_url(pkg) -> str | None`, `build(pkg) -> bytes`, `put(pkg, pdf) -> str | None`, `attachment_for(db, slug) -> EmailAttachment | None`, `gc(db) -> GcReport`; `GcReport(deleted: int, kept: int, configured: bool)` (an `ApiModel`, in `app/schemas/pdf.py`); `COVER_TIMEOUT = 5.0`, `COVER_MAX_BYTES = 6_000_000`.
+- Produces: `PdfService(store: BlobStore | None, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None)` with `cached_url(pkg) -> str | None`, `build(pkg) -> bytes` (fetches the cover + up to `GALLERY_MAX` gallery photos concurrently, one client, each best-effort), `put(pkg, pdf) -> str | None`, `attachment_for(db, slug) -> EmailAttachment | None`, `gc(db) -> GcReport`; `GcReport(deleted: int, kept: int, configured: bool)` (an `ApiModel`, in `app/schemas/pdf.py`); `COVER_TIMEOUT = 5.0`, `COVER_MAX_BYTES = 6_000_000`.
 
 - [ ] **Step 1: Write the schema, then the failing tests**
 
@@ -1374,6 +1855,7 @@ from tests.test_catalog import RecordingStore
 
 COVER_JPEG = Path(__file__).resolve().parents[1] / "content" / "photos" / "goa" / "agonda-sunset.jpg"
 KEY = pdf_pathname("north-goa-beaches", UPDATED_AT)
+# `package(images=n)` (tests/pdf_fixture.py) gives n distinct image URLs, the cover first.
 
 
 class FakeBlobStore:
@@ -1440,6 +1922,21 @@ async def test_build_embeds_the_cover_and_survives_a_missing_one() -> None:
     without = await service(None, cover_transport(404)).build(package())
     assert with_cover.startswith(b"%PDF-") and without.startswith(b"%PDF-")
     assert len(with_cover) > len(without) + 20_000  # the JPEG is in there
+
+
+async def test_build_fetches_the_cover_and_up_to_four_gallery_photos_once_each() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(
+            200, content=COVER_JPEG.read_bytes(), headers={"content-type": "image/jpeg"}
+        )
+
+    pkg = package(images=7)  # cover + 6 more; only the first 4 gallery photos are fetched
+    pdf = await service(None, httpx.MockTransport(handler)).build(pkg)
+    assert pdf.startswith(b"%PDF-")
+    assert seen == [pkg.cover.url] + [i.url for i in pkg.images[1:5]]  # type: ignore[union-attr]
 
 
 async def test_build_ignores_a_cover_that_is_not_an_image_or_too_big() -> None:
@@ -1543,6 +2040,7 @@ from app.schemas.catalog import PackageDetail
 from app.schemas.pdf import GcReport
 from app.services.catalog.reads import get_package
 from app.services.pdf.itinerary import (
+    GALLERY_MAX,
     PDF_PREFIX,
     pdf_filename,
     pdf_pathname,
@@ -1594,20 +2092,29 @@ class PdfService:
     # --- render --------------------------------------------------------------------------------
 
     async def build(self, pkg: PackageDetail) -> bytes:
-        """Fetch the cover (best effort) and render off the event loop."""
-        cover = await self._fetch_cover(pkg.cover.url) if pkg.cover else None
+        """Fetch the cover and the gallery photos (best effort, concurrently) and render off
+        the event loop."""
+        urls = [pkg.cover.url] if pkg.cover else []
+        gallery_urls = [i.url for i in pkg.images if not pkg.cover or i.url != pkg.cover.url]
+        urls += gallery_urls[:GALLERY_MAX]
+        photos: list[bytes | None] = []
+        if urls:
+            async with httpx.AsyncClient(transport=self._transport, timeout=COVER_TIMEOUT) as client:
+                photos = list(await asyncio.gather(*(self._fetch_image(client, u) for u in urls)))
+        cover = photos[0] if pkg.cover and photos else None
+        gallery = [p for p in photos[1 if pkg.cover else 0 :] if p]
         return await asyncio.to_thread(
             render_itinerary,
             pkg,
             cover=cover,
+            gallery=gallery,
             site_url=self._settings.site_url,
             whatsapp_number=self._settings.whatsapp_number,
         )
 
-    async def _fetch_cover(self, url: str) -> bytes | None:
+    async def _fetch_image(self, client: httpx.AsyncClient, url: str) -> bytes | None:
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=COVER_TIMEOUT) as client:
-                res = await client.get(url, follow_redirects=True)
+            res = await client.get(url, follow_redirects=True)
             if res.status_code != 200:
                 return None
             if int(res.headers.get("content-length", len(res.content))) > COVER_MAX_BYTES:
@@ -1616,7 +2123,7 @@ class PdfService:
                 return None
             return res.content
         except Exception as exc:  # a missing photo is not worth a failed download
-            log.warning("Cover fetch failed for %s: %s", url, exc)
+            log.warning("Photo fetch failed for %s: %s", url, exc)
             return None
 
     # --- email ---------------------------------------------------------------------------------
@@ -2506,4 +3013,4 @@ Wait for both deploys (`vercel ls tripsmith-api`, `vercel ls tripsmith-web`; pro
 
 - **Spec coverage:** R6 download link on every live package page (Task 9: day-by-day header on all sizes + price box + summary + thanks) ✓; attached to the confirmation email when a package is attached (Task 7) ✓; generated from package data — cover, quick facts, day-by-day, inclusions/exclusions, hotels, upcoming departures with prices, occupancy pricing, contact block (Task 3) ✓; cached per package, invalidated on edit (`updated_at` key, Tasks 3/5/6) ✓; A4 / < 2 MB / < 3 s asserted (Task 3) ✓; content matches the page (Task 3 text-extraction test) ✓; `GET /cron/pdf-gc` + `vercel.json` (Task 8) ✓; 04 §5's Blob-cached route + fpdf2 + DM Sans in `api/assets/fonts` (Tasks 2/6) ✓; 06 "PDF; two emails" (Task 7) ✓; the 07 row's `Document` base for the v2 voucher (Task 2) ✓.
 - **Placeholders:** none — every step carries code or the exact command and expected output. Task 7's tests use the existing `ctx(**over)` helper from `tests/test_email_render.py` (verified: it overrides any `EnquiryEmailContext` field).
-- **Type consistency:** `render_itinerary(pkg, *, cover, site_url, whatsapp_number)` (T3) is what `PdfService.build` calls (T5) and what `monkeypatch.setattr("app.services.pdf.service.render_itinerary", …)` patches (T5/T7 — the service imports the name, so patching the service module is right). `PdfService(store, settings, *, transport)` matches every test's construction. `pdf_pathname(slug, updated_at)` / `pdf_prefix` / `pdf_filename` / `PDF_PREFIX` names are the same in T3, T5, T6, T8. `BlobStore.list(prefix) -> list[BlobInfo]`, `delete(urls)` match `FakeBlobStore`. `send_enquiry_emails(..., attachment=)` matches T7's call. `GcReport(deleted, kept, configured)` matches T5's return and T8's JSON. `Document.font(size, style, color)` is used with `"SB"` in T3 and defined in T2.
+- **Type consistency:** `render_itinerary(pkg, *, cover, gallery=(), site_url, whatsapp_number)` (T3) is what `PdfService.build` calls (T5) and what `monkeypatch.setattr("app.services.pdf.service.render_itinerary", …)` patches (T5/T7 — the service imports the name, so patching the service module is right). `PdfService(store, settings, *, transport)` matches every test's construction. `pdf_pathname(slug, updated_at)` / `pdf_prefix` / `pdf_filename` / `PDF_PREFIX` names are the same in T3, T5, T6, T8. `BlobStore.list(prefix) -> list[BlobInfo]`, `delete(urls)` match `FakeBlobStore`. `send_enquiry_emails(..., attachment=)` matches T7's call. `GcReport(deleted, kept, configured)` matches T5's return and T8's JSON. `Document.font(size, weight, color)` is used with `"SB"`/`"XB"` in T3 and defined in T2; every `Document` helper T3 calls (`heading`, `h2(keep=)`, `label(w=, new_line=)`, `lines_of`, `check`, `cross`, `star`, `pill`, `button`, `brand_mark`, `wordmark`, `card`, `hairline`) is defined in T2 with the same signature — the two modules were run together as a prototype (14 tests green) before being pasted here.
