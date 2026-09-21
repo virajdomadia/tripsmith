@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
 import { BestMonths } from '@/components/site/destinations/BestMonths';
 import { DestinationHero } from '@/components/site/destinations/DestinationHero';
 import { PackageCard } from '@/components/site/PackageCard';
 import { Prose } from '@/components/site/Prose';
-import { api, ApiRequestError } from '@/lib/api';
+import { api } from '@/lib/api';
+import { cheapest, loadDestination, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { inr, monthRange } from '@/lib/format';
 import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
 
@@ -15,30 +15,7 @@ type Params = { slug: string };
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
-/** Tagged `destination:<slug>` for F18's on-demand purge; hourly anyway (from-prices follow today's date). */
-const REVALIDATE_SECONDS = 60 * 60;
-
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** Cheapest priced trip; 0 when every trip is "on request" (the api sorts 0 first, so min over > 0). */
-function cheapest(prices: number[]): number {
-  const priced = prices.filter((p) => p > 0);
-  return priced.length ? Math.min(...priced) : 0;
-}
-
-async function loadDestination(slug: string) {
-  try {
-    return await api('/destinations/{slug}', {
-      params: { slug },
-      tags: [`destination:${slug}`],
-      revalidate: REVALIDATE_SECONDS,
-    });
-  } catch (err) {
-    // Unknown slug and "no live trips" are both 404s from the api (R2: hidden, not empty).
-    if (err instanceof ApiRequestError && err.status === 404) notFound();
-    throw err;
-  }
-}
 
 /** Prerender every destination with live trips; an unreachable api at build means "none". */
 export async function generateStaticParams(): Promise<Params[]> {
@@ -65,12 +42,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title: `${d.name} holiday packages — ${trips}${from ? ` from ${inr(from)}` : ''}`,
     description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
     alternates: { canonical: `${SITE_URL}/destinations/${d.slug}` },
-    openGraph: {
-      title: d.name,
-      description: d.tagline,
-      type: 'website',
-      images: [{ url: d.coverUrl, alt: `${d.name} — ${d.tagline}` }],
-    },
+    // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
+    openGraph: { title: d.name, description: d.tagline, type: 'website' },
+    twitter: { card: 'summary_large_image' },
   };
 }
 

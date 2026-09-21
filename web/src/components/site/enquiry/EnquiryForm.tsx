@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useId, useState } from 'react';
 import { errorFromResponse } from '@/lib/api-errors';
-import { BUSINESS, whatsappHref } from '@/lib/business';
+import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import {
   BUDGET,
   enquiryFromForm,
@@ -146,9 +146,7 @@ export function EnquiryForm({
           {banner}{' '}
           <a
             href={whatsappHref(
-              pkg
-                ? `Hi Tripsmith, I'm interested in ${pkg.name}`
-                : 'Hi Tripsmith, I want to plan a trip',
+              pkg ? `Hi Tripsmith, I'm interested in ${pkg.name}` : whatsappInterest(),
             )}
             className="underline"
           >

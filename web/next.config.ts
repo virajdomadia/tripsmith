@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: 'localhost', port: '8000' }, // scripts/seed.py --local
     ],
   },
+  // The OG card (F13) reads DM Sans from disk at runtime; tracing missed the TTFs for one of the
+  // two image routes, so ship them explicitly (keys are picomatch `contains` on the route path).
+  outputFileTracingIncludes: { 'opengraph-image*': ['./src/lib/og/fonts/*.ttf'] },
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];
   },
