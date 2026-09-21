@@ -13,6 +13,7 @@ from app.config import Settings
 from app.infra.email import EmailMessage
 from app.models import Enquiry, Package
 from app.models.enums import EnquiryType
+from app.services.format import inr  # noqa: F401 — re-exported; tests import it from here
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30), "IST")
 TYPE_LABEL = {
@@ -31,16 +32,6 @@ _env = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
-
-
-def inr(rupees: int) -> str:
-    """Indian grouping: ₹12,34,567."""
-    s = str(abs(rupees))
-    if len(s) > 3:
-        head, tail = s[:-3], s[-3:]
-        groups = [head[max(i - 2, 0) : i] for i in range(len(head), 0, -2)][::-1]
-        s = ",".join(groups) + "," + tail
-    return ("-" if rupees < 0 else "") + "₹" + s
 
 
 def _ist(when: dt.datetime) -> str:
