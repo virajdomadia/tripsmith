@@ -2928,7 +2928,7 @@ and the emailed sentence becomes `We’ve also emailed this to you{pkgName ? ', 
 
 Start the local stack (background calls; dev DB from earlier rows or create `tripsmith_dev` as in the F10 plan): `DATABASE_URL=$DEV_URL uv run --directory api uvicorn app.main:app --port 8004` and from `web/`: `API_URL=http://localhost:8004 pnpm exec next dev -p 3003`. Then:
 
-`curl -sI http://localhost:3003/api/packages/north-goa-beaches/itinerary.pdf | head -5`
+`curl -s -o /dev/null -D - http://localhost:3003/api/packages/north-goa-beaches/itinerary.pdf | head -5`
 Expected (dev has `BLOB_READ_WRITE_TOKEN` in `api/.env.local`, so Blob is live): `HTTP/1.1 302` with `location: https://….public.blob.vercel-storage.com/pdf/north-goa-beaches/…/Tripsmith-north-goa-beaches-itinerary.pdf`. Open that URL: the PDF renders inline with the seed cover. If instead the web returns `200 application/pdf` (Next followed the redirect), that is also acceptable behaviour — note it in the PR. If it returns an HTML error page, switch `ItineraryPdfLink` to `${process.env.API_URL ?? 'http://localhost:8000'}/packages/…` (server component; keep the `/api` form for emails) and record the reason in the PR.
 
 Open `http://localhost:3003/packages/north-goa-beaches` at 360 px and desktop: the "Day by day" header shows the link on both; the price box shows the button on desktop; `/packages/north-goa-beaches/enquire` shows the link under the summary. Stop the servers.
@@ -3002,7 +3002,7 @@ Put the PR number into the 07-plan row, commit `docs(F11): mark the row done`, p
 
 Wait for both deploys (`vercel ls tripsmith-api`, `vercel ls tripsmith-web`; prod deploys have queued for ~20 min before). Then:
 
-1. `curl -sI https://<web prod>/api/packages/north-goa-beaches/itinerary.pdf` → `302` to `*.public.blob.vercel-storage.com/pdf/north-goa-beaches/…` (first hit renders; second hit is instant). Open the Blob URL: fonts embedded (₹ renders — proves `api/assets/fonts` made it into the Python bundle; if it 500s with `FileNotFoundError` on the TTF, the bundle dropped `assets/` — move the fonts under `app/assets/fonts/` and fix `FONTS_DIR` to `parents[2] / "assets" / "fonts"`).
+1. `curl -s -o /dev/null -D - https://<web prod>/api/packages/north-goa-beaches/itinerary.pdf` → `302` to `*.public.blob.vercel-storage.com/pdf/north-goa-beaches/…` (first hit renders; second hit is instant). Open the Blob URL: fonts embedded (₹ renders — proves `api/assets/fonts` made it into the Python bundle; if it 500s with `FileNotFoundError` on the TTF, the bundle dropped `assets/` — move the fonts under `app/assets/fonts/` and fix `FONTS_DIR` to `parents[2] / "assets" / "fonts"`).
 2. Vercel dashboard → tripsmith-api → Settings → Cron Jobs lists `/cron/pdf-gc` weekly. Trigger it once from the dashboard ("Run") or `curl -H "Authorization: Bearer $CRON_SECRET" https://<api prod>/cron/pdf-gc` → `{"deleted":0,"kept":1,"configured":true}`.
 3. Submit one real enquiry from the prod package page; the confirmation in the inbox carries the PDF. Record the ref in the memory update.
 4. If the web was prerendered against the old api (baked 404s on the new links are impossible here — plain `<a>` hrefs — but check the package page renders the link), `vercel redeploy` the web deployment per the deploy-race memory.
