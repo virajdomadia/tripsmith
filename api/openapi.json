@@ -1236,6 +1236,21 @@
         ],
         "title": "ThemeOption",
         "type": "object"
+      },
+      "ViewCreate": {
+        "properties": {
+          "slug": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "title": "ViewCreate",
+        "type": "object"
       }
     }
   },
@@ -1741,6 +1756,40 @@
           }
         },
         "summary": "Get Itinerary Pdf",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/views": {
+      "post": {
+        "operationId": "recordView",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post View",
         "tags": [
           "public"
         ]

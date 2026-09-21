@@ -18,6 +18,7 @@ import { QuickFacts } from '@/components/site/package/QuickFacts';
 import { RelatedPackages } from '@/components/site/package/RelatedPackages';
 import { Section } from '@/components/site/package/Section';
 import { SectionNav } from '@/components/site/package/SectionNav';
+import { ViewBeacon } from '@/components/site/package/ViewBeacon';
 import { WhatsAppPageMessage } from '@/components/site/whatsapp/WhatsAppContext';
 import { api } from '@/lib/api';
 import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
@@ -71,6 +72,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
     <Container>
       <JsonLd data={packageJsonLd(pkg, url)} />
       <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
+      <ViewBeacon slug={pkg.slug} />
       <PackageHero pkg={pkg} url={url} />
       <Gallery images={pkg.images} />
       <QuickFacts pkg={pkg} />
