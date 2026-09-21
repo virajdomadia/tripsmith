@@ -7,7 +7,14 @@ import { type LoginError, loginHref, safeNext } from '@/lib/auth/gate';
  * the form with an error code and the email (never the password) in the query.
  */
 export async function POST(request: Request): Promise<Response> {
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    // Non-form Content-Type (JSON, a bot's curl) or a malformed body: keep the 303-back-to-the-
+    // form invariant every other failure path holds, rather than letting Next render a 500.
+    return seeOther(new URL(loginHref({ error: 'unavailable' }), request.url));
+  }
   const email = String(form.get('email') ?? '').trim();
   const password = String(form.get('password') ?? '');
   const next = safeNext(String(form.get('next') ?? ''));

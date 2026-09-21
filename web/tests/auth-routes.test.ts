@@ -91,6 +91,19 @@ describe('POST /api/auth/login', () => {
     );
     expect(res.headers.get('location')).toBe('http://web.test/admin');
   });
+
+  it('survives a non-form body instead of throwing', async () => {
+    const res = await login(
+      new Request('http://web.test/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('http://web.test/admin/login?error=unavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /api/auth/logout', () => {
