@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container } from '@/components/site/Container';
 import { WhatsApp } from '@/components/site/home/icons';
+import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
 import { Check } from '@/components/site/package/icons';
 import { api } from '@/lib/api';
 import { BUSINESS, whatsappHref } from '@/lib/business';
@@ -73,7 +74,9 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
       </p>
       {emailed && (
         <p className="text-mute">
-          We’ve also emailed this to you — check spam if it isn’t there in a minute.
+          We’ve also emailed this to you
+          {pkgName ? ', with the itinerary attached as a PDF' : ''} — check spam if it isn’t there
+          in a minute.
         </p>
       )}
       <ol className="mt-3 grid w-full gap-3 text-left sm:grid-cols-3">
@@ -94,6 +97,9 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
           <WhatsApp className="size-5" />
           Chat on WhatsApp
         </a>
+        {pkgSlug && pkgName && (
+          <ItineraryPdfLink slug={pkgSlug} variant="button" label="Itinerary (PDF)" />
+        )}
         {pkgSlug && pkgName && (
           <Link
             href={`/packages/${pkgSlug}`}

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
+import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
 import { DeparturesTable } from '@/components/site/package/DeparturesTable';
 import { Faq } from '@/components/site/package/Faq';
 import { Gallery } from '@/components/site/package/Gallery';
@@ -112,7 +113,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             <p className="max-w-[62ch] text-lg leading-relaxed text-ink2">{pkg.summary}</p>
             <Highlights items={pkg.highlights} />
           </Section>
-          <Section id="itinerary" title="Day by day">
+          <Section id="itinerary" title="Day by day" action={<ItineraryPdfLink slug={pkg.slug} />}>
             <ItineraryMotion>
               <Itinerary days={pkg.itinerary} />
             </ItineraryMotion>

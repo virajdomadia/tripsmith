@@ -4,12 +4,13 @@ import { BUSINESS } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { formatDate, inr } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
+import { ItineraryPdfLink } from '../ItineraryPdfLink';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-/** Sticky price box (desktop): from-price, next departure, Enquire (F9). PDF + WhatsApp join in F11/F12. */
+/** Sticky price box (desktop): from-price, next departure, Enquire (F9), PDF (F11). WhatsApp joins in F12. */
 export function PriceBox({ pkg }: { pkg: PackageDetail }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   return (
@@ -27,7 +28,11 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
           <span className="flex justify-between font-bold">
             {formatDate(next.date)}
             <span className="num">
-              {next.seatsLeft > 0 ? `${next.seatsLeft} seats` : 'Sold out'}
+              {next.seatsLeft > 0
+                ? next.seatsLeft === 1
+                  ? '1 seat'
+                  : `${next.seatsLeft} seats`
+                : 'Sold out'}
             </span>
           </span>
         </div>
@@ -38,6 +43,7 @@ export function PriceBox({ pkg }: { pkg: PackageDetail }) {
       >
         Enquire about this trip
       </Link>
+      <ItineraryPdfLink slug={pkg.slug} variant="button" />
       <p className="border-t border-line pt-3 text-[13px] leading-relaxed text-mute">
         A person calls you back within 2 hours, {BUSINESS.hours}. Nothing to pay online.
       </p>

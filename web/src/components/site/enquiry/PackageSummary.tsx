@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
 import { duration, formatDate, inr } from '@/lib/format';
+import { ItineraryPdfLink } from '../ItineraryPdfLink';
 import { Photo } from '../Photo';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
-/** S6 `.summary`: cover, name, duration, next departure, from-price, first hotel. The PDF button joins in F11. */
+/** S6 `.summary`: cover, name, duration, next departure, from-price, first hotel. PDF link (F11). */
 export function PackageSummary({ pkg }: { pkg: PackageDetail }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   const rows: [string, string][] = [
@@ -41,6 +42,7 @@ export function PackageSummary({ pkg }: { pkg: PackageDetail }) {
             </div>
           ))}
         </dl>
+        <ItineraryPdfLink slug={pkg.slug} className="mt-1" />
       </div>
     </aside>
   );
