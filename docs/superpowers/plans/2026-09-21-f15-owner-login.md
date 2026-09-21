@@ -158,10 +158,10 @@ from app.services.auth.passwords import hash_password, needs_rehash, verify_pass
 
 
 def test_round_trip() -> None:
-    h = hash_password("demo-fd8c57c3")
+    h = hash_password("owner-pw-for-tests")
     assert h.startswith("$argon2id$")
-    assert verify_password(h, "demo-fd8c57c3")
-    assert not verify_password(h, "demo-fd8c57c4")
+    assert verify_password(h, "owner-pw-for-tests")
+    assert not verify_password(h, "owner-pw-for-tests2")
     assert not needs_rehash(h)
 
 
@@ -315,7 +315,7 @@ from tests.test_catalog import RecordingStore
 from tests.test_enquiries import CountingLimiter
 
 OWNER_EMAIL = "owner@tripsmith.demo"
-OWNER_PASSWORD = "demo-fd8c57c3"
+OWNER_PASSWORD = "owner-pw-for-tests"
 COOKIE = "ts_session"
 
 

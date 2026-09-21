@@ -26,7 +26,7 @@ from tests.test_catalog import RecordingStore
 from tests.test_enquiries import CountingLimiter
 
 OWNER_EMAIL = "owner@tripsmith.demo"
-OWNER_PASSWORD = "demo-fd8c57c3"
+OWNER_PASSWORD = "owner-pw-for-tests"
 COOKIE = "ts_session"
 
 

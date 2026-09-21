@@ -5,10 +5,10 @@ from app.services.auth.passwords import dummy_hash, hash_password, needs_rehash,
 
 
 def test_round_trip() -> None:
-    h = hash_password("demo-fd8c57c3")
+    h = hash_password("owner-pw-for-tests")
     assert h.startswith("$argon2id$")
-    assert verify_password(h, "demo-fd8c57c3")
-    assert not verify_password(h, "demo-fd8c57c4")
+    assert verify_password(h, "owner-pw-for-tests")
+    assert not verify_password(h, "owner-pw-for-tests2")
     assert not needs_rehash(h)
 
 
