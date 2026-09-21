@@ -27,6 +27,9 @@ async def rows(db: AsyncSession) -> list[PackageView]:
         None,
         "",
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+        "Mozilla/5.0 (compatible;PetalBot;+https://webmaster.petalsearch.com/site/petalbot)",
+        "Twitterbot/1.0",
         "WhatsApp/2.23.20.0 A",
         "facebookexternalhit/1.1",
         "curl/8.4.0",
@@ -41,6 +44,11 @@ def test_bots_are_recognised(ua: str | None) -> None:
 def test_real_browsers_are_not_bots() -> None:
     assert not is_bot(PHONE_UA)
     assert not is_bot("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Safari/604.1")
+    # Phone makers with "bot" in the model name are visitors, not crawlers.
+    assert not is_bot(
+        "Mozilla/5.0 (Linux; Android 11; CUBOT KINGKONG 5 Pro) AppleWebKit/537.36 "
+        "Chrome/128.0.0.0 Mobile Safari/537.36"
+    )
 
 
 def test_ist_today_rolls_over_at_half_past_six_utc() -> None:

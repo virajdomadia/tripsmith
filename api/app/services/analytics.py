@@ -16,9 +16,11 @@ from app.models.enums import PackageStatus
 from app.services.email.render import IST
 
 # Crawlers, link-preview fetchers (the OG card, F13, is fetched by these on every share) and
-# scripted clients. Real phones and desktops never carry these tokens.
+# scripted clients. Real phones and desktops never carry these tokens: crawlers write
+# `Googlebot/2.1`, `bingbot/2.0`, `PetalBot;` — a bare `bot` would also drop Cubot phones
+# (`CUBOT KINGKONG 5 Pro`).
 BOT_UA = re.compile(
-    r"bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit"
+    r"bot[/;)]|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit"
     r"|whatsapp|telegram|twitterbot|linkedinbot|slackbot|discordbot|skypeuripreview"
     r"|curl|wget|python-requests|httpx|go-http-client|java/|okhttp|axios|node-fetch|undici",
     re.IGNORECASE,
