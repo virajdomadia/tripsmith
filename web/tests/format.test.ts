@@ -18,3 +18,13 @@ describe('format helpers', () => {
     expect(mealsLabel({ breakfast: false, lunch: false, dinner: false })).toBe('No meals');
   });
 });
+
+describe('formatDate with a timestamp', () => {
+  it('formats a full ISO timestamp, not just a calendar date', () => {
+    // `updatedAt` is a timestamp; the admin package header renders it. Before this was
+    // handled, the helper built "2026-09-22T15:30:00ZT00:00:00Z" and printed "undefined NaN".
+    expect(formatDate('2026-09-22T15:30:00Z')).toBe('Tue 22 Sep 2026');
+    expect(formatDate('2026-09-22T15:30:00.123456+00:00')).toBe('Tue 22 Sep 2026');
+    expect(formatDate('2026-09-22')).toBe('Tue 22 Sep 2026');
+  });
+});

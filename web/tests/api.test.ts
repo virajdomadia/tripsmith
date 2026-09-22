@@ -124,7 +124,7 @@ describe('api() — typed server-side fetch', () => {
     );
   });
 
-  it('appends fresh=1 after the caller\'s own params for a tagged read', async () => {
+  it("appends fresh=1 after the caller's own params for a tagged read", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ items: [], total: 0 }));
     vi.stubGlobal('fetch', fetchMock);
 

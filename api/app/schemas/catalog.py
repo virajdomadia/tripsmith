@@ -2,17 +2,18 @@
 
 import datetime as dt
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from app.models.enums import Theme
+from app.models.enums import PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.meta import Badge
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
+PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 # Mirrors web/next.config.ts `images.remotePatterns`: prod Blob storage, or (dev only) the
 # `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against.
@@ -285,3 +286,209 @@ class UploadedImage(ApiModel):
     url: str
     width: int
     height: int
+
+
+class ItineraryDayInput(ApiModel):
+    """One day of the itinerary. `day_no` is the array index + 1 — never sent."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=4000, description="Markdown")
+    meals: Meals
+    stay: str | None = Field(default=None, max_length=120)
+
+    @field_validator("title", "description", "stay", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+
+class HotelInput(ApiModel):
+    name: str = Field(min_length=1, max_length=120)
+    city: str = Field(min_length=1, max_length=80)
+    stars: int = Field(ge=1, le=5)
+    nights: int = Field(ge=1, le=NIGHTS_MAX)
+
+    @field_validator("name", "city", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+
+class DepartureInput(ApiModel):
+    """`id` present = update that row; absent = insert. Rows the payload omits are deleted.
+
+    Prices are `ge=0` so a draft can park a departure with the rate still to be agreed; the
+    publish rules are what insist on real prices before the package can go live.
+    """
+
+    id: str | None = None
+    date: dt.date
+    seats_total: int = Field(ge=1, le=200)
+    guaranteed: bool = False
+    price_double_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
+    price_triple_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
+    price_child_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
+    single_supplement_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
+
+
+class PackageInput(ApiModel):
+    """Owner create/update body (06 §C4) — the whole package in one transaction.
+
+    `status` is deliberately absent: publishing is `POST /admin/packages/{id}/status`, so a
+    PUT can never bypass the publish rules. `days` is derived (`nights + 1`, the DB check
+    constraint `days_is_nights_plus_one`).
+    """
+
+    slug: str = Field(pattern=SLUG_PATTERN, min_length=1, max_length=80)
+    destination_id: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=120)
+    summary: str = Field(min_length=40, max_length=600)
+    themes: list[Theme] = Field(default_factory=list, max_length=6)
+    nights: int = Field(ge=1, le=NIGHTS_MAX)
+    departure_city: str = Field(min_length=1, max_length=80, default="Ex-Mumbai")
+    highlights: list[str] = Field(default_factory=list, max_length=12)
+    inclusions: list[str] = Field(default_factory=list, max_length=20)
+    exclusions: list[str] = Field(default_factory=list, max_length=20)
+    hotels: list[HotelInput] = Field(default_factory=list, max_length=10)
+    faq: list[FaqItem] = Field(default_factory=list, max_length=15)
+    featured: bool = False
+    itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
+    departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+
+    @property
+    def days(self) -> int:
+        return self.nights + 1
+
+    @field_validator("name", "summary", "departure_city", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("highlights", "inclusions", "exclusions", mode="before")
+    @classmethod
+    def _clean_lines(cls, v: object) -> object:
+        """The form's textareas are one-entry-per-line; blank lines are not entries."""
+        if not isinstance(v, list):
+            return v
+        return [
+            s.strip() if isinstance(s, str) else s for s in v if not isinstance(s, str) or s.strip()
+        ]
+
+    @field_validator("themes")
+    @classmethod
+    def _unique_themes(cls, v: list[Theme]) -> list[Theme]:
+        seen: list[Theme] = []
+        for t in v:
+            if t not in seen:
+                seen.append(t)
+        return seen
+
+    @model_validator(mode="after")
+    def _check_nested(self) -> "PackageInput":
+        if len(self.itinerary) > self.days:
+            raise ValueError(f"A {self.nights}-night trip has {self.days} days at most")
+        dates = [d.date for d in self.departures]
+        if len(dates) != len(set(dates)):
+            raise ValueError("Two departures cannot share the same date")
+        return self
+
+
+class PackageStatusInput(ApiModel):
+    status: PackageStatus
+
+
+class AdminDeparture(ApiModel):
+    """Every departure the owner has, past ones included; `seats_left` is read-only."""
+
+    id: str
+    date: dt.date
+    seats_total: int
+    seats_left: int = Field(description="From the departure_availability view; never edited")
+    guaranteed: bool
+    price_double_paise: int
+    price_triple_paise: int
+    price_child_paise: int
+    single_supplement_paise: int
+
+
+class AdminImage(ApiModel):
+    id: str
+    url: str
+    alt: str
+    width: int
+    height: int
+    position: int
+
+
+class PublishRule(ApiModel):
+    """One live-publish precondition, evaluated by the api so the UI never re-derives it."""
+
+    key: Literal["images", "itinerary", "departures", "prices"]
+    label: str
+    ok: bool
+    detail: str
+
+
+class AdminPackage(ApiModel):
+    id: str
+    slug: str
+    destination_id: str
+    destination: DestinationRef
+    name: str
+    summary: str
+    themes: list[Theme]
+    nights: int
+    days: int
+    departure_city: str
+    highlights: list[str]
+    inclusions: list[str]
+    exclusions: list[str]
+    hotels: list[HotelOut]
+    faq: list[FaqItem]
+    itinerary: list[ItineraryDayOut]
+    departures: list[AdminDeparture] = Field(description="All departures, soonest first")
+    images: list[AdminImage] = Field(description="Gallery order")
+    cover_image_id: str | None
+    status: PackageStatus
+    featured: bool
+    starting_price_paise: int
+    enquiry_count: int = Field(description="All time; blocks delete when above 0")
+    publish_rules: list[PublishRule]
+    can_publish: bool
+    updated_at: dt.datetime
+
+
+class AdminPackageRow(ApiModel):
+    id: str
+    slug: str
+    name: str
+    cover_url: str | None
+    destination: DestinationRef
+    nights: int
+    days: int
+    starting_price_paise: int
+    departure_count: int = Field(description="Dated today or later")
+    recent_enquiry_count: int = Field(description="Enquiries in the last 30 days")
+    status: PackageStatus
+    featured: bool
+    updated_at: dt.datetime
+
+
+class AdminPackageList(ApiModel):
+    items: list[AdminPackageRow]
+
+
+class ImageOrderInput(ApiModel):
+    """The whole gallery order in one call; `cover_id` must be one of `order`."""
+
+    order: list[str] = Field(min_length=1, max_length=40)
+    cover_id: str | None = None
+
+
+class ImageAltInput(ApiModel):
+    alt: str = Field(max_length=200)
+
+    @field_validator("alt", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v

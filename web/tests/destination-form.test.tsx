@@ -98,7 +98,8 @@ describe('DestinationForm — edit', () => {
         slug: 'goa',
         name: 'Goa',
         tagline: 'Sun, sand, and sea',
-        intro: 'Goa is a coastal paradise known for its beaches, forts, and vibrant nightlife scene.',
+        intro:
+          'Goa is a coastal paradise known for its beaches, forts, and vibrant nightlife scene.',
         coverUrl: 'https://blob.test/goa.jpg',
         region: 'West India',
         bestMonths: [1, 11, 12],
@@ -149,9 +150,7 @@ describe('DestinationForm — edit', () => {
     await user.clear(order);
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    await waitFor(() =>
-      expect(screen.getByText('Enter a number from 0 to 999')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText('Enter a number from 0 to 999')).toBeTruthy());
     expect(adminRequest).not.toHaveBeenCalled();
   });
 });

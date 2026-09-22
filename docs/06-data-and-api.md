@@ -283,7 +283,7 @@ package = define_package(
 | v1 | `GET /admin/dashboard` | `getDashboard` | owner |
 | v1 | `GET /admin/destinations` (all, unfiltered) · `GET /admin/destinations/:id` · `POST/PUT/DELETE /admin/destinations[/:id]` · `POST /admin/destinations/cover` (multipart ≤ 4 MB, resized ≤ 2000 px → Blob `destinations/uploads/`) | destination CRUD | owner |
 | v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
-| v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
+| v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH /admin/packages/:id/images` (whole gallery order + cover) · `PATCH /admin/packages/:id/images/:imageId` (alt text) · `DELETE /admin/packages/:id/images/:imageId` | image ops | owner |
 | v1 | `GET /admin/enquiries` · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` | enquiries | owner |
 | v1 | `GET /cron/pdf-gc` | cron | CRON_SECRET |
 | v1 | `GET /docs` · `GET /openapi.json` | OpenAPI | public |

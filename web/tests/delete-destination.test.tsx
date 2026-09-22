@@ -17,7 +17,8 @@ vi.mock('sonner', () => ({ toast: { success: toastSuccess, error: toastError } }
 const adminRequest = vi.fn();
 vi.mock('@/lib/admin/client', () => ({ adminRequest, uploadCover: vi.fn() }));
 
-const { DeleteDestination } = await import('../src/components/admin/destinations/DeleteDestination');
+const { DeleteDestination } =
+  await import('../src/components/admin/destinations/DeleteDestination');
 
 afterEach(() => {
   cleanup();

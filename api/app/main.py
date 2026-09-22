@@ -17,6 +17,8 @@ from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import BlankQueryParamsMiddleware, FreshQueryMiddleware, RequestIdMiddleware
 from app.routers import auth
 from app.routers.admin import destinations as admin_destinations
+from app.routers.admin import package_images as admin_package_images
+from app.routers.admin import packages as admin_packages
 from app.routers.cron import pdf_gc
 from app.routers.site import catalog, enquiries, health, meta, pdf, views
 from app.services.pdf.service import PdfService
@@ -59,6 +61,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(meta.router)
     app.include_router(auth.router)
     app.include_router(admin_destinations.router)
+    app.include_router(admin_packages.router)
+    app.include_router(admin_package_images.router)
     app.include_router(catalog.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)

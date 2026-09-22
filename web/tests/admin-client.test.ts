@@ -26,15 +26,23 @@ describe('adminRequest', () => {
 
   it('returns undefined on 204 and throws ApiRequestError with the envelope otherwise', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
-    await expect(adminRequest('/admin/destinations/d1', { method: 'DELETE' })).resolves.toBeUndefined();
+    await expect(
+      adminRequest('/admin/destinations/d1', { method: 'DELETE' }),
+    ).resolves.toBeUndefined();
 
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        json(409, { error: { code: 'conflict', message: 'Taken', fieldErrors: { slug: 'Taken' } } }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          json(409, {
+            error: { code: 'conflict', message: 'Taken', fieldErrors: { slug: 'Taken' } },
+          }),
+        ),
     );
-    const err = await adminRequest('/admin/destinations', { method: 'POST', body: {} }).catch((e) => e);
+    const err = await adminRequest('/admin/destinations', { method: 'POST', body: {} }).catch(
+      (e) => e,
+    );
     expect(err).toBeInstanceOf(ApiRequestError);
     expect((err as ApiRequestError).status).toBe(409);
     expect((err as ApiRequestError).body.fieldErrors).toEqual({ slug: 'Taken' });
@@ -45,7 +53,9 @@ describe('uploadCover', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('sends the file as multipart field "file" and returns the url', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(json(201, { url: 'https://b/x.jpg', width: 1, height: 1 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(json(201, { url: 'https://b/x.jpg', width: 1, height: 1 }));
     vi.stubGlobal('fetch', fetchMock);
     const file = new File([new Uint8Array([1, 2, 3])], 'x.jpg', { type: 'image/jpeg' });
     const out = await uploadCover(file);

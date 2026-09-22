@@ -9,8 +9,9 @@ import type { components } from '@/lib/api-types';
  */
 
 export type UploadedImage = components['schemas']['UploadedImage'];
+export type AdminImage = components['schemas']['AdminImage'];
 
-type Method = 'POST' | 'PUT' | 'DELETE';
+type Method = 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export async function adminRequest<T = undefined>(
   path: `/admin/${string}`,
@@ -38,6 +39,18 @@ export async function uploadCover(file: File): Promise<UploadedImage> {
     cache: 'no-store',
   });
   return settle<UploadedImage>(res);
+}
+
+export async function uploadPackageImage(packageId: string, file: File): Promise<AdminImage> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  const res = await fetch(`/api/admin/packages/${encodeURIComponent(packageId)}/images`, {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+  return settle<AdminImage>(res);
 }
 
 async function settle<T>(res: Response): Promise<T> {

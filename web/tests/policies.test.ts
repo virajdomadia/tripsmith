@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CANCELLATION_SCHEDULE,
-  formatUpdated,
-  POLICIES,
-  POLICY_SLUGS,
-} from '../src/lib/policies';
+import { CANCELLATION_SCHEDULE, formatUpdated, POLICIES, POLICY_SLUGS } from '../src/lib/policies';
 
 const PLACEHOLDERS = /lorem|ipsum|tbd|todo|coming soon|\[|\]/i;
 
@@ -35,9 +30,7 @@ describe('policy documents', () => {
       '14 days or fewer before departure',
     ]);
     const cancel = POLICIES['cancellation-policy'].blocks[0];
-    expect(cancel.list).toEqual(
-      CANCELLATION_SCHEDULE.map((r) => `${r.window}: ${r.refund}`),
-    );
+    expect(cancel.list).toEqual(CANCELLATION_SCHEDULE.map((r) => `${r.window}: ${r.refund}`));
   });
 
   it('formats the updated date for people', () => {
