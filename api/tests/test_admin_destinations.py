@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from unittest.mock import AsyncMock
 
 import pytest
+from httpx import AsyncClient
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from app.schemas.catalog import DestinationInput
 from app.services.catalog import admin_destinations as svc
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
+from tests.test_auth import OWNER_EMAIL, OWNER_PASSWORD, seeded_with_owner, with_cookie
 from tests.test_catalog import RecordingStore
 
 INTRO = "Two paragraphs of markdown intro text that comfortably clears the minimum length rule."
@@ -176,3 +178,79 @@ async def test_delete_is_blocked_with_the_singular_noun_for_one_package(
     with pytest.raises(ApiError) as exc:
         await svc.delete_destination(db, kerala.id)
     assert exc.value.message == "1 package uses this destination — delete or move them first"
+
+
+# --- routes ---------------------------------------------------------------------------------------
+
+
+async def owner_cookie(db: AsyncSession, db_client: AsyncClient) -> dict[str, str]:
+    await seeded_with_owner(db)
+    res = await db_client.post(
+        "/auth/login", json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}
+    )
+    return with_cookie(res.cookies["ts_session"])
+
+
+@pytest.mark.db
+async def test_admin_destination_routes_require_the_owner(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    assert (await db_client.get("/admin/destinations")).status_code == 401
+    assert (await db_client.post("/admin/destinations", json={})).status_code == 401
+    assert (await db_client.put("/admin/destinations/x", json={})).status_code == 401
+    assert (await db_client.delete("/admin/destinations/x")).status_code == 401
+    res = await db_client.get("/admin/destinations")
+    assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.db
+async def test_admin_destination_crud_round_trip(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    body = payload().model_dump(by_alias=True)
+
+    created = await db_client.post("/admin/destinations", json=body, headers=cookie)
+    assert created.status_code == 201, created.text
+    assert created.headers["cache-control"] == "no-store"
+    new = created.json()
+    assert (
+        new["slug"] == "kerala"
+        and new["packageCount"] == 0
+        and new["bestMonths"] == [1, 10, 11, 12]
+    )
+
+    listed = await db_client.get("/admin/destinations", headers=cookie)
+    assert [d["slug"] for d in listed.json()["items"]] == ["goa", "kerala"]
+
+    one = await db_client.get(f"/admin/destinations/{new['id']}", headers=cookie)
+    assert one.status_code == 200 and one.json()["name"] == "Kerala"
+    assert (await db_client.get("/admin/destinations/nope", headers=cookie)).status_code == 404
+
+    updated = await db_client.put(
+        f"/admin/destinations/{new['id']}", json={**body, "name": "Kerala & Munnar"}, headers=cookie
+    )
+    assert updated.status_code == 200 and updated.json()["name"] == "Kerala & Munnar"
+
+    dup = await db_client.post("/admin/destinations", json={**body, "slug": "goa"}, headers=cookie)
+    assert dup.status_code == 409
+    assert dup.json()["error"]["fieldErrors"] == {
+        "slug": "A destination with this slug already exists"
+    }
+
+    invalid = await db_client.post(
+        "/admin/destinations", json={**body, "bestMonths": []}, headers=cookie
+    )
+    assert invalid.status_code == 400 and "bestMonths" in invalid.json()["error"]["fieldErrors"]
+
+    goa_id = next(d["id"] for d in listed.json()["items"] if d["slug"] == "goa")
+    blocked = await db_client.delete(f"/admin/destinations/{goa_id}", headers=cookie)
+    assert blocked.status_code == 409 and blocked.json()["error"]["code"] == "conflict"
+
+    gone = await db_client.delete(f"/admin/destinations/{new['id']}", headers=cookie)
+    assert gone.status_code == 204
+    assert [
+        d["slug"]
+        for d in (await db_client.get("/admin/destinations", headers=cookie)).json()["items"]
+    ] == ["goa"]
+    assert ["destinations", "packages", "home", "destination:kerala"] in revalidated.calls
