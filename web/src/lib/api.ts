@@ -13,6 +13,13 @@ export {
 /**
  * Typed server-side client for the api. Paths, responses and the error envelope all come from
  * `api-types.ts`, generated from `api/openapi.json` (`pnpm gen:api`) — nothing here is typed by hand.
+ *
+ * Tagged reads are cached in Next's data cache and revalidated on demand (the api calls
+ * `POST {WEB_URL}/revalidate` after an owner write); that on-demand re-fetch still goes over the
+ * network, and would otherwise land in Vercel's edge cache in front of the api (keyed by the full
+ * URL) for up to `s-maxage=60` + `stale-while-revalidate=300`. So a tagged call appends `?fresh=1`
+ * to bypass it — the api's `FreshQueryMiddleware` (`FRESH_PARAM` in `api/app/middleware.py`)
+ * answers it with `Cache-Control: no-store`. Untagged reads and `auth` reads are unchanged.
  */
 
 // `new URL(path, BASE)` tolerates a trailing slash on API_URL; next.config.ts strips it for rewrites.
@@ -56,6 +63,7 @@ export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promi
   const url = new URL(fillPath(path, init.params), BASE);
   for (const [k, v] of Object.entries(init.searchParams ?? {}))
     for (const one of Array.isArray(v) ? v : [v]) if (one) url.searchParams.append(k, one);
+  if (init.tags && init.tags.length > 0) url.searchParams.set('fresh', '1');
 
   const headers = new Headers();
   let cache: RequestCache | undefined;

@@ -263,7 +263,7 @@ package = define_package(
   with matching status (400/401/403/404/429/409/500). Pydantic `RequestValidationError` → `validation` with `fieldErrors` keyed by field path (`"itinerary.2.title"`); blank query params are treated as absent. Unexpected errors are captured by Sentry and returned as `internal`.
 - Auth: own session cookie (opaque token from `sessions`, first-party through the rewrite). `/admin/*` routes depend on `require_owner`; `/account/*` (v2) on `require_user`. Webhooks use provider signatures; crons use `Authorization: Bearer CRON_SECRET`.
 - `GET /meta` (v1, public, cached like other public GETs) returns the constants both sides need: `themes` (with labels), `badges` (with labels), `enquiryTypes`, `limits` (`maxTravellers`, `maxThemesPerPackage`, `enquiryMessageMax`, `imageMaxBytes`). The same values are OpenAPI enums in the generated types; the endpoint exists for runtime labels and for anything outside the TS build (MCP clients, the developer page).
-- Public `GET`s send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`; web additionally tags its fetches for on-demand revalidation.
+- Public `GET`s send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`; web additionally tags its fetches for on-demand revalidation. A tagged fetch adds `?fresh=1`, which `FreshQueryMiddleware` (`api/app/middleware.py`) answers with `no-store` instead, so the revalidated re-fetch isn't delayed by Vercel's edge cache sitting in front of the api.
 - `web/` keeps only: `POST /revalidate` (secret), OG image routes, sitemap/robots, and the no-JS enquiry proxy.
 - Rate-limit keys: `enquiry:{ip}`, `login:{ip}`, `chat:{ip}:{day}`, `chat:global:{day}`.
 

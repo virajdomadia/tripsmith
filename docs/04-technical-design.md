@@ -39,7 +39,7 @@
 | `api GET /packages/:slug/itinerary.pdf` | FastAPI route | See §5 |
 | `api POST /views` | FastAPI route | See §8 |
 
-**Revalidation across the split:** web fetches carry `next: { tags }` (`packages`, `package:<slug>`, `destination:<slug>`). After every admin mutation the api calls `POST {WEB_URL}/revalidate` with `REVALIDATE_SECRET` and the affected tags; the web route handler runs `revalidateTag`. Sitemap uses the `packages` tag.
+**Revalidation across the split:** web fetches carry `next: { tags }` (`packages`, `package:<slug>`, `destination:<slug>`). After every admin mutation the api calls `POST {WEB_URL}/revalidate` with `REVALIDATE_SECRET` and the affected tags; the web route handler runs `revalidateTag`. Sitemap uses the `packages` tag. Those same tagged fetches append `?fresh=1`, which the api answers with `Cache-Control: no-store`, so on-demand revalidation isn't delayed by Vercel's edge cache in front of the api.
 
 ## 2. Data & search
 - Lives entirely in `api/app/services/catalog` + `api/app/infra/db.py` + `api/app/models/`. SQLAlchemy 2.0 async ORM (asyncpg driver, Neon pooled URL `postgresql+asyncpg://…`); schema defined in step 6 (`docs/06-data-and-api.md`); migrations by Alembic (`uv run alembic upgrade head`). Core tables: `destinations`, `packages`, `itinerary_days`, `departures`, `package_images`, `enquiries`, `enquiry_notes`, `testimonials`, `package_views`, plus the own `users` / `sessions` / `verification` tables.

@@ -49,7 +49,8 @@ describe('api() — typed server-side fetch', () => {
     expect(result).toEqual(meta);
     expectTypeOf(result).toEqualTypeOf<Meta>();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
-    expect(url.toString()).toBe('http://localhost:8000/meta');
+    // Tagged reads carry `?fresh=1` so the on-demand revalidation refetch skips the api's edge cache.
+    expect(url.toString()).toBe('http://localhost:8000/meta?fresh=1');
     expect(init).toMatchObject({ next: { tags: ['meta'] } });
   });
 
@@ -121,6 +122,46 @@ describe('api() — typed server-side fetch', () => {
     expect(url.toString()).toBe(
       'http://localhost:8000/packages?destination=goa&destination=kerala&sort=duration',
     );
+  });
+
+  it('appends fresh=1 after the caller\'s own params for a tagged read', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ items: [], total: 0 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/packages', { tags: ['packages'], searchParams: { destination: ['goa'] } });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.toString()).toBe('http://localhost:8000/packages?destination=goa&fresh=1');
+  });
+
+  it('does not append fresh=1 for an untagged read', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/meta');
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.searchParams.has('fresh')).toBe(false);
+  });
+
+  it('does not append fresh=1 for an empty tags array', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/meta', { tags: [] });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.searchParams.has('fresh')).toBe(false);
+  });
+
+  it('does not append fresh=1 for an auth read', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api('/health', { auth: true });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.searchParams.has('fresh')).toBe(false);
   });
 
   it('throws ApiRequestError carrying the envelope on a non-2xx response', async () => {
