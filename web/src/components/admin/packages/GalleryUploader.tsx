@@ -89,6 +89,8 @@ function Tile({
       </div>
       <Input
         defaultValue={image.alt}
+        name={`alt-${image.id}`}
+        autoComplete="off"
         aria-label={`Alt text, photo ${index + 1}`}
         placeholder="Describe the photo"
         className="h-8 text-[13px]"

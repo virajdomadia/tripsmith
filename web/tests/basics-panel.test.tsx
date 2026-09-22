@@ -75,4 +75,12 @@ describe('BasicsPanel', () => {
     await user.click(beach);
     expect(latest?.themes).toEqual([]);
   });
+
+  it('names the theme group and the featured switch without misusing <label>', () => {
+    // Regression: both were <FormLabel>, which emits <label for> — invalid against a
+    // role="group" div and a Radix <button role="switch">.
+    render(<Harness />);
+    expect(screen.getByRole('group', { name: 'Themes' })).toBeDefined();
+    expect(screen.getByRole('switch', { name: 'Featured' })).toBeDefined();
+  });
 });

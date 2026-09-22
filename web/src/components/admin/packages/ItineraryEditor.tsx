@@ -5,8 +5,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
+import { NativeCheckbox } from '@/components/admin/NativeCheckbox';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,9 +14,9 @@ import { blankDay, type PackageFieldValues } from '@/lib/admin/package-schema';
 import { movedIndices, useSortableSensors } from '@/lib/admin/sortable';
 
 const MEALS = [
-  { key: 'breakfast', label: 'B' },
-  { key: 'lunch', label: 'L' },
-  { key: 'dinner', label: 'D' },
+  { key: 'breakfast', label: 'B', full: 'Breakfast' },
+  { key: 'lunch', label: 'L', full: 'Lunch' },
+  { key: 'dinner', label: 'D', full: 'Dinner' },
 ] as const;
 
 function DayRow({ id, index, onRemove }: { id: string; index: number; onRemove: () => void }) {
@@ -95,13 +95,23 @@ function DayRow({ id, index, onRemove }: { id: string; index: number; onRemove: 
               render={({ field }) => (
                 <FormItem className="flex items-center gap-1.5">
                   <FormControl>
-                    <Checkbox
+                    <NativeCheckbox
                       checked={field.value}
-                      onCheckedChange={field.onChange}
-                      aria-label={`${meal.key}, day ${index + 1}`}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
                     />
                   </FormControl>
-                  <FormLabel className="text-[13px]">{meal.label}</FormLabel>
+                  {/* The visible glyph plus a fuller name for screen readers, so the
+                      accessible name still contains the visible text (WCAG 2.5.3). */}
+                  <FormLabel className="text-[13px]">
+                    {meal.label}
+                    <span className="sr-only">
+                      {' '}
+                      — {meal.full}, day {index + 1}
+                    </span>
+                  </FormLabel>
                 </FormItem>
               )}
             />

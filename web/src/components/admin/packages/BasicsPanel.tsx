@@ -38,6 +38,7 @@ export function BasicsPanel({
 }) {
   const form = useFormContext<PackageFieldValues>();
   const themesLabelId = useId();
+  const featuredLabelId = useId();
   const nights = Number(form.watch('nights'));
   const days = Number.isFinite(nights) ? nights + 1 : 0;
 
@@ -149,9 +150,12 @@ export function BasicsPanel({
             );
           return (
             <FormItem>
-              {/* A role="group" isn't labelable via <label htmlFor>, so it takes this id
-                  through aria-labelledby instead — same as the destination MonthPicker. */}
-              <FormLabel id={themesLabelId}>Themes</FormLabel>
+              {/* A plain span, not <FormLabel>: a role="group" is not a labelable element, so
+                  the <label for> FormLabel emits is invalid markup. The group points at this
+                  id with aria-labelledby instead. */}
+              <span id={themesLabelId} className="text-sm leading-none font-medium">
+                Themes
+              </span>
               <FormControl>
                 <div role="group" aria-labelledby={themesLabelId} className="flex flex-wrap gap-2">
                   {THEMES.map((t) => {
@@ -203,10 +207,18 @@ export function BasicsPanel({
         render={({ field }) => (
           <FormItem className="flex flex-row items-center gap-3">
             <FormControl>
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
+              {/* Radix renders a <button role="switch">, which <label for> cannot point at;
+                  aria-labelledby is the correct association. */}
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                aria-labelledby={featuredLabelId}
+              />
             </FormControl>
             <div className="grid gap-0.5">
-              <FormLabel>Featured</FormLabel>
+              <span id={featuredLabelId} className="text-sm leading-none font-medium">
+                Featured
+              </span>
               <FormDescription>Featured packages lead the home page.</FormDescription>
             </div>
           </FormItem>

@@ -3,8 +3,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { Badge } from '@/components/ui/badge';
+import { NativeCheckbox } from '@/components/admin/NativeCheckbox';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -131,16 +131,19 @@ export function DeparturesEditor() {
                               <FormLabel className="sr-only">
                                 {price.label}, departure {i + 1}
                               </FormLabel>
-                              <FormControl>
-                                <div className="flex items-center gap-1">
-                                  <span aria-hidden className="text-mute">
-                                    ₹
-                                  </span>
+                              {/* The rupee sign sits outside FormControl: FormControl is a Slot
+                                  and puts the field id on its child, so wrapping the adornment
+                                  with it would land the id on the div and leave the label
+                                  pointing at a non-form element. */}
+                              <div className="flex items-center gap-1">
+                                <span aria-hidden className="text-mute">
+                                  ₹
+                                </span>
+                                <FormControl>
                                   <Input
                                     type="number"
                                     min={0}
                                     inputMode="numeric"
-                                    aria-label={`${price.label}, departure ${i + 1}`}
                                     className="w-[92px]"
                                     name={field.name}
                                     ref={field.ref}
@@ -148,8 +151,8 @@ export function DeparturesEditor() {
                                     value={toRupees(field.value as number | string | undefined)}
                                     onChange={(e) => field.onChange(toPaise(e.target.value))}
                                   />
-                                </div>
-                              </FormControl>
+                                </FormControl>
+                              </div>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -163,9 +166,12 @@ export function DeparturesEditor() {
                         render={({ field }) => (
                           <FormItem>
                             <FormControl>
-                              <Checkbox
+                              <NativeCheckbox
                                 checked={field.value}
-                                onCheckedChange={field.onChange}
+                                onChange={(e) => field.onChange(e.target.checked)}
+                                onBlur={field.onBlur}
+                                name={field.name}
+                                ref={field.ref}
                                 aria-label={`Guaranteed, departure ${i + 1}`}
                               />
                             </FormControl>

@@ -218,9 +218,12 @@ export function DestinationForm(props: Props) {
               name="bestMonths"
               render={({ field }) => (
                 <FormItem>
-                  {/* A role="group" isn't labelable via <label htmlFor>, so MonthPicker's group
-                      takes this id directly via aria-labelledby instead. */}
-                  <FormLabel id={monthsLabelId}>Best months</FormLabel>
+                  {/* A plain span, not <FormLabel>: a role="group" is not a labelable
+                      element, so the <label for> FormLabel emits is invalid markup.
+                      MonthPicker's group points at this id via aria-labelledby instead. */}
+                  <span id={monthsLabelId} className="text-sm leading-none font-medium">
+                    Best months
+                  </span>
                   <FormControl>
                     <MonthPicker
                       value={field.value}

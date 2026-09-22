@@ -80,6 +80,8 @@ export function PackagesTable({ items }: { items: AdminPackageRow[] }) {
           />
           <input
             id={searchId}
+            name="package-search"
+            autoComplete="off"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

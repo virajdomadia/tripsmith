@@ -73,4 +73,18 @@ describe('ItineraryEditor', () => {
     render(<Harness days={0} />);
     expect(screen.getByText(/no days yet/i)).toBeDefined();
   });
+
+  it('labels each meal checkbox with a real label element', async () => {
+    // Regression: these were Radix checkboxes (a <button role="checkbox">), which a
+    // <label for> cannot legally point at — Chrome flagged "Incorrect use of <label>".
+    const user = userEvent.setup();
+    render(<Harness days={1} />);
+    const breakfast = screen.getByRole('checkbox', { name: /Breakfast, day 1/i });
+    expect(breakfast.tagName).toBe('INPUT');
+    expect((breakfast as HTMLInputElement).checked).toBe(false);
+    await user.click(breakfast);
+    expect((breakfast as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole('checkbox', { name: /Lunch, day 1/i })).toBeDefined();
+    expect(screen.getByRole('checkbox', { name: /Dinner, day 1/i })).toBeDefined();
+  });
 });
