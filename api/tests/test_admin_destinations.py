@@ -135,7 +135,15 @@ async def test_update_changes_fields_and_revalidates_the_old_slug(
     out = await svc.update_destination(db, goa.id, payload(slug="goa-beaches", name="Goa beaches"))
     assert out.slug == "goa-beaches" and out.name == "Goa beaches" and out.package_count == 2
     assert revalidated.calls == [
-        ["destinations", "packages", "home", "destination:goa-beaches", "destination:goa"]
+        [
+            "destinations",
+            "packages",
+            "home",
+            "destination:goa-beaches",
+            "destination:goa",
+            "package:goa-quiet-escape",
+            "package:north-goa-beaches",
+        ]
     ]
     with pytest.raises(ApiError) as exc:
         await svc.update_destination(db, "nope", payload())

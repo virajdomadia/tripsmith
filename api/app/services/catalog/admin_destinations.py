@@ -1,5 +1,7 @@
 """Owner-side destination CRUD (F17, 06 §A3). Every write revalidates the public pages."""
 
+from collections.abc import Sequence
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,11 +15,15 @@ from app.schemas.catalog import AdminDestination, DestinationInput
 DUPLICATE_SLUG = "A destination with this slug already exists"
 
 
-def revalidate_tags(slug: str, old_slug: str | None = None) -> list[str]:
-    """`packages` too: package cards embed the destination name (06 C1)."""
+def revalidate_tags(
+    slug: str, old_slug: str | None = None, package_slugs: Sequence[str] = ()
+) -> list[str]:
+    """`packages` too: package cards embed the destination name (06 C1). Each package's own
+    detail page embeds it too, under `package:<slug>`, so a rename must bust those as well."""
     tags = ["destinations", "packages", "home", f"destination:{slug}"]
     if old_slug and old_slug != slug:
         tags.append(f"destination:{old_slug}")
+    tags += [f"package:{s}" for s in package_slugs]
     return tags
 
 
@@ -116,7 +122,16 @@ async def update_destination(
     _apply(row, payload)
     await _commit_or_conflict(db)
     await db.refresh(row)
-    await revalidate(revalidate_tags(row.slug, old_slug))
+    package_slugs = (
+        (
+            await db.execute(
+                select(Package.slug).where(Package.destination_id == id).order_by(Package.slug)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    await revalidate(revalidate_tags(row.slug, old_slug, package_slugs))
     return _to_admin(row, total, live)
 
 

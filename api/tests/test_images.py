@@ -5,7 +5,7 @@ import io
 import pytest
 from PIL import Image
 
-from app.services.images import MAX_BYTES, MAX_SIDE, ImageError, prepare_image
+from app.services.images import MAX_BYTES, MAX_PIXELS, MAX_SIDE, ImageError, prepare_image
 
 
 def png(width: int, height: int) -> bytes:
@@ -54,3 +54,24 @@ def test_rejects_wrong_type_size_and_garbage() -> None:
     # Declared PNG, actually JPEG bytes: the sniffed format wins the extension.
     out = prepare_image(jpeg(20, 20), "image/png")
     assert out.ext == "jpg" and out.content_type == "image/jpeg"
+
+
+def test_a_declared_image_over_max_pixels_is_rejected_before_decoding() -> None:
+    # 1-bit mode keeps the file tiny on disk even at 7000x7000 (49 MP > the 40 MP cap).
+    buf = io.BytesIO()
+    Image.new("1", (7000, 7000)).save(buf, format="PNG")
+    assert 7000 * 7000 > MAX_PIXELS
+    with pytest.raises(ImageError, match="megapixels"):
+        prepare_image(buf.getvalue(), "image/png")
+
+
+def test_pillows_decompression_bomb_error_is_mapped_to_the_megapixels_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `DecompressionBombError` subclasses `Exception`, not `OSError` — a naive except tuple
+    # would let it escape as a 500. Pillow only *raises* above 2x `MAX_IMAGE_PIXELS` (it only
+    # warns between 1x and 2x), so 100x100 (10_000 px) against a cap of 1000 clears that bar
+    # without ever emitting a `DecompressionBombWarning`.
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)
+    with pytest.raises(ImageError, match="megapixels"):
+        prepare_image(png(100, 100), "image/png")

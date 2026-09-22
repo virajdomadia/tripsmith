@@ -10,6 +10,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_BYTES = 4 * 1024 * 1024  # Vercel's function body cap is 4.5 MB
 MAX_SIDE = 2000
+MAX_PIXELS = 40_000_000
+MEGAPIXELS_MSG = "Images must be under 40 megapixels"
 ALLOWED = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 _FORMAT_TO_TYPE = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
 _SAVE_KWARGS = {"JPEG": {"quality": 85, "optimize": True}, "WEBP": {"quality": 85}, "PNG": {}}
@@ -35,7 +37,14 @@ def prepare_image(data: bytes, content_type: str) -> PreparedImage:
         raise ImageError("Images must be 4 MB or smaller")
     try:
         im = Image.open(io.BytesIO(data))
+        if im.width * im.height > MAX_PIXELS:
+            raise ImageError(MEGAPIXELS_MSG)
         im.load()
+    except Image.DecompressionBombError as exc:
+        # Pillow's own guard against a small file that decodes to a huge bitmap; it subclasses
+        # `Exception`, not `OSError`, and only fires *during* `im.load()` (past the header-size
+        # check above) once the real pixel count is more than 2x `Image.MAX_IMAGE_PIXELS`.
+        raise ImageError(MEGAPIXELS_MSG) from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise ImageError("That file is not an image") from exc
     fmt = im.format or ""

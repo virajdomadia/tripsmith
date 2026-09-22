@@ -17,7 +17,7 @@ from app.schemas.catalog import (
 )
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_destinations as svc
-from app.services.images import ImageError, prepare_image
+from app.services.images import MAX_BYTES, ImageError, prepare_image
 
 NO_STORE = {"Cache-Control": "no-store"}
 
@@ -48,6 +48,11 @@ async def upload_cover_route(
     store = request.app.state.store
     if store is None:
         raise ApiError("internal", "Image storage is not configured")
+    if file.size is not None and file.size > MAX_BYTES:
+        # Client reports a `Content-Length` bigger than our cap: refuse before `await file.read()`
+        # buffers the whole thing into memory.
+        msg = "Images must be 4 MB or smaller"
+        raise ApiError("validation", msg, field_errors={"file": msg})
     data = await file.read()
     try:
         image = await asyncio.to_thread(prepare_image, data, file.content_type or "")
