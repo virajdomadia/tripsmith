@@ -9,9 +9,12 @@ Filtering, searching and paging are server-side, the opposite of F18's packages 
 catalogue is a dozen rows, the inbox grows without bound.
 """
 
+import csv
 import datetime as dt
+import io
 import math
 import re
+from collections.abc import Iterator, Sequence
 from typing import Any, cast
 
 from sqlalchemy import ColumnElement, Select, func, select
@@ -20,7 +23,8 @@ from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
 from app.models import Enquiry, EnquiryNote, Package, PackageImage
-from app.models.enums import EnquiryStatus
+from app.models.enums import EmailStatus, EnquiryStatus
+from app.models.enums import EnquiryType as OrmEnquiryType
 from app.schemas.admin_enquiries import (
     PAGE_SIZE,
     AdminEnquiry,
@@ -35,7 +39,9 @@ from app.schemas.admin_enquiries import (
 )
 from app.schemas.enquiries import PackageRef, normalise_phone
 from app.schemas.meta import EnquiryType
+from app.services.analytics import ist_today
 from app.services.email.render import IST
+from app.services.format import MONTHS
 
 # A query made only of digits and the punctuation people put in phone numbers is a phone search.
 PHONE_QUERY_RE = re.compile(r"^[0-9 +\-.()]+$")
@@ -304,3 +310,109 @@ async def add_note(db: AsyncSession, id: str, body: str) -> AdminEnquiry:
     db.add(EnquiryNote(enquiry_id=row.id, body=body))
     await db.commit()
     return await _detail(db, await load_enquiry(db, id))
+
+
+# --- csv ------------------------------------------------------------------------------------------
+
+# One request holds the whole export in memory before streaming it (see `csv_records`), and the
+# api function has a 30 s ceiling on Vercel. At portfolio scale this is never reached.
+CSV_MAX_ROWS = 10_000
+
+CSV_HEADERS = (
+    "Ref",
+    "Received (IST)",
+    "Status",
+    "Type",
+    "Name",
+    "Phone",
+    "Email",
+    "Package",
+    "Travel month",
+    "Adults",
+    "Children",
+    "Budget (₹)",
+    "Preferred dates",
+    "Changes",
+    "Message",
+    "Emails",
+)
+
+# Excel and Sheets evaluate a cell that opens with one of these, and a tab or CR lets a crafted
+# value break out of its cell first. `message`, `name` and `changes` come straight from a public
+# form, so an enquiry reading `=cmd|'/c calc'!A0` would run when the owner opens the export.
+RISKY_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+TYPE_LABELS: dict[OrmEnquiryType, str] = {
+    OrmEnquiryType.STANDARD: "Standard",
+    OrmEnquiryType.CUSTOM: "Customise",
+    OrmEnquiryType.CONTACT: "Contact",
+}
+EMAIL_STATUS_LABELS: dict[EmailStatus, str] = {
+    EmailStatus.SENT: "Sent",
+    EmailStatus.FAILED: "Failed",
+    EmailStatus.SKIPPED: "Not sent",
+}
+
+
+def csv_safe(value: str) -> str:
+    """Prefix a formula-looking value with `'` so the spreadsheet treats it as text."""
+    return f"'{value}" if value.startswith(RISKY_PREFIXES) else value
+
+
+def _month_label(month: dt.date | None) -> str:
+    return f"{MONTHS[month.month - 1]} {month.year}" if month else ""
+
+
+def csv_record(row: Enquiry, package_name: str | None) -> list[str]:
+    """One spreadsheet line. Phone is the bare ten digits the DB stores — writing `+91 …` would
+    trip `csv_safe` and put a stray quote in front of every number."""
+    fields = [
+        row.ref,
+        row.created_at.astimezone(IST).strftime("%Y-%m-%d %H:%M"),
+        STATUS_LABELS[row.status],
+        TYPE_LABELS.get(row.type, row.type.value),
+        row.name,
+        row.phone,
+        row.email,
+        package_name or "",
+        _month_label(row.travel_month),
+        str(row.adults),
+        str(row.children),
+        "" if row.budget_paise is None else str(row.budget_paise // 100),
+        row.preferred_dates or "",
+        row.changes or "",
+        row.message or "",
+        EMAIL_STATUS_LABELS[row.email_status],
+    ]
+    return [csv_safe(field) for field in fields]
+
+
+async def csv_records(db: AsyncSession, filters: EnquiryFilters) -> list[list[str]]:
+    """The whole filtered view — `page` is deliberately ignored, an export is not one screen.
+
+    Materialised, not lazily streamed: the `get_session` dependency closes as soon as the route
+    handler returns, so a generator that queried inside `StreamingResponse` would run against a
+    closed session.
+    """
+    rows = await db.execute(_with_package(filters).limit(CSV_MAX_ROWS))
+    return [csv_record(e, name) for e, _slug, name in rows.all()]
+
+
+def csv_lines(records: Sequence[Sequence[str]]) -> Iterator[str]:
+    """Header + rows, quoted, CRLF, BOM first.
+
+    The BOM is not decoration: without it Excel on a Windows machine in India reads the file in
+    the ANSI codepage and mangles ₹ and every name with a non-ASCII character.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, quoting=csv.QUOTE_ALL, lineterminator="\r\n")
+    yield "﻿"
+    for record in (CSV_HEADERS, *records):
+        writer.writerow(record)
+        yield buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate(0)
+
+
+def csv_filename() -> str:
+    return f"tripsmith-enquiries-{ist_today().isoformat()}.csv"
