@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
-      { protocol: 'http', hostname: 'localhost', port: '8000' }, // scripts/seed.py --local
+      // scripts/seed.py --local (any port: `--local-base-url` lets a worktree api run beside :8000)
+      { protocol: 'http', hostname: 'localhost' },
     ],
   },
   // The OG card (F13) reads DM Sans from disk at runtime; tracing missed the TTFs for one of the
