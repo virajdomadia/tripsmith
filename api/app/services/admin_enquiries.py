@@ -16,14 +16,21 @@ from typing import Any, cast
 
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models import Enquiry, Package
+from app.errors import ApiError
+from app.models import Enquiry, Package, PackageImage
 from app.models.enums import EnquiryStatus
 from app.schemas.admin_enquiries import (
     PAGE_SIZE,
+    AdminEnquiry,
+    Device,
     EnquiryFilters,
     EnquiryList,
+    EnquiryNoteOut,
+    EnquiryPackage,
     EnquiryRow,
+    RelatedEnquiry,
     StatusCounts,
 )
 from app.schemas.enquiries import PackageRef, normalise_phone
@@ -147,3 +154,114 @@ async def list_enquiries(db: AsyncSession, filters: EnquiryFilters) -> EnquiryLi
         total_pages=max(1, math.ceil(total / PAGE_SIZE)),
         counts=await _counts(db, filters),
     )
+
+
+# --- detail ---------------------------------------------------------------------------------------
+
+RELATED_LIMIT = 5
+# Every mobile browser carries one of these; a desktop UA carries none of them.
+MOBILE_UA_RE = re.compile(r"Mobi|Android|iPhone|iPad|iPod|Windows Phone", re.IGNORECASE)
+
+
+def device_from(user_agent: str | None) -> Device:
+    """ "Mobile" or "Desktop" from the UA, and "Unknown" when there is nothing to go on.
+
+    This is all the "source" the owner gets: mockup A7 also showed a city, but there is no geo
+    lookup anywhere in this app and `ip_hash` is a hash, so inventing one would be a lie.
+    """
+    if not user_agent:
+        return "Unknown"
+    return "Mobile" if MOBILE_UA_RE.search(user_agent) else "Desktop"
+
+
+async def load_enquiry(db: AsyncSession, id: str) -> Enquiry:
+    """`populate_existing=True` matters: the session runs with `expire_on_commit=False`, so an
+    instance already in the identity map would otherwise answer with the notes it loaded before
+    a status change appended one (the F18 stale-relationship bug)."""
+    row = (
+        await db.execute(
+            select(Enquiry)
+            .where(Enquiry.id == id)
+            .options(selectinload(Enquiry.notes))
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise ApiError("not_found", "Enquiry not found")
+    return row
+
+
+async def _package_card(db: AsyncSession, package_id: str | None) -> EnquiryPackage | None:
+    if package_id is None:
+        return None
+    cover = PackageImage.__table__.alias("cover")
+    found = (
+        await db.execute(
+            select(Package, cover.c.url)
+            .outerjoin(cover, cover.c.id == Package.cover_image_id)
+            .where(Package.id == package_id)
+        )
+    ).one_or_none()
+    if found is None:
+        return None
+    pkg, cover_url = found
+    return EnquiryPackage(
+        slug=pkg.slug,
+        name=pkg.name,
+        nights=pkg.nights,
+        days=pkg.days,
+        starting_price_paise=pkg.starting_price_paise,
+        cover_url=cover_url,
+        status=pkg.status,
+    )
+
+
+async def _related(db: AsyncSession, row: Enquiry) -> list[RelatedEnquiry]:
+    """A7's "other enquiries · same phone" — covered by ix_enquiries_phone_package_id_created_at."""
+    rows = await db.execute(
+        select(Enquiry.id, Enquiry.ref, Enquiry.status, Package.name, Enquiry.created_at)
+        .outerjoin(Package, Package.id == Enquiry.package_id)
+        .where(Enquiry.phone == row.phone, Enquiry.id != row.id)
+        .order_by(Enquiry.created_at.desc())
+        .limit(RELATED_LIMIT)
+    )
+    return [
+        RelatedEnquiry(
+            id=id, ref=ref, status=status, package_name=package_name, created_at=created_at
+        )
+        for id, ref, status, package_name, created_at in rows.all()
+    ]
+
+
+async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
+    return AdminEnquiry(
+        id=row.id,
+        ref=row.ref,
+        # Same by-value round-trip as `_row` above.
+        type=EnquiryType(row.type.value),
+        status=row.status,
+        name=row.name,
+        phone=row.phone,
+        email=row.email,
+        travel_month=row.travel_month,
+        adults=row.adults,
+        children=row.children,
+        message=row.message,
+        preferred_dates=row.preferred_dates,
+        budget_paise=row.budget_paise,
+        changes=row.changes,
+        package=await _package_card(db, row.package_id),
+        email_status=row.email_status,
+        device=device_from(row.user_agent),
+        user_agent=row.user_agent,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        # The relationship is ordered by `created_at` on the model — oldest first, as a
+        # timeline reads.
+        notes=[EnquiryNoteOut(id=n.id, body=n.body, created_at=n.created_at) for n in row.notes],
+        related=await _related(db, row),
+    )
+
+
+async def get_enquiry(db: AsyncSession, id: str) -> AdminEnquiry:
+    return await _detail(db, await load_enquiry(db, id))

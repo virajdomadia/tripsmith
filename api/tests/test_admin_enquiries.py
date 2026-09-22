@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Destination, Enquiry, Package
+from app.errors import ApiError
+from app.models import Destination, Enquiry, EnquiryNote, Package
 from app.models.enums import EnquiryStatus, EnquiryType, PackageStatus
 from app.schemas.admin_enquiries import (
     PAGE_SIZE,
@@ -253,3 +254,96 @@ async def test_paging_is_fifty_to_a_page(db: AsyncSession) -> None:
 async def test_an_empty_inbox_still_reports_one_page(db: AsyncSession) -> None:
     out = await svc.list_enquiries(db, EnquiryFilters())
     assert (out.items, out.total, out.total_pages, out.counts.all) == ([], 0, 1, 0)
+
+
+# --- service: detail ------------------------------------------------------------------------------
+
+
+def test_device_is_derived_from_the_user_agent_and_never_invented() -> None:
+    iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
+    mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140"
+    assert svc.device_from(iphone) == "Mobile"
+    assert svc.device_from("Mozilla/5.0 (Linux; Android 14; Pixel 8)") == "Mobile"
+    assert svc.device_from(mac) == "Desktop"
+    assert svc.device_from(None) == "Unknown"
+    assert svc.device_from("") == "Unknown"
+
+
+@pytest.mark.db
+async def test_detail_carries_every_submitted_field_and_the_package_card(
+    db: AsyncSession,
+) -> None:
+    pkg = await make_package(db)
+    row = await make_enquiry(
+        db,
+        ref="TS-DET111",
+        package_id=pkg.id,
+        type=EnquiryType.CUSTOM,
+        travel_month=dt.date(2026, 11, 1),
+        message="Are early check-ins possible?",
+        preferred_dates="Second week of November",
+        budget_paise=2_500_000,
+        changes="Skip Kufri, add a day in Manali",
+        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
+    )
+    await db.commit()
+
+    out = await svc.get_enquiry(db, row.id)
+
+    assert out.ref == "TS-DET111" and out.type == EnquiryType.CUSTOM
+    assert out.message == "Are early check-ins possible?"
+    assert out.budget_paise == 2_500_000 and out.changes
+    assert out.package is not None and out.package.slug == "test-goa-beaches"
+    assert out.package.nights == 3 and out.package.starting_price_paise == 1_499_900
+    assert out.device == "Mobile"
+    assert out.notes == [] and out.related == []
+
+
+@pytest.mark.db
+async def test_detail_never_exposes_the_ip_hash(db: AsyncSession) -> None:
+    row = await make_enquiry(db, ref="TS-PRIV11", ip_hash="deadbeef" * 4)
+    await db.commit()
+    payload = (await svc.get_enquiry(db, row.id)).model_dump(by_alias=True)
+    assert "ipHash" not in payload and "ip_hash" not in payload
+    assert "deadbeef" not in str(payload)
+
+
+@pytest.mark.db
+async def test_notes_come_back_oldest_first(db: AsyncSession) -> None:
+    row = await make_enquiry(db, ref="TS-NOTE11")
+    first = EnquiryNote(enquiry_id=row.id, body="Called at 11:40 — no answer.")
+    second = EnquiryNote(enquiry_id=row.id, body="WhatsApp sent with check-in info.")
+    db.add_all([first, second])
+    await db.flush()
+    first.created_at = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
+    await db.commit()
+
+    out = await svc.get_enquiry(db, row.id)
+    assert [n.body for n in out.notes] == [
+        "Called at 11:40 — no answer.",
+        "WhatsApp sent with check-in info.",
+    ]
+
+
+@pytest.mark.db
+async def test_related_lists_other_enquiries_from_the_same_phone_newest_first(
+    db: AsyncSession,
+) -> None:
+    pkg = await make_package(db)
+    current = await make_enquiry(db, ref="TS-CUR111", phone="9845022110")
+    older = await make_enquiry(db, ref="TS-OTH111", phone="9845022110", package_id=pkg.id)
+    await make_enquiry(db, ref="TS-ELSE11", phone="9980041234")
+    at_ist(older, dt.datetime.now(dt.UTC) - dt.timedelta(days=30))
+    await db.commit()
+
+    out = await svc.get_enquiry(db, current.id)
+
+    assert [r.ref for r in out.related] == ["TS-OTH111"]
+    assert out.related[0].package_name == "North Goa Beaches"
+
+
+@pytest.mark.db
+async def test_detail_404s_for_an_unknown_id(db: AsyncSession) -> None:
+    with pytest.raises(ApiError) as exc:
+        await svc.get_enquiry(db, "enq_does_not_exist")
+    assert exc.value.code == "not_found"
