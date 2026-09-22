@@ -8,28 +8,36 @@ import datetime as dt
 from collections.abc import Sequence
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
+from app.infra.revalidate import revalidate
 from app.models import Departure, Destination, Enquiry, ItineraryDay, Package, PackageImage
 from app.models.catalog import departure_availability
+from app.models.enums import PackageStatus
 from app.schemas.catalog import (
     AdminDeparture,
     AdminImage,
     AdminPackage,
     AdminPackageRow,
+    DepartureInput,
     DestinationRef,
     FaqItem,
     HotelOut,
     ItineraryDayOut,
     Meals,
+    PackageInput,
     PublishRule,
 )
 
 DUPLICATE_SLUG = "A package with this slug already exists"
 ENQUIRY_WINDOW_DAYS = 30
 NOT_FOUND = "Package not found"
+UNKNOWN_DESTINATION = "Pick a destination that exists"
+FOREIGN_DEPARTURE = "A departure in this payload belongs to another package"
+DUPLICATE_DEPARTURE = "Two departures cannot share the same date"
 
 
 def revalidate_tags(
@@ -267,3 +275,147 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
         )
         for p, dest_slug, dest_name, cover_url, departures, enquiries in rows.all()
     ]
+
+
+async def _assert_slug_free(db: AsyncSession, slug: str, *, except_id: str | None) -> None:
+    q = select(Package.id).where(Package.slug == slug)
+    if except_id is not None:
+        q = q.where(Package.id != except_id)
+    if (await db.execute(q)).scalar_one_or_none() is not None:
+        raise ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG})
+
+
+async def _assert_destination_exists(db: AsyncSession, destination_id: str) -> None:
+    q = select(Destination.id).where(Destination.id == destination_id)
+    if (await db.execute(q)).scalar_one_or_none() is None:
+        raise ApiError(
+            "validation", UNKNOWN_DESTINATION, field_errors={"destinationId": UNKNOWN_DESTINATION}
+        )
+
+
+async def _commit_or_conflict(db: AsyncSession) -> None:
+    """The pre-checks give the friendly error on the common path; this is the safety net for a
+    write that still reaches a `unique` constraint — a concurrent insert taking the slug, or two
+    departures swapping dates (the intermediate state collides before the second row is updated).
+
+    The constraint name decides the message: naming every failure a duplicate slug would send
+    the owner hunting through the wrong field.
+    """
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        constraint = str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
+        if "uq_departures_package_id_date" in constraint:
+            raise ApiError(
+                "conflict", DUPLICATE_DEPARTURE, field_errors={"departures": DUPLICATE_DEPARTURE}
+            ) from None
+        raise ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG}) from None
+
+
+def _apply_fields(pkg: Package, payload: PackageInput) -> None:
+    pkg.slug = payload.slug
+    pkg.destination_id = payload.destination_id
+    pkg.name = payload.name
+    pkg.summary = payload.summary
+    pkg.themes = list(payload.themes)
+    pkg.nights = payload.nights
+    pkg.days = payload.days
+    pkg.departure_city = payload.departure_city
+    pkg.highlights = list(payload.highlights)
+    pkg.inclusions = list(payload.inclusions)
+    pkg.exclusions = list(payload.exclusions)
+    pkg.hotels = [h.model_dump() for h in payload.hotels]
+    pkg.faq = [f.model_dump() for f in payload.faq]
+    pkg.featured = payload.featured
+
+
+def _new_days(payload: PackageInput) -> list[ItineraryDay]:
+    """`day_no` is the array order — the client never sends it."""
+    return [
+        ItineraryDay(
+            day_no=n,
+            title=d.title,
+            description=d.description,
+            meal_b=d.meals.breakfast,
+            meal_l=d.meals.lunch,
+            meal_d=d.meals.dinner,
+            stay=d.stay,
+        )
+        for n, d in enumerate(payload.itinerary, start=1)
+    ]
+
+
+def _fill_departure(target: Departure, row: DepartureInput) -> Departure:
+    target.date = row.date
+    target.seats_total = row.seats_total
+    target.guaranteed = row.guaranteed
+    target.price_double_paise = row.price_double_paise
+    target.price_triple_paise = row.price_triple_paise
+    target.price_child_paise = row.price_child_paise
+    target.single_supplement_paise = row.single_supplement_paise
+    return target
+
+
+async def _replace_children(db: AsyncSession, pkg: Package, payload: PackageInput) -> None:
+    """Rewrite the itinerary and departures of an **existing** package.
+
+    Both child tables carry a unique constraint (`(package_id, day_no)` and `(package_id,
+    date)`) and SQLAlchemy's unit of work emits INSERTs before delete-orphan DELETEs — so
+    reusing day 1, or a freed date, would collide with the row still in the table. Clearing
+    and flushing first puts the DELETEs ahead of the INSERTs. A flush is not a commit, so the
+    whole write is still the single transaction 06 §C4 asks for.
+    """
+    existing = {d.id: d for d in pkg.departures}
+    sent_ids = {d.id for d in payload.departures if d.id}
+    unknown = sent_ids - existing.keys()
+    if unknown:
+        raise ApiError(
+            "validation", FOREIGN_DEPARTURE, field_errors={"departures": FOREIGN_DEPARTURE}
+        )
+
+    pkg.itinerary = []
+    pkg.departures = [d for d in pkg.departures if d.id in sent_ids]
+    await db.flush()
+
+    pkg.itinerary = _new_days(payload)
+    pkg.departures = [
+        _fill_departure(existing[row.id] if row.id else Departure(), row)
+        for row in payload.departures
+    ]
+
+
+async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackage:
+    """A new package has no children to diff against, so the rows are simply built. Any `id`
+    on an incoming departure is ignored — it cannot belong to a package that does not exist
+    yet, and a fresh row is what the owner meant."""
+    await _assert_destination_exists(db, payload.destination_id)
+    await _assert_slug_free(db, payload.slug, except_id=None)
+    pkg = Package(status=PackageStatus.DRAFT)
+    _apply_fields(pkg, payload)
+    pkg.itinerary = _new_days(payload)
+    pkg.departures = [_fill_departure(Departure(), row) for row in payload.departures]
+    pkg.starting_price_paise = recompute_starting_price(pkg, today=dt.date.today())
+    db.add(pkg)
+    await _commit_or_conflict(db)
+    out = await to_admin(db, await load(db, pkg.id))
+    await revalidate(revalidate_tags(out.slug, out.destination.slug))
+    return out
+
+
+async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> AdminPackage:
+    pkg = await load(db, id)
+    await _assert_destination_exists(db, payload.destination_id)
+    await _assert_slug_free(db, payload.slug, except_id=id)
+    old_slug, old_destination_slug = pkg.slug, pkg.destination.slug
+    _apply_fields(pkg, payload)
+    await _replace_children(db, pkg, payload)
+    pkg.starting_price_paise = recompute_starting_price(pkg, today=dt.date.today())
+    await _commit_or_conflict(db)
+    # `destination` was eager-loaded before the move; expire so the reload re-reads it.
+    db.expire(pkg)
+    out = await to_admin(db, await load(db, id))
+    await revalidate(
+        revalidate_tags(out.slug, out.destination.slug, old_slug, old_destination_slug)
+    )
+    return out

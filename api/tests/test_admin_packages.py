@@ -351,3 +351,198 @@ async def test_get_raises_not_found_for_an_unknown_id(db: AsyncSession) -> None:
     with pytest.raises(ApiError) as exc:
         await svc.get_package(db, "nope")
     assert exc.value.code == "not_found"
+
+
+# --- create / update ------------------------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_create_makes_a_draft_and_writes_the_nested_rows(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    out = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    assert out.status is PackageStatus.DRAFT, "create never publishes"
+    assert out.days == 4 and out.nights == 3
+    assert [d.day_no for d in out.itinerary] == [1, 2, 3, 4]
+    assert out.itinerary[0].meals.breakfast is True
+    assert len(out.departures) == 1 and out.departures[0].id
+    assert out.hotels[0].city == "Candolim" and out.faq[0].q.startswith("Is it")
+    assert out.starting_price_paise == 1_499_900
+    assert out.can_publish is False, "no images yet"
+    assert revalidated.calls == [
+        ["packages", "destinations", "home", "package:konkan-coast", "destination:goa"]
+    ]
+
+
+@pytest.mark.db
+async def test_create_rejects_a_duplicate_slug_and_an_unknown_destination(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    with pytest.raises(ApiError) as exc:
+        await svc.create_package(
+            db, payload(slug="north-goa-beaches", destinationId=await goa_id(db))
+        )
+    assert exc.value.code == "conflict"
+    assert exc.value.field_errors == {"slug": svc.DUPLICATE_SLUG}
+
+    with pytest.raises(ApiError) as exc:
+        await svc.create_package(db, payload(destinationId="nope"))
+    assert exc.value.code == "validation"
+    assert "destinationId" in (exc.value.field_errors or {})
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_update_replaces_the_itinerary_and_keeps_departure_ids(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    before = await svc.get_package(db, pkg.id)
+    kept = before.departures[-1]  # the furthest-out departure
+    revalidated.calls.clear()
+
+    body = payload(
+        slug="north-goa-beaches",
+        destinationId=await goa_id(db),
+        name="North Goa Beaches",
+        nights=3,
+        itinerary=[day(1), day(2)],
+        departures=[
+            {**departure(id=kept.id, date=kept.date.isoformat()), "priceDoublePaise": 1_111_100},
+            departure(date=soon(120).isoformat(), priceDoublePaise=1_999_900),
+        ],
+    )
+    out = await svc.update_package(db, pkg.id, body)
+
+    assert [d.day_no for d in out.itinerary] == [1, 2], "full replace, not a merge"
+    ids = {d.id for d in out.departures}
+    assert kept.id in ids, "an id sent back must survive — v2 bookings reference it"
+    assert len(out.departures) == 2, "departures the payload omitted are deleted"
+    assert next(d for d in out.departures if d.id == kept.id).price_double_paise == 1_111_100
+    assert out.starting_price_paise == 1_111_100
+    assert out.can_publish is False, "itinerary is now 2 of 4 days"
+
+
+@pytest.mark.db
+async def test_update_revalidates_the_old_slug_and_the_old_destination(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    kerala = Destination(
+        slug="kerala",
+        name="Kerala",
+        tagline="Backwaters and tea hills",
+        intro="A long enough intro to satisfy nothing in particular here.",
+        cover_url="https://blob.test/kerala.jpg",
+        region="South India",
+        best_months=[11, 12],
+    )
+    db.add(kerala)
+    await db.commit()
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    revalidated.calls.clear()
+
+    await svc.update_package(
+        db, pkg.id, payload(slug="konkan-coast", destinationId=kerala.id, nights=3)
+    )
+    tags = revalidated.calls[0]
+    assert "package:konkan-coast" in tags and "package:north-goa-beaches" in tags
+    assert "destination:kerala" in tags and "destination:goa" in tags
+
+
+@pytest.mark.db
+async def test_update_rejects_a_slug_another_package_already_uses(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db, pkg.id, payload(slug="goa-quiet-escape", destinationId=await goa_id(db))
+        )
+    assert exc.value.code == "conflict" and exc.value.field_errors == {"slug": svc.DUPLICATE_SLUG}
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_update_rejects_a_departure_id_from_another_package(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """Otherwise a crafted payload could steal another package's departure row."""
+    await seeded(db)
+    mine = await package_by_slug(db, "north-goa-beaches")
+    theirs = await svc.get_package(db, (await package_by_slug(db, "goa-quiet-escape")).id)
+    revalidated.calls.clear()
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db,
+            mine.id,
+            payload(
+                slug="north-goa-beaches",
+                destinationId=await goa_id(db),
+                departures=[departure(id=theirs.departures[0].id)],
+            ),
+        )
+    assert exc.value.code == "validation"
+    assert "departures" in (exc.value.field_errors or {})
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_update_can_reuse_a_date_freed_by_a_dropped_departure(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """Regression: both child tables are unique per package (`day_no`, `date`) and the unit of
+    work emits INSERTs before delete-orphan DELETEs, so the deletes have to be flushed first."""
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    before = await svc.get_package(db, pkg.id)
+    freed = before.departures[0].date
+
+    out = await svc.update_package(
+        db,
+        pkg.id,
+        payload(
+            slug="north-goa-beaches",
+            destinationId=await goa_id(db),
+            nights=3,
+            itinerary=[day(1), day(2), day(3), day(4)],
+            departures=[departure(date=freed.isoformat(), priceDoublePaise=1_234_500)],
+        ),
+    )
+    assert [d.date for d in out.departures] == [freed]
+    assert out.departures[0].id not in {d.id for d in before.departures}, "a fresh row, not a reuse"
+    assert out.departures[0].price_double_paise == 1_234_500
+    assert [d.day_no for d in out.itinerary] == [1, 2, 3, 4], "day numbers reused cleanly"
+
+
+@pytest.mark.db
+async def test_swapping_two_departure_dates_reports_the_dates_not_the_slug(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """The intermediate state of a swap collides on `(package_id, date)`. The owner must be
+    told which field is wrong — the old catch-all blamed the slug."""
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    before = await svc.get_package(db, pkg.id)
+    a, b = before.departures[0], before.departures[1]
+
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db,
+            pkg.id,
+            payload(
+                slug="north-goa-beaches",
+                destinationId=await goa_id(db),
+                nights=3,
+                departures=[
+                    departure(id=a.id, date=b.date.isoformat()),
+                    departure(id=b.id, date=a.date.isoformat()),
+                ],
+            ),
+        )
+    assert exc.value.code == "conflict"
+    assert exc.value.field_errors == {"departures": svc.DUPLICATE_DEPARTURE}
