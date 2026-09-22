@@ -36,6 +36,9 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert one["get"]["operationId"] == "getAdminDestination"
     assert one["put"]["operationId"] == "updateDestination"
     assert one["delete"]["operationId"] == "deleteDestination"
+    assert doc["paths"]["/admin/destinations/cover"]["post"]["operationId"] == (
+        "uploadDestinationCover"
+    )
 
 
 def test_rendered_document_is_stable_and_newline_terminated() -> None:

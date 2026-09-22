@@ -155,6 +155,20 @@
         "title": "BadgeOption",
         "type": "object"
       },
+      "Body_uploadDestinationCover": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadDestinationCover",
+        "type": "object"
+      },
       "DepartureList": {
         "properties": {
           "items": {
@@ -1474,6 +1488,29 @@
         "title": "ThemeOption",
         "type": "object"
       },
+      "UploadedImage": {
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "width",
+          "height"
+        ],
+        "title": "UploadedImage",
+        "type": "object"
+      },
       "UserRole": {
         "enum": [
           "owner",
@@ -1570,6 +1607,48 @@
           }
         },
         "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/destinations/cover": {
+      "post": {
+        "description": "Multipart proxy (06 C3): validate + resize in a thread, then one Blob PUT.",
+        "operationId": "uploadDestinationCover",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadDestinationCover"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Upload Cover Route",
         "tags": [
           "admin"
         ]

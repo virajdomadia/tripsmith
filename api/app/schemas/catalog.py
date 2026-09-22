@@ -275,3 +275,9 @@ class AdminDestination(ApiModel):
 
 class AdminDestinationList(ApiModel):
     items: list[AdminDestination]
+
+
+class UploadedImage(ApiModel):
+    url: str
+    width: int
+    height: int

@@ -22,6 +22,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/destinations/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Cover Route
+         * @description Multipart proxy (06 C3): validate + resize in a thread, then one Blob PUT.
+         */
+        post: operations["uploadDestinationCover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/destinations/{id}": {
         parameters: {
             query?: never;
@@ -355,6 +375,11 @@ export interface components {
             /** Label */
             label: string;
             value: components["schemas"]["Badge"];
+        };
+        /** Body_uploadDestinationCover */
+        Body_uploadDestinationCover: {
+            /** File */
+            file: string;
         };
         /** DepartureList */
         DepartureList: {
@@ -914,6 +939,15 @@ export interface components {
             label: string;
             value: components["schemas"]["Theme"];
         };
+        /** UploadedImage */
+        UploadedImage: {
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
         /**
          * UserRole
          * @enum {string}
@@ -982,6 +1016,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDestination"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadDestinationCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadDestinationCover"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedImage"];
                 };
             };
             /** @description Error envelope (06 C0) */

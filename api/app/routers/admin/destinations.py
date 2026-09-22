@@ -1,14 +1,23 @@
 """`/admin/destinations` (06 §C-REST): owner CRUD; the cover upload proxy lives here too (C3)."""
 
+import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.errors import ApiError
 from app.infra.db import get_session
-from app.schemas.catalog import AdminDestination, AdminDestinationList, DestinationInput
+from app.models.base import new_id
+from app.schemas.catalog import (
+    AdminDestination,
+    AdminDestinationList,
+    DestinationInput,
+    UploadedImage,
+)
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_destinations as svc
+from app.services.images import ImageError, prepare_image
 
 NO_STORE = {"Cache-Control": "no-store"}
 
@@ -23,6 +32,30 @@ Db = Annotated[AsyncSession, Depends(get_session)]
 async def list_route(response: Response, db: Db) -> AdminDestinationList:
     response.headers.update(NO_STORE)
     return AdminDestinationList(items=await svc.list_destinations(db))
+
+
+@router.post(
+    "/cover",
+    operation_id="uploadDestinationCover",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+)
+async def upload_cover_route(
+    request: Request, response: Response, file: Annotated[UploadFile, File()]
+) -> UploadedImage:
+    """Multipart proxy (06 C3): validate + resize in a thread, then one Blob PUT."""
+    response.headers.update(NO_STORE)
+    store = request.app.state.store
+    if store is None:
+        raise ApiError("internal", "Image storage is not configured")
+    data = await file.read()
+    try:
+        image = await asyncio.to_thread(prepare_image, data, file.content_type or "")
+    except ImageError as exc:
+        raise ApiError("validation", str(exc), field_errors={"file": str(exc)}) from exc
+    pathname = f"destinations/uploads/{new_id()}.{image.ext}"
+    url = await store.put(pathname, image.data, image.content_type)
+    return UploadedImage(url=url, width=image.width, height=image.height)
 
 
 @router.get("/{id}", operation_id="getAdminDestination", response_model_by_alias=True)

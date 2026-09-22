@@ -1,10 +1,13 @@
 """F17 destination CRUD: service + `/admin/destinations` routes (06 §A3, §C-REST)."""
 
+import io
 from collections.abc import Sequence
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
+from PIL import Image
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,3 +257,62 @@ async def test_admin_destination_crud_round_trip(
         for d in (await db_client.get("/admin/destinations", headers=cookie)).json()["items"]
     ] == ["goa"]
     assert ["destinations", "packages", "home", "destination:kerala"] in revalidated.calls
+
+
+class RecordingBlobStore:
+    def __init__(self) -> None:
+        self.puts: list[tuple[str, int, str]] = []
+
+    async def put(self, pathname: str, data: bytes, content_type: str) -> str:
+        self.puts.append((pathname, len(data), content_type))
+        return f"https://blob.test/{pathname}"
+
+
+def small_jpeg() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (640, 400), (1, 2, 3)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+@pytest.mark.db
+async def test_cover_upload_validates_resizes_and_stores(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    # Before login: db_client's cookie jar is still empty here (a later check on the same
+    # client, after `owner_cookie` logs in, would keep sending that session cookie).
+    assert (await db_client.post("/admin/destinations/cover")).status_code == 401
+
+    cookie = await owner_cookie(db, db_client)
+    store = RecordingBlobStore()
+    db_app.state.store = store
+
+    res = await db_client.post(
+        "/admin/destinations/cover",
+        files={"file": ("photo.jpeg", small_jpeg(), "image/jpeg")},
+        headers=cookie,
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["width"] == 640 and body["height"] == 400
+    pathname, size, content_type = store.puts[0]
+    assert pathname.startswith("destinations/uploads/") and pathname.endswith(".jpg")
+    assert content_type == "image/jpeg" and size > 0
+    assert body["url"] == f"https://blob.test/{pathname}"
+    assert res.headers["cache-control"] == "no-store"
+
+    bad = await db_client.post(
+        "/admin/destinations/cover",
+        files={"file": ("x.gif", b"GIF89a", "image/gif")},
+        headers=cookie,
+    )
+    assert bad.status_code == 400
+    assert bad.json()["error"]["fieldErrors"] == {"file": "Upload a JPG, PNG or WEBP image"}
+
+    db_app.state.store = None
+    off = await db_client.post(
+        "/admin/destinations/cover",
+        files={"file": ("photo.jpeg", small_jpeg(), "image/jpeg")},
+        headers=cookie,
+    )
+    assert off.status_code == 500
+    assert off.json()["error"]["message"] == "Image storage is not configured"
