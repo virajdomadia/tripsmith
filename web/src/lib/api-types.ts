@@ -115,6 +115,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/packages/{id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Route */
+        post: operations["uploadPackageImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Reorder Route */
+        patch: operations["reorderPackageImages"];
+        trace?: never;
+    };
+    "/admin/packages/{id}/images/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Route */
+        delete: operations["deletePackageImage"];
+        options?: never;
+        head?: never;
+        /** Alt Route */
+        patch: operations["updatePackageImage"];
+        trace?: never;
+    };
     "/admin/packages/{id}/status": {
         parameters: {
             query?: never;
@@ -600,6 +636,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_uploadPackageImage */
+        Body_uploadPackageImage: {
+            /** File */
+            file: string;
+        };
         /**
          * DepartureInput
          * @description `id` present = update that row; absent = insert. Rows the payload omits are deleted.
@@ -931,6 +972,21 @@ export interface components {
             nights: number;
             /** Stars */
             stars: number;
+        };
+        /** ImageAltInput */
+        ImageAltInput: {
+            /** Alt */
+            alt: string;
+        };
+        /**
+         * ImageOrderInput
+         * @description The whole gallery order in one call; `cover_id` must be one of `order`.
+         */
+        ImageOrderInput: {
+            /** Coverid */
+            coverId?: string | null;
+            /** Order */
+            order: string[];
         };
         /** ImageOut */
         ImageOut: {
@@ -1681,6 +1737,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadPackageImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadPackageImage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    reorderPackageImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageOrderInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    deletePackageImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePackageImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageAltInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImage"];
                 };
             };
             /** @description Error envelope (06 C0) */

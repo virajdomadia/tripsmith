@@ -36,7 +36,11 @@ def test_starting_price_is_the_cheapest_double_sharing_departure() -> None:
 
 
 class RecordingStore:
+    def __init__(self) -> None:
+        self.puts: list[str] = []
+
     async def put(self, pathname: str, data: bytes, content_type: str) -> str:
+        self.puts.append(pathname)
         return f"https://blob.test/{pathname}"
 
 

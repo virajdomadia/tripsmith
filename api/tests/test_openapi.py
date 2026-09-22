@@ -50,6 +50,12 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert doc["paths"]["/admin/packages/{id}/duplicate"]["post"]["operationId"] == (
         "duplicatePackage"
     )
+    images = doc["paths"]["/admin/packages/{id}/images"]
+    assert images["post"]["operationId"] == "uploadPackageImage"
+    assert images["patch"]["operationId"] == "reorderPackageImages"
+    one_image = doc["paths"]["/admin/packages/{id}/images/{image_id}"]
+    assert one_image["patch"]["operationId"] == "updatePackageImage"
+    assert one_image["delete"]["operationId"] == "deletePackageImage"
     assert schemas["PackageStatus"]["enum"] == ["draft", "live"]
 
 
