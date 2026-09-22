@@ -5,10 +5,17 @@ from collections.abc import Sequence
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Departure, ItineraryDay, Package, PackageImage
+from app.errors import ApiError
+from app.models import Departure, Destination, Enquiry, ItineraryDay, Package, PackageImage
+from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
 from app.schemas.catalog import DepartureInput, PackageInput, PublishRule
 from app.services.catalog import admin_packages as svc
+from scripts.seed import seed
+from tests.settings import fixture_content, make_settings
+from tests.test_catalog import RecordingStore
 
 SUMMARY = "Three slow nights on the Konkan coast with one free beach day and a fort sunset."
 
@@ -232,3 +239,115 @@ def test_revalidate_tags_cover_the_old_slug_and_the_old_destination() -> None:
         "konkan-coast", "maharashtra", old_slug="konkan", old_destination_slug="goa"
     )
     assert "package:konkan" in moved and "destination:goa" in moved
+
+
+# --- reads ----------------------------------------------------------------------------------------
+
+
+class RecordingRevalidate:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    async def __call__(self, tags: Sequence[str]) -> bool:
+        self.calls.append(list(tags))
+        return True
+
+
+@pytest.fixture
+def revalidated(monkeypatch: pytest.MonkeyPatch) -> RecordingRevalidate:
+    rec = RecordingRevalidate()
+    monkeypatch.setattr("app.services.catalog.admin_packages.revalidate", rec)
+    return rec
+
+
+async def seeded(db: AsyncSession) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+
+
+async def package_by_slug(db: AsyncSession, slug: str) -> Package:
+    return (await db.execute(select(Package).where(Package.slug == slug))).scalar_one()
+
+
+async def goa_id(db: AsyncSession) -> str:
+    return (await db.execute(select(Destination.id).where(Destination.slug == "goa"))).scalar_one()
+
+
+@pytest.mark.db
+async def test_list_returns_every_package_draft_included(db: AsyncSession) -> None:
+    await seeded(db)
+    rows = await svc.list_packages(db)
+    assert {r.slug for r in rows} == {"north-goa-beaches", "goa-quiet-escape"}
+    north = next(r for r in rows if r.slug == "north-goa-beaches")
+    assert north.destination.name == "Goa"
+    assert north.nights == 3 and north.days == 4
+    assert north.status is PackageStatus.LIVE
+    assert north.cover_url and north.cover_url.startswith("http")
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    await db.refresh(pkg, ["departures"])
+    assert north.departure_count == len([d for d in pkg.departures if d.date >= dt.date.today()])
+    assert north.enquiry_count_30d == 0
+
+
+@pytest.mark.db
+async def test_list_counts_only_enquiries_from_the_last_30_days(db: AsyncSession) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    now = dt.datetime.now(dt.UTC)
+    for age_days in (1, 10, 40):
+        db.add(
+            Enquiry(
+                ref=f"TS-AGE{age_days:03d}",
+                type=EnquiryType.STANDARD,
+                name="Asha",
+                phone="9845000000",
+                email="asha@example.com",
+                adults=2,
+                children=0,
+                status=EnquiryStatus.NEW,
+                email_status=EmailStatus.SKIPPED,
+                package_id=pkg.id,
+                created_at=now - dt.timedelta(days=age_days),
+            )
+        )
+    await db.commit()
+    row = next(r for r in await svc.list_packages(db) if r.slug == "north-goa-beaches")
+    assert row.enquiry_count_30d == 2
+
+
+@pytest.mark.db
+async def test_get_returns_the_whole_graph_with_past_departures(db: AsyncSession) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    db.add(
+        Departure(
+            package_id=pkg.id,
+            date=dt.date.today() - dt.timedelta(days=90),
+            seats_total=16,
+            price_double_paise=1_299_900,
+            price_triple_paise=1_199_900,
+            price_child_paise=799_900,
+            single_supplement_paise=500_000,
+        )
+    )
+    await db.commit()
+
+    out = await svc.get_package(db, pkg.id)
+    assert out.slug == "north-goa-beaches" and out.destination.slug == "goa"
+    assert len(out.itinerary) == 4 and out.itinerary[0].day_no == 1
+    assert len(out.images) == 7 and out.cover_image_id is not None
+    assert out.hotels[0].name == "Lemon Tree Amarante Beach Resort"
+    assert len(out.faq) == 3
+    dates = [d.date for d in out.departures]
+    assert dates == sorted(dates), "soonest first, past included"
+    assert any(d < dt.date.today() for d in dates)
+    assert out.departures[0].seats_left >= 0
+    assert out.can_publish is True
+    assert out.enquiry_count == 0
+
+
+@pytest.mark.db
+async def test_get_raises_not_found_for_an_unknown_id(db: AsyncSession) -> None:
+    await seeded(db)
+    with pytest.raises(ApiError) as exc:
+        await svc.get_package(db, "nope")
+    assert exc.value.code == "not_found"
