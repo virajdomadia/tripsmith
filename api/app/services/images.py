@@ -42,8 +42,8 @@ def prepare_image(data: bytes, content_type: str) -> PreparedImage:
         im.load()
     except Image.DecompressionBombError as exc:
         # Pillow's own guard against a small file that decodes to a huge bitmap; it subclasses
-        # `Exception`, not `OSError`, and only fires *during* `im.load()` (past the header-size
-        # check above) once the real pixel count is more than 2x `Image.MAX_IMAGE_PIXELS`.
+        # `Exception`, not `OSError`, and fires inside `Image.open()` from the header-declared size
+        # once that is more than 2x `Image.MAX_IMAGE_PIXELS` — so it wraps the open call too.
         raise ImageError(MEGAPIXELS_MSG) from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise ImageError("That file is not an image") from exc
