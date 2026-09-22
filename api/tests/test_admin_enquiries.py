@@ -173,6 +173,18 @@ async def test_a_contact_enquiry_has_no_package(db: AsyncSession) -> None:
 
 
 @pytest.mark.db
+async def test_the_type_filter_selects_only_that_enquiry_type(db: AsyncSession) -> None:
+    pkg = await make_package(db)
+    await make_enquiry(db, ref="TS-STD111", type=EnquiryType.STANDARD, package_id=pkg.id)
+    await make_enquiry(db, ref="TS-CONT22", type=EnquiryType.CONTACT, package_id=None)
+    await db.commit()
+
+    out = await svc.list_enquiries(db, EnquiryFilters.model_validate({"type": "contact"}))
+
+    assert [r.ref for r in out.items] == ["TS-CONT22"]
+
+
+@pytest.mark.db
 async def test_counts_ignore_the_status_filter_but_honour_the_others(db: AsyncSession) -> None:
     pkg = await make_package(db)
     other = await make_package(db, slug="test-leh", dest_slug="test-ladakh")
