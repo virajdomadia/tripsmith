@@ -12,22 +12,17 @@ type Props = {
   value: string;
   onChange: (url: string) => void;
   id?: string;
-  /** Forwarded by shadcn's `<FormControl>` Slot; land them on the visible trigger button so the
-   *  "Upload a cover photo" message is programmatically associated with the actual control. */
+  /** Forwarded by shadcn's `<FormControl>` Slot; land it on the visible trigger button so the
+   *  "Upload a cover photo" message is programmatically associated with the actual control.
+   *  No `aria-invalid` here: the trigger is a `role="button"` and that role doesn't support it
+   *  (jsx-a11y correctly flags it) — `aria-describedby` alone conveys the error. */
   'aria-describedby'?: string;
-  'aria-invalid'?: boolean;
 };
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 /** Mockup A5 `.gal.six`: the current cover (or an empty frame) and an Upload / Replace tile. */
-export function CoverUploader({
-  value,
-  onChange,
-  id,
-  'aria-describedby': describedBy,
-  'aria-invalid': invalid,
-}: Props) {
+export function CoverUploader({ value, onChange, id, 'aria-describedby': describedBy }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const input = useRef<HTMLInputElement>(null);
@@ -62,7 +57,6 @@ export function CoverUploader({
         type="button"
         id={id}
         aria-describedby={describedBy}
-        aria-invalid={invalid}
         disabled={busy}
         onClick={() => input.current?.click()}
         className="grid aspect-[16/10] place-items-center rounded-card border-[1.5px] border-dashed border-line text-center text-[13px] font-semibold text-mute transition-colors hover:border-ink hover:text-ink disabled:opacity-60"

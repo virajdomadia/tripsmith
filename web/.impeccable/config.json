@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "tests/cover-uploader.test.tsx"
+        ],
+        "createdAt": "2026-09-22T12:33:58.023Z",
+        "reason": "test file: <img> is a mocked next/image stand-in inside vi.mock, not real UI"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "tests/destination-form.test.tsx"
+        ],
+        "createdAt": "2026-09-22T12:38:01.946Z",
+        "reason": "test file: <img> is a mocked next/image stand-in inside vi.mock, not real UI"
+      }
+    ]
+  }
+}

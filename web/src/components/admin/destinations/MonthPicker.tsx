@@ -8,11 +8,13 @@ type Props = {
   onChange: (months: number[]) => void;
   id?: string;
   /** Forwarded by shadcn's `<FormControl>` Slot (see `DestinationForm`'s comment for why a
-   *  role="group" needs these spelled out instead of relying on the Slot's usual target). */
+   *  role="group" needs these spelled out instead of relying on the Slot's usual target).
+   *  No `aria-invalid` here: `role="group"` doesn't support it (jsx-a11y correctly flags it) —
+   *  the error is conveyed by this pointing at the field's `FormMessage` instead. */
   'aria-describedby'?: string;
-  'aria-invalid'?: boolean;
-  /** Not Slot-forwarded (only id/aria-describedby/aria-invalid are) — the caller passes the
-   *  FormLabel's id explicitly, since a `<label htmlFor>` cannot label a role="group". */
+  /** Not Slot-forwarded (only id/aria-describedby are) — the caller passes the FormLabel's id
+   *  explicitly, since a `<label htmlFor>` cannot label a role="group". Kept alongside the
+   *  static `aria-label` below, which is just the fallback for a caller that passes no id. */
   'aria-labelledby'?: string;
 };
 
@@ -22,7 +24,6 @@ export function MonthPicker({
   onChange,
   id,
   'aria-describedby': describedBy,
-  'aria-invalid': invalid,
   'aria-labelledby': labelledBy,
 }: Props) {
   const toggle = (m: number) =>
@@ -34,7 +35,6 @@ export function MonthPicker({
       aria-label="Best months"
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
-      aria-invalid={invalid}
       className="flex flex-wrap gap-1.5"
     >
       {MONTHS.map((m) => {
