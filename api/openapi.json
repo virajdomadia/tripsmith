@@ -1,6 +1,96 @@
 {
   "components": {
     "schemas": {
+      "AdminDestination": {
+        "description": "A destination row as the owner sees it — including ones the public list hides.",
+        "properties": {
+          "bestMonths": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Bestmonths",
+            "type": "array"
+          },
+          "coverUrl": {
+            "title": "Coverurl",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "intro": {
+            "title": "Intro",
+            "type": "string"
+          },
+          "livePackageCount": {
+            "title": "Livepackagecount",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageCount": {
+            "description": "All packages, draft or live",
+            "title": "Packagecount",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "tagline": {
+            "title": "Tagline",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "tagline",
+          "intro",
+          "coverUrl",
+          "region",
+          "bestMonths",
+          "position",
+          "packageCount",
+          "livePackageCount",
+          "updatedAt"
+        ],
+        "title": "AdminDestination",
+        "type": "object"
+      },
+      "AdminDestinationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminDestination"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminDestinationList",
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {
@@ -63,6 +153,20 @@
           "label"
         ],
         "title": "BadgeOption",
+        "type": "object"
+      },
+      "Body_uploadDestinationCover": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadDestinationCover",
         "type": "object"
       },
       "DepartureList": {
@@ -253,6 +357,78 @@
           "packages"
         ],
         "title": "DestinationDetail",
+        "type": "object"
+      },
+      "DestinationInput": {
+        "description": "Owner create/update body (06 §A3). Months are de-duplicated and sorted.",
+        "properties": {
+          "bestMonths": {
+            "items": {
+              "maximum": 12.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Bestmonths",
+            "type": "array"
+          },
+          "coverUrl": {
+            "maxLength": 1000,
+            "pattern": "^https?://\\S+$",
+            "title": "Coverurl",
+            "type": "string"
+          },
+          "intro": {
+            "description": "Markdown, 2–3 paragraphs",
+            "maxLength": 5000,
+            "minLength": 40,
+            "title": "Intro",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "position": {
+            "default": 0,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          },
+          "region": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Region",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "tagline": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Tagline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "tagline",
+          "intro",
+          "coverUrl",
+          "region",
+          "bestMonths"
+        ],
+        "title": "DestinationInput",
         "type": "object"
       },
       "DestinationList": {
@@ -1167,12 +1343,18 @@
         "type": "object"
       },
       "SessionInfo": {
-        "description": "What `GET /auth/session` returns; F16 adds the new-enquiry count here.",
+        "description": "What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16).",
         "properties": {
           "expiresAt": {
             "format": "date-time",
             "title": "Expiresat",
             "type": "string"
+          },
+          "newEnquiries": {
+            "description": "Enquiries still in status `new`",
+            "minimum": 0.0,
+            "title": "Newenquiries",
+            "type": "integer"
           },
           "user": {
             "$ref": "#/components/schemas/SessionUser"
@@ -1180,7 +1362,8 @@
         },
         "required": [
           "user",
-          "expiresAt"
+          "expiresAt",
+          "newEnquiries"
         ],
         "title": "SessionInfo",
         "type": "object"
@@ -1305,6 +1488,29 @@
         "title": "ThemeOption",
         "type": "object"
       },
+      "UploadedImage": {
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url",
+          "width",
+          "height"
+        ],
+        "title": "UploadedImage",
+        "type": "object"
+      },
       "UserRole": {
         "enum": [
           "owner",
@@ -1336,6 +1542,243 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/destinations": {
+      "get": {
+        "operationId": "listAdminDestinations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDestinationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createDestination",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDestination"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/destinations/cover": {
+      "post": {
+        "description": "Multipart proxy (06 C3): validate + resize in a thread, then one Blob PUT.",
+        "operationId": "uploadDestinationCover",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadDestinationCover"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Upload Cover Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/destinations/{id}": {
+      "delete": {
+        "operationId": "deleteDestination",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Delete Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "getAdminDestination",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDestination"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "updateDestination",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDestination"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "operationId": "login",

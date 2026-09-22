@@ -8,8 +8,8 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Session, User
-from app.models.enums import UserRole
+from app.models import Enquiry, Session, User
+from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, UserRole
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
 from app.services.auth.deps import require_owner
 from app.services.auth.passwords import hash_password
@@ -20,6 +20,7 @@ from app.services.auth.sessions import (
     login,
     new_token,
 )
+from app.services.enquiries import count_new_enquiries
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
@@ -303,3 +304,50 @@ async def test_expired_session_is_401_and_pruned_by_the_route(
     res = await db_client.get("/auth/session", headers=with_cookie("stale"))
     assert res.status_code == 401
     assert await session_count(db) == 0
+
+
+# --- new enquiries count in session ----------------------------------------------------------
+
+
+async def add_enquiry(db: AsyncSession, status: EnquiryStatus) -> None:
+    """A minimal `contact` enquiry row (the same columns tests/test_enquiries.py inserts)."""
+    db.add(
+        Enquiry(
+            ref="TS-" + new_token()[:6].upper(),
+            type=EnquiryType.CONTACT,
+            name="Asha",
+            phone="9845000000",
+            email="asha@example.com",
+            adults=1,
+            children=0,
+            status=status,
+            email_status=EmailStatus.SKIPPED,
+        )
+    )
+    await db.commit()
+
+
+@pytest.mark.db
+async def test_count_new_enquiries_counts_only_new(db: AsyncSession) -> None:
+    await seeded_with_owner(db)
+    assert await count_new_enquiries(db) == 0
+    await add_enquiry(db, EnquiryStatus.NEW)
+    await add_enquiry(db, EnquiryStatus.NEW)
+    await add_enquiry(db, EnquiryStatus.CONTACTED)
+    assert await count_new_enquiries(db) == 2
+
+
+@pytest.mark.db
+async def test_session_payload_carries_the_new_enquiry_count(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded_with_owner(db)
+    await add_enquiry(db, EnquiryStatus.NEW)
+    login_res = await db_client.post(
+        "/auth/login", json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}
+    )
+    assert login_res.json()["newEnquiries"] == 1
+    token = login_res.cookies[COOKIE_NAME]
+    await add_enquiry(db, EnquiryStatus.NEW)
+    res = await db_client.get("/auth/session", headers=with_cookie(token))
+    assert res.status_code == 200 and res.json()["newEnquiries"] == 2

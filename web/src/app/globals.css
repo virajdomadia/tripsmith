@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /*
  * Design tokens — K · Ocean + Marigold, locked in S12 (docs/04-ui-mockups.md "Design tokens").
@@ -31,6 +32,56 @@
 
   --shadow-lift: 0 30px 50px -30px rgb(20 32 42 / 0.35);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * shadcn/ui (admin primitives) reads these names. Each one is a K token from the block above;
+ * `--color-primary` is deliberately not redeclared — ours is already the ocean blue shadcn's
+ * `bg-primary` should use. Light only (html { color-scheme: light }).
+ */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --card: var(--color-bg);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-bg);
+  --popover-foreground: var(--color-ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-bg2);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-bg2);
+  --muted-foreground: var(--color-mute);
+  --accent: var(--color-primary-soft);
+  --accent-foreground: var(--color-primary-ink);
+  --destructive: var(--color-warn);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-primary);
+  --radius: var(--radius-btn);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {

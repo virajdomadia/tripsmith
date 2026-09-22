@@ -281,7 +281,7 @@ package = define_package(
 | v1 | `POST /views` | `recordView` | public |
 | v1 | `POST /auth/login` · `POST /auth/logout` · `GET /auth/session` | own auth (`login`, `logout`, `getSession`) | public (login rate-limited) / cookie |
 | v1 | `GET /admin/dashboard` | `getDashboard` | owner |
-| v1 | `GET /admin/destinations` (all, unfiltered) · `POST/PUT/DELETE /admin/destinations[/:id]` | destination CRUD | owner |
+| v1 | `GET /admin/destinations` (all, unfiltered) · `GET /admin/destinations/:id` · `POST/PUT/DELETE /admin/destinations[/:id]` · `POST /admin/destinations/cover` (multipart ≤ 4 MB, resized ≤ 2000 px → Blob `destinations/uploads/`) | destination CRUD | owner |
 | v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
 | v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH/DELETE /admin/packages/:id/images[/:imageId]` | image ops | owner |
 | v1 | `GET /admin/enquiries` · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` | enquiries | owner |
@@ -320,6 +320,7 @@ package = define_package(
 | api | `GET /packages/:slug/itinerary.pdf` (`maxDuration 30`) | 404 if draft; 302 to cached Blob PDF or render → store → 302 |
 | api | `POST /views` | body `{ slug }`; UA bot filter; upsert `package_views`; 204 |
 | api | `POST /admin/packages/:id/images` | owner only; `multipart/form-data` (`file`, `position?`, `alt?`); `image/jpeg\|png\|webp` ≤ 5 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST; 201 with the `package_images` row |
+| api | `POST /admin/destinations/cover` | owner only; `multipart/form-data` (`file`); `image/jpeg\|png\|webp` ≤ 4 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST to `destinations/uploads/`; 201 with the Blob URL. Destination covers use the same validate-and-resize helper (`services/images.py`) through `POST /admin/destinations/cover`, which returns the Blob URL the form then stores in `coverUrl`. |
 | api | `GET /cron/pdf-gc` | `Authorization: Bearer CRON_SECRET`; delete Blob PDFs whose `updatedAt` key no longer matches |
 | web | `POST /revalidate` | `{ secret, tags[] }` from api → `revalidateTag` |
 | web | `GET /sitemap.xml`, `/robots.txt` | built from `GET /api/packages` + `/api/destinations` |

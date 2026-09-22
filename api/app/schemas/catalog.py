@@ -2,6 +2,7 @@
 
 import datetime as dt
 from enum import StrEnum
+from typing import Annotated
 
 from pydantic import Field, ValidationInfo, field_validator
 
@@ -12,6 +13,8 @@ from app.schemas.meta import Badge
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
+SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+HTTP_URL_PATTERN = r"^https?://\S+$"
 
 
 class SortOrder(StrEnum):
@@ -228,3 +231,53 @@ class HomeData(ApiModel):
     packages: list[PackageCard] = Field(description="Featured first, then cheapest; at most 6")
     testimonials: list[TestimonialOut] = Field(description="By position")
     stats: HomeStats
+
+
+class DestinationInput(ApiModel):
+    """Owner create/update body (06 §A3). Months are de-duplicated and sorted."""
+
+    slug: str = Field(pattern=SLUG_PATTERN, min_length=1, max_length=60)
+    name: str = Field(min_length=1, max_length=80)
+    tagline: str = Field(min_length=1, max_length=80)
+    intro: str = Field(min_length=40, max_length=5000, description="Markdown, 2–3 paragraphs")
+    cover_url: str = Field(pattern=HTTP_URL_PATTERN, max_length=1000)
+    region: str = Field(min_length=1, max_length=80)
+    best_months: list[Annotated[int, Field(ge=1, le=12)]] = Field(min_length=1, max_length=12)
+    position: int = Field(ge=0, le=999, default=0)
+
+    @field_validator("name", "tagline", "intro", "region", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("best_months")
+    @classmethod
+    def _unique_sorted(cls, v: list[int]) -> list[int]:
+        return sorted(set(v))
+
+
+class AdminDestination(ApiModel):
+    """A destination row as the owner sees it — including ones the public list hides."""
+
+    id: str
+    slug: str
+    name: str
+    tagline: str
+    intro: str
+    cover_url: str
+    region: str
+    best_months: list[int]
+    position: int
+    package_count: int = Field(description="All packages, draft or live")
+    live_package_count: int
+    updated_at: dt.datetime
+
+
+class AdminDestinationList(ApiModel):
+    items: list[AdminDestination]
+
+
+class UploadedImage(ApiModel):
+    url: str
+    width: int
+    height: int

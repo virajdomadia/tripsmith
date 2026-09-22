@@ -76,9 +76,10 @@ async def delete_session(db: AsyncSession, token: str) -> None:
     await db.commit()
 
 
-def session_info(session: Session) -> SessionInfo:
+def session_info(session: Session, *, new_enquiries: int) -> SessionInfo:
     u = session.user
     return SessionInfo(
         user=SessionUser(id=u.id, name=u.name, email=u.email, role=u.role),
         expires_at=session.expires_at,
+        new_enquiries=new_enquiries,
     )

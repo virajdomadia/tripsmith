@@ -14,6 +14,7 @@ from app.schemas.auth import LoginRequest, SessionInfo
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
 from app.services.auth.deps import current_session
 from app.services.auth.sessions import delete_session, login, session_info
+from app.services.enquiries import count_new_enquiries
 
 LOGIN_LIMIT = 10
 LOGIN_WINDOW_SECONDS = 600
@@ -58,7 +59,7 @@ async def post_login(
     if session is None:
         raise ApiError("unauthorized", "Wrong email or password")
     set_session_cookie(response, session.token, session.expires_at, request.app.state.settings)
-    return session_info(session)
+    return session_info(session, new_enquiries=await count_new_enquiries(db))
 
 
 @router.post(
@@ -80,9 +81,11 @@ async def post_logout(
 
 @router.get("/session", operation_id="getSession", response_model_by_alias=True)
 async def get_session_route(
-    response: Response, session: Annotated[Session | None, Depends(current_session)]
+    response: Response,
+    session: Annotated[Session | None, Depends(current_session)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SessionInfo:
     response.headers.update(NO_STORE)
     if session is None:
         raise ApiError("unauthorized", "Sign in to continue")
-    return session_info(session)
+    return session_info(session, new_enquiries=await count_new_enquiries(db))

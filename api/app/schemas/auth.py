@@ -26,7 +26,8 @@ class SessionUser(ApiModel):
 
 
 class SessionInfo(ApiModel):
-    """What `GET /auth/session` returns; F16 adds the new-enquiry count here."""
+    """What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16)."""
 
     user: SessionUser
     expires_at: datetime
+    new_enquiries: int = Field(ge=0, description="Enquiries still in status `new`")

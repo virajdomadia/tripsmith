@@ -29,6 +29,16 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert doc["paths"]["/auth/logout"]["post"]["operationId"] == "logout"
     assert doc["paths"]["/auth/session"]["get"]["operationId"] == "getSession"
     assert schemas["UserRole"]["enum"] == ["owner", "customer"]
+    admin = doc["paths"]["/admin/destinations"]
+    assert admin["get"]["operationId"] == "listAdminDestinations"
+    assert admin["post"]["operationId"] == "createDestination"
+    one = doc["paths"]["/admin/destinations/{id}"]
+    assert one["get"]["operationId"] == "getAdminDestination"
+    assert one["put"]["operationId"] == "updateDestination"
+    assert one["delete"]["operationId"] == "deleteDestination"
+    assert doc["paths"]["/admin/destinations/cover"]["post"]["operationId"] == (
+        "uploadDestinationCover"
+    )
 
 
 def test_rendered_document_is_stable_and_newline_terminated() -> None:
