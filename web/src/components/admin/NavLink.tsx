@@ -24,6 +24,7 @@ export function NavLink({ href, exact, children, count }: Props) {
       {count ? (
         <span className="num ml-auto rounded-chip bg-action px-2 py-0.5 text-[11px] font-extrabold text-ink">
           {count}
+          <span className="sr-only"> new</span>
         </span>
       ) : null}
     </Link>
