@@ -1,6 +1,62 @@
 {
   "components": {
     "schemas": {
+      "AdminDeparture": {
+        "description": "Every departure the owner has, past ones included; `seats_left` is read-only.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "guaranteed": {
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "priceChildPaise": {
+            "title": "Pricechildpaise",
+            "type": "integer"
+          },
+          "priceDoublePaise": {
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "priceTriplePaise": {
+            "title": "Pricetriplepaise",
+            "type": "integer"
+          },
+          "seatsLeft": {
+            "description": "From the departure_availability view; never edited",
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "singleSupplementPaise": {
+            "title": "Singlesupplementpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "seatsTotal",
+          "seatsLeft",
+          "guaranteed",
+          "priceDoublePaise",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise"
+        ],
+        "title": "AdminDeparture",
+        "type": "object"
+      },
       "AdminDestination": {
         "description": "A destination row as the owner sees it — including ones the public list hides.",
         "properties": {
@@ -91,6 +147,317 @@
         "title": "AdminDestinationList",
         "type": "object"
       },
+      "AdminImage": {
+        "properties": {
+          "alt": {
+            "title": "Alt",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "alt",
+          "width",
+          "height",
+          "position"
+        ],
+        "title": "AdminImage",
+        "type": "object"
+      },
+      "AdminPackage": {
+        "properties": {
+          "canPublish": {
+            "title": "Canpublish",
+            "type": "boolean"
+          },
+          "coverImageId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverimageid"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "departures": {
+            "description": "All departures, soonest first",
+            "items": {
+              "$ref": "#/components/schemas/AdminDeparture"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationRef"
+          },
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "string"
+          },
+          "enquiryCount": {
+            "description": "All time; blocks delete when above 0",
+            "title": "Enquirycount",
+            "type": "integer"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "faq": {
+            "items": {
+              "$ref": "#/components/schemas/FaqItem"
+            },
+            "title": "Faq",
+            "type": "array"
+          },
+          "featured": {
+            "title": "Featured",
+            "type": "boolean"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Highlights",
+            "type": "array"
+          },
+          "hotels": {
+            "items": {
+              "$ref": "#/components/schemas/HotelOut"
+            },
+            "title": "Hotels",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "images": {
+            "description": "Gallery order",
+            "items": {
+              "$ref": "#/components/schemas/AdminImage"
+            },
+            "title": "Images",
+            "type": "array"
+          },
+          "inclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inclusions",
+            "type": "array"
+          },
+          "itinerary": {
+            "items": {
+              "$ref": "#/components/schemas/ItineraryDayOut"
+            },
+            "title": "Itinerary",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "publishRules": {
+            "items": {
+              "$ref": "#/components/schemas/PublishRule"
+            },
+            "title": "Publishrules",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "themes": {
+            "items": {
+              "$ref": "#/components/schemas/Theme"
+            },
+            "title": "Themes",
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "destinationId",
+          "destination",
+          "name",
+          "summary",
+          "themes",
+          "nights",
+          "days",
+          "departureCity",
+          "highlights",
+          "inclusions",
+          "exclusions",
+          "hotels",
+          "faq",
+          "itinerary",
+          "departures",
+          "images",
+          "coverImageId",
+          "status",
+          "featured",
+          "startingPricePaise",
+          "enquiryCount",
+          "publishRules",
+          "canPublish",
+          "updatedAt"
+        ],
+        "title": "AdminPackage",
+        "type": "object"
+      },
+      "AdminPackageList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminPackageRow"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminPackageList",
+        "type": "object"
+      },
+      "AdminPackageRow": {
+        "properties": {
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departureCount": {
+            "description": "Dated today or later",
+            "title": "Departurecount",
+            "type": "integer"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationRef"
+          },
+          "enquiryCount30D": {
+            "title": "Enquirycount30D",
+            "type": "integer"
+          },
+          "featured": {
+            "title": "Featured",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "coverUrl",
+          "destination",
+          "nights",
+          "days",
+          "startingPricePaise",
+          "departureCount",
+          "enquiryCount30D",
+          "status",
+          "featured",
+          "updatedAt"
+        ],
+        "title": "AdminPackageRow",
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {
@@ -167,6 +534,72 @@
           "file"
         ],
         "title": "Body_uploadDestinationCover",
+        "type": "object"
+      },
+      "DepartureInput": {
+        "description": "`id` present = update that row; absent = insert. Rows the payload omits are deleted.\n\nPrices are `ge=0` so a draft can park a departure with the rate still to be agreed; the\npublish rules are what insist on real prices before the package can go live.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "guaranteed": {
+            "default": false,
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "priceChildPaise": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Pricechildpaise",
+            "type": "integer"
+          },
+          "priceDoublePaise": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "priceTriplePaise": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Pricetriplepaise",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "singleSupplementPaise": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Singlesupplementpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "seatsTotal",
+          "priceDoublePaise",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise"
+        ],
+        "title": "DepartureInput",
         "type": "object"
       },
       "DepartureList": {
@@ -790,6 +1223,42 @@
         "title": "HomeStats",
         "type": "object"
       },
+      "HotelInput": {
+        "properties": {
+          "city": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Nights",
+            "type": "integer"
+          },
+          "stars": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Stars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "stars",
+          "nights"
+        ],
+        "title": "HotelInput",
+        "type": "object"
+      },
       "HotelOut": {
         "properties": {
           "city": {
@@ -844,6 +1313,46 @@
           "height"
         ],
         "title": "ImageOut",
+        "type": "object"
+      },
+      "ItineraryDayInput": {
+        "description": "One day of the itinerary. `day_no` is the array index + 1 — never sent.",
+        "properties": {
+          "description": {
+            "description": "Markdown",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "meals": {
+            "$ref": "#/components/schemas/Meals"
+          },
+          "stay": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stay"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "meals"
+        ],
+        "title": "ItineraryDayInput",
         "type": "object"
       },
       "ItineraryDayOut": {
@@ -1235,6 +1744,127 @@
         "title": "PackageDetail",
         "type": "object"
       },
+      "PackageInput": {
+        "description": "Owner create/update body (06 §C4) — the whole package in one transaction.\n\n`status` is deliberately absent: publishing is `POST /admin/packages/{id}/status`, so a\nPUT can never bypass the publish rules. `days` is derived (`nights + 1`, the DB check\nconstraint `days_is_nights_plus_one`).",
+        "properties": {
+          "departureCity": {
+            "default": "Ex-Mumbai",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "departures": {
+            "items": {
+              "$ref": "#/components/schemas/DepartureInput"
+            },
+            "maxItems": 60,
+            "title": "Departures",
+            "type": "array"
+          },
+          "destinationId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Destinationid",
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "faq": {
+            "items": {
+              "$ref": "#/components/schemas/FaqItem"
+            },
+            "maxItems": 15,
+            "title": "Faq",
+            "type": "array"
+          },
+          "featured": {
+            "default": false,
+            "title": "Featured",
+            "type": "boolean"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Highlights",
+            "type": "array"
+          },
+          "hotels": {
+            "items": {
+              "$ref": "#/components/schemas/HotelInput"
+            },
+            "maxItems": 10,
+            "title": "Hotels",
+            "type": "array"
+          },
+          "inclusions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Inclusions",
+            "type": "array"
+          },
+          "itinerary": {
+            "items": {
+              "$ref": "#/components/schemas/ItineraryDayInput"
+            },
+            "maxItems": 31,
+            "title": "Itinerary",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 600,
+            "minLength": 40,
+            "title": "Summary",
+            "type": "string"
+          },
+          "themes": {
+            "items": {
+              "$ref": "#/components/schemas/Theme"
+            },
+            "maxItems": 6,
+            "title": "Themes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slug",
+          "destinationId",
+          "name",
+          "summary",
+          "nights"
+        ],
+        "title": "PackageInput",
+        "type": "object"
+      },
       "PackageList": {
         "properties": {
           "facets": {
@@ -1276,6 +1906,61 @@
           "name"
         ],
         "title": "PackageRef",
+        "type": "object"
+      },
+      "PackageStatus": {
+        "enum": [
+          "draft",
+          "live"
+        ],
+        "title": "PackageStatus",
+        "type": "string"
+      },
+      "PackageStatusInput": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "PackageStatusInput",
+        "type": "object"
+      },
+      "PublishRule": {
+        "description": "One live-publish precondition, evaluated by the api so the UI never re-derives it.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "images",
+              "itinerary",
+              "departures",
+              "prices"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "ok",
+          "detail"
+        ],
+        "title": "PublishRule",
         "type": "object"
       },
       "RangeFacet": {
@@ -1774,6 +2459,295 @@
           }
         },
         "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/packages": {
+      "get": {
+        "operationId": "listAdminPackages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackageList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createPackage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/packages/{id}": {
+      "delete": {
+        "operationId": "deletePackage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Delete Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "getAdminPackage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "updatePackage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/packages/{id}/duplicate": {
+      "post": {
+        "operationId": "duplicatePackage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Duplicate Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/packages/{id}/status": {
+      "post": {
+        "operationId": "setPackageStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPackage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Set Status Route",
         "tags": [
           "admin"
         ]

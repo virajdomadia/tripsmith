@@ -4,6 +4,7 @@ import datetime as dt
 from collections.abc import Sequence
 
 import pytest
+from httpx import AsyncClient
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.schemas.catalog import DepartureInput, PackageInput, PublishRule
 from app.services.catalog import admin_packages as svc
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
+from tests.test_auth import OWNER_EMAIL, OWNER_PASSWORD, seeded_with_owner, with_cookie
 from tests.test_catalog import RecordingStore
 
 SUMMARY = "Three slow nights on the Konkan coast with one free beach day and a fort sunset."
@@ -675,3 +677,118 @@ async def test_delete_removes_the_package_and_its_children(
     assert revalidated.calls == [
         ["packages", "destinations", "home", "package:konkan-coast", "destination:goa"]
     ]
+
+
+# --- routes ---------------------------------------------------------------------------------
+
+
+async def owner_cookie(db: AsyncSession, db_client: AsyncClient) -> dict[str, str]:
+    await seeded_with_owner(db)
+    res = await db_client.post(
+        "/auth/login", json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}
+    )
+    return with_cookie(res.cookies["ts_session"])
+
+
+@pytest.mark.db
+async def test_admin_package_routes_require_the_owner(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    assert (await db_client.get("/admin/packages")).status_code == 401
+    assert (await db_client.post("/admin/packages", json={})).status_code == 401
+    assert (await db_client.get("/admin/packages/x")).status_code == 401
+    assert (await db_client.put("/admin/packages/x", json={})).status_code == 401
+    assert (await db_client.delete("/admin/packages/x")).status_code == 401
+    assert (await db_client.post("/admin/packages/x/status", json={})).status_code == 401
+    assert (await db_client.post("/admin/packages/x/duplicate")).status_code == 401
+    assert (await db_client.get("/admin/packages")).headers["cache-control"] == "no-store"
+
+
+@pytest.mark.db
+async def test_admin_package_crud_round_trip(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    dest_id = await goa_id(db)
+    body = payload(destinationId=dest_id).model_dump(by_alias=True, mode="json")
+
+    created = await db_client.post("/admin/packages", json=body, headers=cookie)
+    assert created.status_code == 201, created.text
+    assert created.headers["cache-control"] == "no-store"
+    new = created.json()
+    assert new["status"] == "draft" and new["days"] == 4 and new["canPublish"] is False
+    assert [r["key"] for r in new["publishRules"]] == [
+        "images",
+        "itinerary",
+        "departures",
+        "prices",
+    ]
+
+    listed = await db_client.get("/admin/packages", headers=cookie)
+    assert listed.status_code == 200
+    assert new["id"] in {r["id"] for r in listed.json()["items"]}
+
+    one = await db_client.get(f"/admin/packages/{new['id']}", headers=cookie)
+    assert one.status_code == 200 and one.json()["name"] == "Konkan Coast"
+    assert (await db_client.get("/admin/packages/nope", headers=cookie)).status_code == 404
+
+    updated = await db_client.put(
+        f"/admin/packages/{new['id']}", json={**body, "name": "Konkan Coast Slow"}, headers=cookie
+    )
+    assert updated.status_code == 200 and updated.json()["name"] == "Konkan Coast Slow"
+
+    dup_slug = await db_client.post(
+        "/admin/packages", json={**body, "slug": "north-goa-beaches"}, headers=cookie
+    )
+    assert dup_slug.status_code == 409
+    assert dup_slug.json()["error"]["fieldErrors"] == {"slug": svc.DUPLICATE_SLUG}
+
+    invalid = await db_client.post("/admin/packages", json={**body, "nights": 0}, headers=cookie)
+    assert invalid.status_code == 400 and "nights" in invalid.json()["error"]["fieldErrors"]
+
+    gone = await db_client.delete(f"/admin/packages/{new['id']}", headers=cookie)
+    assert gone.status_code == 204
+
+
+@pytest.mark.db
+async def test_status_and_duplicate_routes(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+
+    duplicated = await db_client.post(f"/admin/packages/{pkg.id}/duplicate", headers=cookie)
+    assert duplicated.status_code == 201, duplicated.text
+    copy = duplicated.json()
+    assert copy["slug"] == "north-goa-beaches-copy" and copy["status"] == "draft"
+
+    down = await db_client.post(
+        f"/admin/packages/{pkg.id}/status", json={"status": "draft"}, headers=cookie
+    )
+    assert down.status_code == 200 and down.json()["status"] == "draft"
+
+    up = await db_client.post(
+        f"/admin/packages/{pkg.id}/status", json={"status": "live"}, headers=cookie
+    )
+    assert up.status_code == 200 and up.json()["status"] == "live"
+
+    bad = await db_client.post(
+        f"/admin/packages/{pkg.id}/status", json={"status": "archived"}, headers=cookie
+    )
+    assert bad.status_code == 400
+
+
+@pytest.mark.db
+async def test_publishing_an_incomplete_package_is_a_conflict_naming_the_rules(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    body = payload(destinationId=await goa_id(db), itinerary=[], departures=[]).model_dump(
+        by_alias=True, mode="json"
+    )
+    draft = (await db_client.post("/admin/packages", json=body, headers=cookie)).json()
+    res = await db_client.post(
+        f"/admin/packages/{draft['id']}/status", json={"status": "live"}, headers=cookie
+    )
+    assert res.status_code == 409
+    assert set(res.json()["error"]["fieldErrors"]) == {"images", "itinerary", "departures"}

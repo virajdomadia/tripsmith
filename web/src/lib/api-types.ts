@@ -61,6 +61,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminPackages"];
+        put?: never;
+        /** Create Route */
+        post: operations["createPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/packages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getAdminPackage"];
+        /** Update Route */
+        put: operations["updatePackage"];
+        post?: never;
+        /** Delete Route */
+        delete: operations["deletePackage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/packages/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate Route */
+        post: operations["duplicatePackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/packages/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Status Route */
+        post: operations["setPackageStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -307,6 +378,36 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AdminDeparture
+         * @description Every departure the owner has, past ones included; `seats_left` is read-only.
+         */
+        AdminDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Guaranteed */
+            guaranteed: boolean;
+            /** Id */
+            id: string;
+            /** Pricechildpaise */
+            priceChildPaise: number;
+            /** Pricedoublepaise */
+            priceDoublePaise: number;
+            /** Pricetriplepaise */
+            priceTriplePaise: number;
+            /**
+             * Seatsleft
+             * @description From the departure_availability view; never edited
+             */
+            seatsLeft: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number;
+        };
+        /**
          * AdminDestination
          * @description A destination row as the owner sees it — including ones the public list hides.
          */
@@ -347,6 +448,124 @@ export interface components {
             /** Items */
             items: components["schemas"]["AdminDestination"][];
         };
+        /** AdminImage */
+        AdminImage: {
+            /** Alt */
+            alt: string;
+            /** Height */
+            height: number;
+            /** Id */
+            id: string;
+            /** Position */
+            position: number;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
+        /** AdminPackage */
+        AdminPackage: {
+            /** Canpublish */
+            canPublish: boolean;
+            /** Coverimageid */
+            coverImageId: string | null;
+            /** Days */
+            days: number;
+            /** Departurecity */
+            departureCity: string;
+            /**
+             * Departures
+             * @description All departures, soonest first
+             */
+            departures: components["schemas"]["AdminDeparture"][];
+            destination: components["schemas"]["DestinationRef"];
+            /** Destinationid */
+            destinationId: string;
+            /**
+             * Enquirycount
+             * @description All time; blocks delete when above 0
+             */
+            enquiryCount: number;
+            /** Exclusions */
+            exclusions: string[];
+            /** Faq */
+            faq: components["schemas"]["FaqItem"][];
+            /** Featured */
+            featured: boolean;
+            /** Highlights */
+            highlights: string[];
+            /** Hotels */
+            hotels: components["schemas"]["HotelOut"][];
+            /** Id */
+            id: string;
+            /**
+             * Images
+             * @description Gallery order
+             */
+            images: components["schemas"]["AdminImage"][];
+            /** Inclusions */
+            inclusions: string[];
+            /** Itinerary */
+            itinerary: components["schemas"]["ItineraryDayOut"][];
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Publishrules */
+            publishRules: components["schemas"]["PublishRule"][];
+            /** Slug */
+            slug: string;
+            /** Startingpricepaise */
+            startingPricePaise: number;
+            status: components["schemas"]["PackageStatus"];
+            /** Summary */
+            summary: string;
+            /** Themes */
+            themes: components["schemas"]["Theme"][];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** AdminPackageList */
+        AdminPackageList: {
+            /** Items */
+            items: components["schemas"]["AdminPackageRow"][];
+        };
+        /** AdminPackageRow */
+        AdminPackageRow: {
+            /** Coverurl */
+            coverUrl: string | null;
+            /** Days */
+            days: number;
+            /**
+             * Departurecount
+             * @description Dated today or later
+             */
+            departureCount: number;
+            destination: components["schemas"]["DestinationRef"];
+            /** Enquirycount30D */
+            enquiryCount30D: number;
+            /** Featured */
+            featured: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Slug */
+            slug: string;
+            /** Startingpricepaise */
+            startingPricePaise: number;
+            status: components["schemas"]["PackageStatus"];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
         /** ApiErrorBody */
         ApiErrorBody: {
             code: components["schemas"]["ErrorCode"];
@@ -380,6 +599,37 @@ export interface components {
         Body_uploadDestinationCover: {
             /** File */
             file: string;
+        };
+        /**
+         * DepartureInput
+         * @description `id` present = update that row; absent = insert. Rows the payload omits are deleted.
+         *
+         *     Prices are `ge=0` so a draft can park a departure with the rate still to be agreed; the
+         *     publish rules are what insist on real prices before the package can go live.
+         */
+        DepartureInput: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Guaranteed
+             * @default false
+             */
+            guaranteed: boolean;
+            /** Id */
+            id?: string | null;
+            /** Pricechildpaise */
+            priceChildPaise: number;
+            /** Pricedoublepaise */
+            priceDoublePaise: number;
+            /** Pricetriplepaise */
+            priceTriplePaise: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number;
         };
         /** DepartureList */
         DepartureList: {
@@ -660,6 +910,17 @@ export interface components {
              */
             packages: number;
         };
+        /** HotelInput */
+        HotelInput: {
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Stars */
+            stars: number;
+        };
         /** HotelOut */
         HotelOut: {
             /** City */
@@ -681,6 +942,22 @@ export interface components {
             url: string;
             /** Width */
             width: number;
+        };
+        /**
+         * ItineraryDayInput
+         * @description One day of the itinerary. `day_no` is the array index + 1 — never sent.
+         */
+        ItineraryDayInput: {
+            /**
+             * Description
+             * @description Markdown
+             */
+            description: string;
+            meals: components["schemas"]["Meals"];
+            /** Stay */
+            stay?: string | null;
+            /** Title */
+            title: string;
         };
         /** ItineraryDayOut */
         ItineraryDayOut: {
@@ -831,6 +1108,52 @@ export interface components {
              */
             updatedAt: string;
         };
+        /**
+         * PackageInput
+         * @description Owner create/update body (06 §C4) — the whole package in one transaction.
+         *
+         *     `status` is deliberately absent: publishing is `POST /admin/packages/{id}/status`, so a
+         *     PUT can never bypass the publish rules. `days` is derived (`nights + 1`, the DB check
+         *     constraint `days_is_nights_plus_one`).
+         */
+        PackageInput: {
+            /**
+             * Departurecity
+             * @default Ex-Mumbai
+             */
+            departureCity: string;
+            /** Departures */
+            departures?: components["schemas"]["DepartureInput"][];
+            /** Destinationid */
+            destinationId: string;
+            /** Exclusions */
+            exclusions?: string[];
+            /** Faq */
+            faq?: components["schemas"]["FaqItem"][];
+            /**
+             * Featured
+             * @default false
+             */
+            featured: boolean;
+            /** Highlights */
+            highlights?: string[];
+            /** Hotels */
+            hotels?: components["schemas"]["HotelInput"][];
+            /** Inclusions */
+            inclusions?: string[];
+            /** Itinerary */
+            itinerary?: components["schemas"]["ItineraryDayInput"][];
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Slug */
+            slug: string;
+            /** Summary */
+            summary: string;
+            /** Themes */
+            themes?: components["schemas"]["Theme"][];
+        };
         /** PackageList */
         PackageList: {
             facets: components["schemas"]["SearchFacets"];
@@ -845,6 +1168,32 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+        };
+        /**
+         * PackageStatus
+         * @enum {string}
+         */
+        PackageStatus: "draft" | "live";
+        /** PackageStatusInput */
+        PackageStatusInput: {
+            status: components["schemas"]["PackageStatus"];
+        };
+        /**
+         * PublishRule
+         * @description One live-publish precondition, evaluated by the api so the UI never re-derives it.
+         */
+        PublishRule: {
+            /** Detail */
+            detail: string;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "images" | "itinerary" | "departures" | "prices";
+            /** Label */
+            label: string;
+            /** Ok */
+            ok: boolean;
         };
         /** RangeFacet */
         RangeFacet: {
@@ -1145,6 +1494,229 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackageList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getAdminPackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    deletePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    duplicatePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setPackageStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageStatusInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPackage"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

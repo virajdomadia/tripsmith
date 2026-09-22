@@ -39,6 +39,18 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert doc["paths"]["/admin/destinations/cover"]["post"]["operationId"] == (
         "uploadDestinationCover"
     )
+    packages = doc["paths"]["/admin/packages"]
+    assert packages["get"]["operationId"] == "listAdminPackages"
+    assert packages["post"]["operationId"] == "createPackage"
+    one_package = doc["paths"]["/admin/packages/{id}"]
+    assert one_package["get"]["operationId"] == "getAdminPackage"
+    assert one_package["put"]["operationId"] == "updatePackage"
+    assert one_package["delete"]["operationId"] == "deletePackage"
+    assert doc["paths"]["/admin/packages/{id}/status"]["post"]["operationId"] == "setPackageStatus"
+    assert doc["paths"]["/admin/packages/{id}/duplicate"]["post"]["operationId"] == (
+        "duplicatePackage"
+    )
+    assert schemas["PackageStatus"]["enum"] == ["draft", "live"]
 
 
 def test_rendered_document_is_stable_and_newline_terminated() -> None:
