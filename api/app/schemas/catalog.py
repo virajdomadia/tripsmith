@@ -14,7 +14,11 @@ MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
-HTTP_URL_PATTERN = r"^https?://\S+$"
+# Mirrors web/next.config.ts `images.remotePatterns`: prod Blob storage, or (dev only) the
+# `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against.
+COVER_URL_PATTERN = (
+    r"^(https://[a-z0-9-]+\.public\.blob\.vercel-storage\.com/\S*|http://localhost(:\d+)?/\S*)$"
+)
 
 
 class SortOrder(StrEnum):
@@ -240,7 +244,7 @@ class DestinationInput(ApiModel):
     name: str = Field(min_length=1, max_length=80)
     tagline: str = Field(min_length=1, max_length=80)
     intro: str = Field(min_length=40, max_length=5000, description="Markdown, 2–3 paragraphs")
-    cover_url: str = Field(pattern=HTTP_URL_PATTERN, max_length=1000)
+    cover_url: str = Field(pattern=COVER_URL_PATTERN, max_length=1000)
     region: str = Field(min_length=1, max_length=80)
     best_months: list[Annotated[int, Field(ge=1, le=12)]] = Field(min_length=1, max_length=12)
     position: int = Field(ge=0, le=999, default=0)

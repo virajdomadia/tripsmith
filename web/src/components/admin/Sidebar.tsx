@@ -23,7 +23,7 @@ const initials = (name: string) =>
 export function Sidebar({ session }: { session: SessionInfo }) {
   const { user, newEnquiries } = session;
   return (
-    <aside className="flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-[#B7C0C8] lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
+    <aside className="flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
       <Link
         href="/admin"
         className="mb-0 flex items-center gap-2 px-2 text-lg font-extrabold text-white lg:mb-4"
@@ -52,7 +52,7 @@ export function Sidebar({ session }: { session: SessionInfo }) {
         <Eye className="size-4" aria-hidden />
         View site
       </Link>
-      <div className="hidden items-center gap-2.5 border-t border-[#2A3944] px-3 py-2.5 text-[13px] lg:flex">
+      <div className="hidden items-center gap-2.5 border-t border-ink-line px-3 py-2.5 text-[13px] lg:flex">
         <span className="grid size-8 place-items-center rounded-full bg-action text-xs font-extrabold text-ink">
           {initials(user.name)}
         </span>

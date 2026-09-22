@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
+from app.infra.cache import PUBLIC_CACHE_CONTROL
 from app.infra.db import get_session
-from app.routers.site.meta import PUBLIC_CACHE_CONTROL
 from app.schemas.catalog import (
     MONTH_PATTERN,
     DepartureList,

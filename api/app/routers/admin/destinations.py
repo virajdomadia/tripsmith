@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, sta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
+from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.models.base import new_id
 from app.schemas.catalog import (
@@ -18,8 +19,6 @@ from app.schemas.catalog import (
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_destinations as svc
 from app.services.images import MAX_BYTES, ImageError, prepare_image
-
-NO_STORE = {"Cache-Control": "no-store"}
 
 router = APIRouter(
     prefix="/admin/destinations", tags=["admin"], dependencies=[Depends(require_owner)]

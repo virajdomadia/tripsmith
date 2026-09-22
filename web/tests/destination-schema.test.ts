@@ -25,9 +25,18 @@ describe('destinationSchema', () => {
     expect(destinationSchema.safeParse({ ...valid, bestMonths: [] }).success).toBe(false);
     expect(destinationSchema.safeParse({ ...valid, coverUrl: '' }).success).toBe(false);
     expect(destinationSchema.safeParse({ ...valid, position: -1 }).success).toBe(false);
+    expect(destinationSchema.safeParse({ ...valid, position: 1000 }).success).toBe(false);
   });
   it('coerces the position field from the text input', () => {
     expect(destinationSchema.parse({ ...valid, position: '7' }).position).toBe(7);
+    expect(destinationSchema.parse({ ...valid, position: 0 }).position).toBe(0);
+  });
+  it('treats a cleared Order field as invalid, not a silent 0', () => {
+    const result = destinationSchema.safeParse({ ...valid, position: '' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('Enter a number from 0 to 999');
+    }
   });
   it('lists twelve months', () => {
     expect(MONTHS).toHaveLength(12);

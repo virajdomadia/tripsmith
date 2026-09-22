@@ -21,8 +21,17 @@ export const destinationSchema = z.object({
     .min(1, 'Pick at least one month')
     .transform((m) => [...new Set(m)].sort((a, b) => a - b)),
   // The generic names the form's input (`<input type="number">` hands over a string) so
-  // `z.input<typeof destinationSchema>` is usable as react-hook-form's field type.
-  position: z.coerce.number<number | string>().int().min(0).max(999),
+  // `z.input<typeof destinationSchema>` is usable as react-hook-form's field type. An emptied
+  // input arrives as `''`, which `z.coerce.number()` would otherwise happily read as 0 — treat
+  // it as absent so clearing the field is a validation error, not a silent 0.
+  position: z.preprocess(
+    (v: number | string) => (v === '' ? undefined : v),
+    z.coerce
+      .number<number | string>({ error: 'Enter a number from 0 to 999' })
+      .int('Enter a number from 0 to 999')
+      .min(0, 'Enter a number from 0 to 999')
+      .max(999, 'Enter a number from 0 to 999'),
+  ),
 });
 
 /** The parsed output — what `onSubmit` receives; the form's field values are `z.input<...>`. */

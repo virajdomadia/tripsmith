@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
+from app.infra.cache import NO_STORE
 from app.infra.client_ip import RateLimited, client_ip
 from app.infra.db import get_session
 from app.infra.ratelimit import RateLimiter
@@ -18,7 +19,6 @@ from app.services.enquiries import count_new_enquiries
 
 LOGIN_LIMIT = 10
 LOGIN_WINDOW_SECONDS = 600
-NO_STORE = {"Cache-Control": "no-store"}
 
 
 async def login_rate_limit(request: Request) -> None:

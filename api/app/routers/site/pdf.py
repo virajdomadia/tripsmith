@@ -9,8 +9,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
+from app.infra.cache import PUBLIC_CACHE_CONTROL
 from app.infra.db import get_session
-from app.routers.site.meta import PUBLIC_CACHE_CONTROL
 from app.services.catalog.reads import get_package
 from app.services.pdf.itinerary import pdf_filename
 from app.services.pdf.service import PdfService
