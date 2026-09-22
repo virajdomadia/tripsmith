@@ -1,7 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useId } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
@@ -23,6 +24,7 @@ import {
   type DestinationFormValues,
   toInput,
 } from '@/lib/admin/destination-schema';
+import { reportAdminError } from '@/lib/admin/errors';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { CoverUploader } from './CoverUploader';
@@ -64,6 +66,8 @@ const h3 = 'text-base font-extrabold';
 /** Mockup A5's edit panel as a page: basics, cover, best months, danger zone. Server-side errors land on their field. */
 export function DestinationForm(props: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const monthsLabelId = useId();
   const editing = props.mode === 'edit';
   const form = useForm<FieldValues, unknown, DestinationFormValues>({
     resolver: zodResolver(destinationSchema),
@@ -96,16 +100,20 @@ export function DestinationForm(props: Props) {
     } catch (e) {
       if (e instanceof ApiRequestError && e.body.fieldErrors) {
         // A 400/409 with fieldErrors: pin each message under its field; anything the form has
-        // no field for (e.g. `body`) falls through to the toast.
-        let placed = false;
+        // no field for (e.g. `body`) falls through to the toast. Keep this branch first — a
+        // field-level 400/409 must land on the fields, never redirect via reportAdminError.
+        let first: keyof FieldValues | undefined;
         for (const [field, message] of Object.entries(e.body.fieldErrors)) {
           if (!isField(field)) continue;
           form.setError(field, { type: 'server', message });
-          placed = true;
+          first ??= field;
         }
-        if (placed) return;
+        if (first) {
+          form.setFocus(first);
+          return;
+        }
       }
-      toast.error(e instanceof ApiRequestError ? e.body.message : 'Could not save — try again');
+      reportAdminError(e, { router, pathname, fallback: 'Could not save — try again' });
     }
   }
 
@@ -210,9 +218,15 @@ export function DestinationForm(props: Props) {
               name="bestMonths"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Best months</FormLabel>
+                  {/* A role="group" isn't labelable via <label htmlFor>, so MonthPicker's group
+                      takes this id directly via aria-labelledby instead. */}
+                  <FormLabel id={monthsLabelId}>Best months</FormLabel>
                   <FormControl>
-                    <MonthPicker value={field.value} onChange={field.onChange} />
+                    <MonthPicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      aria-labelledby={monthsLabelId}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

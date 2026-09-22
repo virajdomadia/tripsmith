@@ -25,6 +25,8 @@
   --color-warn: #b5541e; /* filling fast */
   --color-warn-soft: #fff1dd;
   --color-wa: #25d366; /* WhatsApp buttons only */
+  --color-ink-soft: #b7c0c8; /* admin sidebar on ink (mockup `adm .sb`) */
+  --color-ink-line: #2a3944; /* admin sidebar on ink (mockup `adm .sb`) */
 
   --radius-btn: 12px;
   --radius-card: 18px;

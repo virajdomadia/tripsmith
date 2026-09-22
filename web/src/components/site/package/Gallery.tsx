@@ -73,12 +73,15 @@ export function Gallery({ images }: { images: ImageOut[] }) {
               className="h-full"
             >
               {cell === grid.length - 1 && extraDesktop > 0 && (
-                <span className="absolute right-2.5 bottom-2.5 hidden rounded-lg bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block">
+                // Fixed 8px: shadcn's --radius-* redefined rounded-lg to 12px site-wide (globals.css
+                // @theme inline); these counter pills were designed at 8px, so pin the value here.
+                <span className="absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block">
                   {chip(extraDesktop)}
                 </span>
               )}
               {cell === Math.min(grid.length, GRID_MAX_PHONE) - 1 && extraPhone > 0 && (
-                <span className="absolute right-2.5 bottom-2.5 rounded-lg bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:hidden">
+                // Fixed 8px — see the comment above the desktop chip.
+                <span className="absolute right-2.5 bottom-2.5 rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:hidden">
                   {chip(extraPhone)}
                 </span>
               )}

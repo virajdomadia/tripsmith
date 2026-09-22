@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { adminRequest } from '@/lib/admin/client';
-import { ApiRequestError } from '@/lib/api-errors';
+import { reportAdminError } from '@/lib/admin/errors';
 
 type Props = { id: string; name: string; packageCount: number };
 
 /** Danger zone: blocked (and explained) while packages reference the destination. */
 export function DeleteDestination({ id, name, packageCount }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const blocked = packageCount > 0;
@@ -33,7 +34,7 @@ export function DeleteDestination({ id, name, packageCount }: Props) {
       router.push('/admin/destinations');
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof ApiRequestError ? e.body.message : 'Could not delete — try again');
+      reportAdminError(e, { router, pathname, fallback: 'Could not delete — try again' });
       setBusy(false);
       setOpen(false);
     }
