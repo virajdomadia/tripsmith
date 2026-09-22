@@ -20,9 +20,12 @@ export const destinationSchema = z.object({
     .array(z.number().int().min(1).max(12))
     .min(1, 'Pick at least one month')
     .transform((m) => [...new Set(m)].sort((a, b) => a - b)),
-  position: z.coerce.number().int().min(0).max(999),
+  // The generic names the form's input (`<input type="number">` hands over a string) so
+  // `z.input<typeof destinationSchema>` is usable as react-hook-form's field type.
+  position: z.coerce.number<number | string>().int().min(0).max(999),
 });
 
+/** The parsed output — what `onSubmit` receives; the form's field values are `z.input<...>`. */
 export type DestinationFormValues = z.infer<typeof destinationSchema>;
 
 export const MONTHS = [
