@@ -120,7 +120,7 @@ export function PackagesTable({ items }: { items: AdminPackageRow[] }) {
                 <TableCell className="num">{p.nights}N</TableCell>
                 <TableCell className="num">{orDash(p.startingPricePaise, inr)}</TableCell>
                 <TableCell className="num">{orDash(p.departureCount)}</TableCell>
-                <TableCell className="num">{orDash(p.enquiryCount30d)}</TableCell>
+                <TableCell className="num">{orDash(p.recentEnquiryCount)}</TableCell>
                 <TableCell>
                   <Badge variant={p.status === 'live' ? 'default' : 'secondary'}>
                     {p.status === 'live' ? 'Live' : 'Draft'}

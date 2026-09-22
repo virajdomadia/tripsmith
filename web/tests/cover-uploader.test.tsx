@@ -85,9 +85,7 @@ describe('CoverUploader', () => {
     const file = new File([new Uint8Array([1])], 'c.jpg', { type: 'image/jpeg' });
     await user.upload(input, file);
 
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Upload a JPG, PNG or WEBP image'),
-    );
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Upload a JPG, PNG or WEBP image'));
     expect(onChange).not.toHaveBeenCalled();
   });
 });

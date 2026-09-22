@@ -581,8 +581,6 @@ export interface components {
              */
             departureCount: number;
             destination: components["schemas"]["DestinationRef"];
-            /** Enquirycount30D */
-            enquiryCount30D: number;
             /** Featured */
             featured: boolean;
             /** Id */
@@ -591,6 +589,11 @@ export interface components {
             name: string;
             /** Nights */
             nights: number;
+            /**
+             * Recentenquirycount
+             * @description Enquiries in the last 30 days
+             */
+            recentEnquiryCount: number;
             /** Slug */
             slug: string;
             /** Startingpricepaise */

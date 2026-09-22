@@ -468,7 +468,7 @@ class AdminPackageRow(ApiModel):
     days: int
     starting_price_paise: int
     departure_count: int = Field(description="Dated today or later")
-    enquiry_count_30d: int
+    recent_enquiry_count: int = Field(description="Enquiries in the last 30 days")
     status: PackageStatus
     featured: bool
     updated_at: dt.datetime

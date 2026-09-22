@@ -287,7 +287,7 @@ async def test_list_returns_every_package_draft_included(db: AsyncSession) -> No
     pkg = await package_by_slug(db, "north-goa-beaches")
     await db.refresh(pkg, ["departures"])
     assert north.departure_count == len([d for d in pkg.departures if d.date >= dt.date.today()])
-    assert north.enquiry_count_30d == 0
+    assert north.recent_enquiry_count == 0
 
 
 @pytest.mark.db
@@ -313,7 +313,7 @@ async def test_list_counts_only_enquiries_from_the_last_30_days(db: AsyncSession
         )
     await db.commit()
     row = next(r for r in await svc.list_packages(db) if r.slug == "north-goa-beaches")
-    assert row.enquiry_count_30d == 2
+    assert row.recent_enquiry_count == 2
 
 
 @pytest.mark.db

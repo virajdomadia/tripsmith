@@ -277,7 +277,7 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             days=p.days,
             starting_price_paise=p.starting_price_paise,
             departure_count=int(departures),
-            enquiry_count_30d=int(enquiries),
+            recent_enquiry_count=int(enquiries),
             status=p.status,
             featured=p.featured,
             updated_at=p.updated_at,

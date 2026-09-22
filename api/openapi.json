@@ -403,10 +403,6 @@
           "destination": {
             "$ref": "#/components/schemas/DestinationRef"
           },
-          "enquiryCount30D": {
-            "title": "Enquirycount30D",
-            "type": "integer"
-          },
           "featured": {
             "title": "Featured",
             "type": "boolean"
@@ -421,6 +417,11 @@
           },
           "nights": {
             "title": "Nights",
+            "type": "integer"
+          },
+          "recentEnquiryCount": {
+            "description": "Enquiries in the last 30 days",
+            "title": "Recentenquirycount",
             "type": "integer"
           },
           "slug": {
@@ -450,7 +451,7 @@
           "days",
           "startingPricePaise",
           "departureCount",
-          "enquiryCount30D",
+          "recentEnquiryCount",
           "status",
           "featured",
           "updatedAt"
