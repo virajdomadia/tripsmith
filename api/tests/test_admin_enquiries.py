@@ -347,3 +347,68 @@ async def test_detail_404s_for_an_unknown_id(db: AsyncSession) -> None:
     with pytest.raises(ApiError) as exc:
         await svc.get_enquiry(db, "enq_does_not_exist")
     assert exc.value.code == "not_found"
+
+
+# --- service: writes ------------------------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_a_status_change_appends_a_note_in_the_same_timeline(db: AsyncSession) -> None:
+    row = await make_enquiry(db, ref="TS-STAT11", status=EnquiryStatus.NEW)
+    await db.commit()
+
+    out = await svc.set_status(db, row.id, EnquiryStatus.CONTACTED)
+
+    assert out.status == EnquiryStatus.CONTACTED
+    assert [n.body for n in out.notes] == ["Status changed from New to Contacted"]
+
+
+@pytest.mark.db
+async def test_setting_the_same_status_twice_does_not_spam_the_timeline(
+    db: AsyncSession,
+) -> None:
+    row = await make_enquiry(db, ref="TS-SAME11", status=EnquiryStatus.CONTACTED)
+    await db.commit()
+
+    out = await svc.set_status(db, row.id, EnquiryStatus.CONTACTED)
+
+    assert out.status == EnquiryStatus.CONTACTED
+    assert out.notes == []
+
+
+@pytest.mark.db
+async def test_status_changes_and_owner_notes_interleave_in_one_timeline(
+    db: AsyncSession,
+) -> None:
+    row = await make_enquiry(db, ref="TS-MIX111")
+    await db.commit()
+
+    await svc.set_status(db, row.id, EnquiryStatus.CONTACTED)
+    await svc.add_note(db, row.id, "Called at 11:40 — no answer, WhatsApp sent.")
+    out = await svc.set_status(db, row.id, EnquiryStatus.CONVERTED)
+
+    assert [n.body for n in out.notes] == [
+        "Status changed from New to Contacted",
+        "Called at 11:40 — no answer, WhatsApp sent.",
+        "Status changed from Contacted to Converted",
+    ]
+
+
+@pytest.mark.db
+async def test_writes_404_for_an_unknown_id(db: AsyncSession) -> None:
+    with pytest.raises(ApiError) as exc:
+        await svc.set_status(db, "enq_nope", EnquiryStatus.CLOSED)
+    assert exc.value.code == "not_found"
+    with pytest.raises(ApiError):
+        await svc.add_note(db, "enq_nope", "hello")
+
+
+@pytest.mark.db
+async def test_a_status_change_is_persisted_not_just_returned(db: AsyncSession) -> None:
+    row = await make_enquiry(db, ref="TS-PERS11")
+    await db.commit()
+    await svc.set_status(db, row.id, EnquiryStatus.CLOSED)
+
+    stored = await svc.get_enquiry(db, row.id)
+    assert stored.status == EnquiryStatus.CLOSED
+    assert len(stored.notes) == 1

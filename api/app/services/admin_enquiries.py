@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
-from app.models import Enquiry, Package, PackageImage
+from app.models import Enquiry, EnquiryNote, Package, PackageImage
 from app.models.enums import EnquiryStatus
 from app.schemas.admin_enquiries import (
     PAGE_SIZE,
@@ -264,4 +264,43 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
 
 
 async def get_enquiry(db: AsyncSession, id: str) -> AdminEnquiry:
+    return await _detail(db, await load_enquiry(db, id))
+
+
+# --- writes ---------------------------------------------------------------------------------------
+
+STATUS_LABELS: dict[EnquiryStatus, str] = {
+    EnquiryStatus.NEW: "New",
+    EnquiryStatus.CONTACTED: "Contacted",
+    EnquiryStatus.CONVERTED: "Converted",
+    EnquiryStatus.CLOSED: "Closed",
+}
+
+
+def status_note(old: EnquiryStatus, new: EnquiryStatus) -> str:
+    """Auto notes are worded distinctly rather than flagged by a column: v1 adds no `kind` to
+    `enquiry_notes`, because one timeline of calls and status moves is what the owner reads."""
+    return f"Status changed from {STATUS_LABELS[old]} to {STATUS_LABELS[new]}"
+
+
+async def set_status(db: AsyncSession, id: str, status: EnquiryStatus) -> AdminEnquiry:
+    """One transaction: the new status and the note that records it land together, or not at all.
+
+    Re-selecting the same status is a no-op — the owner clicking the tab they are already on
+    should not add a line to the timeline.
+    """
+    row = await load_enquiry(db, id)
+    if row.status != status:
+        db.add(EnquiryNote(enquiry_id=row.id, body=status_note(row.status, status)))
+        row.status = status
+        await db.commit()
+        row = await load_enquiry(db, id)
+    return await _detail(db, row)
+
+
+async def add_note(db: AsyncSession, id: str, body: str) -> AdminEnquiry:
+    """Append-only: notes are never edited or deleted (06 §A4)."""
+    row = await load_enquiry(db, id)
+    db.add(EnquiryNote(enquiry_id=row.id, body=body))
+    await db.commit()
     return await _detail(db, await load_enquiry(db, id))
