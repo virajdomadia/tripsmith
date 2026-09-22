@@ -14,7 +14,7 @@ from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
 from app.infra.storage import LOCAL_STORE_DIR, build_store
-from app.middleware import BlankQueryParamsMiddleware, RequestIdMiddleware
+from app.middleware import BlankQueryParamsMiddleware, FreshQueryMiddleware, RequestIdMiddleware
 from app.routers import auth
 from app.routers.admin import destinations as admin_destinations
 from app.routers.cron import pdf_gc
@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_sentry(settings)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
+    app.add_middleware(FreshQueryMiddleware)
 
     install_error_handlers(app)
 
