@@ -130,7 +130,16 @@ def _loaded() -> Select[tuple[Package]]:
 
 
 async def load(db: AsyncSession, id: str) -> Package:
-    pkg = (await db.execute(_loaded().where(Package.id == id))).scalar_one_or_none()
+    """`populate_existing` is load-bearing. Sessions are built with `expire_on_commit=False`
+    (infra/db.py), so an instance already in the identity map keeps the relationships it loaded
+    earlier and a plain re-query silently returns them — a package re-read after its images or
+    its destination changed would answer with the stale set. This forces the refresh.
+    """
+    pkg = (
+        await db.execute(
+            _loaded().where(Package.id == id).execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
     if pkg is None:
         raise ApiError("not_found", NOT_FOUND)
     return pkg
@@ -412,10 +421,120 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     await _replace_children(db, pkg, payload)
     pkg.starting_price_paise = recompute_starting_price(pkg, today=dt.date.today())
     await _commit_or_conflict(db)
-    # `destination` was eager-loaded before the move; expire so the reload re-reads it.
-    db.expire(pkg)
     out = await to_admin(db, await load(db, id))
     await revalidate(
         revalidate_tags(out.slug, out.destination.slug, old_slug, old_destination_slug)
     )
     return out
+
+
+async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminPackage:
+    """Going live runs the four rules; unpublishing is always allowed (06 §C4)."""
+    pkg = await load(db, id)
+    if status is PackageStatus.LIVE:
+        rules = publish_rules(pkg, image_count=len(pkg.images), today=dt.date.today())
+        failed = [r for r in rules if not r.ok]
+        if failed:
+            raise ApiError(
+                "conflict",
+                "This package is not ready to go live yet",
+                field_errors={r.key: r.label for r in failed},
+            )
+    pkg.status = status
+    await db.commit()
+    out = await to_admin(db, await load(db, id))
+    await revalidate(revalidate_tags(out.slug, out.destination.slug))
+    return out
+
+
+async def _free_copy_slug(db: AsyncSession, slug: str) -> str:
+    """`<slug>-copy`, then `-copy-2`, `-copy-3` — duplicating twice is normal."""
+    base = f"{slug}-copy"
+    candidate, n = base, 1
+    while (
+        await db.execute(select(Package.id).where(Package.slug == candidate))
+    ).scalar_one_or_none() is not None:
+        n += 1
+        candidate = f"{base}-{n}"
+        if n > 50:
+            raise ApiError("conflict", "Too many copies of this package already exist")
+    return candidate
+
+
+async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
+    """Deep copy as a draft. Image rows are copied but the Blob URLs are shared — the bytes are
+    identical, and re-uploading them would only cost storage."""
+    source = await load(db, id)
+    copy = Package(
+        slug=await _free_copy_slug(db, source.slug),
+        destination_id=source.destination_id,
+        name=f"{source.name} (copy)",
+        summary=source.summary,
+        themes=list(source.themes),
+        nights=source.nights,
+        days=source.days,
+        departure_city=source.departure_city,
+        highlights=list(source.highlights),
+        inclusions=list(source.inclusions),
+        exclusions=list(source.exclusions),
+        hotels=list(source.hotels),
+        faq=list(source.faq),
+        status=PackageStatus.DRAFT,
+        featured=False,
+        starting_price_paise=source.starting_price_paise,
+    )
+    copy.itinerary = [
+        ItineraryDay(
+            day_no=d.day_no,
+            title=d.title,
+            description=d.description,
+            meal_b=d.meal_b,
+            meal_l=d.meal_l,
+            meal_d=d.meal_d,
+            stay=d.stay,
+        )
+        for d in source.itinerary
+    ]
+    copy.departures = [
+        Departure(
+            date=d.date,
+            seats_total=d.seats_total,
+            guaranteed=d.guaranteed,
+            price_double_paise=d.price_double_paise,
+            price_triple_paise=d.price_triple_paise,
+            price_child_paise=d.price_child_paise,
+            single_supplement_paise=d.single_supplement_paise,
+        )
+        for d in source.departures
+    ]
+    # Keep the source order so the cover can be found again by position after the flush.
+    source_images = sorted(source.images, key=lambda i: i.position)
+    cover_position = next(
+        (i.position for i in source_images if i.id == source.cover_image_id), None
+    )
+    copy.images = [
+        PackageImage(url=i.url, alt=i.alt, width=i.width, height=i.height, position=i.position)
+        for i in source_images
+    ]
+    db.add(copy)
+    await db.flush()  # ids for the copied image rows, so the cover can point at one
+    if cover_position is not None:
+        copy.cover_image_id = next(i.id for i in copy.images if i.position == cover_position)
+    await _commit_or_conflict(db)
+    out = await to_admin(db, await load(db, copy.id))
+    await revalidate(revalidate_tags(out.slug, out.destination.slug))
+    return out
+
+
+async def delete_package(db: AsyncSession, id: str) -> None:
+    """`enquiries.package_id` is ON DELETE SET NULL, so the guard has to live here (06 §C4):
+    an enquiry that silently lost its package is worse than a refused delete."""
+    pkg = await load(db, id)
+    count = await _enquiry_count(db, id)
+    if count:
+        noun = "enquiry references" if count == 1 else "enquiries reference"
+        raise ApiError("conflict", f"{count} {noun} this package — it cannot be deleted")
+    slug, destination_slug = pkg.slug, pkg.destination.slug
+    await db.delete(pkg)
+    await db.commit()
+    await revalidate(revalidate_tags(slug, destination_slug))

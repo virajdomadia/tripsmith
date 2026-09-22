@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -546,3 +546,132 @@ async def test_swapping_two_departure_dates_reports_the_dates_not_the_slug(
         )
     assert exc.value.code == "conflict"
     assert exc.value.field_errors == {"departures": svc.DUPLICATE_DEPARTURE}
+
+
+# --- status / duplicate / delete --------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_publishing_is_blocked_until_every_rule_passes(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    draft = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    revalidated.calls.clear()
+
+    with pytest.raises(ApiError) as exc:
+        await svc.set_status(db, draft.id, PackageStatus.LIVE)
+    assert exc.value.code == "conflict"
+    assert exc.value.field_errors == {"images": "At least one photo"}
+    assert revalidated.calls == []
+
+    db.add(
+        PackageImage(package_id=draft.id, url="https://blob.test/a.jpg", width=1600, height=1000)
+    )
+    await db.commit()
+    live = await svc.set_status(db, draft.id, PackageStatus.LIVE)
+    assert live.status is PackageStatus.LIVE
+    assert revalidated.calls == [
+        ["packages", "destinations", "home", "package:konkan-coast", "destination:goa"]
+    ]
+
+
+@pytest.mark.db
+async def test_unpublishing_is_always_allowed(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    out = await svc.set_status(db, pkg.id, PackageStatus.DRAFT)
+    assert out.status is PackageStatus.DRAFT
+    assert revalidated.calls
+
+
+@pytest.mark.db
+async def test_setting_the_status_it_already_has_is_a_no_op_that_still_revalidates(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    out = await svc.set_status(db, pkg.id, PackageStatus.LIVE)
+    assert out.status is PackageStatus.LIVE
+    assert revalidated.calls
+
+
+@pytest.mark.db
+async def test_duplicate_deep_copies_everything_as_a_draft(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    source = await package_by_slug(db, "north-goa-beaches")
+    original = await svc.get_package(db, source.id)
+    revalidated.calls.clear()
+
+    copy = await svc.duplicate_package(db, source.id)
+    assert copy.id != original.id
+    assert copy.slug == "north-goa-beaches-copy"
+    assert copy.name == "North Goa Beaches (copy)"
+    assert copy.status is PackageStatus.DRAFT
+    assert len(copy.itinerary) == len(original.itinerary)
+    assert len(copy.departures) == len(original.departures)
+    assert {d.id for d in copy.departures}.isdisjoint({d.id for d in original.departures})
+    assert [i.url for i in copy.images] == [i.url for i in original.images], (
+        "same blobs, no re-upload"
+    )
+    assert {i.id for i in copy.images}.isdisjoint({i.id for i in original.images})
+    assert copy.cover_image_id in {i.id for i in copy.images}, "cover remapped to the copy"
+    assert copy.hotels == original.hotels and copy.faq == original.faq
+    assert copy.starting_price_paise == original.starting_price_paise
+
+    again = await svc.duplicate_package(db, source.id)
+    assert again.slug == "north-goa-beaches-copy-2"
+
+
+@pytest.mark.db
+async def test_delete_is_blocked_while_enquiries_reference_the_package(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    db.add(
+        Enquiry(
+            ref="TS-DEL001",
+            type=EnquiryType.STANDARD,
+            name="Asha",
+            phone="9845000000",
+            email="asha@example.com",
+            adults=2,
+            children=0,
+            status=EnquiryStatus.NEW,
+            email_status=EmailStatus.SKIPPED,
+            package_id=pkg.id,
+        )
+    )
+    await db.commit()
+    revalidated.calls.clear()
+
+    with pytest.raises(ApiError) as exc:
+        await svc.delete_package(db, pkg.id)
+    assert exc.value.code == "conflict"
+    assert exc.value.message == "1 enquiry references this package — it cannot be deleted"
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_delete_removes_the_package_and_its_children(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    draft = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    revalidated.calls.clear()
+
+    await svc.delete_package(db, draft.id)
+    with pytest.raises(ApiError):
+        await svc.get_package(db, draft.id)
+    left = (
+        await db.execute(select(func.count(Departure.id)).where(Departure.package_id == draft.id))
+    ).scalar_one()
+    assert left == 0, "ON DELETE CASCADE takes the departures with it"
+    assert revalidated.calls == [
+        ["packages", "destinations", "home", "package:konkan-coast", "destination:goa"]
+    ]
