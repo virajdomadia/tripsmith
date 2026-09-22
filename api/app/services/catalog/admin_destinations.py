@@ -1,6 +1,7 @@
 """Owner-side destination CRUD (F17, 06 §A3). Every write revalidates the public pages."""
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -74,6 +75,16 @@ async def _assert_slug_free(db: AsyncSession, slug: str, *, except_id: str | Non
         raise ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG})
 
 
+async def _commit_or_conflict(db: AsyncSession) -> None:
+    """`_assert_slug_free` gives the friendly error on the common path; this is the safety net
+    for a concurrent insert/update that wins the race and hits the DB `unique` constraint."""
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG}) from None
+
+
 def _apply(row: Destination, payload: DestinationInput) -> None:
     row.slug = payload.slug
     row.name = payload.name
@@ -90,7 +101,7 @@ async def create_destination(db: AsyncSession, payload: DestinationInput) -> Adm
     row = Destination()
     _apply(row, payload)
     db.add(row)
-    await db.commit()
+    await _commit_or_conflict(db)
     await db.refresh(row)
     await revalidate(revalidate_tags(row.slug))
     return _to_admin(row, 0, 0)
@@ -103,7 +114,7 @@ async def update_destination(
     await _assert_slug_free(db, payload.slug, except_id=id)
     old_slug = row.slug
     _apply(row, payload)
-    await db.commit()
+    await _commit_or_conflict(db)
     await db.refresh(row)
     await revalidate(revalidate_tags(row.slug, old_slug))
     return _to_admin(row, total, live)

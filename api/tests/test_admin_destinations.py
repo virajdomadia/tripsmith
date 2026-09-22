@@ -1,6 +1,7 @@
 """F17 destination CRUD: service + `/admin/destinations` routes (06 §A3, §C-REST)."""
 
 from collections.abc import Sequence
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
@@ -8,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.models import Destination
+from app.models import Destination, Package
 from app.schemas.catalog import DestinationInput
 from app.services.catalog import admin_destinations as svc
 from scripts.seed import seed
@@ -66,6 +67,14 @@ def test_input_normalises_months_and_rejects_bad_slugs() -> None:
         payload(intro="short")
 
 
+def test_input_strips_before_checking_length() -> None:
+    assert payload(name="  Kerala  ").name == "Kerala"
+    padded_tagline = " " + "x" * 80 + " "
+    assert payload(tagline=padded_tagline).tagline == "x" * 80
+    with pytest.raises(ValidationError):
+        payload(name="   ")
+
+
 # --- service --------------------------------------------------------------------------------------
 
 
@@ -89,6 +98,21 @@ async def test_create_rejects_a_duplicate_slug(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
     await seed(db, fixture_content(), RecordingStore(), make_settings())
+    with pytest.raises(ApiError) as exc:
+        await svc.create_destination(db, payload(slug="goa"))
+    assert exc.value.code == "conflict" and exc.value.field_errors == {
+        "slug": "A destination with this slug already exists"
+    }
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_create_maps_a_concurrent_duplicate_slug_to_conflict(
+    db: AsyncSession, revalidated: RecordingRevalidate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bypasses the pre-check to prove the `IntegrityError` safety net, not `_assert_slug_free`."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    monkeypatch.setattr(svc, "_assert_slug_free", AsyncMock(return_value=None))
     with pytest.raises(ApiError) as exc:
         await svc.create_destination(db, payload(slug="goa"))
     assert exc.value.code == "conflict" and exc.value.field_errors == {
@@ -130,3 +154,25 @@ async def test_delete_is_blocked_while_packages_exist(
         await svc.get_destination(db, kerala.id)
     assert [r.slug for r in await svc.list_destinations(db)] == ["goa"]
     assert revalidated.calls == [["destinations", "packages", "home", "destination:kerala"]]
+
+
+@pytest.mark.db
+async def test_delete_is_blocked_with_the_singular_noun_for_one_package(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    kerala = await svc.create_destination(db, payload())
+    db.add(
+        Package(
+            slug="kerala-solo-package",
+            destination_id=kerala.id,
+            name="Kerala solo package",
+            summary="One package to trip the singular-noun branch",
+            nights=1,
+            days=2,
+        )
+    )
+    await db.commit()
+    with pytest.raises(ApiError) as exc:
+        await svc.delete_destination(db, kerala.id)
+    assert exc.value.message == "1 package uses this destination — delete or move them first"

@@ -245,10 +245,10 @@ class DestinationInput(ApiModel):
     best_months: list[Annotated[int, Field(ge=1, le=12)]] = Field(min_length=1, max_length=12)
     position: int = Field(ge=0, le=999, default=0)
 
-    @field_validator("name", "tagline", "intro", "region")
+    @field_validator("name", "tagline", "intro", "region", mode="before")
     @classmethod
-    def _strip(cls, v: str) -> str:
-        return v.strip()
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
 
     @field_validator("best_months")
     @classmethod
