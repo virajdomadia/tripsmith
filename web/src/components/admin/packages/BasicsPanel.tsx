@@ -10,14 +10,8 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { NativeSelect } from '@/components/admin/NativeSelect';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { THEMES, type PackageFieldValues } from '@/lib/admin/package-schema';
@@ -101,20 +95,16 @@ export function BasicsPanel({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Destination</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pick a destination" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
+              <FormControl>
+                <NativeSelect {...field}>
+                  {!field.value && <option value="">Pick a destination</option>}
                   {destinations.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
+                    <option key={d.id} value={d.id}>
                       {d.name}
-                    </SelectItem>
+                    </option>
                   ))}
-                </SelectContent>
-              </Select>
+                </NativeSelect>
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

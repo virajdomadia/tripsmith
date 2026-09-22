@@ -25,8 +25,12 @@ export const MONTHS = [
   'Dec',
 ];
 
-/** Parse an ISO date as a calendar day (UTC), so the server's timezone never shifts it. */
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
+/**
+ * Parse an ISO date as a calendar day (UTC), so the server's timezone never shifts it.
+ * Accepts a full timestamp too (`updatedAt`), taking its date part — concatenating
+ * `T00:00:00Z` onto one would otherwise produce an Invalid Date that renders as "NaN".
+ */
+const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
 
 /** `2026-11-20` → `Fri 20 Nov 2026` */
 export function formatDate(iso: string) {

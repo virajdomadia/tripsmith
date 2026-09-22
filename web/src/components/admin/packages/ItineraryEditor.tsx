@@ -168,7 +168,15 @@ export function ItineraryEditor() {
 
       {fields.length === 0 && <p className="text-sm text-mute">No days yet — add the first one.</p>}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      {/* A stable `id`: dnd-kit numbers its aria-describedby nodes from a global counter, so
+          without one the server and client render different ids and React reports a
+          hydration mismatch. */}
+      <DndContext
+        id="itinerary-days"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
         <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
           <div className="grid gap-2">
             {fields.map((row, i) => (

@@ -193,9 +193,16 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
         </p>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        id="package-gallery"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
         <SortableContext items={shown.map((i) => i.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {/* Two columns, full stop: this panel lives in a 320 px sidebar, so viewport
+              breakpoints would widen the grid while the column stayed narrow. */}
+          <div className="grid grid-cols-2 gap-3">
             {shown.map((image, i) => (
               <Tile
                 key={image.id}

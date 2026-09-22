@@ -4,14 +4,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { NativeSelect } from '@/components/admin/NativeSelect';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type { PackageFieldValues } from '@/lib/admin/package-schema';
 
 const STARS = [1, 2, 3, 4, 5];
@@ -72,23 +66,21 @@ export function HotelsEditor() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Stars</FormLabel>
-                  <Select
-                    value={String(field.value ?? '')}
-                    onValueChange={(v) => field.onChange(Number(v))}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="—" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {STARS.map((s) => (
-                        <SelectItem key={s} value={String(s)}>
-                          {s}
-                        </SelectItem>
+                  <FormControl>
+                    <NativeSelect
+                      name={field.name}
+                      ref={field.ref}
+                      onBlur={field.onBlur}
+                      value={String(field.value ?? '')}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    >
+                      {STARS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </NativeSelect>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
