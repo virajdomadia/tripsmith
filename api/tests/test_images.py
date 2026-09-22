@@ -75,3 +75,43 @@ def test_pillows_decompression_bomb_error_is_mapped_to_the_megapixels_message(
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)
     with pytest.raises(ImageError, match="megapixels"):
         prepare_image(png(100, 100), "image/png")
+
+
+def test_mpo_jpegs_from_a_phone_are_accepted_as_plain_jpegs() -> None:
+    # A phone's depth-map/3D JPEG: Pillow decodes it as a multi-frame MPO container, but it's
+    # a genuine `image/jpeg` upload — refusing it would reject real camera photos. Write a real
+    # 2-frame MPO (Pillow >= 9.3) rather than faking `.format`, so this exercises the actual
+    # decode path.
+    buf = io.BytesIO()
+    first = Image.new("RGB", (200, 100), (20, 80, 200))
+    second = Image.new("RGB", (200, 100), (200, 80, 20))
+    first.save(buf, format="MPO", save_all=True, append_images=[second])
+    written = Image.open(io.BytesIO(buf.getvalue()))
+    assert written.format == "MPO"  # confirms Pillow actually wrote MPO, not plain JPEG
+
+    out = prepare_image(buf.getvalue(), "image/jpeg")
+    assert (out.ext, out.content_type) == ("jpg", "image/jpeg")
+    assert Image.open(io.BytesIO(out.data)).format == "JPEG"
+
+
+def test_icc_profile_survives_the_reencode() -> None:
+    # Any bytes work here — Pillow's JPEG writer doesn't validate the profile, it just embeds
+    # whatever is passed as the `icc_profile` chunk.
+    buf = io.BytesIO()
+    im = Image.new("RGB", (300, 200), (20, 80, 200))
+    im.save(buf, format="JPEG", icc_profile=b"fakeprofile-bytes")
+    out = prepare_image(buf.getvalue(), "image/jpeg")
+    assert Image.open(io.BytesIO(out.data)).info.get("icc_profile") == b"fakeprofile-bytes"
+
+
+def test_icc_profile_survives_exif_transpose_and_reencode() -> None:
+    # The rotate path replaces `im` with a new Image from `exif_transpose`; make sure the ICC
+    # profile captured before that swap still makes it into the final save.
+    buf = io.BytesIO()
+    im = Image.new("RGB", (200, 100), (20, 80, 200))
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90 CW to display upright
+    im.save(buf, format="JPEG", exif=exif.tobytes(), icc_profile=b"fakeprofile-bytes")
+    out = prepare_image(buf.getvalue(), "image/jpeg")
+    assert (out.width, out.height) == (100, 200)
+    assert Image.open(io.BytesIO(out.data)).info.get("icc_profile") == b"fakeprofile-bytes"

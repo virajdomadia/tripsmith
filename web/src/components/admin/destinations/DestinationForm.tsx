@@ -130,7 +130,7 @@ export function DestinationForm(props: Props) {
                         field.onChange(e);
                         // Follow the name until the owner edits the slug themselves; after a
                         // failed submit, re-validate so a stale "Required" clears as it fills.
-                        if (!editing && !form.formState.dirtyFields.slug)
+                        if (!editing && !form.getFieldState('slug').isDirty)
                           form.setValue('slug', slugify(e.target.value), {
                             shouldValidate: form.formState.isSubmitted,
                           });

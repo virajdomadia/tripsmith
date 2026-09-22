@@ -48,8 +48,14 @@ def prepare_image(data: bytes, content_type: str) -> PreparedImage:
     except (UnidentifiedImageError, OSError) as exc:
         raise ImageError("That file is not an image") from exc
     fmt = im.format or ""
+    if fmt == "MPO":
+        # A phone depth-map/3D JPEG: Pillow reports the container format as MPO, but it's a
+        # genuine `image/jpeg` upload. Pillow only ever decodes/re-saves the first frame here
+        # (no `im.seek(1)`), so treating it as JPEG is exactly what a plain JPEG upload gets.
+        fmt = "JPEG"
     if fmt not in _FORMAT_TO_TYPE:
         raise ImageError("Upload a JPG, PNG or WEBP image")
+    icc_profile = im.info.get("icc_profile")
     # `exif_transpose` bakes the EXIF `Orientation` tag into the pixels and strips it, so a
     # phone-shot portrait photo (landscape buffer + Orientation) isn't served sideways. It
     # returns a new Image (format reset to None — already captured as `fmt` above), or the
@@ -65,7 +71,12 @@ def prepare_image(data: bytes, content_type: str) -> PreparedImage:
         else:
             im = im.resize((round(width * MAX_SIDE / height), MAX_SIDE), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
-    im.save(buf, format=fmt, **_SAVE_KWARGS[fmt])
+    save_kwargs = dict(_SAVE_KWARGS[fmt])
+    if icc_profile is not None:
+        # Keep a Display P3 (or other embedded) profile through the re-encode; Pillow's
+        # JPEG/PNG/WEBP writers only look at this kwarg when it's actually present.
+        save_kwargs["icc_profile"] = icc_profile
+    im.save(buf, format=fmt, **save_kwargs)
     real_type = _FORMAT_TO_TYPE[fmt]
     return PreparedImage(
         data=buf.getvalue(),
