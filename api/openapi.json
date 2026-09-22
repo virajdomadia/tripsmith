@@ -375,7 +375,7 @@
           },
           "coverUrl": {
             "maxLength": 1000,
-            "pattern": "^https?://\\S+$",
+            "pattern": "^(https://[a-z0-9-]+\\.public\\.blob\\.vercel-storage\\.com/\\S*|http://localhost(:\\d+)?/\\S*)$",
             "title": "Coverurl",
             "type": "string"
           },

@@ -30,7 +30,7 @@ def payload(**overrides: object) -> DestinationInput:
         "name": "Kerala",
         "tagline": "Backwaters and tea hills",
         "intro": INTRO,
-        "coverUrl": "https://blob.test/destinations/uploads/k.jpg",
+        "coverUrl": "https://89fzkazlv3xxpipg.public.blob.vercel-storage.com/destinations/uploads/k.jpg",
         "region": "South India",
         "bestMonths": [10, 11, 12, 1],
         "position": 2,
@@ -70,6 +70,21 @@ def test_input_normalises_months_and_rejects_bad_slugs() -> None:
         payload(coverUrl="not-a-url")
     with pytest.raises(ValidationError):
         payload(intro="short")
+
+
+def test_cover_url_accepts_only_hosts_next_image_can_render() -> None:
+    # web/next.config.ts `images.remotePatterns`: prod Blob storage, and (dev only) the
+    # `http://localhost` origin scripts/seed.py --local writes.
+    assert payload(
+        coverUrl="https://89fzkazlv3xxpipg.public.blob.vercel-storage.com/destinations/uploads/k.jpg"
+    )
+    assert payload(coverUrl="http://localhost:8001/seed-photos/destinations/goa/x.jpg")
+    with pytest.raises(ValidationError):
+        payload(coverUrl="https://evil.example/x.jpg")
+    with pytest.raises(ValidationError):
+        payload(coverUrl="https://blob.test/x.jpg")
+    with pytest.raises(ValidationError):
+        payload(coverUrl="http://localhost")
 
 
 def test_input_strips_before_checking_length() -> None:
@@ -124,6 +139,24 @@ async def test_create_maps_a_concurrent_duplicate_slug_to_conflict(
         "slug": "A destination with this slug already exists"
     }
     assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_update_maps_a_concurrent_duplicate_slug_to_conflict(
+    db: AsyncSession, revalidated: RecordingRevalidate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`update_destination` shares `_commit_or_conflict` with `create_destination`; bypass the
+    pre-check so the write hits the DB unique constraint, and prove the rollback it triggers
+    leaves the session usable for a following query."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    kerala = await svc.create_destination(db, payload())
+    revalidated.calls.clear()
+    monkeypatch.setattr(svc, "_assert_slug_free", AsyncMock(return_value=None))
+    with pytest.raises(ApiError) as exc:
+        await svc.update_destination(db, kerala.id, payload(slug="goa"))
+    assert exc.value.code == "conflict" and exc.value.field_errors == {"slug": svc.DUPLICATE_SLUG}
+    assert revalidated.calls == []
+    assert [r.slug for r in await svc.list_destinations(db)] == ["goa", "kerala"]
 
 
 @pytest.mark.db
