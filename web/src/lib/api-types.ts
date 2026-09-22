@@ -749,7 +749,7 @@ export interface components {
         };
         /**
          * SessionInfo
-         * @description What `GET /auth/session` returns; F16 adds the new-enquiry count here.
+         * @description What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16).
          */
         SessionInfo: {
             /**
@@ -757,6 +757,11 @@ export interface components {
              * Format: date-time
              */
             expiresAt: string;
+            /**
+             * Newenquiries
+             * @description Enquiries still in status `new`
+             */
+            newEnquiries: number;
             user: components["schemas"]["SessionUser"];
         };
         /** SessionUser */

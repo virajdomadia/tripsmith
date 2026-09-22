@@ -8,7 +8,7 @@ import logging
 import secrets
 
 import sentry_sdk
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,15 @@ def make_ref() -> str:
 def hash_ip(ip: str) -> str:
     """Abuse tracing without storing addresses (06 A4)."""
     return hashlib.sha256(ip.encode()).hexdigest()[:32]
+
+
+async def count_new_enquiries(db: AsyncSession) -> int:
+    """Rows still in `new` — the sidebar badge (F16); the inbox (F21) filters on the same status."""
+    return (
+        await db.execute(
+            select(func.count()).select_from(Enquiry).where(Enquiry.status == EnquiryStatus.NEW)
+        )
+    ).scalar_one()
 
 
 async def _live_package(db: AsyncSession, slug: str) -> Package:
