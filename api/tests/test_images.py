@@ -33,6 +33,17 @@ def test_large_images_are_resized_to_the_longest_side() -> None:
     assert (out.width, out.height) == (MAX_SIDE, 500)
 
 
+def test_exif_orientation_is_applied_and_stripped() -> None:
+    buf = io.BytesIO()
+    im = Image.new("RGB", (200, 100), (20, 80, 200))
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90 CW to display upright
+    im.save(buf, format="JPEG", exif=exif.tobytes())
+    out = prepare_image(buf.getvalue(), "image/jpeg")
+    assert (out.width, out.height) == (100, 200)
+    assert Image.open(io.BytesIO(out.data)).getexif().get(0x0112) in (None, 1)
+
+
 def test_rejects_wrong_type_size_and_garbage() -> None:
     with pytest.raises(ImageError, match="JPG, PNG or WEBP"):
         prepare_image(png(10, 10), "image/gif")

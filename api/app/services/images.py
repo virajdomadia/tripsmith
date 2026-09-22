@@ -6,7 +6,7 @@ Pure and synchronous — call it via `asyncio.to_thread` from a request.
 import io
 from dataclasses import dataclass
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 MAX_BYTES = 4 * 1024 * 1024  # Vercel's function body cap is 4.5 MB
 MAX_SIDE = 2000
@@ -41,6 +41,12 @@ def prepare_image(data: bytes, content_type: str) -> PreparedImage:
     fmt = im.format or ""
     if fmt not in _FORMAT_TO_TYPE:
         raise ImageError("Upload a JPG, PNG or WEBP image")
+    # `exif_transpose` bakes the EXIF `Orientation` tag into the pixels and strips it, so a
+    # phone-shot portrait photo (landscape buffer + Orientation) isn't served sideways. It
+    # returns a new Image (format reset to None — already captured as `fmt` above), or the
+    # original unchanged when there is nothing to rotate; falls back to `im` if a very old
+    # Pillow ever returns None (Pillow >= 9.1 always returns an image).
+    im = ImageOps.exif_transpose(im) or im
     if fmt == "JPEG" and im.mode != "RGB":
         im = im.convert("RGB")
     if max(im.size) > MAX_SIDE:
