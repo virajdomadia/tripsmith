@@ -14,6 +14,7 @@ export function Hero({ facets, trips }: { facets: Facets; trips: number }) {
           alt="A houseboat moored under coconut palms on the Alleppey backwaters, Kerala"
           fill
           priority
+          fetchPriority="high"
           sizes="100vw"
           className="animate-kenburns object-cover object-[50%_70%]"
         />
