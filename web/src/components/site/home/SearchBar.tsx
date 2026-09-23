@@ -15,7 +15,7 @@ const rupees = new Intl.NumberFormat('en-IN');
 
 function Field({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
-    <label className="flex items-center gap-3 rounded-[12px] px-3.5 py-2.5 transition-colors hover:bg-bg2 has-[:focus-visible]:bg-bg2">
+    <label className="flex items-center gap-3 rounded-[12px] px-3.5 py-2.5 transition-colors hover:bg-bg2 has-[:focus-visible]:bg-bg2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-primary">
       <span className="text-primary">{icon}</span>
       <span className="grid min-w-0 flex-1">
         <span className="label-caps">{label}</span>
@@ -25,7 +25,8 @@ function Field({ icon, label, children }: { icon: ReactNode; label: string; chil
   );
 }
 
-const select = 'w-full cursor-pointer truncate bg-transparent font-bold text-ink outline-none';
+const select =
+  'min-h-6 w-full cursor-pointer truncate bg-transparent font-bold text-ink outline-none';
 
 /**
  * S1 search bar. A plain GET form to /packages whose field names are the search query keys, so

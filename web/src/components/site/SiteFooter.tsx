@@ -52,7 +52,7 @@ export async function SiteFooter() {
   const destinations = await destinationLinks();
   const demo = demoCredentials();
   return (
-    <footer className="mt-20 bg-ink pt-12 pb-6 text-sm text-[#b7c0c8]">
+    <footer className="focus-ring-light mt-20 bg-ink pt-12 pb-6 text-sm text-[#b7c0c8]">
       <Container>
         <div className="grid gap-7 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>

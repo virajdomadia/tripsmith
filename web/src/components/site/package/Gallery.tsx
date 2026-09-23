@@ -57,36 +57,50 @@ export function Gallery({ images }: { images: ImageOut[] }) {
     <>
       <div className="mt-2 grid auto-rows-[110px] grid-cols-2 gap-2 sm:auto-rows-[150px] sm:grid-cols-[2fr_1fr_1fr]">
         {grid.map(({ img, index: i }, cell) => (
-          <button
+          /*
+           * The cell, not the button, owns the grid span: the "+N photos" pill sits beside the
+           * button rather than inside it, so it is not text the button's accessible name has to
+           * repeat (WCAG 2.5.3, H3).
+           */
+          <div
             key={img.url}
-            type="button"
-            onClick={() => open(i)}
-            aria-label={`Open photo ${i + 1} of ${images.length}: ${img.alt}`}
-            className={`h-full w-full cursor-zoom-in overflow-hidden rounded-[10px] focus-visible:outline-2 ${
-              cell === 0 ? 'col-span-2 sm:col-span-1 sm:row-span-2' : ''
-            } ${cell >= 3 ? 'hidden sm:block' : ''}`}
+            className={`relative min-w-0 ${cell === 0 ? 'col-span-2 sm:col-span-1 sm:row-span-2' : ''} ${
+              cell >= 3 ? 'hidden sm:block' : ''
+            }`}
           >
-            <Photo
-              src={img.url}
-              alt={img.alt}
-              sizes="(min-width: 640px) 400px, 50vw"
-              className="h-full"
+            <button
+              type="button"
+              onClick={() => open(i)}
+              aria-label={`Open photo ${i + 1} of ${images.length}: ${img.alt}`}
+              className="h-full w-full cursor-zoom-in overflow-hidden rounded-[10px] focus-visible:outline-2"
             >
-              {cell === grid.length - 1 && extraDesktop > 0 && (
-                // Fixed 8px: shadcn's --radius-* redefined rounded-lg to 12px site-wide (globals.css
-                // @theme inline); these counter pills were designed at 8px, so pin the value here.
-                <span className="absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block">
-                  {chip(extraDesktop)}
-                </span>
-              )}
-              {cell === Math.min(grid.length, GRID_MAX_PHONE) - 1 && extraPhone > 0 && (
-                // Fixed 8px — see the comment above the desktop chip.
-                <span className="absolute right-2.5 bottom-2.5 rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:hidden">
-                  {chip(extraPhone)}
-                </span>
-              )}
-            </Photo>
-          </button>
+              <Photo
+                src={img.url}
+                alt={img.alt}
+                sizes="(min-width: 640px) 400px, 50vw"
+                className="h-full"
+              />
+            </button>
+            {cell === grid.length - 1 && extraDesktop > 0 && (
+              // Fixed 8px: shadcn's --radius-* redefined rounded-lg to 12px site-wide (globals.css
+              // @theme inline); these counter pills were designed at 8px, so pin the value here.
+              <span
+                aria-hidden
+                className="pointer-events-none absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block"
+              >
+                {chip(extraDesktop)}
+              </span>
+            )}
+            {cell === Math.min(grid.length, GRID_MAX_PHONE) - 1 && extraPhone > 0 && (
+              // Fixed 8px — see the comment above the desktop chip.
+              <span
+                aria-hidden
+                className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:hidden"
+              >
+                {chip(extraPhone)}
+              </span>
+            )}
+          </div>
         ))}
       </div>
 

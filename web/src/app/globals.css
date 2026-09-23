@@ -22,9 +22,14 @@
   --color-action-ink: #d98f1f;
   --color-ok: #1f7a4d; /* guaranteed */
   --color-ok-soft: #e3f0ea;
-  --color-warn: #b5541e; /* filling fast */
+  --color-warn: #b0501c; /* filling fast — darkened in H3: #b5541e on `--color-warn-soft` was 4.44:1 */
   --color-warn-soft: #fff1dd;
-  --color-wa: #25d366; /* WhatsApp buttons only */
+  /*
+   * WhatsApp green, darkened from the brand's #25d366: white on #25d366 is 1.07:1, which fails
+   * AA on every WhatsApp button (H3). This tint keeps the hue and clears 4.5:1; the buttons keep
+   * the bright brand green in their glow shadow.
+   */
+  --color-wa: #17823f; /* WhatsApp buttons only */
   --color-ink-soft: #b7c0c8; /* admin sidebar on ink (mockup `adm .sb`) */
   --color-ink-line: #2a3944; /* admin sidebar on ink (mockup `adm .sb`) */
 
@@ -114,6 +119,18 @@
   :focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+}
+
+/*
+ * Focus rings on dark or saturated surfaces. The ocean outline is 2.5:1 against the ink footer
+ * and all but invisible on the ocean callback band — both under the 3:1 WCAG 1.4.11 asks of a
+ * focus indicator — so those surfaces opt into a white ring instead (H3).
+ */
+@utility focus-ring-light {
+  &:focus-visible,
+  & :focus-visible {
+    outline-color: var(--color-bg);
   }
 }
 

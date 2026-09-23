@@ -23,7 +23,7 @@ const initials = (name: string) =>
 export function Sidebar({ session }: { session: SessionInfo }) {
   const { user, newEnquiries } = session;
   return (
-    <aside className="flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
+    <aside className="focus-ring-light flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
       <Link
         href="/admin"
         className="mb-0 flex items-center gap-2 px-2 text-lg font-extrabold text-white lg:mb-4"

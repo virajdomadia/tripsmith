@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 export const control =
-  'w-full rounded-btn border-[1.5px] border-line bg-bg px-3.5 py-2.5 text-ink outline-none transition-colors placeholder:text-mute/70 focus:border-primary aria-invalid:border-warn';
+  'w-full rounded-btn border-[1.5px] border-line bg-bg px-3.5 py-2.5 text-ink transition-colors placeholder:text-mute/70 focus:border-primary aria-invalid:border-warn';
 
 type Props = { label: string; name: string; error?: string; hint?: string; children: ReactNode };
 

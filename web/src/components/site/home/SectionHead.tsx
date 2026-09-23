@@ -13,7 +13,7 @@ export function SectionHead({ title, sub, href, link }: Props) {
       {href && link && (
         <Link
           href={href}
-          className="whitespace-nowrap font-bold text-primary no-underline hover:underline"
+          className="inline-flex min-h-6 items-center whitespace-nowrap font-bold text-primary no-underline hover:underline"
         >
           {link} →
         </Link>

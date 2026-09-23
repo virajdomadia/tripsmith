@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // The K · Ocean + Marigold tokens locked in S12 (docs/04-ui-mockups.md, design tokens table).
+// `--color-wa` and `--color-warn` were darkened in H3 to clear WCAG AA; contrast.test.ts holds
+// the ratios that forced the move, so neither can drift back.
 const K: Record<string, string> = {
   '--color-bg': '#ffffff',
   '--color-bg2': '#f3f6fc',
@@ -15,8 +17,8 @@ const K: Record<string, string> = {
   '--color-action': '#f2a93b',
   '--color-action-ink': '#d98f1f',
   '--color-ok': '#1f7a4d',
-  '--color-warn': '#b5541e',
-  '--color-wa': '#25d366',
+  '--color-warn': '#b0501c',
+  '--color-wa': '#17823f',
   '--radius-btn': '12px',
   '--radius-card': '18px',
   '--radius-chip': '999px',

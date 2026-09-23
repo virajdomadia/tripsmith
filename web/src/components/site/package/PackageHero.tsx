@@ -9,7 +9,10 @@ type PackageDetail = components['schemas']['PackageDetail'];
 export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
   return (
     <>
-      <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 pt-3.5 text-[13px] text-mute">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 pt-3.5 text-[13px] text-mute [&_a]:inline-flex [&_a]:min-h-6 [&_a]:items-center"
+      >
         <Link href="/" className="hover:text-ink">
           Home
         </Link>

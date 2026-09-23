@@ -4,7 +4,7 @@ import { Phone, WhatsApp } from './icons';
 /** Ocean-gradient band: WhatsApp + phone. The callback form joins it with the enquiry flow (F9). */
 export function CallbackBand() {
   return (
-    <section className="mt-18 grid items-center gap-8 rounded-[22px] bg-[linear-gradient(120deg,var(--color-primary-ink),var(--color-primary))] p-8 text-white md:grid-cols-[1.2fr_1fr] md:p-11">
+    <section className="focus-ring-light mt-18 grid items-center gap-8 rounded-[22px] bg-[linear-gradient(120deg,var(--color-primary-ink),var(--color-primary))] p-8 text-white md:grid-cols-[1.2fr_1fr] md:p-11">
       <div>
         <h2 className="text-[clamp(26px,3vw,36px)]">
           Not sure where to go? Talk to a travel expert.
