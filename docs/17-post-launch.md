@@ -15,7 +15,7 @@ v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the 
 | Rows       | S1–S12, F1–F22, H1–H6 (H5 dropped 2026-09-15; F19 + F20 absorbed into F18)                                                    |
 | Surface    | 12 public pages · 9 admin screens + sign-in · 29 api endpoints (37 operations)                                                |
 | Content    | 6 destinations · 12 packages · 45 departures · 78 CC-licensed photos, all licence-checked                                     |
-| Tests      | 441 pytest · 280 vitest, green in CI on every PR alongside ruff, pyright, eslint, prettier, tsc and a contract-freshness gate |
+| Tests      | 443 pytest · 283 vitest, green in CI on every PR alongside ruff, pyright, eslint, prettier, tsc and a contract-freshness gate |
 
 The acceptance bar for v1 was an owner journey that works end to end without a developer: sign in → change a price → see it on the public page and inside the itinerary PDF. That was met on 2026-09-22 (F18) and re-checked on production.
 
