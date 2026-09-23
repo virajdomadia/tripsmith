@@ -11,7 +11,7 @@ import { cheapest, loadDestination, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { inr, monthRange } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
 
@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: `${d.name} holiday packages — ${trips}${from ? ` from ${inr(from)}` : ''}`,
     description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
-    alternates: { canonical: `${SITE_URL}/destinations/${d.slug}` },
+    alternates: { canonical: absolute(`/destinations/${d.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
     openGraph: { title: d.name, description: d.tagline, type: 'website' },
     twitter: { card: 'summary_large_image' },
@@ -51,7 +51,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function DestinationPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
   const d = await loadDestination(slug);
-  const url = `${SITE_URL}/destinations/${d.slug}`;
+  const url = absolute(`/destinations/${d.slug}`);
   const from = cheapest(d.packages.map((p) => p.startingPricePaise));
   const h2 = 'mb-4 text-[clamp(24px,2.8vw,30px)]';
 

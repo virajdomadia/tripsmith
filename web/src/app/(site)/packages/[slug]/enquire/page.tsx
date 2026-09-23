@@ -8,7 +8,7 @@ import { api, ApiRequestError } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
 type Search = Record<string, string | string[] | undefined>;
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: `Enquire · ${pkg.name}`,
     description: `Ask about ${pkg.name} — a person calls you back within 2 hours, ${BUSINESS.hours}.`,
-    alternates: { canonical: `${SITE_URL}/packages/${pkg.slug}/enquire` },
+    alternates: { canonical: absolute(`/packages/${pkg.slug}/enquire`) },
     robots: { index: false },
   };
 }

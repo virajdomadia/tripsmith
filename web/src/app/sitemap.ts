@@ -1,5 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { api } from '@/lib/api';
+// From the module that defines it, not the `@/lib/api` re-export: `instanceof` has to hold
+// against the class the client actually throws.
+import { ApiRequestError } from '@/lib/api-errors';
 import { POLICY_SLUGS } from '@/lib/policies';
 import { absolute } from '@/lib/seo/site-url';
 
@@ -21,9 +24,12 @@ export const revalidate = 3600;
 
 /**
  * CI builds with no api reachable (the same reason `generateStaticParams` catches), and this
- * route is prerendered, so an unreachable api must degrade to the static pages rather than fail
- * the build. The next revalidation — or an owner save, which purges the tags — fills the
- * catalogue back in.
+ * route is prerendered, so *that* failure has to degrade to the static pages rather than fail
+ * the build.
+ *
+ * Only a connection failure degrades. An api that answers with a status — a 502 during a
+ * background revalidation, say — rethrows on purpose: ISR then keeps serving the last good
+ * sitemap instead of caching a nine-URL stub for the whole hour.
  */
 async function catalogue() {
   try {
@@ -32,6 +38,7 @@ async function catalogue() {
       api('/destinations', { tags: ['destinations'] }),
     ]);
   } catch (err) {
+    if (err instanceof ApiRequestError) throw err;
     console.warn(`sitemap: api unreachable, listing static pages only (${String(err)})`);
     return [{ items: [] }, { items: [] }] as const;
   }

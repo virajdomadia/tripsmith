@@ -13,7 +13,7 @@ import { WhyUs } from '@/components/site/home/WhyUs';
 import { PackageCard } from '@/components/site/PackageCard';
 import { api } from '@/lib/api';
 import { siteJsonLd } from '@/lib/seo/site-jsonld';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute, SITE_URL } from '@/lib/seo/site-url';
 
 /** Like /destinations: rendered per request (CI builds with no api); fetches cached 1 h + tagged. */
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   title: { absolute: 'Tripsmith · Holidays across India, planned by people who’ve been' },
   description:
     'Short Indian holidays with real departure dates, hotels we have stayed in and per-person prices. Goa, Kerala, Himachal and more — a person calls you back within two hours.',
-  alternates: { canonical: `${SITE_URL}/` },
+  alternates: { canonical: absolute('/') },
 };
 
 const GRID = 'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3';

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { formatUpdated, POLICIES, POLICY_SLUGS, type PolicySlug } from '@/lib/policies';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 import { Container } from '../Container';
 import { PageHead } from '../PageHead';
 
@@ -10,7 +10,7 @@ export function policyMetadata(slug: PolicySlug): Metadata {
   return {
     title: doc.title,
     description: doc.summary,
-    alternates: { canonical: `${SITE_URL}/${slug}` },
+    alternates: { canonical: absolute(`/${slug}`) },
   };
 }
 

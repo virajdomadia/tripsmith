@@ -8,12 +8,14 @@ import { absolute } from '@/lib/seo/site-url';
  * `/admin/*` answers a redirect to the login page and `/api/*` answers JSON. Both are already
  * gated — this is tidiness, not a security control, and nothing secret is named here.
  *
- * `/enquiry/thanks` also carries `robots: noindex` in its own metadata; a confirmation page with
- * an enquiry reference in the query string should never be a search result.
+ * `/enquiry/thanks` is deliberately **not** disallowed. It carries `robots: noindex` in its own
+ * metadata, and a crawler has to fetch a page to read that: disallowing it would leave the URL
+ * eligible for listing (reference number in the query string and all) with no way to learn that
+ * it should be dropped. Crawlable and noindex beats blocked and unknowable.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/api', '/enquiry/thanks'] }],
+    rules: [{ userAgent: '*', allow: '/', disallow: ['/admin', '/api'] }],
     sitemap: absolute('/sitemap.xml'),
   };
 }

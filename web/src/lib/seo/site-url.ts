@@ -5,7 +5,9 @@
  * canonical, an OG image and the sitemap could each have drifted to a different fallback. The
  * variable is `NEXT_PUBLIC_` because the OG routes and the share buttons read it in the browser.
  */
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+// `||`, not `??`: a variable defined as an empty string in the dashboard is as unset as a
+// missing one, and an empty base would make every `new URL()` below throw.
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 /**
  * An absolute URL for a site-relative path — what a canonical, a sitemap entry and JSON-LD all

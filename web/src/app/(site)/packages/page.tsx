@@ -19,7 +19,7 @@ import {
   type SearchQuery,
 } from '@/lib/search';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 type Props = { searchParams: Promise<RawSearchParams> };
 
@@ -34,7 +34,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     description:
       'Every Tripsmith trip with real departure dates and per-person prices. Filter by destination, budget, nights, theme and travel month.',
     // One indexable URL. Filtered views are shareable, but crawlers are pointed at the listing.
-    alternates: { canonical: `${SITE_URL}/packages` },
+    alternates: { canonical: absolute('/packages') },
     robots: isFiltered(query) ? { index: false, follow: true } : undefined,
   };
 }

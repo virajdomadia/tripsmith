@@ -5,7 +5,7 @@ import { Container } from '@/components/site/Container';
 import { DestinationTile } from '@/components/site/destinations/DestinationTile';
 import { api } from '@/lib/api';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 /**
  * Rendered on request like `/packages` (CI builds with no api reachable, and a static page would
@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: 'Destinations',
     description: `${listNames(items.map((d) => d.name))} — every place Tripsmith runs trips to, with how many trips, the best months and the starting price.`,
-    alternates: { canonical: `${SITE_URL}/destinations` },
+    alternates: { canonical: absolute('/destinations') },
   };
 }
 

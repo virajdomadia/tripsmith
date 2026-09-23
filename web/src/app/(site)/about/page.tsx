@@ -9,7 +9,7 @@ import { WhyUs } from '@/components/site/home/WhyUs';
 import { PageHead } from '@/components/site/PageHead';
 import { api } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 /** Like `/`: rendered per request (CI builds with no api); the stats fetch is cached 1 h. */
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: 'About',
   description:
     'Tripsmith is four people in Bengaluru who plan short Indian holidays the way we would for our own families — hotels we have slept in, departures we run, a phone that gets answered.',
-  alternates: { canonical: `${SITE_URL}/about` },
+  alternates: { canonical: absolute('/about') },
 };
 
 export default async function AboutPage() {

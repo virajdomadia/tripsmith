@@ -26,7 +26,7 @@ import { whatsappInterest } from '@/lib/business';
 import { duration, inr } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
-import { SITE_URL } from '@/lib/seo/site-url';
+import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
 
@@ -56,7 +56,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title,
     description: p.summary,
-    alternates: { canonical: `${SITE_URL}/packages/${p.slug}` },
+    alternates: { canonical: absolute(`/packages/${p.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
     openGraph: { title: p.name, description: p.summary, type: 'website' },
     twitter: { card: 'summary_large_image' },
@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function PackagePage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
   const pkg = await loadPackage(slug);
-  const url = `${SITE_URL}/packages/${pkg.slug}`;
+  const url = absolute(`/packages/${pkg.slug}`);
   const faq = faqJsonLd(pkg);
 
   return (
