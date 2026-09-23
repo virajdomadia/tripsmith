@@ -5,6 +5,7 @@
   that submit empty selects validate as "not provided" rather than as bad input.
 - FreshQueryMiddleware: `?fresh=1` forces `Cache-Control: no-store` so the web's tag-revalidated
   reads skip the Vercel edge cache in front of this api (docs/06, cache-header convention).
+- SecurityHeadersMiddleware: the defence-in-depth headers (H4, docs/12).
 """
 
 import re
@@ -102,3 +103,82 @@ class FreshQueryMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_no_store)
+
+
+# --- Security headers (H4) -------------------------------------------------------------------
+#
+# The api is reachable on its own origin as well as through the web's `/api/:path*` rewrite, so
+# it sets these itself rather than inheriting the web's. HSTS is deliberately absent: Vercel
+# already sends `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` on
+# every response from both projects (verified on production in H4) and a second copy from here
+# would be a duplicate header, not a stronger one. Recorded in docs/12.
+
+# JSON, PDFs, redirects: nothing here is a document that may load anything.
+JSON_CSP = b"default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+# `/docs` is the one HTML response: FastAPI's Swagger UI pulls its bundle and stylesheet from
+# jsdelivr, its favicon from fastapi.tiangolo.com, and boots from an inline <script>. The JSON
+# policy above would render a blank page, so the docs page gets its own — still framed by no one.
+DOCS_CSP = (
+    b"default-src 'self'; "
+    b"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    b"style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    b"img-src 'self' data: https://fastapi.tiangolo.com; "
+    b"font-src 'self' data:; "
+    b"connect-src 'self'; "
+    b"frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+)
+DOCS_PATHS = ("/docs",)
+
+SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
+    (b"x-content-type-options", b"nosniff"),
+    # The api is called by the web's server-side fetch and by the browser through the rewrite;
+    # neither needs a referrer, and enquiry/admin URLs should not leak into anyone's logs.
+    (b"referrer-policy", b"no-referrer"),
+    (b"x-frame-options", b"DENY"),  # for browsers older than `frame-ancestors`
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()"),
+    (b"cross-origin-opener-policy", b"same-origin"),
+)
+
+
+def security_headers(path: str = "") -> dict[str, str]:
+    """The same headers as text, for a response built outside this middleware.
+
+    Starlette's `ServerErrorMiddleware` — which renders the unhandled-exception envelope — sits
+    *outside* every user middleware, so a 500 never passes through the class below.
+    `app.errors.envelope` merges this in instead; the middleware then leaves those keys alone.
+    """
+    csp = DOCS_CSP if path in DOCS_PATHS else JSON_CSP
+    out = {k.decode(): v.decode() for k, v in SECURITY_HEADERS}
+    out["content-security-policy"] = csp.decode()
+    return out
+
+
+class SecurityHeadersMiddleware:
+    """Adds the headers above to every response the middleware stack can reach.
+
+    Pure-ASGI like its neighbours, and header-by-header: the error handlers build their own
+    `JSONResponse` (already carrying `security_headers()`), and a key that is already present is
+    never doubled.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        csp = DOCS_CSP if scope.get("path", "") in DOCS_PATHS else JSON_CSP
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                present = {k.lower() for k, _ in headers}
+                for key, value in (*SECURITY_HEADERS, (b"content-security-policy", csp)):
+                    if key not in present:
+                        headers.append((key, value))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

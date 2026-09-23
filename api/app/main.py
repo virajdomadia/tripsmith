@@ -14,7 +14,12 @@ from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
 from app.infra.storage import LOCAL_STORE_DIR, build_store
-from app.middleware import BlankQueryParamsMiddleware, FreshQueryMiddleware, RequestIdMiddleware
+from app.middleware import (
+    BlankQueryParamsMiddleware,
+    FreshQueryMiddleware,
+    RequestIdMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.routers import auth
 from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
@@ -53,6 +58,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
+    # Added last = outermost, so its headers reach every response the stack below can produce.
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
     app.add_middleware(FreshQueryMiddleware)

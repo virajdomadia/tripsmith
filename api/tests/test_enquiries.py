@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime as dt
+import hashlib
 import re
 
 import pytest
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infra.ratelimit import RateLimitResult
 from app.models import Enquiry
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType
-from app.services.enquiries import make_ref
+from app.services.enquiries import hash_ip, make_ref
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
@@ -427,3 +428,32 @@ async def test_pdf_failure_keeps_the_201_and_the_emails(
     assert len(sender.sent) == 2 and all(m.attachments == () for m in sender.sent)
     row = (await db.execute(select(Enquiry))).scalar_one()
     assert row.email_status == EmailStatus.SENT
+
+
+def test_ip_hash_is_keyed_so_it_cannot_be_reversed_by_enumeration() -> None:
+    """H4: an unsalted digest of an IPv4 address is not an anonymisation.
+
+    There are only ~4.3 billion of them, so a plain sha256 column can be reversed with a table
+    anyone can build in minutes. `SESSION_SECRET` — already provisioned and otherwise unused —
+    keys the digest, so the stored value is only reversible to someone who holds the secret.
+    """
+    keyed = hash_ip("49.207.1.1", secret="the-deployment-secret")
+    assert keyed != hashlib.sha256(b"49.207.1.1").hexdigest()[:32]  # the obvious table
+    assert keyed != hash_ip("49.207.1.1", secret=None)  # and the unkeyed digest of the same input
+    assert keyed == hash_ip("49.207.1.1", secret="the-deployment-secret")  # stable
+    assert keyed != hash_ip("49.207.1.2", secret="the-deployment-secret")
+    assert len(keyed) == 32
+
+
+@pytest.mark.db
+async def test_stored_ip_hash_uses_the_configured_secret(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seeded(db)
+    db_app.state.settings = make_settings(session_secret="pepper")
+    res = await db_client.post(
+        "/enquiries", json=BODY, headers={"X-Forwarded-For": "49.207.1.1"}
+    )
+    assert res.status_code == 201
+    stored = (await db.execute(select(Enquiry.ip_hash))).scalar_one()
+    assert stored == hash_ip("49.207.1.1", secret="pepper")

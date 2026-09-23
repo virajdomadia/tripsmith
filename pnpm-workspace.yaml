@@ -9,3 +9,9 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - '@tailwindcss/oxide'
+
+# H4 (docs/12): `next` still resolves postcss 8.4.31, which carries four advisories — two high
+# (arbitrary .map file read through an attacker-controlled sourceMappingURL) and two moderate.
+# They are build-time only and our CSS is our own, but the fix is a one-line floor, so take it.
+overrides:
+  postcss@<8.5.23: '>=8.5.23'

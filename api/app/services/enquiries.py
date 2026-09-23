@@ -37,9 +37,16 @@ def make_ref() -> str:
     return "TS-" + "".join(secrets.choice(REF_ALPHABET) for _ in range(6))
 
 
-def hash_ip(ip: str) -> str:
-    """Abuse tracing without storing addresses (06 A4)."""
-    return hashlib.sha256(ip.encode()).hexdigest()[:32]
+def hash_ip(ip: str, *, secret: str | None) -> str:
+    """Abuse tracing without storing addresses (06 A4), keyed so it cannot be enumerated (H4).
+
+    IPv4 has ~4.3 billion values, so a plain digest is reversible by anyone who can read the
+    column — it identifies the visitor as surely as the address would. `SESSION_SECRET` (already
+    provisioned, otherwise unused until v2's OTP) keys it instead. Unset, in dev and CI, the
+    digest stays plain: there is nothing there to protect, and the column shape does not change.
+    """
+    key = secret.encode() if secret else b""
+    return hashlib.blake2b(ip.encode(), key=key, digest_size=16).hexdigest()
 
 
 async def count_new_enquiries(db: AsyncSession) -> int:
@@ -99,6 +106,14 @@ async def submit_enquiry(
     ref_of = PackageRef(slug=package.slug, name=package.name) if package else None
     facts = PackageFacts.of(package) if package else None
 
+    # `settings` is optional only because a couple of service-level tests build the call by hand;
+    # every route passes it, so production always keys the hash.
+    session_secret = (
+        settings.session_secret.get_secret_value()
+        if settings is not None and settings.session_secret
+        else None
+    )
+
     if payload.website:
         # A bot filled the honeypot: look successful, keep nothing.
         return EnquiryCreated(ref=make_ref(), first_name=payload.first_name, package=ref_of)
@@ -124,7 +139,7 @@ async def submit_enquiry(
             changes=payload.changes,
             status=EnquiryStatus.NEW,
             email_status=EmailStatus.SKIPPED,
-            ip_hash=hash_ip(ip),
+            ip_hash=hash_ip(ip, secret=session_secret),
             user_agent=(user_agent or "")[:300] or None,
         )
         db.add(enquiry)

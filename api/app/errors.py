@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.infra import observability
+from app.middleware import security_headers
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +76,8 @@ def envelope(
         error["fieldErrors"] = field_errors
     # An error response is never cacheable (04 §Auth / 06 C0); merge with any caller headers
     # (Retry-After, X-Request-Id, …) so every envelope — success or not — carries it.
-    all_headers = {"Cache-Control": "no-store", **(headers or {})}
+    # `security_headers()` because an unhandled 500 is rendered outside the middleware stack (H4).
+    all_headers = {"Cache-Control": "no-store", **security_headers(), **(headers or {})}
     return JSONResponse(
         {"error": error}, status_code=status or STATUS_FOR_CODE[code], headers=all_headers
     )

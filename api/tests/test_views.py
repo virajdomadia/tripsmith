@@ -3,13 +3,14 @@
 import datetime as dt
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import PackageView
 from app.services.analytics import is_bot, ist_today
-from tests.test_enquiries import seeded
+from tests.test_enquiries import CountingLimiter, seeded
 
 PHONE_UA = (
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -102,3 +103,50 @@ async def test_blank_slug_is_a_validation_error(db_client: AsyncClient) -> None:
     res = await db_client.post("/views", json={"slug": ""}, headers={"User-Agent": PHONE_UA})
     assert res.status_code == 400
     assert res.json()["error"]["code"] == "validation"
+
+
+@pytest.mark.db
+async def test_views_are_rate_limited_per_ip(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    """The beacon is the only unauthenticated write with no ceiling (H4, docs/12).
+
+    Over the limit it stays a silent 204 — a beacon the browser fires and forgets has nothing to
+    do with a 429, and answering one would tell a prober where the ceiling is.
+    """
+    await seeded(db)
+    limiter = CountingLimiter(limit=2)
+    db_app.state.rate_limiter = limiter
+    headers = {"User-Agent": PHONE_UA, "X-Forwarded-For": "9.9.9.9"}
+    for _ in range(3):
+        res = await db_client.post("/views", json={"slug": "north-goa-beaches"}, headers=headers)
+        assert res.status_code == 204
+    assert limiter.hits == ["views:9.9.9.9"] * 3
+    (row,) = await rows(db)
+    assert row.count == 2  # the third was dropped
+
+    other = await db_client.post(
+        "/views",
+        json={"slug": "north-goa-beaches"},
+        headers={"User-Agent": PHONE_UA, "X-Forwarded-For": "8.8.8.8"},
+    )
+    assert other.status_code == 204
+    # The row is already in this session's identity map from the read above, and the api updated
+    # it on its own session — expire so the assertion reads the database, not the cached object.
+    db.expire_all()
+    assert (await rows(db))[0].count == 3  # a different address has its own budget
+
+
+@pytest.mark.db
+async def test_bots_never_reach_the_limiter(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    """Crawlers are dropped on the user agent first, so they cost no Upstash quota."""
+    await seeded(db)
+    limiter = CountingLimiter(limit=2)
+    db_app.state.rate_limiter = limiter
+    res = await db_client.post(
+        "/views", json={"slug": "north-goa-beaches"}, headers={"User-Agent": "Googlebot/2.1"}
+    )
+    assert res.status_code == 204
+    assert limiter.hits == []
