@@ -16,7 +16,7 @@ export function PackageCard({ card }: { card: Card }) {
         <Photo
           src={card.coverUrl}
           alt=""
-          sizes="(min-width: 1024px) 400px, 100vw"
+          sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
           className="aspect-[16/10]"
         >
           <Stamp value={card.badge} />
