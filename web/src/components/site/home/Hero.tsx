@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import hero from '@/assets/home/hero.jpg';
 import type { components } from '@/lib/api-types';
 import { SearchBar } from './SearchBar';
 
@@ -10,7 +11,7 @@ export function Hero({ facets, trips }: { facets: Facets; trips: number }) {
     <section aria-labelledby="hero-title">
       <div className="relative h-[560px] overflow-hidden md:h-[620px]">
         <Image
-          src="/home/hero.jpg"
+          src={hero}
           alt="A houseboat moored under coconut palms on the Alleppey backwaters, Kerala"
           fill
           priority

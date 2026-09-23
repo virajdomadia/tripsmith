@@ -1,6 +1,6 @@
-import Image from 'next/image';
+import Image, { type StaticImageData } from 'next/image';
 
-type Pic = { src: string; alt: string };
+type Pic = { src: StaticImageData; alt: string };
 type Stamp = { top: string; big: string; bottom: string };
 
 /** The K motif: a tilted framed photo, a smaller inset, a dashed postmark (S1 about band, S8). */

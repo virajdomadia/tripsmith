@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import aboutOne from '@/assets/home/about-1.jpg';
+import aboutTwo from '@/assets/home/about-2.jpg';
 import type { components } from '@/lib/api-types';
 
 import { Facts } from '../about/Facts';
@@ -17,8 +19,8 @@ export function AboutBand({ stats }: { stats: Stats }) {
   return (
     <section className="mt-18 grid items-center gap-11 md:grid-cols-[1fr_1.1fr]">
       <FramedPhotos
-        main={{ src: '/home/about-1.jpg', alt: 'Tea gardens under cloud at Munnar' }}
-        inset={{ src: '/home/about-2.jpg', alt: 'The Ridge at Shimla' }}
+        main={{ src: aboutOne, alt: 'Tea gardens under cloud at Munnar' }}
+        inset={{ src: aboutTwo, alt: 'The Ridge at Shimla' }}
         stamp={{ top: 'Tripsmith', big: '2026', bottom: 'Bengaluru · India' }}
       />
       <div>
