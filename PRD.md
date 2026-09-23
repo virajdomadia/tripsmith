@@ -1,6 +1,6 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** v1 · lifecycle steps 1–7 complete for v1–v4 (2026-09-12; revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/) · step 8 Project Setup in progress, milestone 1.0 restarting at 1.0.2
+**Status:** **v1 shipped 2026-09-24** — the agency website is live at [tripsmith.vercel.app](https://tripsmith.vercel.app) with milestones 1.0–1.4 closed (lifecycle steps 8–17; review in [docs/17-post-launch.md](docs/17-post-launch.md)). Steps 1–7 were completed for v1–v4 on 2026-09-12 (revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/). Next: **v2 booking engine**, re-entering at step 3.
 **Name:** Tripsmith · *trips planned in a chat*
 **URL:** https://tripsmith.virajdomadia.com
 **Slot:** #1 · Budget ~60 h (v1–v3) + ~6 h v4 · Build first

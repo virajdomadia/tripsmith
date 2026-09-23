@@ -27,3 +27,6 @@ Thumbs.db
 
 # git worktrees
 .worktrees/
+
+# impeccable per-session cache (absolute paths, noise in every diff; config.json stays tracked)
+web/.impeccable/hook.cache.json
