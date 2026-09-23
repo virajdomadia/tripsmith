@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
+import loginCover from '@/assets/auth/login.jpg';
 import { BrandMark } from '@/components/site/BrandMark';
 import { control, Field } from '@/components/site/enquiry/Field';
 import { demoCredentials } from '@/lib/auth/demo';
@@ -38,7 +39,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="grid min-h-dvh lg:grid-cols-2">
       <section className="relative h-[220px] lg:h-auto">
         <Image
-          src="/auth/login.jpg"
+          src={loginCover}
           alt="Pangong lake, Ladakh"
           fill
           priority

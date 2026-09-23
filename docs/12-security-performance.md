@@ -48,24 +48,37 @@ What the traces were good for was three concrete defects:
 **1. Optimized images from `public/` were served with `max-age=0`.** Vercel's image optimizer
 inherits the upstream `Cache-Control` of a file served out of `public/`, which is
 `public, max-age=0, must-revalidate`. Blob-hosted photos came back with `max-age=3600` on the same
-optimizer (observed on the response; `api/app/infra/storage.py` sets no max-age, so that value
-comes from Blob's own default, not from us).
-→ `images.minimumCacheTTL = 86400` in [next.config.ts](../web/next.config.ts).
+optimizer (`api/app/infra/storage.py` sets no max-age, so that value is Blob's own default).
+
+This took **two passes**, and the first one was wrong on production:
+
+- `images.minimumCacheTTL = 86400` in [next.config.ts](../web/next.config.ts) raises the floor for
+  **remote** sources: every Blob photo went `max-age=3600` → `max-age=86400`, confirmed on
+  production. That is most of the images on the site.
+- It did **not** fix a `public/` source. Vercel forwards the upstream `max-age=0` for a
+  same-deployment static asset and the floor does not apply; verified on production against three
+  never-before-requested optimizer keys (`X-Vercel-Cache: MISS`, `Age: 0`, still `max-age=0`).
+  **`next build && next start` does not reproduce this** — Next's own optimizer applies the floor,
+  so a local check reports a fix that Vercel will not honour. Check this one on a deployment.
+- The actual fix is a **static import**. Moving the six files from `web/public/` to
+  `web/src/assets/` and importing them (`import hero from '@/assets/home/hero.jpg'`) makes Next
+  emit a content-hashed `/_next/static/media/hero.<hash>.jpg` served
+  `public, max-age=31536000, immutable`; the optimized variant then inherits
+  `public, max-age=315360000, immutable`.
 
 **Be precise about what this buys**, because the trace is easy to misread. The trace showed the
 hero answering **`304` after a 605 ms round trip** — but a `304` only happens when the response is
 *already* in the browser cache, i.e. on a **repeat** visit. So:
 
 - *Repeat visitor:* was a 605 ms revalidation round trip on Slow 4G before the LCP could paint;
-  now zero network for 24 h. This is the real win and it is large.
-- *First visit* (what Lighthouse grades): the bytes must be downloaded either way. `max-age=0`
-  also expires Vercel's own optimizer cache entry, so a cold request could re-fetch and re-encode
-  the source rather than serve a stored variant — a smaller, origin-side saving.
+  now no network at all. This is the real win and it is large.
+- *First visit* (what Lighthouse grades): the bytes must be downloaded either way. **The home LCP
+  in the table above should therefore be expected to move only modestly, if at all.**
 
-**The home LCP in the table above should therefore be expected to move only modestly, if at all.**
-A day is long enough to cover a session and short enough that a redeployed photo settles within a
-day; the optimizer URL (`/_next/image?url=/home/hero.jpg&…`) is stable across deploys, so a longer
-TTL would strand a changed hero.
+The content hash also removes the staleness trade-off entirely: a replaced photo is a new hash and
+a new URL, so the `immutable` year is free. (That is why the static import beats simply raising the
+TTL on the raw `public/` path — `/home/hero.jpg` has no hash, so a long TTL there would strand a
+changed hero.)
 
 **2. No LCP image carried `fetchpriority="high"`.** Chrome's *LCP request discovery* check failed
 on all three pages. `priority` on `next/image` emits the `<link rel=preload>` in Next 15 but
@@ -104,7 +117,8 @@ render-blocking third party (Sentry and Vercel Analytics both load after paint).
 | `/packages/[slug]` HTML | `public, max-age=0, must-revalidate`, `X-Vercel-Cache: PRERENDER` | **Production.** SSG, 1 h stale time. |
 | `/`, `/destinations`, `/about`, `/contact` HTML | `private, no-cache, no-store` | **Production.** `force-dynamic` — see the ruling. |
 | `/packages` HTML | `private, no-cache, no-store` | **Production.** Dynamic because it awaits `searchParams`, *not* via `force-dynamic`. |
-| optimized images | `public, max-age=86400, must-revalidate` | **Local only** (`next build && next start`, cold optimizer cache: `max-age=0` → `max-age=86400`). Not yet observed on Vercel — this row's change is not deployed at the time of writing. |
+| optimized images, remote (Blob) source | `public, max-age=86400, must-revalidate` | **Production.** `minimumCacheTTL` raised the floor from Blob's `3600`. |
+| optimized images, bundled source | `public, max-age=315360000, immutable` | Inherited from the content-hashed `/_next/static/media/` original. Local build; **re-check on the deployment** — Vercel and `next start` disagree about optimizer cache headers (see finding 1). |
 
 The public-GET row covers every public `GET` in 06 §C-REST — `/health`, `/meta`, `/packages`,
 `/packages/:slug`, `/packages/:slug/departures`, `/packages/:slug/itinerary.pdf`, `/destinations`,
@@ -174,13 +188,14 @@ Owner-uploaded images are safe from the 24 h image TTL — every upload mints a 
 (`packages/{slug}/uploads/{new_id()}.{ext}`), so an edited photo is a new URL and a new optimizer
 key. Two paths do reuse a URL for new bytes:
 
-- the six files under `web/public/` (`home/hero.jpg`, `home/about-{1,2}.jpg`, `about/{beach,lake}.jpg`,
-  `auth/login.jpg`), whose optimizer URLs are stable across deploys;
+- ~~the six files under `web/public/`~~ — resolved: they are static imports under
+  `web/src/assets/` now, so each one's URL carries a content hash;
 - `scripts/seed.py`, which writes `packages/{slug}/{file}.jpg` through a store configured with
   `x-add-random-suffix: 0` and `x-allow-overwrite: 1`.
 
 So replacing a seeded photo in place and re-running `seed.py` against production leaves the old
-optimized image served for up to 24 hours. Rename the file instead, or accept the delay.
+optimized image served for up to 24 hours (the `minimumCacheTTL` floor). Rename the file instead,
+or accept the delay.
 
 ### Not done here
 

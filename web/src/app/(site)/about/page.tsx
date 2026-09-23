@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import beach from '@/assets/about/beach.jpg';
+import lake from '@/assets/about/lake.jpg';
 import { Facts } from '@/components/site/about/Facts';
 import { Team } from '@/components/site/about/Team';
 import { Container } from '@/components/site/Container';
@@ -38,8 +40,8 @@ export default async function AboutPage() {
       />
       <section className="mt-6 grid items-center gap-11 md:grid-cols-[1fr_1.1fr]">
         <FramedPhotos
-          main={{ src: '/about/beach.jpg', alt: 'Radhanagar beach, Havelock' }}
-          inset={{ src: '/about/lake.jpg', alt: 'Pangong Tso, Ladakh' }}
+          main={{ src: beach, alt: 'Radhanagar beach, Havelock' }}
+          inset={{ src: lake, alt: 'Pangong Tso, Ladakh' }}
           stamp={{ top: 'Tripsmith', big: String(BUSINESS.founded), bottom: 'first departure' }}
         />
         <div className="grid max-w-[58ch] gap-4 leading-relaxed text-ink2">
