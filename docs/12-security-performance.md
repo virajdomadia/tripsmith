@@ -263,16 +263,16 @@ that were _not_.
 
 ### The checklist (the row's acceptance bar)
 
-|                                      | Verdict                                  | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CSRF-safe forms                      | **Was already safe, now stated**         | The session cookie is `SameSite=Lax`, so a cross-site `POST` never carries it. On top of that both auth route handlers refuse a post whose `Sec-Fetch-Site` is `cross-site` or `same-site` (`web/src/lib/auth/forward.ts` `isSameOriginPost`). The admin write path is `fetch` + cookie through the same-origin `/api` rewrite. The two anonymous writes (`/enquiries`, `/views`) carry no ambient authority, so CSRF does not apply to them.                         |
-| Security headers                     | **Was missing — added**                  | CSP, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Cross-Origin-Opener-Policy` and `Permissions-Policy` on both origins: `web/next.config.ts` `headers()` and `api/app/middleware.py` `SecurityHeadersMiddleware`. See _Headers_ below.                                                                                                                                                                                                            |
-| HSTS                                 | **Platform-provided, verified**          | Vercel already sends `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` on every response from both projects — checked on production for `tripsmith.vercel.app` and `tripsmith-api.vercel.app`. Setting it again in the app would append a duplicate, not a stronger policy, so it is deliberately absent from both header lists (and a test asserts that).                                                                                    |
-| No secrets client-side               | **Clean, with one deliberate exception** | The only `NEXT_PUBLIC_*` values are the Sentry DSN (public by design), the site URL, the WhatsApp number, and the **demo owner credentials** — the portfolio's sign-in pill, intentional and documented under _Accepted risks_. `API_URL`, `REVALIDATE_SECRET` and every api secret are read on the server only; no client component reads `process.env`.                                                                                                             |
-| Validation on every write            | **Clean**                                | All fifteen write routes take a pydantic model or a validated `UploadFile`; none accepts a free-form `dict`. Uploads are gated on `Content-Length`, then on real bytes, then on decoded pixels (`services/images.py`: 4 MB, jpeg/png/webp, ≤ 40 MP, decompression-bomb guard). Request-validation failures render the `validation` envelope with per-field messages (`api/app/errors.py`).                                                                            |
-| Rate limits verified                 | **Two were right, one was missing**      | `POST /enquiries` 5 / 10 min / IP and `POST /auth/login` 10 / 10 min / IP, both as _router_ dependencies so they run before the body is parsed. `POST /views` had no ceiling at all — the only unauthenticated write without one — and now takes 60 / 10 min / IP behind the bot filter. Real visitor addresses reach the limiter through the web hop via `X-Client-Ip` + `X-Internal-Secret` (`api/app/infra/client_ip.py`), compared with `secrets.compare_digest`. |
-| `require_owner` on every admin route | **Clean**                                | All five admin routers declare it at router level (`dependencies=[Depends(require_owner)]`), so a new route in those files is protected by construction rather than by remembering. The web middleware gate is UX only and says so. `/cron/*` is bearer-checked against `CRON_SECRET` with a timing-safe compare and kept out of the OpenAPI document.                                                                                                                |
-| Dependency audit                     | **Four advisories, all fixed**           | `pnpm audit --prod`: four postcss advisories reaching us through `next` — two high (arbitrary `.map` file read via an attacker-controlled `sourceMappingURL`), two moderate. Pinned with a `pnpm-workspace.yaml` override to `>= 8.5.23`; re-audit is clean and the production build is green. Python: `pip-audit` over the 343-line resolved `uv` lock — no known vulnerabilities.                                                                                   |
+|                                      | Verdict                                  | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSRF-safe forms                      | **Was already safe, now stated**         | The session cookie is `SameSite=Lax`, so a cross-site `POST` never carries it. On top of that both auth route handlers refuse a post whose `Sec-Fetch-Site` is `cross-site` or `same-site` (`web/src/lib/auth/forward.ts` `isSameOriginPost`). The admin write path is `fetch` + cookie through the same-origin `/api` rewrite. The two anonymous writes (`/enquiries`, `/views`) carry no ambient authority, so CSRF does not apply to them.                                                                                                                                                                                                                                                                                                                                                         |
+| Security headers                     | **Was missing — added**                  | CSP, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Cross-Origin-Opener-Policy` and `Permissions-Policy` on both origins: `web/next.config.ts` `headers()` and `api/app/middleware.py` `SecurityHeadersMiddleware`. See _Headers_ below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| HSTS                                 | **Platform-provided, verified**          | Vercel already sends `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` on every response from both projects — checked on production for `tripsmith.vercel.app` and `tripsmith-api.vercel.app`. Setting it again in the app would append a duplicate, not a stronger policy, so it is deliberately absent from both header lists (and a test asserts that).                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| No secrets client-side               | **Clean, with one deliberate exception** | The only `NEXT_PUBLIC_*` values are the Sentry DSN (public by design), the site URL, the WhatsApp number, and the **demo owner credentials** — the portfolio's sign-in pill, intentional and documented under _Accepted risks_. `API_URL`, `REVALIDATE_SECRET` and every api secret are read on the server only; no client component reads `process.env`.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Validation on every write            | **Clean**                                | All fifteen write routes take a pydantic model or a validated `UploadFile`; none accepts a free-form `dict`. Uploads are gated on `Content-Length`, then on real bytes, then on decoded pixels (`services/images.py`: 4 MB, jpeg/png/webp, ≤ 40 MP, decompression-bomb guard). Request-validation failures render the `validation` envelope with per-field messages (`api/app/errors.py`).                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Rate limits verified                 | **Two were right, one was missing**      | `POST /enquiries` 5 / 10 min / IP and `POST /auth/login` 10 / 10 min / IP, both as _router_ dependencies so they run before the body is parsed. `POST /views` had no ceiling at all — the only unauthenticated write without one — and now takes 60 / 10 min / IP behind the bot filter. Real visitor addresses reach the limiter via `X-Client-Ip` + `X-Internal-Secret` (`api/app/infra/client_ip.py`), compared with `secrets.compare_digest` — which is why all three limited endpoints are reached through a **web route handler** rather than the `/api/:path*` rewrite: Vercel rewrites `X-Forwarded-For` to the web function's own egress address on that hop, so a rule keyed off it would bucket every visitor together. H4 added `web/src/app/api/views/route.ts` for exactly that reason. |
+| `require_owner` on every admin route | **Clean**                                | All five admin routers declare it at router level (`dependencies=[Depends(require_owner)]`), so a new route in those files is protected by construction rather than by remembering. The web middleware gate is UX only and says so. `/cron/*` is bearer-checked against `CRON_SECRET` with a timing-safe compare and kept out of the OpenAPI document.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Dependency audit                     | **Four advisories, all fixed**           | `pnpm audit --prod`: four postcss advisories reaching us through `next` — two high (arbitrary `.map` file read via an attacker-controlled `sourceMappingURL`), two moderate. Pinned with a `pnpm-workspace.yaml` override to `>= 8.5.23`; re-audit is clean and the production build is green. Python: `pip-audit` over the 343-line resolved `uv` lock — no known vulnerabilities.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Also checked and found clean, because a checklist that only lists what it fixed is not an audit:
 no raw SQL anywhere (every query goes through SQLAlchemy constructs, so no injection surface);
@@ -293,25 +293,41 @@ Both origins are covered because both are reachable: the browser talks to the we
 
 ```
 Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none';
-  frame-ancestors 'none'; frame-src 'none'; form-action 'self';
+  frame-ancestors 'none'; frame-src https://maps.google.com; form-action 'self';
   script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
-  img-src 'self' data: blob: https://*.public.blob.vercel-storage.com;
+  img-src 'self' data: https://*.public.blob.vercel-storage.com;
   font-src 'self'; connect-src 'self' https://*.sentry.io; upgrade-insecure-requests
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 X-Frame-Options: DENY
 Cross-Origin-Opener-Policy: same-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 ```
+
+Three of those lines are narrower or wider than the obvious default, each for a reason:
+
+- **`frame-src` names Google rather than `'none'`.** The only iframe on the site is the keyless
+  Maps embed on `/contact`; `'none'` blanks it. Both hosts are listed because the embed URL
+  redirects `maps.google.com` → `www.google.com` and a frame navigation is checked again at the
+  redirect target. Drop the map and this tightens to `'none'`.
+- **No `blob:` in `img-src`.** Nothing in the app creates an object URL — the admin uploader posts
+  its `File` straight to the api — so the grant would have been decoration.
+- **No `interest-cohort` in `Permissions-Policy`.** FLoC is gone and browsers log it as an
+  unrecognized feature on every response; a header that prints an error is worse than the absence.
+
+The rule is scoped to `/((?!api/).*)`, i.e. everything the web itself answers. `/api/*` is
+rewritten to the api, which sets its own; matching both would put two CSP headers on one response
+and browsers enforce the intersection — the api's `/docs` would lose its jsdelivr allowance when
+reached through this origin.
 
 `poweredByHeader` is off: `X-Powered-By: Next.js` tells an attacker which advisories to try and
 buys nothing.
 
 **api** (`SecurityHeadersMiddleware`): the same non-CSP headers with `Referrer-Policy: no-referrer`,
 plus `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` — nothing
-the api returns is a document that may load anything. The one exception is `/docs`, whose Swagger
-UI pulls its bundle from jsdelivr and boots from an inline script; it gets its own policy, still
-unframeable. Two implementation notes worth keeping:
+the api returns is a document that may load anything. The exception is `/docs` (and the `/docs/oauth2-redirect` helper mounted beside it,
+unreachable while the api declares no OAuth2 scheme), whose Swagger UI pulls its bundle from
+jsdelivr and boots from an inline script; it gets its own policy, still unframeable. Two implementation notes worth keeping:
 
 - The headers are added in the ASGI send wrapper, not as a route dependency, so they also cover
   the 400/401/404 envelopes that never reach a route function.
@@ -370,8 +386,17 @@ Revisit if v2 adds user-generated content, where the calculus flips.
 4. `api/app/services/enquiries.py` — `hash_ip` is keyed (blake2b with `SESSION_SECRET`, which was
    provisioned and otherwise unused). IPv4 has ~4.3 billion values, so the previous unsalted sha256
    column was reversible by anyone who could read it — it identified the visitor as precisely as
-   the address would have. Unkeyed in dev and CI, where there is nothing to protect.
-5. `pnpm-workspace.yaml` — postcss floor at 8.5.23.
+   the address would have. Unkeyed in dev and CI, where there is nothing to protect — and because
+   that degradation is otherwise silent (nothing else reads `SESSION_SECRET` until v2's OTP),
+   `create_app` logs an ERROR when the variable is missing on a deployment. It **is** set on the
+   production api project, confirmed with `vercel env ls`. Rows written before this change keep
+   their old unkeyed digest and are the same 32 hex characters, so old and new values for the same
+   visitor do not match; nothing is migrated, and nothing in the product compares them.
+5. `web/src/app/api/views/route.ts` — a route handler for the beacon, so the ceiling above is
+   keyed on the visitor and not on the rewrite hop.
+6. `api/app/main.py` — the startup check above; `SecurityHeadersMiddleware` is also added last,
+   which in Starlette means outermost.
+7. `pnpm-workspace.yaml` — postcss floor at 8.5.23.
 
 Tests: `api/tests/test_security_headers.py` (7), the two beacon-limit cases and the two `hash_ip`
 cases in the existing api files, and `web/tests/security-headers.test.ts` (5 — each assertion is a
@@ -381,8 +406,11 @@ than passing quietly).
 ### Verified
 
 - 441 pytest, 280 vitest, ruff/pyright/eslint/prettier/tsc clean, `next build --turbopack` green.
-- Headers read off a local production build (`next start`) for `/`, a package page and
-  `/admin/login`; Chrome's console reported **no CSP violations** on any of them, with photos,
-  fonts, chunks and the GSAP-driven page all loading. The only console errors were the Vercel
-  Analytics script 404ing locally, which exists only on Vercel and is same-origin there.
+- Headers read off a local production build (`next start`), and every public page plus the admin
+  shell walked in Chrome with the console open: **no CSP violations**, photos, fonts, chunks, the
+  GSAP page and the `/contact` map all loading. The only console error is the Vercel Analytics
+  script 404ing locally; it exists only on Vercel and is same-origin there.
+- The first pass of this row shipped `frame-src 'none'`, which blanks the `/contact` map. It was
+  caught in review because the page was not in the first verification set — the reason the set is
+  now every page rather than three of them.
 - HSTS confirmed on production for both origins before deciding not to duplicate it.

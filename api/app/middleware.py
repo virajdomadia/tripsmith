@@ -127,7 +127,11 @@ DOCS_CSP = (
     b"connect-src 'self'; "
     b"frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 )
-DOCS_PATHS = ("/docs",)
+# `/docs` plus the OAuth2 redirect helper FastAPI mounts beside it — also HTML, also booting from
+# an inline script. It is unreachable while the api declares no OAuth2 scheme, but the day one is
+# added the JSON policy would blank it. `/openapi.json` is not here on purpose: Swagger fetches it
+# under the docs page's own `connect-src 'self'`, and the file itself is JSON.
+DOCS_PATHS = ("/docs", "/docs/oauth2-redirect")
 
 SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
     (b"x-content-type-options", b"nosniff"),
@@ -135,7 +139,9 @@ SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
     # neither needs a referrer, and enquiry/admin URLs should not leak into anyone's logs.
     (b"referrer-policy", b"no-referrer"),
     (b"x-frame-options", b"DENY"),  # for browsers older than `frame-ancestors`
-    (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()"),
+    # Same list as web/next.config.ts, minus nothing: kept in step so the two origins answer
+    # alike. `interest-cohort` is left out — FLoC is gone and browsers log it as unrecognized.
+    (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
     (b"cross-origin-opener-policy", b"same-origin"),
 )
 

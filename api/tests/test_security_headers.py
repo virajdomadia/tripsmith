@@ -4,8 +4,13 @@ The api answers on its own origin (`tripsmith-api.vercel.app`), not only through
 `/api/:path*` rewrite, so it carries its own headers rather than relying on the web's.
 """
 
+import logging
+
 import pytest
 from httpx import AsyncClient
+
+from app.main import create_app
+from tests.settings import make_settings
 
 BASELINE = {
     "x-content-type-options": "nosniff",
@@ -46,3 +51,31 @@ async def test_unhandled_500s_carry_the_headers_too(client: AsyncClient) -> None
     assert res.status_code == 500 and res.json()["error"]["code"] == "internal"
     assert res.headers["x-content-type-options"] == "nosniff"
     assert "default-src 'none'" in res.headers["content-security-policy"]
+
+
+def test_missing_session_secret_is_reported_on_a_deployment(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """H4: without `SESSION_SECRET` the enquiry IP hash silently degrades to an unkeyed digest.
+
+    Nothing else reads that variable yet, so a deployment missing it would look perfectly healthy.
+    The api says so at startup instead — at ERROR, so Sentry's logging integration carries it.
+    """
+    monkeypatch.setenv("VERCEL", "1")
+    with caplog.at_level(logging.ERROR):
+        create_app(settings=make_settings(session_secret=None))
+    assert any("SESSION_SECRET" in r.message for r in caplog.records)
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        create_app(settings=make_settings(session_secret="set"))
+    assert not caplog.records
+
+
+def test_local_runs_are_not_nagged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("VERCEL", raising=False)
+    with caplog.at_level(logging.ERROR):
+        create_app(settings=make_settings(session_secret=None))
+    assert not caplog.records

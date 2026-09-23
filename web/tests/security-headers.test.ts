@@ -11,7 +11,9 @@ import nextConfig from '../next.config';
 async function headers(): Promise<Record<string, string>> {
   const groups = await nextConfig.headers!();
   expect(groups).toHaveLength(1);
-  expect(groups[0].source).toBe('/:path*'); // every page, every route handler, no exceptions
+  // Every page and route handler except `/api/*`, which is rewritten to the api and carries the
+  // api's own headers — two CSP headers on one response would be enforced as their intersection.
+  expect(groups[0].source).toBe('/((?!api/).*)');
   return Object.fromEntries(groups[0].headers.map((h) => [h.key.toLowerCase(), h.value]));
 }
 
@@ -42,15 +44,19 @@ describe('security headers', () => {
   it('allows only the origins the site actually loads from', async () => {
     const directives = csp(await headers());
     expect(directives['default-src']).toBe("'self'");
-    // Photos: the optimizer serves same-origin, but the blur placeholder is a data: URI and the
-    // Blob host is listed because an unoptimized <img> would fetch it directly.
+    // Photos are served same-origin by the optimizer; the Blob host is the upstream an image
+    // would be fetched from if one ever bypassed it. Nothing creates object URLs, so no `blob:`.
     expect(directives['img-src']).toContain('https://*.public.blob.vercel-storage.com');
     expect(directives['img-src']).toContain('data:');
+    expect(directives['img-src']).not.toContain('blob:');
     expect(directives['font-src']).toBe("'self'"); // next/font self-hosts DM Sans
     // Sentry's ingest is the only cross-origin request the browser makes; Vercel Analytics posts
     // to /_vercel/insights on this origin.
     expect(directives['connect-src']).toBe("'self' https://*.sentry.io");
-    expect(directives['frame-src']).toBe("'none'");
+    // /contact embeds a keyless Google Maps iframe (components/site/contact/MapEmbed.tsx), so
+    // frame-src cannot be 'none'. Both hosts: the embed URL redirects maps.google.com →
+    // www.google.com and the redirect target is checked again. Dropping the map tightens this.
+    expect(directives['frame-src']).toBe('https://maps.google.com https://www.google.com');
   });
 
   it("keeps 'unsafe-eval' out of the shipped policy", async () => {
@@ -68,6 +74,8 @@ describe('security headers', () => {
     expect(all['referrer-policy']).toBe('strict-origin-when-cross-origin');
     expect(all['cross-origin-opener-policy']).toBe('same-origin');
     expect(all['permissions-policy']).toContain('geolocation=()');
+    // Removed with FLoC; Chrome logs "Unrecognized feature" for it on every response.
+    expect(all['permissions-policy']).not.toContain('interest-cohort');
   });
 
   it('leaves HSTS to the platform and hides the framework banner', async () => {

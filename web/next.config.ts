@@ -24,13 +24,21 @@ const csp = [
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
-  "frame-src 'none'",
+  // The only iframe on the site is the keyless Google Maps embed on /contact
+  // (components/site/contact/MapEmbed.tsx). `'none'` blanks it. Both hosts are needed: the
+  // `maps.google.com/maps?…&output=embed` URL redirects to www.google.com, and a frame
+  // navigation is checked again at the redirect target.
+  'frame-src https://maps.google.com https://www.google.com',
   "form-action 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`, // eval: React Refresh
+  // `unsafe-eval` is React Refresh; va.vercel-scripts.com is the Analytics debug script, which
+  // @vercel/analytics loads only in development (production serves /_vercel/insights from here).
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ''}`,
   "style-src 'self' 'unsafe-inline'", // Tailwind + Next inject <style> elements
-  // Optimized photos are same-origin; `data:` is the blur placeholder, the Blob host covers an
-  // unoptimized <img>, and `blob:` the client-side previews in the admin image uploader.
-  "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
+  // Every photo goes through next/image, so it is served same-origin from /_next/image; the
+  // Blob host is listed because it is the upstream that would be fetched directly if any image
+  // ever bypassed the optimizer, and `data:` covers inline SVG data URIs. No `blob:`: nothing
+  // in the app creates object URLs today, and the uploader posts its File straight through.
+  "img-src 'self' data: https://*.public.blob.vercel-storage.com",
   "font-src 'self'", // next/font self-hosts DM Sans
   // Sentry's ingest is the only cross-origin call from the browser; Vercel Analytics posts to
   // /_vercel/insights on this origin. `ws:` is the dev server's HMR socket.
@@ -46,7 +54,9 @@ const securityHeaders = [
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+    // `interest-cohort` is deliberately absent: FLoC is gone and Chrome logs
+    // "Unrecognized feature" for it on every response.
+    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   },
 ];
 
@@ -71,7 +81,11 @@ const nextConfig: NextConfig = {
   // two image routes, so ship them explicitly (keys are picomatch `contains` on the route path).
   outputFileTracingIncludes: { 'opengraph-image*': ['./src/lib/og/fonts/*.ttf'] },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    // Everything except `/api/*`, which the rewrite below hands to the api — and the api sets its
+    // own headers. Matching both would send two Content-Security-Policy headers on one response,
+    // which browsers enforce as the intersection: the api's `/docs` would lose its jsdelivr
+    // allowance when reached through this origin.
+    return [{ source: '/((?!api/).*)', headers: securityHeaders }];
   },
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];
