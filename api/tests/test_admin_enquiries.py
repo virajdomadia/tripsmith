@@ -3,6 +3,7 @@
 import datetime as dt
 
 import pytest
+from httpx import AsyncClient
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.schemas.admin_enquiries import (
 )
 from app.services import admin_enquiries as svc
 from app.services.email.render import IST
+from tests.test_auth import OWNER_EMAIL, OWNER_PASSWORD, seeded_with_owner, with_cookie
 
 # --- filters --------------------------------------------------------------------------------------
 
@@ -412,3 +414,145 @@ async def test_a_status_change_is_persisted_not_just_returned(db: AsyncSession) 
     stored = await svc.get_enquiry(db, row.id)
     assert stored.status == EnquiryStatus.CLOSED
     assert len(stored.notes) == 1
+
+
+# --- routes ---------------------------------------------------------------------------------------
+
+
+async def owner_headers(db: AsyncSession, client: AsyncClient) -> dict[str, str]:
+    await seeded_with_owner(db)
+    res = await client.post("/auth/login", json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD})
+    assert res.status_code == 200
+    return with_cookie(res.cookies["ts_session"])
+
+
+@pytest.mark.db
+async def test_every_enquiry_route_is_owner_only(db_client: AsyncClient) -> None:
+    for method, path in [
+        ("GET", "/admin/enquiries"),
+        ("GET", "/admin/enquiries.csv"),
+        ("GET", "/admin/enquiries/enq_1"),
+        ("PATCH", "/admin/enquiries/enq_1/status"),
+        ("POST", "/admin/enquiries/enq_1/notes"),
+    ]:
+        res = await db_client.request(method, path, json={})
+        assert res.status_code == 401, path
+        assert res.json()["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.db
+async def test_list_route_answers_with_no_store_and_the_camelcase_contract(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    headers = await owner_headers(db, db_client)
+    pkg = await make_package(db)
+    await make_enquiry(db, ref="TS-ROUT11", package_id=pkg.id)
+    await db.commit()
+
+    res = await db_client.get("/admin/enquiries", headers=headers)
+
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == "no-store"
+    body = res.json()
+    assert body["items"][0]["ref"] == "TS-ROUT11"
+    assert body["items"][0]["package"]["slug"] == "test-goa-beaches"
+    assert body["pageSize"] == 50 and body["totalPages"] == 1
+    assert body["counts"]["new"] == 1
+
+
+@pytest.mark.db
+async def test_list_route_passes_the_query_through(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    headers = await owner_headers(db, db_client)
+    await make_enquiry(db, ref="TS-QRY111", name="Priya Sharma")
+    await make_enquiry(db, ref="TS-QRY222", name="Anirudh S")
+    await db.commit()
+
+    res = await db_client.get("/admin/enquiries?q=priya&status=new&page=1", headers=headers)
+
+    assert [r["ref"] for r in res.json()["items"]] == ["TS-QRY111"]
+
+
+@pytest.mark.db
+async def test_a_blank_filter_is_treated_as_absent(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    """The no-JS GET form submits every control, so `?status=&q=` must not 400."""
+    headers = await owner_headers(db, db_client)
+    await make_enquiry(db, ref="TS-BLNK11")
+    await db.commit()
+
+    res = await db_client.get("/admin/enquiries?status=&type=&q=&from=&to=", headers=headers)
+
+    assert res.status_code == 200 and res.json()["total"] == 1
+
+
+@pytest.mark.db
+async def test_a_backwards_date_range_is_a_field_error(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    headers = await owner_headers(db, db_client)
+    res = await db_client.get("/admin/enquiries?from=2026-09-30&to=2026-09-01", headers=headers)
+    assert res.status_code == 400
+    assert res.json()["error"]["fieldErrors"] == {"to": "must not be before `from`"}
+
+
+@pytest.mark.db
+async def test_detail_status_and_notes_round_trip(db: AsyncSession, db_client: AsyncClient) -> None:
+    headers = await owner_headers(db, db_client)
+    row = await make_enquiry(db, ref="TS-RND111")
+    await db.commit()
+
+    detail = await db_client.get(f"/admin/enquiries/{row.id}", headers=headers)
+    assert detail.status_code == 200 and detail.json()["status"] == "new"
+
+    moved = await db_client.patch(
+        f"/admin/enquiries/{row.id}/status", json={"status": "contacted"}, headers=headers
+    )
+    assert moved.status_code == 200
+    assert moved.json()["status"] == "contacted"
+    assert moved.headers["cache-control"] == "no-store"
+
+    noted = await db_client.post(
+        f"/admin/enquiries/{row.id}/notes", json={"body": "Called back"}, headers=headers
+    )
+    assert noted.status_code == 201
+    assert [n["body"] for n in noted.json()["notes"]] == [
+        "Status changed from New to Contacted",
+        "Called back",
+    ]
+
+
+@pytest.mark.db
+async def test_an_empty_note_is_rejected_under_its_field(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    headers = await owner_headers(db, db_client)
+    row = await make_enquiry(db, ref="TS-EMPT11")
+    await db.commit()
+
+    res = await db_client.post(
+        f"/admin/enquiries/{row.id}/notes", json={"body": "   "}, headers=headers
+    )
+
+    assert res.status_code == 400
+    assert "body" in res.json()["error"]["fieldErrors"]
+
+
+@pytest.mark.db
+async def test_csv_route_is_an_attachment_with_the_right_headers(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    headers = await owner_headers(db, db_client)
+    await make_enquiry(db, ref="TS-DWN111", name="Priya Sharma")
+    await db.commit()
+
+    res = await db_client.get("/admin/enquiries.csv", headers=headers)
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/csv")
+    assert res.headers["cache-control"] == "no-store"
+    assert 'attachment; filename="tripsmith-enquiries-' in res.headers["content-disposition"]
+    assert res.content.startswith(b"\xef\xbb\xbf")  # UTF-8 BOM on the wire
+    assert "TS-DWN111" in res.text

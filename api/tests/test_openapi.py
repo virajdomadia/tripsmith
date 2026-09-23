@@ -57,6 +57,16 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
     assert one_image["patch"]["operationId"] == "updatePackageImage"
     assert one_image["delete"]["operationId"] == "deletePackageImage"
     assert schemas["PackageStatus"]["enum"] == ["draft", "live"]
+    enquiries = doc["paths"]["/admin/enquiries"]
+    assert enquiries["get"]["operationId"] == "listAdminEnquiries"
+    assert doc["paths"]["/admin/enquiries.csv"]["get"]["operationId"] == "exportEnquiriesCsv"
+    one_enquiry = doc["paths"]["/admin/enquiries/{id}"]
+    assert one_enquiry["get"]["operationId"] == "getAdminEnquiry"
+    assert doc["paths"]["/admin/enquiries/{id}/status"]["patch"]["operationId"] == (
+        "setEnquiryStatus"
+    )
+    assert doc["paths"]["/admin/enquiries/{id}/notes"]["post"]["operationId"] == "addEnquiryNote"
+    assert schemas["EnquiryStatus"]["enum"] == ["new", "contacted", "converted", "closed"]
 
 
 def test_rendered_document_is_stable_and_newline_terminated() -> None:

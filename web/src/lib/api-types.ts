@@ -61,6 +61,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminEnquiries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/enquiries.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Route
+         * @description Streamed, never stored: no Blob object to create and no garbage to collect.
+         */
+        get: operations["exportEnquiriesCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/enquiries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getAdminEnquiry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/enquiries/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Note Route
+         * @description 201 with the whole enquiry, not just the note: the client renders the fresh timeline.
+         */
+        post: operations["addEnquiryNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/enquiries/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set Status Route */
+        patch: operations["setEnquiryStatus"];
+        trace?: never;
+    };
     "/admin/packages": {
         parameters: {
             query?: never;
@@ -484,6 +575,71 @@ export interface components {
             /** Items */
             items: components["schemas"]["AdminDestination"][];
         };
+        /**
+         * AdminEnquiry
+         * @description Everything the visitor submitted, plus the timeline (A7).
+         */
+        AdminEnquiry: {
+            /** Adults */
+            adults: number;
+            /**
+             * Budgetpaise
+             * @description Custom enquiries only; per person
+             */
+            budgetPaise: number | null;
+            /**
+             * Changes
+             * @description Custom enquiries only
+             */
+            changes: string | null;
+            /** Children */
+            children: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Device
+             * @description Derived from the user agent; no geo lookup exists
+             * @enum {string}
+             */
+            device: "Mobile" | "Desktop" | "Unknown";
+            /** Email */
+            email: string;
+            emailStatus: components["schemas"]["EmailStatus"];
+            /** Id */
+            id: string;
+            /** Message */
+            message: string | null;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: components["schemas"]["EnquiryNoteOut"][];
+            package: components["schemas"]["EnquiryPackage"] | null;
+            /** Phone */
+            phone: string;
+            /**
+             * Preferreddates
+             * @description Custom enquiries only
+             */
+            preferredDates: string | null;
+            /** Ref */
+            ref: string;
+            /** Related */
+            related: components["schemas"]["RelatedEnquiry"][];
+            status: components["schemas"]["EnquiryStatus"];
+            /** Travelmonth */
+            travelMonth: string | null;
+            type: components["schemas"]["EnquiryType"];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Useragent */
+            userAgent: string | null;
+        };
         /** AdminImage */
         AdminImage: {
             /** Alt */
@@ -811,6 +967,11 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /**
+         * EmailStatus
+         * @enum {string}
+         */
+        EmailStatus: "sent" | "failed" | "skipped";
         /** EnquiryCreate */
         EnquiryCreate: {
             /** Adults */
@@ -868,6 +1029,99 @@ export interface components {
              * @example TS-7F3K2Q
              */
             ref: string;
+        };
+        /** EnquiryList */
+        EnquiryList: {
+            counts: components["schemas"]["StatusCounts"];
+            /** Items */
+            items: components["schemas"]["EnquiryRow"][];
+            /** Page */
+            page: number;
+            /** Pagesize */
+            pageSize: number;
+            /**
+             * Total
+             * @description Rows matching every filter, including status
+             */
+            total: number;
+            /** Totalpages */
+            totalPages: number;
+        };
+        /** EnquiryNoteInput */
+        EnquiryNoteInput: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * EnquiryNoteOut
+         * @description Append-only; no author column in v1 — the UI renders the signed-in owner.
+         */
+        EnquiryNoteOut: {
+            /** Body */
+            body: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+        };
+        /** EnquiryPackage */
+        EnquiryPackage: {
+            /** Coverurl */
+            coverUrl: string | null;
+            /** Days */
+            days: number;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Slug */
+            slug: string;
+            /** Startingpricepaise */
+            startingPricePaise: number;
+            status: components["schemas"]["PackageStatus"];
+        };
+        /**
+         * EnquiryRow
+         * @description One line of the A6 table.
+         */
+        EnquiryRow: {
+            /** Adults */
+            adults: number;
+            /** Children */
+            children: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            package: components["schemas"]["PackageRef"] | null;
+            /** Phone */
+            phone: string;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["EnquiryStatus"];
+            /**
+             * Travelmonth
+             * @description First of the month
+             */
+            travelMonth: string | null;
+            type: components["schemas"]["EnquiryType"];
+        };
+        /**
+         * EnquiryStatus
+         * @enum {string}
+         */
+        EnquiryStatus: "new" | "contacted" | "converted" | "closed";
+        /** EnquiryStatusInput */
+        EnquiryStatusInput: {
+            status: components["schemas"]["EnquiryStatus"];
         };
         /**
          * EnquiryType
@@ -1262,6 +1516,24 @@ export interface components {
             min: number;
         };
         /**
+         * RelatedEnquiry
+         * @description A7's "other enquiries · same phone" panel.
+         */
+        RelatedEnquiry: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+            /** Packagename */
+            packageName: string | null;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["EnquiryStatus"];
+        };
+        /**
          * SearchFacets
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
          */
@@ -1318,6 +1590,23 @@ export interface components {
          * @enum {string}
          */
         SortOrder: "price-asc" | "price-desc" | "duration";
+        /**
+         * StatusCounts
+         * @description Every status counted with the current filters applied **except** `status` itself, so
+         *     "New 3" means new within the view the owner is looking at (A6 tabs).
+         */
+        StatusCounts: {
+            /** All */
+            all: number;
+            /** Closed */
+            closed: number;
+            /** Contacted */
+            contacted: number;
+            /** Converted */
+            converted: number;
+            /** New */
+            new: number;
+        };
         /** TestimonialOut */
         TestimonialOut: {
             /** City */
@@ -1553,6 +1842,189 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminEnquiries: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["EnquiryStatus"] | null;
+                type?: components["schemas"]["EnquiryType"] | null;
+                packageId?: string | null;
+                /** @description Received on or after this IST day */
+                from?: string | null;
+                /** @description Received on or before this IST day */
+                to?: string | null;
+                /** @description Name or phone */
+                q?: string | null;
+                /** @description 1-based; ignored by the CSV */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnquiryList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    exportEnquiriesCsv: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["EnquiryStatus"] | null;
+                type?: components["schemas"]["EnquiryType"] | null;
+                packageId?: string | null;
+                /** @description Received on or after this IST day */
+                from?: string | null;
+                /** @description Received on or before this IST day */
+                to?: string | null;
+                /** @description Name or phone */
+                q?: string | null;
+                /** @description 1-based; ignored by the CSV */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filtered inbox as CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getAdminEnquiry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    addEnquiryNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnquiryNoteInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setEnquiryStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnquiryStatusInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {
