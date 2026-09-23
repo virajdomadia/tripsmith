@@ -118,7 +118,9 @@ def _row(row: Enquiry, package_slug: str | None, package_name: str | None) -> En
     )
 
 
-async def _counts(db: AsyncSession, filters: EnquiryFilters) -> StatusCounts:
+async def status_counts(db: AsyncSession, filters: EnquiryFilters) -> StatusCounts:
+    """The A6 tab counts. Public because F22's dashboard reads the very same query, which
+    is what keeps the two screens reconcilable (R12)."""
     rows = await db.execute(
         _filtered(
             select(Enquiry.status, func.count()).select_from(Enquiry), filters, with_status=False
@@ -164,7 +166,7 @@ async def list_enquiries(db: AsyncSession, filters: EnquiryFilters) -> EnquiryLi
         page_size=PAGE_SIZE,
         total=total,
         total_pages=max(1, math.ceil(total / PAGE_SIZE)),
-        counts=await _counts(db, filters),
+        counts=await status_counts(db, filters),
     )
 
 

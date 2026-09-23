@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard Route
+         * @description Never cached: the owner refreshes this page to see the enquiry that just landed.
+         */
+        get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/destinations": {
         parameters: {
             query?: never;
@@ -800,6 +820,59 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Dashboard */
+        Dashboard: {
+            /**
+             * Awaitingfirstcall
+             * @description Enquiries still at status `new`
+             */
+            awaitingFirstCall: number;
+            byStatus: components["schemas"]["StatusCounts"];
+            /**
+             * Convertedlast30Days
+             * @description Received in that window and now marked converted
+             */
+            convertedLast30Days: number;
+            /**
+             * Enquirieslast30Days
+             * @description Received in the last 30 IST days
+             */
+            enquiriesLast30Days: number;
+            /** Enquirieslastweek */
+            enquiriesLastWeek: number;
+            /** Enquiriesthisweek */
+            enquiriesThisWeek: number;
+            /**
+             * Oldestnewat
+             * @description Null when nothing is waiting
+             */
+            oldestNewAt: string | null;
+            /**
+             * Today
+             * Format: date
+             * @description The IST business day every window below is measured from
+             */
+            today: string;
+            /** Topbyenquiries */
+            topByEnquiries: components["schemas"]["PackageCount"][];
+            /** Topbyviews */
+            topByViews: components["schemas"]["PackageCount"][];
+            /** Upcomingdepartures */
+            upcomingDepartures: components["schemas"]["UpcomingDeparture"][];
+            /** Viewslast7Days */
+            viewsLast7Days: number;
+            /**
+             * Viewsprevious7Days
+             * @description The 7 days before those, for the delta
+             */
+            viewsPrevious7Days: number;
+            /**
+             * Weekstart
+             * Format: date
+             * @description Monday of the current IST week
+             */
+            weekStart: string;
+        };
         /**
          * DepartureInput
          * @description `id` present = update that row; absent = insert. Rows the payload omits are deleted.
@@ -1365,6 +1438,20 @@ export interface components {
             /** Themes */
             themes: components["schemas"]["Theme"][];
         };
+        /**
+         * PackageCount
+         * @description A bar in one of the two top-five lists (A2 `.bars`).
+         */
+        PackageCount: {
+            /** Count */
+            count: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
         /** PackageDetail */
         PackageDetail: {
             cover: components["schemas"]["ImageOut"] | null;
@@ -1636,6 +1723,33 @@ export interface components {
             label: string;
             value: components["schemas"]["Theme"];
         };
+        /** UpcomingDeparture */
+        UpcomingDeparture: {
+            /** @description `pricing.badge_for`, the same rule the public departure table shows */
+            badge: components["schemas"]["Badge"] | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Guaranteed */
+            guaranteed: boolean;
+            /** Id */
+            id: string;
+            /** Packageid */
+            packageId: string;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /**
+             * Seatsleft
+             * @description From the departure_availability view; never stored
+             */
+            seatsLeft: number;
+            /** Seatstotal */
+            seatsTotal: number;
+        };
         /** UploadedImage */
         UploadedImage: {
             /** Height */
@@ -1664,6 +1778,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     listAdminDestinations: {
         parameters: {
             query?: never;
