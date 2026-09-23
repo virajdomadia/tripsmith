@@ -147,6 +147,188 @@
         "title": "AdminDestinationList",
         "type": "object"
       },
+      "AdminEnquiry": {
+        "description": "Everything the visitor submitted, plus the timeline (A7).",
+        "properties": {
+          "adults": {
+            "title": "Adults",
+            "type": "integer"
+          },
+          "budgetPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custom enquiries only; per person",
+            "title": "Budgetpaise"
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custom enquiries only",
+            "title": "Changes"
+          },
+          "children": {
+            "title": "Children",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "device": {
+            "description": "Derived from the user agent; no geo lookup exists",
+            "enum": [
+              "Mobile",
+              "Desktop",
+              "Unknown"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "emailStatus": {
+            "$ref": "#/components/schemas/EmailStatus"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/EnquiryNoteOut"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnquiryPackage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferredDates": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Custom enquiries only",
+            "title": "Preferreddates"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedEnquiry"
+            },
+            "title": "Related",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EnquiryStatus"
+          },
+          "travelMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelmonth"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EnquiryType"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "userAgent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Useragent"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "type",
+          "status",
+          "name",
+          "phone",
+          "email",
+          "travelMonth",
+          "adults",
+          "children",
+          "message",
+          "preferredDates",
+          "budgetPaise",
+          "changes",
+          "package",
+          "emailStatus",
+          "device",
+          "userAgent",
+          "createdAt",
+          "updatedAt",
+          "notes",
+          "related"
+        ],
+        "title": "AdminEnquiry",
+        "type": "object"
+      },
       "AdminImage": {
         "properties": {
           "alt": {
@@ -914,6 +1096,15 @@
         "title": "DestinationRef",
         "type": "object"
       },
+      "EmailStatus": {
+        "enum": [
+          "sent",
+          "failed",
+          "skipped"
+        ],
+        "title": "EmailStatus",
+        "type": "string"
+      },
       "EnquiryCreate": {
         "properties": {
           "adults": {
@@ -1074,6 +1265,237 @@
           "package"
         ],
         "title": "EnquiryCreated",
+        "type": "object"
+      },
+      "EnquiryList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/StatusCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EnquiryRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pageSize": {
+            "title": "Pagesize",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Rows matching every filter, including status",
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 1.0,
+            "title": "Totalpages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages",
+          "counts"
+        ],
+        "title": "EnquiryList",
+        "type": "object"
+      },
+      "EnquiryNoteInput": {
+        "properties": {
+          "body": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "EnquiryNoteInput",
+        "type": "object"
+      },
+      "EnquiryNoteOut": {
+        "description": "Append-only; no author column in v1 — the UI renders the signed-in owner.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "createdAt"
+        ],
+        "title": "EnquiryNoteOut",
+        "type": "object"
+      },
+      "EnquiryPackage": {
+        "properties": {
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "title": "Startingpricepaise",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "nights",
+          "days",
+          "startingPricePaise",
+          "coverUrl",
+          "status"
+        ],
+        "title": "EnquiryPackage",
+        "type": "object"
+      },
+      "EnquiryRow": {
+        "description": "One line of the A6 table.",
+        "properties": {
+          "adults": {
+            "title": "Adults",
+            "type": "integer"
+          },
+          "children": {
+            "title": "Children",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "package": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackageRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EnquiryStatus"
+          },
+          "travelMonth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First of the month",
+            "title": "Travelmonth"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EnquiryType"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "type",
+          "status",
+          "name",
+          "phone",
+          "package",
+          "travelMonth",
+          "adults",
+          "children",
+          "createdAt"
+        ],
+        "title": "EnquiryRow",
+        "type": "object"
+      },
+      "EnquiryStatus": {
+        "enum": [
+          "new",
+          "contacted",
+          "converted",
+          "closed"
+        ],
+        "title": "EnquiryStatus",
+        "type": "string"
+      },
+      "EnquiryStatusInput": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/EnquiryStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "EnquiryStatusInput",
         "type": "object"
       },
       "EnquiryType": {
@@ -2040,6 +2462,47 @@
         "title": "RangeFacet",
         "type": "object"
       },
+      "RelatedEnquiry": {
+        "description": "A7's \"other enquiries · same phone\" panel.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "packageName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packagename"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EnquiryStatus"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "status",
+          "packageName",
+          "createdAt"
+        ],
+        "title": "RelatedEnquiry",
+        "type": "object"
+      },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
         "properties": {
@@ -2147,6 +2610,40 @@
         ],
         "title": "SortOrder",
         "type": "string"
+      },
+      "StatusCounts": {
+        "description": "Every status counted with the current filters applied **except** `status` itself, so\n\"New 3\" means new within the view the owner is looking at (A6 tabs).",
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "closed": {
+            "title": "Closed",
+            "type": "integer"
+          },
+          "contacted": {
+            "title": "Contacted",
+            "type": "integer"
+          },
+          "converted": {
+            "title": "Converted",
+            "type": "integer"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "new",
+          "contacted",
+          "converted",
+          "closed",
+          "all"
+        ],
+        "title": "StatusCounts",
+        "type": "object"
       },
       "TestimonialOut": {
         "properties": {
@@ -2518,6 +3015,456 @@
           }
         },
         "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries": {
+      "get": {
+        "operationId": "listAdminEnquiries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EnquiryStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EnquiryType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "packageId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Packageid"
+            }
+          },
+          {
+            "description": "Received on or after this IST day",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Received on or after this IST day",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Received on or before this IST day",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Received on or before this IST day",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Name or phone",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Name or phone",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "1-based; ignored by the CSV",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based; ignored by the CSV",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnquiryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries.csv": {
+      "get": {
+        "description": "Streamed, never stored: no Blob object to create and no garbage to collect.",
+        "operationId": "exportEnquiriesCsv",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EnquiryStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EnquiryType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "packageId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Packageid"
+            }
+          },
+          {
+            "description": "Received on or after this IST day",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Received on or after this IST day",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Received on or before this IST day",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Received on or before this IST day",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Name or phone",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Name or phone",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "1-based; ignored by the CSV",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based; ignored by the CSV",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "The filtered inbox as CSV"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Export Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}": {
+      "get": {
+        "operationId": "getAdminEnquiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}/notes": {
+      "post": {
+        "description": "201 with the whole enquiry, not just the note: the client renders the fresh timeline.",
+        "operationId": "addEnquiryNote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnquiryNoteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Add Note Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}/status": {
+      "patch": {
+        "operationId": "setEnquiryStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnquiryStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Set Status Route",
         "tags": [
           "admin"
         ]
