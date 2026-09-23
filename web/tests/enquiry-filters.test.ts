@@ -47,6 +47,24 @@ describe('parseFilters', () => {
   it('takes the first value when a param repeats', () => {
     expect(parseFilters({ status: ['new', 'closed'] }).status).toBe('new');
   });
+
+  it('drops a calendar-impossible date instead of letting it roll into the next month', () => {
+    expect(parseFilters({ from: '2026-02-30' }).from).toBeUndefined();
+    expect(parseFilters({ to: '2026-13-45' }).to).toBeUndefined();
+  });
+
+  it('drops a packageId longer than the api accepts instead of truncating it', () => {
+    const tooLong = 'p'.repeat(41);
+    expect(parseFilters({ packageId: tooLong }).packageId).toBeUndefined();
+    const atLimit = 'p'.repeat(40);
+    expect(parseFilters({ packageId: atLimit }).packageId).toBe(atLimit);
+  });
+
+  it('drops a reversed date range, keeping from and clearing to', () => {
+    const f = parseFilters({ from: '2026-09-30', to: '2026-09-01' });
+    expect(f.from).toBe('2026-09-30');
+    expect(f.to).toBeUndefined();
+  });
 });
 
 describe('filterHref', () => {

@@ -38,6 +38,7 @@ type RawParams = Record<string, string | string[] | undefined>;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PAGE = 10_000;
 const SEARCH_MAX = 80;
+const PACKAGE_ID_MAX = 40;
 
 const one = (v: string | string[] | undefined): string | undefined =>
   (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
@@ -45,7 +46,17 @@ const one = (v: string | string[] | undefined): string | undefined =>
 const oneOf = <T extends string>(allowed: readonly T[], v?: string): T | undefined =>
   allowed.includes(v as T) ? (v as T) : undefined;
 
-const isoDate = (v?: string) => (v && ISO_DATE.test(v) ? v : undefined);
+/** Drop a value longer than the api's bound rather than truncate it — a truncated id names a
+ * different package, and silently filtering by the wrong one is worse than not filtering. */
+const bounded = (v: string | undefined, max: number): string | undefined =>
+  v && v.length <= max ? v : undefined;
+
+/** Shape AND calendar validity: reject `2026-02-30` rather than let `Date` roll it into March. */
+const isoDate = (v?: string): string | undefined => {
+  if (!v || !ISO_DATE.test(v)) return undefined;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : undefined;
+};
 
 /**
  * The URL is the filter state (F21): a filtered inbox is linkable, the back button works, and
@@ -56,12 +67,17 @@ const isoDate = (v?: string) => (v && ISO_DATE.test(v) ? v : undefined);
  */
 export function parseFilters(params: RawParams): Filters {
   const page = Number(one(params.page));
+  const from = isoDate(one(params.from));
+  let to = isoDate(one(params.to));
+  // A reversed range (to < from) still fails the api's `_not_before_from` validator even when
+  // both dates are individually well-formed, so drop `to` and keep `from`.
+  if (from && to && to < from) to = undefined;
   return {
     status: oneOf(STATUSES, one(params.status)),
     type: oneOf(TYPES, one(params.type)),
-    packageId: one(params.packageId),
-    from: isoDate(one(params.from)),
-    to: isoDate(one(params.to)),
+    packageId: bounded(one(params.packageId), PACKAGE_ID_MAX),
+    from,
+    to,
     q: one(params.q)?.slice(0, SEARCH_MAX),
     page: Number.isInteger(page) && page > 1 ? Math.min(page, MAX_PAGE) : 1,
   };
