@@ -25,7 +25,7 @@
   --color-warn: #b0501c; /* filling fast — darkened in H3: #b5541e on `--color-warn-soft` was 4.44:1 */
   --color-warn-soft: #fff1dd;
   /*
-   * WhatsApp green, darkened from the brand's #25d366: white on #25d366 is 1.07:1, which fails
+   * WhatsApp green, darkened from the brand's #25d366: white on #25d366 is 1.98:1, which fails
    * AA on every WhatsApp button (H3). This tint keeps the hue and clears 4.5:1; the buttons keep
    * the bright brand green in their glow shadow.
    */
@@ -130,7 +130,14 @@
 @utility focus-ring-light {
   &:focus-visible,
   & :focus-visible {
-    outline-color: var(--color-bg);
+    /*
+     * Width and style are restated, not just the colour: the shadcn primitives set
+     * `outline-none` and draw their ring with `--tw-ring-color` instead, so one of those dropped
+     * onto a dark surface would otherwise keep its ocean ring and this utility would silently
+     * do nothing.
+     */
+    outline: 2px solid var(--color-bg);
+    --tw-ring-color: var(--color-bg);
   }
 }
 

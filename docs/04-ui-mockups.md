@@ -46,7 +46,7 @@
 | `--primary` (ocean) / `--primary-ink` | `#1B4FD8` / `#143EAD` | logo, nav accents, icons, links, secondary buttons |
 | `--action` (marigold) / `--action-ink` | `#F2A93B` / `#D98F1F` | primary buttons (dark text `#14202A` on marigold), stamps |
 | `--ok` / `--warn` | `#1F7A4D` / `#B0501C` | guaranteed / filling-fast — `--warn` darkened from `#B5541E` in H3 so warn text on `--warn-soft` clears AA (was 4.44:1) |
-| WhatsApp | `#17823F` | WhatsApp buttons only — darkened from the brand `#25D366` in H3: white on the brand green is 1.07:1 and fails AA. The buttons keep `#25D366` in their glow shadow |
+| WhatsApp | `#17823F` | WhatsApp buttons only — darkened from the brand `#25D366` in H3: white on the brand green is 1.98:1 and fails AA. The buttons keep `#25D366` in their glow shadow |
 | Type | **DM Sans** 400–800 (headlines 800, tracking −.03em) | everything; no serif in the UI |
 | Radii | 12px buttons · 16–18px cards · 999px chips | |
 | Shadows | soft, offset: `0 30px 50px -30px rgba(20,32,42,.35)` on hover | |

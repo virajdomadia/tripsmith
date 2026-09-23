@@ -17,7 +17,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         Skip to content
       </a>
       <SiteHeader />
-      <main id="main">{children}</main>
+      <main id="main" tabIndex={-1} className="outline-none">
+        {children}
+      </main>
       <SiteFooter />
       <WhatsAppFab />
     </WhatsAppProvider>
