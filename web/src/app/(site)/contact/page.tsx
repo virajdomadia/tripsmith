@@ -7,8 +7,7 @@ import { PageHead } from '@/components/site/PageHead';
 import { BUSINESS } from '@/lib/business';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 /** Reads searchParams (the no-JS enquiry round trip re-fills the form), so it renders per request. */
 export const dynamic = 'force-dynamic';

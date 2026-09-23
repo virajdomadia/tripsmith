@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { formatUpdated, POLICIES, POLICY_SLUGS, type PolicySlug } from '@/lib/policies';
+import { SITE_URL } from '@/lib/seo/site-url';
 import { Container } from '../Container';
 import { PageHead } from '../PageHead';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 export function policyMetadata(slug: PolicySlug): Metadata {
   const doc = POLICIES[slug];

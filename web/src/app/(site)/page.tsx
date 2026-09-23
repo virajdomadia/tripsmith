@@ -13,8 +13,7 @@ import { WhyUs } from '@/components/site/home/WhyUs';
 import { PackageCard } from '@/components/site/PackageCard';
 import { api } from '@/lib/api';
 import { siteJsonLd } from '@/lib/seo/site-jsonld';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 /** Like /destinations: rendered per request (CI builds with no api); fetches cached 1 h + tagged. */
 export const dynamic = 'force-dynamic';

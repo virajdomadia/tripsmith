@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
 import { EmptyState } from '@/components/site/packages/EmptyState';
 import { FilterPanel } from '@/components/site/packages/FilterPanel';
@@ -17,10 +18,10 @@ import {
   type RawSearchParams,
   type SearchQuery,
 } from '@/lib/search';
+import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 type Props = { searchParams: Promise<RawSearchParams> };
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** Cached 60 s per distinct query (the api's own s-maxage); tagged so admin edits (F18) can purge it. */
 const search = (query: SearchQuery) =>
@@ -52,6 +53,12 @@ export default async function PackagesPage({ searchParams }: Props) {
 
   return (
     <Container className="pb-20">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'Holiday packages', path: '/packages' },
+        ])}
+      />
       <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 pt-3.5 text-[13px] text-mute">
         <Link href="/" className="hover:text-ink">
           Home

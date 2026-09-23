@@ -8,11 +8,10 @@ import { api, ApiRequestError } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
 type Search = Record<string, string | string[] | undefined>;
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** Reads searchParams (the no-JS round trip re-fills the form), so it renders per request. */
 export const dynamic = 'force-dynamic';

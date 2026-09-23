@@ -24,11 +24,11 @@ import { api } from '@/lib/api';
 import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { whatsappInterest } from '@/lib/business';
 import { duration, inr } from '@/lib/format';
-import { packageJsonLd } from '@/lib/seo/package-jsonld';
+import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
+import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /**
  * Prerender every live package at build; new slugs render on first request. CI builds with no
@@ -67,10 +67,20 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
   const { slug } = await params;
   const pkg = await loadPackage(slug);
   const url = `${SITE_URL}/packages/${pkg.slug}`;
+  const faq = faqJsonLd(pkg);
 
   return (
     <Container>
       <JsonLd data={packageJsonLd(pkg, url)} />
+      <JsonLd
+        // The very trail `PackageHero` renders: Home › destination › this package.
+        data={breadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: pkg.destination.name, path: `/destinations/${pkg.destination.slug}` },
+          { name: pkg.name, path: `/packages/${pkg.slug}` },
+        ])}
+      />
+      {faq && <JsonLd data={faq} />}
       <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
       <ViewBeacon slug={pkg.slug} />
       <PackageHero pkg={pkg} url={url} />

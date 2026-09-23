@@ -1,12 +1,11 @@
 import { loadPackage } from '@/lib/catalog';
 import { duration, inr } from '@/lib/format';
 import { OG_CONTENT_TYPE, OG_SIZE, ogCard } from '@/lib/og/card';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 export const alt = 'Trip card';
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** `/packages/<slug>/opengraph-image` (F13): cover + name + duration · destination + from-price. */
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
