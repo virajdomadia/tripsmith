@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next';
 import type { Metadata } from 'next';
 import { DM_Sans } from 'next/font/google';
 import './globals.css';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 // The one typeface of the K system (docs/04-ui-mockups.md): variable weight + optical size.
 const dmSans = DM_Sans({
@@ -11,9 +12,10 @@ const dmSans = DM_Sans({
   display: 'swap',
 });
 
-/** Absolute base for the generated OG image URLs (F13) — a crawler cannot resolve a relative one. */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-
+/**
+ * `metadataBase` resolves every relative OG image URL (F13) against the site's own origin — a
+ * crawler cannot follow a relative one.
+ */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'Tripsmith', template: '%s · Tripsmith' },

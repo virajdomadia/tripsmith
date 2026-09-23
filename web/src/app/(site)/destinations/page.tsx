@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { JsonLd } from '@/components/seo/JsonLd';
 import { Container } from '@/components/site/Container';
 import { DestinationTile } from '@/components/site/destinations/DestinationTile';
 import { api } from '@/lib/api';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
+import { absolute } from '@/lib/seo/site-url';
 
 /**
  * Rendered on request like `/packages` (CI builds with no api reachable, and a static page would
@@ -30,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: 'Destinations',
     description: `${listNames(items.map((d) => d.name))} — every place Tripsmith runs trips to, with how many trips, the best months and the starting price.`,
-    alternates: { canonical: `${SITE_URL}/destinations` },
+    alternates: { canonical: absolute('/destinations') },
   };
 }
 
@@ -40,6 +41,12 @@ export default async function DestinationsPage() {
 
   return (
     <Container className="pb-20">
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'Destinations', path: '/destinations' },
+        ])}
+      />
       <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 pt-3.5 text-[13px] text-mute">
         <Link href="/" className="hover:text-ink">
           Home

@@ -9,11 +9,11 @@ import { Prose } from '@/components/site/Prose';
 import { api } from '@/lib/api';
 import { cheapest, loadDestination, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { inr, monthRange } from '@/lib/format';
+import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
+import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return {
     title: `${d.name} holiday packages — ${trips}${from ? ` from ${inr(from)}` : ''}`,
     description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
-    alternates: { canonical: `${SITE_URL}/destinations/${d.slug}` },
+    alternates: { canonical: absolute(`/destinations/${d.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
     openGraph: { title: d.name, description: d.tagline, type: 'website' },
     twitter: { card: 'summary_large_image' },
@@ -51,13 +51,21 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function DestinationPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
   const d = await loadDestination(slug);
-  const url = `${SITE_URL}/destinations/${d.slug}`;
+  const url = absolute(`/destinations/${d.slug}`);
   const from = cheapest(d.packages.map((p) => p.startingPricePaise));
   const h2 = 'mb-4 text-[clamp(24px,2.8vw,30px)]';
 
   return (
     <Container className="pb-20">
       <JsonLd data={destinationJsonLd(d, url)} />
+      {/* The trail `DestinationHero` renders. */}
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: 'Destinations', path: '/destinations' },
+          { name: d.name, path: `/destinations/${d.slug}` },
+        ])}
+      />
       <DestinationHero d={d} from={from} />
 
       <div className="mt-7 grid gap-12 lg:grid-cols-[1fr_380px] lg:items-start">

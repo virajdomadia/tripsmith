@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../src/lib/api-types';
-import { packageJsonLd } from '../src/lib/seo/package-jsonld';
+import { faqJsonLd, packageJsonLd } from '../src/lib/seo/package-jsonld';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
@@ -87,5 +87,39 @@ describe('packageJsonLd', () => {
       itemListElement: Array<{ position: number; name: string }>;
     };
     expect(itinerary.itemListElement.map((d) => d.name)).toEqual(['Arrive Goa', 'North Goa']);
+  });
+});
+
+describe('faqJsonLd', () => {
+  it('is null when the package has no questions', () => {
+    // An empty FAQPage is a structured-data error, so nothing is emitted at all.
+    expect(faqJsonLd(pkg)).toBeNull();
+  });
+
+  it('pairs every question with its answer', () => {
+    const ld = faqJsonLd({
+      ...pkg,
+      faq: [
+        { q: 'Are flights included?', a: 'No — the price is land only.' },
+        { q: 'Can I extend my stay?', a: 'Yes, tell us when you enquire.' },
+      ],
+    });
+
+    expect(ld).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'Are flights included?',
+          acceptedAnswer: { '@type': 'Answer', text: 'No — the price is land only.' },
+        },
+        {
+          '@type': 'Question',
+          name: 'Can I extend my stay?',
+          acceptedAnswer: { '@type': 'Answer', text: 'Yes, tell us when you enquire.' },
+        },
+      ],
+    });
   });
 });

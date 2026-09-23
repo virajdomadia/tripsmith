@@ -7,8 +7,7 @@ import { PageHead } from '@/components/site/PageHead';
 import { BUSINESS } from '@/lib/business';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+import { absolute } from '@/lib/seo/site-url';
 
 /** Reads searchParams (the no-JS enquiry round trip re-fills the form), so it renders per request. */
 export const dynamic = 'force-dynamic';
@@ -16,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Contact',
   description: `Call ${BUSINESS.phoneDisplay}, WhatsApp, or send a message — a person replies within two hours, ${BUSINESS.hours}. ${BUSINESS.address}, ${BUSINESS.city}.`,
-  alternates: { canonical: `${SITE_URL}/contact` },
+  alternates: { canonical: absolute('/contact') },
 };
 
 export default async function ContactPage({

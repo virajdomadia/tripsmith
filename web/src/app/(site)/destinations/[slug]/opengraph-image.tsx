@@ -1,12 +1,11 @@
 import { cheapest, loadDestination } from '@/lib/catalog';
 import { inr, monthRange } from '@/lib/format';
 import { OG_CONTENT_TYPE, OG_SIZE, ogCard } from '@/lib/og/card';
+import { SITE_URL } from '@/lib/seo/site-url';
 
 export const alt = 'Destination card';
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** `/destinations/<slug>/opengraph-image` (F13): cover + name + trips · best months + from-price. */
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
