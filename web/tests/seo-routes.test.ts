@@ -65,6 +65,19 @@ describe('sitemap', () => {
     expect(api).toHaveBeenCalledWith('/destinations', { tags: ['destinations'] });
   });
 
+  it('still lists the static pages when the api is unreachable', async () => {
+    // CI builds with no api and this route is prerendered, so a failed fetch must not fail the
+    // build — the next revalidation fills the catalogue back in.
+    api.mockRejectedValue(new TypeError('fetch failed'));
+    const { default: sitemap } = await import('@/app/sitemap');
+
+    const urls = (await sitemap()).map((e) => e.url);
+
+    expect(urls).toContain('http://localhost:3000/');
+    expect(urls).toContain('http://localhost:3000/packages');
+    expect(urls.some((u) => u.includes('/packages/'))).toBe(false);
+  });
+
   it('has no duplicate URLs', async () => {
     const { default: sitemap } = await import('@/app/sitemap');
     const urls = (await sitemap()).map((e) => e.url);

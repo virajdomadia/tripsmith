@@ -19,11 +19,26 @@ import { absolute } from '@/lib/seo/site-url';
  */
 export const revalidate = 3600;
 
+/**
+ * CI builds with no api reachable (the same reason `generateStaticParams` catches), and this
+ * route is prerendered, so an unreachable api must degrade to the static pages rather than fail
+ * the build. The next revalidation — or an owner save, which purges the tags — fills the
+ * catalogue back in.
+ */
+async function catalogue() {
+  try {
+    return await Promise.all([
+      api('/packages', { tags: ['packages'] }),
+      api('/destinations', { tags: ['destinations'] }),
+    ]);
+  } catch (err) {
+    console.warn(`sitemap: api unreachable, listing static pages only (${String(err)})`);
+    return [{ items: [] }, { items: [] }] as const;
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [packages, destinations] = await Promise.all([
-    api('/packages', { tags: ['packages'] }),
-    api('/destinations', { tags: ['destinations'] }),
-  ]);
+  const [packages, destinations] = await catalogue();
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: absolute('/'), changeFrequency: 'weekly', priority: 1 },
