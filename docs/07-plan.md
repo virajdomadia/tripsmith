@@ -11,7 +11,7 @@ How the lifecycle maps onto milestones: step 8 (setup) **is** milestone 1.0 (the
 
 ---
 
-## v1 — Agency website (≈ 35 h)
+## v1 — Agency website (≈ 35 h) — ✅ **shipped 2026-09-24**, all five milestones closed
 
 > **Revision 2026-09-13 (evening): milestone structure C.** The previous 1.0 ("Catalog live, read-only", 10 h before anything was deployed) is replaced by a **walking skeleton first**: 1.0 puts both deployments, CI and monitoring live with nothing but `/health`; every later part deploys on merge. Content grows **2 → 6 → 12** packages alongside the pages instead of all up front. Milestones follow the visitor's and owner's journeys: **Skeleton → Browse → Enquire → Manage → Harden**. Every row below is one branch + one PR. **Row ids:** S = setup (milestone 1.0), F = feature (1.1–1.3), H = hardening (1.4); branches are named after them (e.g. `chore/s1-clean-slate`, `feat/f2-package-page`).
 
@@ -81,7 +81,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 **F19 + F20 merged into F18 on 2026-09-22** — 06 §C4 specifies the nested write as one transaction, so splitting it would have meant building the endpoint twice; F18's own acceptance test ("change a price") needs the departures editor anyway. The hours moved between rows, the milestone total did not change.
 
-### Milestone 1.4 — Harden (≈ 4 h) ⚪ — closes lifecycle steps 10–12, 17 for v1
+### Milestone 1.4 — Harden (≈ 4 h) ✅ **complete 2026-09-24** — closes lifecycle steps 10–12, 17 for v1
 
 | # | Part | Who | web/ | api/ | Est. | Done when |
 |---|---|---|---|---|---|---|
@@ -90,7 +90,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 | H3 | **Accessibility + responsive** ✅ | 🟢 | Lighthouse a11y **100 on all 13 public pages** (measured on a local production build; the score is axe-driven and deterministic, unlike H2's perf number). Fixed: white on the WhatsApp brand green was 1.98:1 and warn on `--warn-soft` 4.44:1 — both tokens darkened (docs/04); the listing jumped h1 → h3; the gallery's “+N photos” pill was visible text missing from its button's name (WCAG 2.5.3); the home search selects and enquiry fields suppressed the focus outline; no skip link (WCAG 2.4.1); the ocean focus ring was 2.5:1 on the ink footer and invisible on the ocean band (WCAG 1.4.11) — both now take a white ring; standalone 20–23 px links and selects lifted to a 24 px target. Code review then caught three more the test itself had missed: the sold-out badge (4.43:1), placeholders (2.97:1, which axe never checks) and `aria-label` on a bare span for the hotel stars. `web/tests/contrast.test.ts` locks the pairs at AA and guards the two class choices directly. **Open for the owner:** the marigold star glyphs are `--color-action` on white, 2.00:1 — marigold is everywhere else a fill with dark text on it, so recolouring the stars is a design call, not a bug fix. 360 / 768 / 1280: zero horizontal overflow on 10 pages × 3 widths | — | 0.5 h | Lighthouse a11y 100 |
 | H4 | **Security** ✅ PR #47 — checklist complete in [docs/12](12-security-performance.md) | ⚪ | CSRF was already safe (SameSite=Lax + `Sec-Fetch-Site`); added CSP + nosniff + Referrer-Policy + X-Frame-Options + COOP + Permissions-Policy and `poweredByHeader: false`. HSTS left to Vercel, which already sends it — verified on prod, a second copy would just be a duplicate. CSP keeps `'unsafe-inline'` for scripts: the nonce alternative makes every page dynamic and gives up H2's static rendering | Audit clean on validation (all 15 writes take a model), `require_owner` (declared at router level on all five admin routers), no raw SQL, no client-side secret bar the deliberate demo login. Fixed: `POST /views` had no rate limit (now 60 / 10 min / IP behind the bot filter), `hash_ip` was an unsalted sha256 over 4.3 bn IPv4 values (now blake2b keyed with `SESSION_SECRET`), 4 postcss advisories via `next` (pinned ≥ 8.5.23). `pip-audit` clean | 0.75 h | Checklist in `docs/12` complete |
 | H5 | ~~**Test gaps**~~ **dropped 2026-09-15** — the hard-part tests (pricing, badges, filters, auth, rate-limit) are written with their feature rows; nothing else gets tests | ⚪ | — | — | 0 | — |
-| H6 | **Review + docs** | ⚪ | README (architecture diagram, how it works, status line), `docs/17-post-launch.md`, portfolio case-study entry | — | 0.75 h | v1 signed off; PRD status updated |
+| H6 | **Review + docs** ✅ PR #48 | ⚪ | README rewritten for a shipped v1 (architecture diagram, the four decisions that carry the design, what v1 contains, status line), [docs/17-post-launch.md](17-post-launch.md) (what worked, what did not, metrics at sign-off, what v2 inherits), portfolio entry updated to v1 live with a screenshot of the real site | — | 0.75 h | **v1 signed off 2026-09-24**; PRD status updated |
 | Stretch | Best-time strip (add-on B, ~2 h) if under budget; storyboard (E) only if 1.0–1.4 came in ≥ 4 h under | | | | | |
 
 **v1 total: ≈ 34 h on paper; lean target ≈ 24 h** — the estimates above are ceilings, and merged rows share their ceremony.
