@@ -451,9 +451,7 @@ async def test_stored_ip_hash_uses_the_configured_secret(
 ) -> None:
     await seeded(db)
     db_app.state.settings = make_settings(session_secret="pepper")
-    res = await db_client.post(
-        "/enquiries", json=BODY, headers={"X-Forwarded-For": "49.207.1.1"}
-    )
+    res = await db_client.post("/enquiries", json=BODY, headers={"X-Forwarded-For": "49.207.1.1"})
     assert res.status_code == 201
     stored = (await db.execute(select(Enquiry.ip_hash))).scalar_one()
     assert stored == hash_ip("49.207.1.1", secret="pepper")
