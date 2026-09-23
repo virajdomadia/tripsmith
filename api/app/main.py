@@ -1,5 +1,6 @@
 """App factory. Vercel's FastAPI preset imports the module-level `app` from here."""
 
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -14,7 +15,12 @@ from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
 from app.infra.storage import LOCAL_STORE_DIR, build_store
-from app.middleware import BlankQueryParamsMiddleware, FreshQueryMiddleware, RequestIdMiddleware
+from app.middleware import (
+    BlankQueryParamsMiddleware,
+    FreshQueryMiddleware,
+    RequestIdMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.routers import auth
 from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
@@ -24,6 +30,23 @@ from app.routers.admin import packages as admin_packages
 from app.routers.cron import pdf_gc
 from app.routers.site import catalog, enquiries, health, meta, pdf, views
 from app.services.pdf.service import PdfService
+
+log = logging.getLogger(__name__)
+
+
+def _check_keyed_hashing(settings: Settings) -> None:
+    """`services/enquiries.hash_ip` keys its digest with `SESSION_SECRET` (H4, docs/12).
+
+    Nothing else reads that variable — it is reserved for v2's OTP — so a deployment that never
+    set it would look healthy while storing an unkeyed digest of every visitor's address, which
+    is enumerable over IPv4. Say so loudly on a deployment; locally there is nothing to protect.
+    ERROR rather than WARNING so Sentry's logging integration carries it to the dashboard.
+    """
+    if os.environ.get("VERCEL") and not settings.session_secret:
+        log.error(
+            "SESSION_SECRET is unset: enquiry IP hashes are unkeyed and can be reversed by "
+            "enumeration. Set it on this project (see docs/12-security-performance.md)."
+        )
 
 
 @asynccontextmanager
@@ -53,9 +76,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
+    _check_keyed_hashing(settings)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
     app.add_middleware(FreshQueryMiddleware)
+    # Last call = outermost (Starlette inserts each at index 0 and wraps the list in reverse), so
+    # this one sees every response the stack below can produce — including one from a middleware
+    # added here later that answers without delegating. Keep it at the bottom of this block.
+    app.add_middleware(SecurityHeadersMiddleware)
 
     install_error_handlers(app)
 
