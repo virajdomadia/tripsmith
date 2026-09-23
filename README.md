@@ -71,14 +71,14 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
                     sitemap.ts · robots.ts · opengraph-image.tsx per detail route · middleware.ts
   src/components/   site/ (home, package, destinations, enquiry, whatsapp) · admin/ · ui/ (shadcn)
   src/lib/          api.ts (typed client) · api-types.ts (generated) · seo/ · og/ · admin/ · business.ts
-  tests/            45 vitest files (280 tests)
+  tests/            46 vitest files (283 tests)
 api/        FastAPI (Python 3.12, uv)
   app/routers/      site/ (catalog, enquiries, pdf, views, meta, health) · admin/ (packages, images,
                     destinations, enquiries, dashboard) · auth.py · cron/
   app/services/     catalog/ · enquiries · admin_enquiries · analytics · auth/ · email/ · pdf/ · images
   app/infra/        db · storage (Blob) · email · ratelimit · revalidate · cache · client_ip · observability
   app/models/ schemas/ · middleware.py (request id, blank params, fresh, security headers) · errors.py
-  alembic/ content/ scripts/seed.py · tests/ (441 pytest, DB harness)
+  alembic/ content/ scripts/seed.py · tests/ (443 pytest, DB harness)
 docs/       lifecycle steps 3–12: requirements v1–v4, user flows, technical design, architecture,
             data + API, plan, security + performance, post-launch review
 mockups/    every v1 screen in the final K · Ocean + Marigold system, plus the direction explorations
