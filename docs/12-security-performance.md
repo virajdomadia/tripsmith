@@ -22,7 +22,7 @@ Two instruments, for two different jobs:
   4× CPU, Slow 4G) — used to *find* defects, because they expose the LCP subpart breakdown and
   the per-request timings that a Lighthouse score aggregates away.
 
-### Acceptance: Lighthouse mobile, production — **not independently certified**
+### Acceptance: Lighthouse mobile, production — **signed off, not independently certified**
 
 The row's bar is "Lighthouse mobile ≥ 90 perf on the three pages". Measured, it is not a number
 this machine can produce reliably. Nine runs of the **same unchanged URL** (`/`), same Lighthouse
@@ -64,11 +64,22 @@ independent of any score:
 | api public GETs | `X-Vercel-Cache: HIT` at ~0.2 s |
 | LCP element | the hero `<img>`, carrying `fetchpriority`, in every run |
 
-**Open item.** If the `≥ 90` gate is to mean anything it needs a stable host — a CI job or
-PageSpeed Insights with an API key (the keyless PSI quota is exhausted). The 2026-09-15 lean
-re-cut deliberately dropped `lighthouse.yml`; this is the evidence for revisiting that one
-decision, and it is a scope call, not a technical one. Until then H2's score bar is **unverified**,
-and the row's verified deliverables are the table above.
+**Resolved — owner sign-off, 2026-09-23.** Making the `≥ 90` gate rigorous needs a stable host:
+a CI job, or PageSpeed Insights with an API key (the keyless PSI quota is exhausted). The
+2026-09-15 lean re-cut deliberately dropped `lighthouse.yml`, and Viraj chose to keep it dropped
+rather than reinstate CI for this — the score can be spot-checked by hand at
+[pagespeed.web.dev](https://pagespeed.web.dev/) whenever it matters. **H2 is therefore marked
+complete on the verified deliverables above, with the score bar accepted rather than measured.**
+
+Two things follow from that, and they are the reason this section stays in the file rather than
+being deleted with the open item:
+
+- **A future Lighthouse run on a dev machine may well come back in the 70s. That is not a
+  regression** — re-read the spread above before investigating. Check the HTTP-level facts first;
+  they are cheap, deterministic, and the ones this row actually guarantees.
+- The **real** risk this row leaves open is `TBT` (see *Not done here*), not LCP. If the score is
+  ever measured properly and falls short, that is where to look — the home page ships ~193 kB of
+  first-load JS, and no part of H2 touched it.
 
 ### Diagnostics: what the traces found, and what changed
 
