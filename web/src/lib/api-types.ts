@@ -838,9 +838,20 @@ export interface components {
              * @description Received in the last 30 IST days
              */
             enquiriesLast30Days: number;
-            /** Enquirieslastweek */
+            /**
+             * Enquirieslastweek
+             * @description All seven days of last week
+             */
             enquiriesLastWeek: number;
-            /** Enquiriesthisweek */
+            /**
+             * Enquirieslastweektodate
+             * @description Last week up to the same weekday, so the delta compares like with like
+             */
+            enquiriesLastWeekToDate: number;
+            /**
+             * Enquiriesthisweek
+             * @description Monday to now
+             */
             enquiriesThisWeek: number;
             /**
              * Oldestnewat
@@ -857,8 +868,16 @@ export interface components {
             topByEnquiries: components["schemas"]["PackageCount"][];
             /** Topbyviews */
             topByViews: components["schemas"]["PackageCount"][];
-            /** Upcomingdepartures */
+            /**
+             * Upcomingdepartures
+             * @description At most 20; `upcomingDeparturesTotal` is the real count
+             */
             upcomingDepartures: components["schemas"]["UpcomingDeparture"][];
+            /**
+             * Upcomingdeparturestotal
+             * @description Departures in the whole window
+             */
+            upcomingDeparturesTotal: number;
             /** Viewslast7Days */
             viewsLast7Days: number;
             /**
@@ -872,6 +891,12 @@ export interface components {
              * @description Monday of the current IST week
              */
             weekStart: string;
+            /**
+             * Windowstart
+             * Format: date
+             * @description First day of the 30-day windows below
+             */
+            windowStart: string;
         };
         /**
          * DepartureInput

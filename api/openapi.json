@@ -754,10 +754,17 @@
             "type": "integer"
           },
           "enquiriesLastWeek": {
+            "description": "All seven days of last week",
             "title": "Enquirieslastweek",
             "type": "integer"
           },
+          "enquiriesLastWeekToDate": {
+            "description": "Last week up to the same weekday, so the delta compares like with like",
+            "title": "Enquirieslastweektodate",
+            "type": "integer"
+          },
           "enquiriesThisWeek": {
+            "description": "Monday to now",
             "title": "Enquiriesthisweek",
             "type": "integer"
           },
@@ -795,11 +802,17 @@
             "type": "array"
           },
           "upcomingDepartures": {
+            "description": "At most 20; `upcomingDeparturesTotal` is the real count",
             "items": {
               "$ref": "#/components/schemas/UpcomingDeparture"
             },
             "title": "Upcomingdepartures",
             "type": "array"
+          },
+          "upcomingDeparturesTotal": {
+            "description": "Departures in the whole window",
+            "title": "Upcomingdeparturestotal",
+            "type": "integer"
           },
           "viewsLast7Days": {
             "title": "Viewslast7Days",
@@ -815,12 +828,20 @@
             "format": "date",
             "title": "Weekstart",
             "type": "string"
+          },
+          "windowStart": {
+            "description": "First day of the 30-day windows below",
+            "format": "date",
+            "title": "Windowstart",
+            "type": "string"
           }
         },
         "required": [
           "today",
           "weekStart",
+          "windowStart",
           "enquiriesThisWeek",
+          "enquiriesLastWeekToDate",
           "enquiriesLastWeek",
           "awaitingFirstCall",
           "oldestNewAt",
@@ -831,7 +852,8 @@
           "byStatus",
           "topByEnquiries",
           "topByViews",
-          "upcomingDepartures"
+          "upcomingDepartures",
+          "upcomingDeparturesTotal"
         ],
         "title": "Dashboard",
         "type": "object"

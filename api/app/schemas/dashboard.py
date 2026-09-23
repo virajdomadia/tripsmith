@@ -47,8 +47,12 @@ class UpcomingDeparture(ApiModel):
 class Dashboard(ApiModel):
     today: dt.date = Field(description="The IST business day every window below is measured from")
     week_start: dt.date = Field(description="Monday of the current IST week")
-    enquiries_this_week: int
-    enquiries_last_week: int
+    window_start: dt.date = Field(description="First day of the 30-day windows below")
+    enquiries_this_week: int = Field(description="Monday to now")
+    enquiries_last_week_to_date: int = Field(
+        description="Last week up to the same weekday, so the delta compares like with like"
+    )
+    enquiries_last_week: int = Field(description="All seven days of last week")
     awaiting_first_call: int = Field(description="Enquiries still at status `new`")
     oldest_new_at: dt.datetime | None = Field(description="Null when nothing is waiting")
     # Spelled out rather than `enquiries_30d`: `to_camel` renders a trailing `_30d` as
@@ -62,4 +66,7 @@ class Dashboard(ApiModel):
     by_status: StatusCounts
     top_by_enquiries: list[PackageCount]
     top_by_views: list[PackageCount]
-    upcoming_departures: list[UpcomingDeparture]
+    upcoming_departures: list[UpcomingDeparture] = Field(
+        description=f"At most {MAX_DEPARTURES}; `upcomingDeparturesTotal` is the real count"
+    )
+    upcoming_departures_total: int = Field(description="Departures in the whole window")

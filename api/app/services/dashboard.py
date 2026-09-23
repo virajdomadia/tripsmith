@@ -45,6 +45,11 @@ def window_start(day: dt.date, days: int) -> dt.date:
     return day - dt.timedelta(days=days - 1)
 
 
+def window_end(day: dt.date, days: int) -> dt.date:
+    """The last day of a `days`-long window starting on `day` inclusive — the mirror image."""
+    return day + dt.timedelta(days=days - 1)
+
+
 async def _count(db: AsyncSession, stmt: Select[tuple[int]]) -> int:
     return int((await db.execute(stmt)).scalar_one() or 0)
 
@@ -124,7 +129,7 @@ async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]
         )
         .join(departure_availability, departure_availability.c.departure_id == Departure.id)
         .join(Package, Package.id == Departure.package_id)
-        .where(Departure.date >= today, Departure.date <= today + dt.timedelta(days=UPCOMING_DAYS))
+        .where(Departure.date >= today, Departure.date <= window_end(today, UPCOMING_DAYS))
         .order_by(Departure.date, Package.name)
         .limit(MAX_DEPARTURES)
     )
@@ -142,6 +147,17 @@ async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]
         )
         for id, date, seats_total, guaranteed, seats_left, package_id, slug, name in rows
     ]
+
+
+async def _upcoming_total(db: AsyncSession, today: dt.date) -> int:
+    """What the window really holds: the table above stops at `MAX_DEPARTURES`, and a list that
+    ends mid-month without saying so is worse than no list."""
+    return await _count(
+        db,
+        select(func.count())
+        .select_from(Departure)
+        .where(Departure.date >= today, Departure.date <= window_end(today, UPCOMING_DAYS)),
+    )
 
 
 async def _awaiting(db: AsyncSession) -> tuple[int, dt.datetime | None]:
@@ -166,7 +182,13 @@ async def get_dashboard(db: AsyncSession, *, today: dt.date | None = None) -> Da
     return Dashboard(
         today=day,
         week_start=monday,
+        window_start=month_start,
         enquiries_this_week=await _enquiries_between(db, monday),
+        # Monday to the same weekday last week. Comparing a part-week against seven full days
+        # paints a healthy Monday morning red, so the delta on the tile uses this one.
+        enquiries_last_week_to_date=await _enquiries_between(
+            db, monday - dt.timedelta(days=7), day - dt.timedelta(days=6)
+        ),
         enquiries_last_week=await _enquiries_between(db, monday - dt.timedelta(days=7), monday),
         awaiting_first_call=awaiting,
         oldest_new_at=oldest_new_at,
@@ -189,4 +211,5 @@ async def get_dashboard(db: AsyncSession, *, today: dt.date | None = None) -> Da
         top_by_enquiries=await _top_by_enquiries(db, month_start),
         top_by_views=await _top_by_views(db, month_start, day),
         upcoming_departures=await _upcoming(db, day),
+        upcoming_departures_total=await _upcoming_total(db, day),
     )

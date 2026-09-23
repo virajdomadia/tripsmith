@@ -60,6 +60,12 @@ def test_the_thirty_day_window_includes_today() -> None:
     assert (TODAY - svc.window_start(TODAY, 30)).days == 29
 
 
+def test_a_forward_window_is_the_mirror_of_a_backward_one() -> None:
+    """ "Next 30 days" has to mean 30 days, today included — the same count as the 30 behind."""
+    assert svc.window_end(TODAY, 30) == dt.date(2026, 10, 21)
+    assert (svc.window_end(TODAY, 30) - TODAY).days == 29
+
+
 # --- enquiries ------------------------------------------------------------------------------------
 
 
@@ -82,6 +88,26 @@ async def test_this_week_and_last_week_split_on_the_ist_monday(db: AsyncSession)
     assert out.week_start == MONDAY
     assert out.enquiries_this_week == 2
     assert out.enquiries_last_week == 2
+
+
+@pytest.mark.db
+async def test_last_week_to_date_stops_at_the_same_weekday(db: AsyncSession) -> None:
+    """TODAY is a Tuesday, so the comparison covers last Monday and Tuesday — not the whole week,
+    which would make a two-day-old week look like a collapse."""
+    for ref, when in {
+        "TS-LMON11": ist_at(MONDAY - dt.timedelta(days=7)),  # last Monday
+        "TS-LTUE11": ist_at(MONDAY - dt.timedelta(days=6)),  # last Tuesday: the last day counted
+        "TS-LWED11": ist_at(MONDAY - dt.timedelta(days=5)),  # last Wednesday: after the cutoff
+        "TS-LSUN11": ist_at(MONDAY - dt.timedelta(days=1)),  # last Sunday
+    }.items():
+        row = await make_enquiry(db, ref=ref)
+        row.created_at = when
+    await db.commit()
+
+    out = await svc.get_dashboard(db, today=TODAY)
+
+    assert out.enquiries_last_week_to_date == 2
+    assert out.enquiries_last_week == 4
 
 
 @pytest.mark.db
@@ -241,8 +267,8 @@ async def test_upcoming_departures_are_the_next_thirty_days_oldest_first(
 ) -> None:
     pkg = await make_package(db)
     await seed_departure(db, pkg.id, date=TODAY - dt.timedelta(days=1))  # gone
-    await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=30))  # the last one in
-    await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=31))  # beyond the window
+    await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=29))  # the last one in
+    await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=30))  # the 31st day: out
     await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=3))
     await db.commit()
 
@@ -250,8 +276,26 @@ async def test_upcoming_departures_are_the_next_thirty_days_oldest_first(
 
     assert [d.date for d in out.upcoming_departures] == [
         TODAY + dt.timedelta(days=3),
-        TODAY + dt.timedelta(days=30),
+        TODAY + dt.timedelta(days=29),
     ]
+    assert out.upcoming_departures_total == 2
+
+
+@pytest.mark.db
+async def test_a_long_departure_list_is_capped_but_reports_its_real_size(
+    db: AsyncSession,
+) -> None:
+    """Twelve packages with a handful of dates each overflow the table; the owner has to be told
+    the list stops rather than reading it as the whole month."""
+    pkg = await make_package(db)
+    for offset in range(svc.MAX_DEPARTURES + 4):
+        await seed_departure(db, pkg.id, date=TODAY + dt.timedelta(days=offset))
+    await db.commit()
+
+    out = await svc.get_dashboard(db, today=TODAY)
+
+    assert len(out.upcoming_departures) == svc.MAX_DEPARTURES
+    assert out.upcoming_departures_total == svc.MAX_DEPARTURES + 4
 
 
 @pytest.mark.db
@@ -267,7 +311,8 @@ async def test_an_empty_database_answers_with_zeroes_rather_than_nulls(db: Async
     assert (out.views_last_7_days, out.views_previous_7_days) == (0, 0)
     assert out.by_status.all == 0
     assert out.top_by_enquiries == [] and out.top_by_views == []
-    assert out.upcoming_departures == []
+    assert out.upcoming_departures == [] and out.upcoming_departures_total == 0
+    assert out.window_start == svc.window_start(TODAY, 30)
 
 
 # --- route ----------------------------------------------------------------------------------------

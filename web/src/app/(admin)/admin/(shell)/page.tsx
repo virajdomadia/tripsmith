@@ -58,7 +58,7 @@ export default async function AdminHome() {
         <StatTile
           label="New enquiries · this week"
           value={data.enquiriesThisWeek}
-          hint={trend(data.enquiriesThisWeek, data.enquiriesLastWeek, 'last week')}
+          hint={trend(data.enquiriesThisWeek, data.enquiriesLastWeekToDate, 'last week to date')}
         />
         <StatTile
           label="Awaiting first call"
@@ -97,7 +97,9 @@ export default async function AdminHome() {
               key: p.id,
               label: p.name,
               count: p.count,
-              href: `/admin/enquiries?packageId=${p.id}`,
+              // `from` carries the panel's own window into the inbox, so the row that reads 6
+              // opens an inbox holding those six and not every enquiry the package ever had.
+              href: `/admin/enquiries?packageId=${p.id}&from=${data.windowStart}`,
             }))}
             empty="No enquiries in the last 30 days."
           />
@@ -138,7 +140,10 @@ export default async function AdminHome() {
       </Panel>
 
       <Panel title="Upcoming departures" sub="· next 30 days">
-        <UpcomingDepartures departures={data.upcomingDepartures} />
+        <UpcomingDepartures
+          departures={data.upcomingDepartures}
+          total={data.upcomingDeparturesTotal}
+        />
       </Panel>
     </>
   );
