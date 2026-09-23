@@ -16,6 +16,7 @@ from app.infra.ratelimit import build_rate_limiter
 from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import BlankQueryParamsMiddleware, FreshQueryMiddleware, RequestIdMiddleware
 from app.routers import auth
+from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
 from app.routers.admin import package_images as admin_package_images
@@ -61,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(meta.router)
     app.include_router(auth.router)
+    app.include_router(admin_dashboard.router)
     app.include_router(admin_destinations.router)
     app.include_router(admin_enquiries.router)
     app.include_router(admin_packages.router)

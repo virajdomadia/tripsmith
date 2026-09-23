@@ -733,6 +733,131 @@
         "title": "Body_uploadPackageImage",
         "type": "object"
       },
+      "Dashboard": {
+        "properties": {
+          "awaitingFirstCall": {
+            "description": "Enquiries still at status `new`",
+            "title": "Awaitingfirstcall",
+            "type": "integer"
+          },
+          "byStatus": {
+            "$ref": "#/components/schemas/StatusCounts"
+          },
+          "convertedLast30Days": {
+            "description": "Received in that window and now marked converted",
+            "title": "Convertedlast30Days",
+            "type": "integer"
+          },
+          "enquiriesLast30Days": {
+            "description": "Received in the last 30 IST days",
+            "title": "Enquirieslast30Days",
+            "type": "integer"
+          },
+          "enquiriesLastWeek": {
+            "description": "All seven days of last week",
+            "title": "Enquirieslastweek",
+            "type": "integer"
+          },
+          "enquiriesLastWeekToDate": {
+            "description": "Last week up to the same weekday, so the delta compares like with like",
+            "title": "Enquirieslastweektodate",
+            "type": "integer"
+          },
+          "enquiriesThisWeek": {
+            "description": "Monday to now",
+            "title": "Enquiriesthisweek",
+            "type": "integer"
+          },
+          "oldestNewAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when nothing is waiting",
+            "title": "Oldestnewat"
+          },
+          "today": {
+            "description": "The IST business day every window below is measured from",
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "topByEnquiries": {
+            "items": {
+              "$ref": "#/components/schemas/PackageCount"
+            },
+            "title": "Topbyenquiries",
+            "type": "array"
+          },
+          "topByViews": {
+            "items": {
+              "$ref": "#/components/schemas/PackageCount"
+            },
+            "title": "Topbyviews",
+            "type": "array"
+          },
+          "upcomingDepartures": {
+            "description": "At most 20; `upcomingDeparturesTotal` is the real count",
+            "items": {
+              "$ref": "#/components/schemas/UpcomingDeparture"
+            },
+            "title": "Upcomingdepartures",
+            "type": "array"
+          },
+          "upcomingDeparturesTotal": {
+            "description": "Departures in the whole window",
+            "title": "Upcomingdeparturestotal",
+            "type": "integer"
+          },
+          "viewsLast7Days": {
+            "title": "Viewslast7Days",
+            "type": "integer"
+          },
+          "viewsPrevious7Days": {
+            "description": "The 7 days before those, for the delta",
+            "title": "Viewsprevious7Days",
+            "type": "integer"
+          },
+          "weekStart": {
+            "description": "Monday of the current IST week",
+            "format": "date",
+            "title": "Weekstart",
+            "type": "string"
+          },
+          "windowStart": {
+            "description": "First day of the 30-day windows below",
+            "format": "date",
+            "title": "Windowstart",
+            "type": "string"
+          }
+        },
+        "required": [
+          "today",
+          "weekStart",
+          "windowStart",
+          "enquiriesThisWeek",
+          "enquiriesLastWeekToDate",
+          "enquiriesLastWeek",
+          "awaitingFirstCall",
+          "oldestNewAt",
+          "enquiriesLast30Days",
+          "convertedLast30Days",
+          "viewsLast7Days",
+          "viewsPrevious7Days",
+          "byStatus",
+          "topByEnquiries",
+          "topByViews",
+          "upcomingDepartures",
+          "upcomingDeparturesTotal"
+        ],
+        "title": "Dashboard",
+        "type": "object"
+      },
       "DepartureInput": {
         "description": "`id` present = update that row; absent = insert. Rows the payload omits are deleted.\n\nPrices are `ge=0` so a draft can park a departure with the rate still to be agreed; the\npublish rules are what insist on real prices before the package can go live.",
         "properties": {
@@ -2077,6 +2202,35 @@
         "title": "PackageCard",
         "type": "object"
       },
+      "PackageCount": {
+        "description": "A bar in one of the two top-five lists (A2 `.bars`).",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "count"
+        ],
+        "title": "PackageCount",
+        "type": "object"
+      },
       "PackageDetail": {
         "properties": {
           "cover": {
@@ -2729,6 +2883,68 @@
         "title": "ThemeOption",
         "type": "object"
       },
+      "UpcomingDeparture": {
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Badge"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`pricing.badge_for`, the same rule the public departure table shows"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "guaranteed": {
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "seatsLeft": {
+            "description": "From the departure_availability view; never stored",
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "packageId",
+          "packageSlug",
+          "packageName",
+          "date",
+          "seatsTotal",
+          "seatsLeft",
+          "guaranteed",
+          "badge"
+        ],
+        "title": "UpcomingDeparture",
+        "type": "object"
+      },
       "UploadedImage": {
         "properties": {
           "height": {
@@ -2783,6 +2999,38 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/dashboard": {
+      "get": {
+        "description": "Never cached: the owner refreshes this page to see the enquiry that just landed.",
+        "operationId": "getDashboard",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Dashboard Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/destinations": {
       "get": {
         "operationId": "listAdminDestinations",
