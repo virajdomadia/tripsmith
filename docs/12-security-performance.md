@@ -22,28 +22,60 @@ Two instruments, for two different jobs:
   4× CPU, Slow 4G) — used to *find* defects, because they expose the LCP subpart breakdown and
   the per-request timings that a Lighthouse score aggregates away.
 
-### Acceptance: Lighthouse mobile, production
+### Acceptance: Lighthouse mobile, production — **not independently certified**
 
-Baseline, 2026-09-23, before the fixes in this row:
+The row's bar is "Lighthouse mobile ≥ 90 perf on the three pages". Measured, it is not a number
+this machine can produce reliably. Nine runs of the **same unchanged URL** (`/`), same Lighthouse
+12, same mobile profile:
 
-| Page | **Score** | FCP | LCP | TBT | CLS | SI |
-|---|---|---|---|---|---|---|
-| `/` | **91** | 1.1 s | 2.5 s | 300 ms | 0 | 2.1 s |
-| `/packages` | **96** | 1.1 s | 2.4 s | 100 ms | 0 | 3.3 s |
-| `/packages/[slug]` | **93** | 1.2 s | 3.0 s | 150 ms | 0 | 1.7 s |
+| | runs | scores |
+|---|---|---|
+| before the fixes | 1 | 91 |
+| after the fixes | 8 | 97, 79, 74, 95, 80, 78, 78, 79 |
 
-All three clear the bar. CLS is a clean zero everywhere — every image is a `fill` inside an
-explicit aspect-ratio box. The weakest sub-scores are **home TBT (300 ms, 0.78)** and **package-page
-LCP (3.0 s, 0.77)**; those are where a future regression will show first.
+That is a 74–97 spread on a page that did not change between runs, so **no single run of this is
+evidence of anything** — including the 91 → 97 that a naive before/after would have reported.
 
-<!-- H2-AFTER: re-run the three URLs after this row deploys and add the after-column. -->
+**The cause is this host, not the site.** From the saved reports:
+
+- Lighthouse's throttling *inputs* are identical in every run (simulated: 150 ms RTT,
+  1,638 Kbps, 4× CPU) and every run loaded the same 33 requests / ~818 kB.
+- The **slow** run's observed network was *faster* than the fast run's (longest request 356 ms vs
+  1,120 ms), so the network is not what moved the score.
+- `https://example.com` scored **100** from this same machine minutes after `/` scored 78 — but it
+  is one request with no JS, so it barely exercises the simulated CPU.
+- `/packages/[slug]` moved 93 → 81 with no deploy in between, i.e. both Tripsmith pages degraded
+  together while the JS-free control did not.
+
+Lighthouse applies the 4× CPU multiplier to *observed* main-thread task durations, so background
+load on the laptop inflates LCP and Speed Index together — which is exactly the signature in the
+data. A dev machine running other work is not a valid Lighthouse host.
+
+**What is actually established**, all verified directly on production at the HTTP level and
+independent of any score:
+
+| | |
+|---|---|
+| CLS | **0.00 on all three pages, every run** — no layout instability anywhere |
+| Bundled images | `public, max-age=31536000, immutable` on a fresh optimizer key |
+| Blob images | `public, max-age=86400, must-revalidate` (was 3600) |
+| Hero payload | 98 kB webp, 67 ms from the edge |
+| TTFB | `/` 0.30–0.41 s across 12 samples · `/packages/[slug]` 0.04–0.07 s |
+| api public GETs | `X-Vercel-Cache: HIT` at ~0.2 s |
+| LCP element | the hero `<img>`, carrying `fetchpriority`, in every run |
+
+**Open item.** If the `≥ 90` gate is to mean anything it needs a stable host — a CI job or
+PageSpeed Insights with an API key (the keyless PSI quota is exhausted). The 2026-09-15 lean
+re-cut deliberately dropped `lighthouse.yml`; this is the evidence for revisiting that one
+decision, and it is a scope call, not a technical one. Until then H2's score bar is **unverified**,
+and the row's verified deliverables are the table above.
 
 ### Diagnostics: what the traces found, and what changed
 
 DevTools traces on the same three pages reported LCP 1,395 / 784 / 1,166 ms with CLS 0.00. Those
-are **warm-cache reload** figures and are much rosier than the Lighthouse numbers above, which
-load on a clean profile — the gap is exactly why the trace is a diagnostic here and not the bar.
-What the traces were good for was three concrete defects:
+are **warm-cache reload** figures and are rosier than a clean-profile load — which is why the
+trace is a diagnostic here and not the bar. What the traces were good for was three concrete
+defects:
 
 **1. Optimized images from `public/` were served with `max-age=0`.** Vercel's image optimizer
 inherits the upstream `Cache-Control` of a file served out of `public/`, which is
