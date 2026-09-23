@@ -13,7 +13,7 @@ export function Hotels({ hotels }: { hotels: Hotel[] }) {
           className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[14px] border border-line p-4"
         >
           <b className="text-lg">{h.name}</b>
-          <span aria-label={`${h.stars} star`} className="tracking-wider text-action">
+          <span role="img" aria-label={`${h.stars} star`} className="tracking-wider text-action">
             {stars(h.stars)}
           </span>
           <span className="text-sm text-mute">

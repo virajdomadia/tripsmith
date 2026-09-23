@@ -11,7 +11,7 @@ export const BADGE_LABEL: Record<BadgeValue, string> = {
 
 const TONE: Record<BadgeValue, string> = {
   'filling-fast': 'bg-warn-soft text-warn',
-  'sold-out': 'bg-line text-mute',
+  'sold-out': 'bg-line text-ink2',
   guaranteed: 'bg-ok-soft text-ok',
 };
 

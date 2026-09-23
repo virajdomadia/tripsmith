@@ -11,7 +11,10 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function DestinationHero({ d, from }: { d: DestinationDetail; from: number }) {
   return (
     <>
-      <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 pt-3.5 text-[13px] text-mute">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex flex-wrap items-center gap-2 pt-3.5 text-[13px] text-mute [&_a]:inline-flex [&_a]:min-h-6 [&_a]:items-center"
+      >
         <Link href="/" className="hover:text-ink">
           Home
         </Link>
