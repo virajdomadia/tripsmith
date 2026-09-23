@@ -107,7 +107,7 @@ export function InboxFilters({
         </div>
         <div className="grid gap-1">
           <label htmlFor="to" className="text-xs font-bold text-mute">
-            to
+            <span className="sr-only">Received </span>to
           </label>
           <Input id="to" name="to" type="date" defaultValue={filters.to ?? ''} />
         </div>

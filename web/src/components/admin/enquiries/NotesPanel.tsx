@@ -8,20 +8,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
 import type { components } from '@/lib/api-types';
+import { istShortDate, istTime } from './ist-date';
 
 type Note = components['schemas']['EnquiryNoteOut'];
 
 const NOTE_MAX = 2000;
 
-/** `2026-09-22T06:14:00Z` → `22 Sep, 11:44 am` in IST — the owner's own clock. */
+/**
+ * `2026-09-22T06:14:00Z` → `22 Sep, 11:44 am` in IST — the owner's own clock. This is a client
+ * component, so it renders once on the server and again in the browser; both must agree, which
+ * is why the day and month come from the ICU-stable, `MONTHS`-based `istShortDate` rather than
+ * `Intl`'s own month naming (see `ist-date.ts`).
+ */
 export function noteTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return `${istShortDate(iso)}, ${istTime(iso)}`;
 }
 
 /**

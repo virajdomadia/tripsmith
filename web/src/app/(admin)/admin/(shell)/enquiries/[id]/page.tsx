@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { EnquiryFacts } from '@/components/admin/enquiries/EnquiryFacts';
+import { istFullDate } from '@/components/admin/enquiries/ist-date';
 import { NotesPanel } from '@/components/admin/enquiries/NotesPanel';
 import { RelatedEnquiries } from '@/components/admin/enquiries/RelatedEnquiries';
 import { StatusPicker } from '@/components/admin/enquiries/StatusPicker';
@@ -12,7 +13,7 @@ import { TYPE_LABELS } from '@/lib/admin/enquiry-filters';
 import { emailSubject, mailtoHref, replyMessage, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { api, ApiRequestError } from '@/lib/api';
 import { getSession } from '@/lib/auth/session';
-import { duration, formatDate, inr } from '@/lib/format';
+import { duration, inr } from '@/lib/format';
 
 export const metadata = { title: 'Enquiry' };
 
@@ -37,7 +38,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
         title={`${enquiry.ref} · ${enquiry.name}`}
         subtitle={`${TYPE_LABELS[enquiry.type]} enquiry${
           enquiry.package ? ` · ${enquiry.package.name}` : ''
-        } · received ${formatDate(enquiry.createdAt)}`}
+        } · received ${istFullDate(enquiry.createdAt)}`}
         actions={
           <>
             <a

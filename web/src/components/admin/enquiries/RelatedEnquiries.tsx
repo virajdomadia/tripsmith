@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
-import { formatDate } from '@/lib/format';
+import { istFullDate } from './ist-date';
 import { StatusBadge } from './StatusBadge';
 
 type RelatedEnquiry = components['schemas']['RelatedEnquiry'];
@@ -17,7 +17,7 @@ export function RelatedEnquiries({ items }: { items: RelatedEnquiry[] }) {
           </Link>
           <span className="text-ink2">{r.packageName ?? 'General enquiry'}</span>
           <StatusBadge status={r.status} />
-          <span className="ml-auto text-xs text-mute">{formatDate(r.createdAt)}</span>
+          <span className="ml-auto text-xs text-mute">{istFullDate(r.createdAt)}</span>
         </li>
       ))}
     </ul>

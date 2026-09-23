@@ -99,7 +99,13 @@ def _row(row: Enquiry, package_slug: str | None, package_name: str | None) -> En
         id=row.id,
         ref=row.ref,
         # `Enquiry.type` is the ORM's `app.models.enums.EnquiryType`; the wire schema has its own
-        # (identical-valued) enum — same string values, so this round-trips by value.
+        # (identical-valued) enum — same string values, so this round-trips by value. The ORM
+        # enum also carries three v2/v3 forward-compat values (`callback`, `group`,
+        # `chat-handoff`, see `app.models.enums`) that the wire enum does not. Nothing in v1 can
+        # write one, but a row that did would raise `ValueError` here and 500 the whole inbox —
+        # `_detail` below has the identical lookup and the identical risk. `csv_record` degrades
+        # instead, via `TYPE_LABELS.get(..., row.type.value)`. Resolve this asymmetry before v2
+        # ships callbacks.
         type=EnquiryType(row.type.value),
         status=row.status,
         name=row.name,
@@ -223,7 +229,10 @@ async def _package_card(db: AsyncSession, package_id: str | None) -> EnquiryPack
 
 
 async def _related(db: AsyncSession, row: Enquiry) -> list[RelatedEnquiry]:
-    """A7's "other enquiries · same phone" — covered by ix_enquiries_phone_package_id_created_at."""
+    """A7's "other enquiries · same phone". `ix_enquiries_phone_package_id_created_at` leads
+    with `phone`, so Postgres can use it to find the matching rows, but this query orders by
+    `created_at` alone — the index's later columns are `package_id` then `created_at`, not
+    `created_at` on its own, so it does not serve this order and a sort is still likely."""
     rows = await db.execute(
         select(Enquiry.id, Enquiry.ref, Enquiry.status, Package.name, Enquiry.created_at)
         .outerjoin(Package, Package.id == Enquiry.package_id)
@@ -243,7 +252,8 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
     return AdminEnquiry(
         id=row.id,
         ref=row.ref,
-        # Same by-value round-trip as `_row` above.
+        # Same by-value round-trip as `_row` above — same forward-compat 500 risk, documented
+        # there.
         type=EnquiryType(row.type.value),
         status=row.status,
         name=row.name,

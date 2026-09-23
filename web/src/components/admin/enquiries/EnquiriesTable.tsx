@@ -10,6 +10,7 @@ import {
 import { TYPE_LABELS } from '@/lib/admin/enquiry-filters';
 import type { components } from '@/lib/api-types';
 import { MONTHS } from '@/lib/format';
+import { istShortDate } from './ist-date';
 import { StatusBadge } from './StatusBadge';
 
 type EnquiryRow = components['schemas']['EnquiryRow'];
@@ -41,7 +42,7 @@ export function receivedLabel(iso: string, now = Date.now()): string {
   const days = Math.floor(hours / 24);
   if (days === 1) return 'Yesterday';
   if (days < 7) return `${days} days ago`;
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return istShortDate(iso);
 }
 
 /**
@@ -93,7 +94,11 @@ export function EnquiriesTable({ items }: { items: EnquiryRow[] }) {
                 {receivedLabel(e.createdAt)}
               </TableCell>
               <TableCell className="text-right text-[13px] font-bold">
-                <Link href={`/admin/enquiries/${e.id}`} className="text-primary">
+                <Link
+                  href={`/admin/enquiries/${e.id}`}
+                  className="text-primary"
+                  aria-label={`Open ${e.ref}`}
+                >
                   Open
                 </Link>
               </TableCell>
