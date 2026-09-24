@@ -1,5 +1,7 @@
-"""Async Alembic environment. URL precedence: ALEMBIC_URL env (harness / one-off targets) →
-Settings.database_url (.env.local / Vercel). Views are raw SQL inside the revisions."""
+"""Async Alembic environment. The target is ALEMBIC_URL and nothing else: api/.env.local holds the
+production DATABASE_URL (the app's runtime secret), so a bare `alembic upgrade head` must never
+fall through to it. Every run names its database explicitly. Views are raw SQL inside the
+revisions."""
 
 import asyncio
 import os
@@ -7,7 +9,6 @@ import os
 from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.config import get_settings
 from app.models import Base
 
 config = context.config
@@ -16,12 +17,14 @@ target_metadata = Base.metadata
 
 def database_url() -> str:
     url = os.environ.get("ALEMBIC_URL")
-    if url:
-        return url
-    secret = get_settings().database_url
-    if secret is None:
-        raise SystemExit("Set DATABASE_URL (api/.env.local) or ALEMBIC_URL to run migrations.")
-    return secret.get_secret_value()
+    if not url:
+        raise SystemExit(
+            "ALEMBIC_URL is not set. Migrations never fall back to DATABASE_URL (it is production"
+            " in api/.env.local). Name the target explicitly, e.g.\n"
+            "  ALEMBIC_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith"
+            " uv run alembic upgrade head"
+        )
+    return url
 
 
 def run_migrations_offline() -> None:

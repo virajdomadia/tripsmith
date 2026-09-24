@@ -94,7 +94,15 @@ cd api && uv sync                 # api (Python 3.12, uv)
 cd .. && pnpm dev                 # web on :3000 (rewrites /api/* → :8000) and api on :8000
 ```
 
-Database: `cd api && uv run alembic upgrade head` (uses `DATABASE_URL` from `api/.env.local`, or `ALEMBIC_URL`), then `uv run python scripts/seed.py --local` — photos are mirrored to `api/.seed-photos` and served at `/seed-photos`; without `--local` they upload to Vercel Blob.
+Database: migrations only run against the URL in `ALEMBIC_URL` — there is no fallback, because `DATABASE_URL` in `api/.env.local` is production. Locally:
+
+```
+cd api
+ALEMBIC_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith uv run alembic upgrade head
+uv run python scripts/seed.py --local --database-url postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith
+```
+
+`--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. Production migrations are a deliberate, separate command with the Neon `production` branch URL pasted in: `ALEMBIC_URL='postgresql+asyncpg://…neon.tech/neondb?ssl=require' uv run alembic upgrade head`.
 
 Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both languages. `pnpm gen:api` dumps `api/openapi.json` from the app and regenerates `web/src/lib/api-types.ts`; run it after any route or schema change (a pytest fails while `openapi.json` is stale, a vitest while `api-types.ts` is). DB tests need `TEST_DATABASE_URL` (any throwaway Postgres; CI runs a `postgres:17` service) and skip without it.
 
