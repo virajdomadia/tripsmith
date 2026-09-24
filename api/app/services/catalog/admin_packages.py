@@ -7,7 +7,7 @@ logic serves the read, the write and the status endpoints — and tests them wit
 import datetime as dt
 from collections.abc import Sequence
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -31,6 +31,7 @@ from app.schemas.catalog import (
     PackageInput,
     PublishRule,
 )
+from app.services.analytics import ist_today
 
 DUPLICATE_SLUG = "A package with this slug already exists"
 ENQUIRY_WINDOW_DAYS = 30
@@ -72,6 +73,45 @@ def recompute_starting_price(pkg: Package, *, today: dt.date) -> int:
         d.price_double_paise for d in pkg.departures if d.date >= today and d.price_double_paise > 0
     ]
     return min(prices) if prices else 0
+
+
+async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> int:
+    """Daily (`/cron/daily`, just after IST midnight): the admin writes are the only other place
+    `starting_price_paise` moves, so without this a package kept advertising the price of a
+    departure that has already left — or "from ₹X" when nothing is left at all. Rewrites the
+    packages whose price changed, revalidates their pages, returns how many moved.
+
+    `updated_at` is pinned to itself: it is the owner's "last edited", not the calendar's.
+    """
+    packages = (
+        (
+            await db.execute(
+                select(Package).options(
+                    selectinload(Package.departures), selectinload(Package.destination)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    tags: list[str] = []
+    changed = 0
+    for pkg in packages:
+        price = recompute_starting_price(pkg, today=today)
+        if price == pkg.starting_price_paise:
+            continue
+        changed += 1
+        await db.execute(
+            update(Package)
+            .where(Package.id == pkg.id)
+            .values(starting_price_paise=price, updated_at=Package.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        tags += [t for t in revalidate_tags(pkg.slug, pkg.destination.slug) if t not in tags]
+    await db.commit()
+    if tags:
+        await revalidate(tags)
+    return changed
 
 
 def publish_rules(pkg: Package, *, image_count: int, today: dt.date) -> list[PublishRule]:
@@ -182,7 +222,7 @@ def _image_out(i: PackageImage) -> AdminImage:
 
 
 async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
-    today = dt.date.today()
+    today = ist_today()
     left = await _seats_left(db, pkg)
     images = sorted(pkg.images, key=lambda i: i.position)
     rules = publish_rules(pkg, image_count=len(images), today=today)
@@ -236,7 +276,7 @@ async def get_package(db: AsyncSession, id: str) -> AdminPackage:
 async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
     """One aggregate subquery per count — the A3 table shows upcoming departures and 30-day
     enquiries next to every row, and there are a dozen packages, not a million."""
-    today = dt.date.today()
+    today = ist_today()
     since = dt.datetime.now(dt.UTC) - dt.timedelta(days=ENQUIRY_WINDOW_DAYS)
     upcoming = (
         select(Departure.package_id, func.count(Departure.id).label("n"))
@@ -302,24 +342,37 @@ async def _assert_destination_exists(db: AsyncSession, destination_id: str) -> N
         )
 
 
+def _conflict(exc: IntegrityError) -> ApiError:
+    """The constraint name decides the message: naming every failure a duplicate slug would send
+    the owner hunting through the wrong field."""
+    constraint = str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
+    if "uq_departures_package_id_date" in constraint:
+        return ApiError(
+            "conflict", DUPLICATE_DEPARTURE, field_errors={"departures": DUPLICATE_DEPARTURE}
+        )
+    return ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG})
+
+
+async def _flush_or_conflict(db: AsyncSession) -> None:
+    """A mid-write flush sends the package row too, so it can meet the same `unique` races as
+    the commit — a concurrent create taking the slug — and must answer the same friendly 409."""
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise _conflict(exc) from None
+
+
 async def _commit_or_conflict(db: AsyncSession) -> None:
     """The pre-checks give the friendly error on the common path; this is the safety net for a
     write that still reaches a `unique` constraint — a concurrent insert taking the slug, or two
     departures swapping dates (the intermediate state collides before the second row is updated).
-
-    The constraint name decides the message: naming every failure a duplicate slug would send
-    the owner hunting through the wrong field.
     """
     try:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        constraint = str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
-        if "uq_departures_package_id_date" in constraint:
-            raise ApiError(
-                "conflict", DUPLICATE_DEPARTURE, field_errors={"departures": DUPLICATE_DEPARTURE}
-            ) from None
-        raise ApiError("conflict", DUPLICATE_SLUG, field_errors={"slug": DUPLICATE_SLUG}) from None
+        raise _conflict(exc) from None
 
 
 def _apply_fields(pkg: Package, payload: PackageInput) -> None:
@@ -385,7 +438,7 @@ async def _replace_children(db: AsyncSession, pkg: Package, payload: PackageInpu
 
     pkg.itinerary = []
     pkg.departures = [d for d in pkg.departures if d.id in sent_ids]
-    await db.flush()
+    await _flush_or_conflict(db)
 
     pkg.itinerary = _new_days(payload)
     pkg.departures = [
@@ -404,7 +457,7 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
     _apply_fields(pkg, payload)
     pkg.itinerary = _new_days(payload)
     pkg.departures = [_fill_departure(Departure(), row) for row in payload.departures]
-    pkg.starting_price_paise = recompute_starting_price(pkg, today=dt.date.today())
+    pkg.starting_price_paise = recompute_starting_price(pkg, today=ist_today())
     db.add(pkg)
     await _commit_or_conflict(db)
     out = await to_admin(db, await load(db, pkg.id))
@@ -419,7 +472,7 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     old_slug, old_destination_slug = pkg.slug, pkg.destination.slug
     _apply_fields(pkg, payload)
     await _replace_children(db, pkg, payload)
-    pkg.starting_price_paise = recompute_starting_price(pkg, today=dt.date.today())
+    pkg.starting_price_paise = recompute_starting_price(pkg, today=ist_today())
     await _commit_or_conflict(db)
     out = await to_admin(db, await load(db, id))
     await revalidate(
@@ -432,7 +485,7 @@ async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminP
     """Going live runs the four rules; unpublishing is always allowed (06 §C4)."""
     pkg = await load(db, id)
     if status is PackageStatus.LIVE:
-        rules = publish_rules(pkg, image_count=len(pkg.images), today=dt.date.today())
+        rules = publish_rules(pkg, image_count=len(pkg.images), today=ist_today())
         failed = [r for r in rules if not r.ok]
         if failed:
             raise ApiError(
@@ -517,7 +570,7 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         for i in source_images
     ]
     db.add(copy)
-    await db.flush()  # ids for the copied image rows, so the cover can point at one
+    await _flush_or_conflict(db)  # ids for the copied image rows, so the cover can point at one
     if cover_position is not None:
         copy.cover_image_id = next(i.id for i in copy.images if i.position == cover_position)
     await _commit_or_conflict(db)

@@ -470,6 +470,27 @@ async def test_update_rejects_a_slug_another_package_already_uses(
 
 
 @pytest.mark.db
+async def test_a_slug_race_past_the_precheck_is_still_a_409_not_a_500(
+    db: AsyncSession, revalidated: RecordingRevalidate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another request takes the slug between the pre-check and the write: the mid-write flush
+    in `_replace_children` meets the unique index first, and must answer like the commit does."""
+
+    async def raced(*_: object, **__: object) -> None:
+        return None
+
+    monkeypatch.setattr(svc, "_assert_slug_free", raced)
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db, pkg.id, payload(slug="goa-quiet-escape", destinationId=await goa_id(db))
+        )
+    assert exc.value.code == "conflict" and exc.value.field_errors == {"slug": svc.DUPLICATE_SLUG}
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
 async def test_update_rejects_a_departure_id_from_another_package(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:

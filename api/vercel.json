@@ -6,5 +6,5 @@
     }
   },
   "regions": ["bom1"],
-  "crons": [{ "path": "/cron/pdf-gc", "schedule": "0 3 * * 0" }]
+  "crons": [{ "path": "/cron/daily", "schedule": "35 18 * * *" }]
 }

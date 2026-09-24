@@ -1,11 +1,17 @@
-"""GET /cron/pdf-gc — bearer CRON_SECRET (06 §Auth), deletes stale itinerary PDFs."""
+"""GET /cron/pdf-gc and GET /cron/daily — bearer CRON_SECRET (06 §Auth): stale itinerary PDFs,
+and the daily starting-price recompute."""
+
+import datetime as dt
+from collections.abc import Sequence
 
 import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Departure, Package
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
@@ -85,13 +91,115 @@ async def test_blob_failure_is_a_500_so_the_cron_log_shows_it(
     assert res.json()["error"]["code"] == "internal"
 
 
-def test_cron_route_is_not_in_the_public_contract(app: FastAPI) -> None:
+def test_cron_routes_are_not_in_the_public_contract(app: FastAPI) -> None:
     assert "/cron/pdf-gc" not in app.openapi()["paths"]
+    assert "/cron/daily" not in app.openapi()["paths"]
 
 
-def test_vercel_json_schedules_the_gc_weekly() -> None:
+def test_vercel_json_runs_the_daily_job_just_after_ist_midnight() -> None:
     import json
     from pathlib import Path
 
     cfg = json.loads((Path(__file__).resolve().parents[1] / "vercel.json").read_text())
-    assert {"path": "/cron/pdf-gc", "schedule": "0 3 * * 0"} in cfg["crons"]
+    assert cfg["crons"] == [{"path": "/cron/daily", "schedule": "35 18 * * *"}]  # 00:05 IST
+
+
+# --- /cron/daily ---------------------------------------------------------------------------------
+
+
+class RecordingRevalidate:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    async def __call__(self, tags: Sequence[str]) -> bool:
+        self.calls.append(list(tags))
+        return True
+
+
+@pytest.fixture
+def revalidated(monkeypatch: pytest.MonkeyPatch) -> RecordingRevalidate:
+    rec = RecordingRevalidate()
+    monkeypatch.setattr("app.services.catalog.admin_packages.revalidate", rec)
+    return rec
+
+
+async def price_and_stamp(db: AsyncSession, slug: str) -> tuple[int, object]:
+    stmt = select(Package.starting_price_paise, Package.updated_at).where(Package.slug == slug)
+    price, stamp = (await db.execute(stmt)).one()
+    return price, stamp
+
+
+@pytest.mark.db
+async def test_daily_recomputes_prices_that_departures_left_behind(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    store = configured(db_app, FakeBlobStore())
+    assert store is not None
+    store.objects["pdf/north-goa-beaches/1/Tripsmith-north-goa-beaches-itinerary.pdf"] = b"stale"
+    # The cheapest north-goa date (₹14,499, 12 Feb) "leaves": move it into the past.
+    await db.execute(
+        update(Departure)
+        .where(Departure.price_double_paise == 14_499_00)
+        .values(date=Departure.date - dt.timedelta(days=3650))
+    )
+    await db.commit()
+    before_price, before_stamp = await price_and_stamp(db, "north-goa-beaches")
+    quiet_before = await price_and_stamp(db, "goa-quiet-escape")
+    assert before_price == 14_499_00
+
+    res = await db_client.get("/cron/daily", headers=AUTH)
+
+    assert res.status_code == 200, res.text
+    assert res.headers["cache-control"] == "no-store"
+    assert res.json() == {
+        "pricesUpdated": 1,
+        "pdf": {"deleted": 1, "kept": 0, "configured": True},
+    }
+    db.expire_all()
+    price, stamp = await price_and_stamp(db, "north-goa-beaches")
+    assert price == 14_999_00, "the next-cheapest upcoming date"
+    assert stamp == before_stamp, "a calendar tick is not an owner edit"
+    assert await price_and_stamp(db, "goa-quiet-escape") == quiet_before
+    assert revalidated.calls == [
+        ["packages", "destinations", "home", "package:north-goa-beaches", "destination:goa"]
+    ]
+
+    # Nothing moved since: no writes, no revalidation.
+    res = await db_client.get("/cron/daily", headers=AUTH)
+    assert res.json()["pricesUpdated"] == 0
+    assert len(revalidated.calls) == 1
+
+
+@pytest.mark.db
+async def test_daily_drops_to_on_request_when_every_date_has_passed(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    configured(db_app, None)
+    pid = (
+        await db.execute(select(Package.id).where(Package.slug == "goa-quiet-escape"))
+    ).scalar_one()
+    await db.execute(
+        update(Departure)
+        .where(Departure.package_id == pid)
+        .values(date=Departure.date - dt.timedelta(days=3650))
+    )
+    await db.commit()
+
+    res = await db_client.get("/cron/daily", headers=AUTH)
+
+    assert res.status_code == 200, res.text
+    db.expire_all()
+    assert (await price_and_stamp(db, "goa-quiet-escape"))[0] == 0
+
+
+@pytest.mark.db
+async def test_daily_needs_the_cron_secret(db_app: FastAPI, db_client: AsyncClient) -> None:
+    configured(db_app, None)
+    assert (await db_client.get("/cron/daily")).status_code == 401
+    assert (
+        await db_client.get("/cron/daily", headers={"Authorization": "Bearer nope"})
+    ).status_code == 401
+    db_app.state.settings = make_settings()  # no secret configured: closed, not open
+    assert (await db_client.get("/cron/daily", headers=AUTH)).status_code == 401

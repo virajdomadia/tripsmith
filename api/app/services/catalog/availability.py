@@ -20,7 +20,9 @@ class Availability:
 
 
 async def next_departures(db: AsyncSession, today: dt.date) -> dict[str, Availability]:
-    """The earliest departure on/after `today` per package id — the card badge's source."""
+    """Per package id, the earliest departure on/after `today` that still has seats — the card
+    badge's source. A sold-out first date must not badge the card while a later one is open;
+    only when every upcoming departure is full does the earliest (sold-out) one stand in."""
     rows = await db.execute(
         select(
             Departure.package_id,
@@ -32,7 +34,11 @@ async def next_departures(db: AsyncSession, today: dt.date) -> dict[str, Availab
         .where(Departure.date >= today)
         .order_by(Departure.package_id, Departure.date)
     )
-    out: dict[str, Availability] = {}
+    open_: dict[str, Availability] = {}
+    earliest: dict[str, Availability] = {}
     for package_id, guaranteed, price, seats_left in rows:
-        out.setdefault(package_id, Availability(seats_left, guaranteed, price))
-    return out
+        availability = Availability(seats_left, guaranteed, price)
+        earliest.setdefault(package_id, availability)
+        if seats_left > 0:
+            open_.setdefault(package_id, availability)
+    return earliest | open_

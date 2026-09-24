@@ -8,7 +8,7 @@ leave this module; `seats_left` always comes from the `departure_availability` v
 import datetime as dt
 from collections.abc import Iterable
 
-from sqlalchemy import func, select
+from sqlalchemy import func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +28,7 @@ from app.schemas.catalog import (
     PackageCard,
     PackageDetail,
 )
+from app.services.analytics import ist_today
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
@@ -135,7 +136,7 @@ async def get_package(
     db: AsyncSession, slug: str, *, today: dt.date | None = None
 ) -> PackageDetail | None:
     """Everything the package page renders; `None` for drafts and unknown slugs (06 C1)."""
-    today = today or dt.date.today()
+    today = today or ist_today()
     p = await _live_package(db, slug)
     if p is None:
         return None
@@ -178,7 +179,7 @@ async def get_departures_for_month(
 ) -> list[DepartureOut] | None:
     """Upcoming departures of a live package, optionally within one `YYYY-MM` (06 C1; the v3
     `checkAvailability` tool reuses it). `None` when the package is draft/unknown."""
-    today = today or dt.date.today()
+    today = today or ist_today()
     package_id = (
         await db.execute(
             select(Package.id).where(Package.slug == slug, Package.status == PackageStatus.LIVE)
@@ -221,7 +222,7 @@ async def get_destination(
     db: AsyncSession, slug: str, *, today: dt.date | None = None
 ) -> DestinationDetail | None:
     """A destination with its live packages as cards; `None` if unknown or nothing is live."""
-    today = today or dt.date.today()
+    today = today or ist_today()
     d = (await db.execute(select(Destination).where(Destination.slug == slug))).scalar_one_or_none()
     if d is None:
         return None
@@ -231,7 +232,10 @@ async def get_destination(
                 select(Package)
                 .where(Package.destination_id == d.id, Package.status == PackageStatus.LIVE)
                 .options(selectinload(Package.destination), selectinload(Package.cover_image))
-                .order_by(Package.starting_price_paise, Package.name)
+                # 0 is "on request", not the cheapest — the same ordering search and home use.
+                .order_by(
+                    nulls_last(func.nullif(Package.starting_price_paise, 0).asc()), Package.name
+                )
             )
         )
         .scalars()

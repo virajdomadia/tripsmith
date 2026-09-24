@@ -73,7 +73,9 @@ class PackageCard(ApiModel):
     themes: list[Theme]
     cover_url: str | None
     highlights: list[str]
-    badge: Badge | None = Field(description="From the next upcoming departure")
+    badge: Badge | None = Field(
+        description="From the next upcoming departure with seats; sold-out only when all are full"
+    )
 
 
 class FacetOption(ApiModel):
