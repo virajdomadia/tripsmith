@@ -80,13 +80,31 @@ describe('packageJsonLd', () => {
       price: '14999',
       priceCurrency: 'INR',
       availability: 'https://schema.org/InStock',
-      validFrom: '2026-11-20',
     });
+    // The departure day is not when the offer opens.
+    expect(offers[0]).not.toHaveProperty('validFrom');
     expect(offers[1]).toMatchObject({ price: '17499', availability: 'https://schema.org/SoldOut' });
     const itinerary = ld.itinerary as {
       itemListElement: Array<{ position: number; name: string }>;
     };
     expect(itinerary.itemListElement.map((d) => d.name)).toEqual(['Arrive Goa', 'North Goa']);
+  });
+
+  it('advertises no Offer for a departure that is still on request (price 0)', () => {
+    const ld = packageJsonLd(
+      { ...pkg, departures: [departure({ id: 'd3', priceDoublePaise: 0 }), ...pkg.departures] },
+      'https://tripsmith.vercel.app/packages/north-goa-beaches',
+    );
+    const offers = ld.offers as Array<Record<string, unknown>>;
+    expect(offers.map((o) => o.price)).toEqual(['14999', '17499']);
+  });
+
+  it('has no offers key at all when every departure is on request', () => {
+    const ld = packageJsonLd(
+      { ...pkg, startingPricePaise: 0, departures: [departure({ priceDoublePaise: 0 })] },
+      'https://tripsmith.vercel.app/packages/north-goa-beaches',
+    );
+    expect(ld).not.toHaveProperty('offers');
   });
 });
 

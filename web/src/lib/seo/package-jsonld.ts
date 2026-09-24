@@ -1,4 +1,5 @@
 import type { components } from '@/lib/api-types';
+import { isPriced } from '@/lib/format';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
@@ -21,8 +22,23 @@ export function faqJsonLd(p: PackageDetail): Record<string, unknown> | null {
   };
 }
 
-/** schema.org TouristTrip + one Offer per upcoming departure (R4 acceptance). */
+/**
+ * schema.org TouristTrip + one Offer per upcoming priced departure (R4 acceptance). A departure
+ * at price 0 is "on request" (a date parked before the rate is set), not a free trip, so it gets
+ * no Offer, and a package with none priced carries no `offers` at all. No `validFrom`: the departure day is when the trip starts, not when the offer opens,
+ * and we do not track the latter.
+ */
 export function packageJsonLd(p: PackageDetail, url: string): Record<string, unknown> {
+  const offers = p.departures
+    .filter((d) => isPriced(d.priceDoublePaise))
+    .map((d) => ({
+      '@type': 'Offer',
+      name: `Departure ${d.date}`,
+      url,
+      price: String(Math.round(d.priceDoublePaise / 100)),
+      priceCurrency: 'INR',
+      availability: d.seatsLeft > 0 ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+    }));
   return {
     '@context': 'https://schema.org',
     '@type': 'TouristTrip',
@@ -41,14 +57,6 @@ export function packageJsonLd(p: PackageDetail, url: string): Record<string, unk
         name: d.title,
       })),
     },
-    offers: p.departures.map((d) => ({
-      '@type': 'Offer',
-      name: `Departure ${d.date}`,
-      url,
-      price: String(Math.round(d.priceDoublePaise / 100)),
-      priceCurrency: 'INR',
-      validFrom: d.date,
-      availability: d.seatsLeft > 0 ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
-    })),
+    ...(offers.length > 0 ? { offers } : {}),
   };
 }

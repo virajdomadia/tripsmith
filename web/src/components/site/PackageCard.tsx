@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
-import { duration, inr } from '@/lib/format';
+import { duration, inr, isPriced } from '@/lib/format';
 import { Photo } from './Photo';
 import { Stamp } from './Stamp';
 
@@ -37,7 +37,7 @@ export function PackageCard({ card }: { card: Card }) {
           <div>
             <small className="block text-xs font-semibold text-mute">From</small>
             <b className="num text-[22px] font-extrabold tracking-tight">
-              {card.startingPricePaise ? (
+              {isPriced(card.startingPricePaise) ? (
                 <>
                   {inr(card.startingPricePaise)}{' '}
                   <i className="text-[13px] font-semibold text-mute not-italic">/ person</i>

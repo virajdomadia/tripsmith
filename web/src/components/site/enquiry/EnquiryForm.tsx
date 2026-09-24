@@ -2,15 +2,18 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
+import { DemoNotice } from '@/components/site/DemoNotice';
 import { errorFromResponse } from '@/lib/api-errors';
 import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import {
   BUDGET,
+  BUDGET_MESSAGE,
   enquiryFromForm,
   enquirySchema,
   fieldErrorsOf,
   MESSAGE_MAX,
+  NAME_MAX,
   TRAVELLERS,
 } from '@/lib/enquiry-schema';
 import { type ServerError, thanksHref } from '@/lib/enquiry-form-state';
@@ -39,7 +42,8 @@ const MESSAGES: Record<ServerError, string> = {
 /**
  * S6. A native form (`action="/enquire"`) so it works without JavaScript; with it, the submit is
  * intercepted, validated by the zod mirror, posted to the api through the `/api` rewrite and the
- * visitor is taken to the thanks page. `kind="package"` shows the Standard / Customise toggle.
+ * visitor is taken to the thanks page. `kind="package"` shows the Standard / Customise toggle —
+ * native radios, so arrow keys and the posted `type` come for free.
  */
 export function EnquiryForm({
   kind,
@@ -54,16 +58,31 @@ export function EnquiryForm({
   const [errors, setErrors] = useState<Record<string, string>>(fieldErrors);
   const [banner, setBanner] = useState<string | undefined>(error && MESSAGES[error]);
   const [busy, setBusy] = useState(false);
+  // Bumped when a submit fails validation (and set on a no-JS round trip that came back with
+  // errors): the effect below then moves focus to the first invalid control.
+  const [focusRequest, setFocusRequest] = useState(Object.keys(fieldErrors).length > 0 ? 1 : 0);
+  const formRef = useRef<HTMLFormElement>(null);
   const bannerId = useId();
-  const type = kind === 'contact' ? 'contact' : mode;
   const d = defaultValues;
+
+  useEffect(() => {
+    if (focusRequest === 0) return;
+    formRef.current
+      ?.querySelector<HTMLElement>('[aria-invalid="true"], [data-form-error]')
+      ?.focus();
+  }, [focusRequest]);
+
+  const showErrors = (next: Record<string, string>) => {
+    setErrors(next);
+    setFocusRequest((n) => n + 1);
+  };
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const raw = enquiryFromForm(new FormData(e.currentTarget));
     const parsed = enquirySchema.safeParse(raw);
     if (!parsed.success) {
-      setErrors(fieldErrorsOf(parsed.error));
+      showErrors(fieldErrorsOf(parsed.error));
       return;
     }
     setErrors({});
@@ -85,6 +104,7 @@ export function EnquiryForm({
             emailed: body.emailed,
           }),
         );
+        // Stay busy: the button must not come back to life while the thanks page loads.
         return;
       }
       const err = errorFromResponse(
@@ -92,20 +112,23 @@ export function EnquiryForm({
         res.statusText,
         await res.json().catch(() => undefined),
       );
-      if (err.body.code === 'validation' && err.body.fieldErrors) setErrors(err.body.fieldErrors);
+      if (err.body.code === 'validation' && err.body.fieldErrors) showErrors(err.body.fieldErrors);
       else setBanner(err.body.code === 'rate_limited' ? MESSAGES.rate_limited : MESSAGES.internal);
     } catch {
       setBanner(MESSAGES.internal);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   }
 
-  const invalid = (name: string) =>
-    errors[name] ? { 'aria-invalid': true as const, 'aria-describedby': `${name}-error` } : {};
+  /** `aria-invalid` + the error, or the hint when the field has one (Field renders both ids). */
+  const describe = (name: string, hint = false) => ({
+    'aria-invalid': errors[name] ? (true as const) : undefined,
+    'aria-describedby': errors[name] ? `${name}-error` : hint ? `${name}-hint` : undefined,
+  });
 
   return (
     <form
+      ref={formRef}
       action="/enquire"
       method="post"
       onSubmit={onSubmit}
@@ -113,28 +136,34 @@ export function EnquiryForm({
       aria-describedby={banner ? bannerId : undefined}
       className="relative grid gap-4 rounded-card border border-line p-6"
     >
-      <input type="hidden" name="type" value={type} />
+      {kind === 'contact' && <input type="hidden" name="type" value="contact" />}
       {pkg && <input type="hidden" name="packageSlug" value={pkg.slug} />}
 
       {kind === 'package' && (
-        <div role="tablist" aria-label="Enquiry type" className="flex rounded-[12px] bg-bg2 p-1">
+        <fieldset className="m-0 flex min-w-0 rounded-[12px] border-0 bg-bg2 p-1">
+          <legend className="sr-only">Enquiry type</legend>
           {(['standard', 'custom'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={`flex-1 rounded-[9px] px-3 py-2.5 text-sm font-bold transition-colors ${
-                mode === m
-                  ? 'bg-bg text-ink shadow-[0_1px_3px_rgb(0_0_0/0.08)]'
-                  : 'text-mute hover:text-ink'
-              }`}
-            >
-              {m === 'standard' ? 'Standard trip' : 'Customise this trip'}
-            </button>
+            <label key={m} className="flex-1">
+              <input
+                type="radio"
+                name="type"
+                value={m}
+                checked={mode === m}
+                onChange={() => setMode(m)}
+                className="peer sr-only"
+              />
+              <span
+                className={`block cursor-pointer rounded-[9px] px-3 py-2.5 text-center text-sm font-bold transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary ${
+                  mode === m
+                    ? 'bg-bg text-ink shadow-[0_1px_3px_rgb(0_0_0/0.08)]'
+                    : 'text-mute hover:text-ink'
+                }`}
+              >
+                {m === 'standard' ? 'Standard trip' : 'Customise this trip'}
+              </span>
+            </label>
           ))}
-        </div>
+        </fieldset>
       )}
 
       {banner && (
@@ -157,7 +186,8 @@ export function EnquiryForm({
 
       {errors.packageSlug && (
         <p
-          role="alert"
+          data-form-error
+          tabIndex={-1}
           className="rounded-btn border border-warn/40 bg-warn-soft px-3.5 py-2.5 text-sm font-semibold text-warn"
         >
           {errors.packageSlug} —{' '}
@@ -176,8 +206,9 @@ export function EnquiryForm({
             defaultValue={d.name}
             autoComplete="name"
             required
+            maxLength={NAME_MAX}
             className={control}
-            {...invalid('name')}
+            {...describe('name')}
           />
         </Field>
         <Field label="Mobile number" name="phone" error={errors.phone} hint="We call this number">
@@ -189,7 +220,7 @@ export function EnquiryForm({
             autoComplete="tel"
             required
             className={`num ${control}`}
-            {...invalid('phone')}
+            {...describe('phone', true)}
           />
         </Field>
       </div>
@@ -203,7 +234,7 @@ export function EnquiryForm({
             autoComplete="email"
             required
             className={control}
-            {...invalid('email')}
+            {...describe('email')}
           />
         </Field>
         <Field label="Travel month" name="travelMonth" error={errors.travelMonth}>
@@ -212,7 +243,7 @@ export function EnquiryForm({
             name="travelMonth"
             defaultValue={d.travelMonth ?? ''}
             className={control}
-            {...invalid('travelMonth')}
+            {...describe('travelMonth')}
           >
             <option value="">Not sure yet</option>
             {months.map((m) => (
@@ -230,7 +261,7 @@ export function EnquiryForm({
             name="adults"
             defaultValue={d.adults ?? '2'}
             className={control}
-            {...invalid('adults')}
+            {...describe('adults')}
           >
             {TRAVELLERS.adults.map((n) => (
               <option key={n} value={n}>
@@ -245,7 +276,7 @@ export function EnquiryForm({
             name="children"
             defaultValue={d.children ?? '0'}
             className={control}
-            {...invalid('children')}
+            {...describe('children')}
           >
             {TRAVELLERS.children.map((n) => (
               <option key={n} value={n}>
@@ -256,7 +287,7 @@ export function EnquiryForm({
         </Field>
       </div>
 
-      {type === 'custom' && (
+      {kind === 'package' && mode === 'custom' && (
         <>
           <Field
             label="Preferred dates"
@@ -270,7 +301,7 @@ export function EnquiryForm({
               defaultValue={d.preferredDates}
               maxLength={200}
               className={control}
-              {...invalid('preferredDates')}
+              {...describe('preferredDates', true)}
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -278,7 +309,7 @@ export function EnquiryForm({
               label="Budget per person (₹)"
               name="budget"
               error={errors.budget}
-              hint={`Between ₹${BUDGET.min.toLocaleString('en-IN')} and ₹${BUDGET.max.toLocaleString('en-IN')}`}
+              hint={BUDGET_MESSAGE}
             >
               <input
                 id="budget"
@@ -290,7 +321,7 @@ export function EnquiryForm({
                 step={500}
                 defaultValue={d.budget}
                 className={`num ${control}`}
-                {...invalid('budget')}
+                {...describe('budget', true)}
               />
             </Field>
           </div>
@@ -303,7 +334,7 @@ export function EnquiryForm({
               maxLength={MESSAGE_MAX}
               placeholder="A different hotel, an extra night, skip the coach…"
               className={control}
-              {...invalid('changes')}
+              {...describe('changes')}
             />
           </Field>
         </>
@@ -326,7 +357,7 @@ export function EnquiryForm({
               : 'Dates you are looking at, flights, anything special…'
           }
           className={control}
-          {...invalid('message')}
+          {...describe('message')}
         />
       </Field>
 
@@ -338,6 +369,7 @@ export function EnquiryForm({
         </label>
       </div>
 
+      <DemoNotice />
       <button
         type="submit"
         disabled={busy}
@@ -346,8 +378,8 @@ export function EnquiryForm({
         {busy ? 'Sending…' : kind === 'contact' ? 'Send message' : 'Send enquiry'}
       </button>
       <p className="text-[13px] text-mute">
-        By sending, you agree to our <Link href="/privacy">privacy policy</Link>. We never share
-        your number. A person calls you back within 2 hours, {BUSINESS.hours}.
+        By sending, you agree to our <Link href="/privacy">privacy policy</Link>. A person calls you
+        back within 2 hours, {BUSINESS.hours}.
       </p>
     </form>
   );

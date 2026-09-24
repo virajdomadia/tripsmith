@@ -1,25 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  type FilterChip,
-  resultCount,
-  searchHref,
-  type SearchQuery,
-  SORT_LABEL,
-  type SortOrder,
-} from '@/lib/search';
+import { type FilterChip, resultCount, SORT_LABEL, type SortOrder } from '@/lib/search';
 import { NavLink, useSearch } from './SearchTransition';
 
-type Props = { query: SearchQuery; total: number; chips: FilterChip[] };
+type Props = { total: number; chips: FilterChip[] };
 
-/** S4 `.toolbar`: count · removable chips · sort. */
-export function ResultsToolbar({ query, total, chips }: Props) {
-  const { navigate, pending } = useSearch();
-  const [sort, setSort] = useState(query.sort);
-  useEffect(() => {
-    if (!pending) setSort(query.sort);
-  }, [pending, query.sort]);
+/** S4 `.toolbar`: count · removable chips · sort. The next URL comes from the shared (optimistic)
+ * query, so a sort change keeps a filter that is still loading. */
+export function ResultsToolbar({ total, chips }: Props) {
+  const { query, update } = useSearch();
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -53,12 +42,8 @@ export function ResultsToolbar({ query, total, chips }: Props) {
       <label className="ml-auto flex items-center gap-2 text-sm text-mute">
         Sort
         <select
-          value={sort}
-          onChange={(e) => {
-            const next = e.target.value as SortOrder;
-            setSort(next);
-            navigate(searchHref({ ...query, sort: next }));
-          }}
+          value={query.sort}
+          onChange={(e) => update({ ...query, sort: e.target.value as SortOrder })}
           className="rounded-btn border border-line bg-bg px-2.5 py-1.5 text-sm font-semibold text-ink"
         >
           {(Object.keys(SORT_LABEL) as SortOrder[]).map((s) => (

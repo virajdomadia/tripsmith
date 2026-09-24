@@ -52,6 +52,8 @@ describe('api() — typed server-side fetch', () => {
     // Tagged reads carry `?fresh=1` so the on-demand revalidation refetch skips the api's edge cache.
     expect(url.toString()).toBe('http://localhost:8000/meta?fresh=1');
     expect(init).toMatchObject({ next: { tags: ['meta'] } });
+    // A hung api aborts into the error boundary instead of holding the render.
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('fills {param} tokens in the path, URL-encoded', async () => {
@@ -141,7 +143,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/meta');
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('does not append fresh=1 for an empty tags array', async () => {
@@ -151,7 +153,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/meta', { tags: [] });
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('does not append fresh=1 for an auth read', async () => {
@@ -161,7 +163,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/health', { auth: true });
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('throws ApiRequestError carrying the envelope on a non-2xx response', async () => {

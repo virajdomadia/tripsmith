@@ -7,7 +7,8 @@ import { BUSINESS } from './business';
 
 export type PolicySlug = 'terms' | 'privacy' | 'cancellation-policy';
 
-export type PolicyBlock = { h: string; p?: string[]; list?: string[] };
+/** `id` makes a block linkable (`/privacy#demo`). */
+export type PolicyBlock = { id?: string; h: string; p?: string[]; list?: string[] };
 
 export type PolicyDoc = {
   slug: PolicySlug;
@@ -112,8 +113,16 @@ const privacy: PolicyDoc = {
   title: 'Privacy policy',
   short: 'Privacy',
   summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-  updated: UPDATED,
+  updated: '2026-09-24',
   blocks: [
+    {
+      id: 'demo',
+      h: 'This site is a portfolio demo',
+      p: [
+        'Tripsmith is a working demonstration built for a developer’s portfolio, not a trading travel agency. Nobody will call you back, and no trip will be booked.',
+        'The owner dashboard has a public demo login so that anyone can try it. That means every enquiry sent through this site — name, phone number, email and message included — can be read by anyone who signs in with it. Please do not submit real personal details; made-up ones show the flow just as well.',
+      ],
+    },
     {
       h: 'What we collect',
       p: [
@@ -130,7 +139,8 @@ const privacy: PolicyDoc = {
     {
       h: 'Who sees it',
       p: [
-        'The four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for your booking. Our email and hosting providers process it on our behalf under their own privacy terms.',
+        'On this demo: anyone who signs in with the public demo login can see every enquiry, as described above. The confirmation email goes out through our email provider, and the database and hosting providers store it on our behalf under their own privacy terms.',
+        'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
       ],
     },
     {

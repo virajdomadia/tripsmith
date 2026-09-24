@@ -42,7 +42,7 @@ export function PolicyPage({ slug }: { slug: PolicySlug }) {
       </nav>
       <article className="mt-8 grid max-w-[68ch] gap-7 leading-relaxed text-ink2">
         {doc.blocks.map((b) => (
-          <section key={b.h}>
+          <section key={b.h} id={b.id} className="scroll-mt-24">
             <h2 className="mb-2 text-[clamp(20px,2.2vw,24px)] text-ink">{b.h}</h2>
             {b.p?.map((para) => (
               <p key={para} className="mb-3">

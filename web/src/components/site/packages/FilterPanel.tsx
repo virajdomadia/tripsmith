@@ -1,18 +1,11 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { inr } from '@/lib/format';
-import {
-  DEFAULT_SORT,
-  type Facets,
-  isFiltered,
-  searchHref,
-  type SearchQuery,
-  type Theme,
-} from '@/lib/search';
+import { DEFAULT_SORT, type Facets, isFiltered, type SearchQuery, type Theme } from '@/lib/search';
 import { NavLink, useSearch } from './SearchTransition';
 
-type Props = { query: SearchQuery; facets: Facets };
+type Props = { facets: Facets };
 
 const BUDGET_STEP = 1000; // rupees — the api rounds its facet bounds to the same step
 
@@ -21,25 +14,56 @@ const BUDGET_STEP = 1000; // rupees — the api rounds its facet bounds to the s
  * navigates through the search transition and the slider navigates on release; without it
  * "Show trips" submits the same params. Options (destinations, months, ranges) come from the
  * api's facets — nothing is hard-coded.
+ *
+ * The rail reads and writes the listing's shared query (SearchTransition), the same one the sort
+ * control uses, so neither can navigate from a stale copy. Only a budget drag is local until
+ * release — a pointer let go anywhere (or cancelled), or a pause after keyboard / assistive-tech
+ * steps — and a drag started from an older budget is ignored once the committed one moves on.
  */
-export function FilterPanel({ query, facets }: Props) {
-  const { navigate, pending } = useSearch();
-  const [draft, setDraft] = useState(query);
+const BUDGET_SETTLE_MS = 350;
+
+export function FilterPanel({ facets }: Props) {
+  const { query, update } = useSearch();
+  // Mid-drag budget (`maxBudget: undefined` = dragged back to "Any") and the committed budget it
+  // started from; null when not dragging.
+  const [sliding, setSliding] = useState<{ from?: number; maxBudget?: number } | null>(null);
+  const pointerDown = useRef(false);
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [open, setOpen] = useState(false); // phones: collapsed above the grid (S4)
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => setHydrated(true), []);
-  // Chips, "Clear all" and back/forward change the URL behind the rail's back: follow the
-  // server's query once nothing is in flight.
-  useEffect(() => {
-    if (!pending) setDraft(query);
-  }, [pending, query]);
 
-  /** Show the change now and navigate now. */
-  const commit = (next: SearchQuery) => {
-    setDraft(next);
-    navigate(searchHref(next));
+  // A drag only counts against the budget it started from: once the committed budget changes
+  // (released, a chip removed, back/forward) a leftover one is stale and ignored.
+  const live = sliding && sliding.from === query.maxBudget ? sliding : null;
+  const draft: SearchQuery = live ? { ...query, maxBudget: live.maxBudget } : query;
+  /** Navigate now; the shared query shows the change at once. */
+  const commit = (next: SearchQuery) => update(next);
+  const releaseBudget = () => {
+    clearTimeout(settle.current);
+    pointerDown.current = false;
+    if (live && live.maxBudget !== query.maxBudget) commit(draft);
+    setSliding(null);
   };
+  // The latest release for listeners registered once per drag.
+  const release = useRef(releaseBudget);
+  useEffect(() => {
+    release.current = releaseBudget;
+  });
+  // A pointer can be let go outside the input (or the drag cancelled): listen on the window.
+  useEffect(() => {
+    const end = () => {
+      if (pointerDown.current) release.current();
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      clearTimeout(settle.current);
+    };
+  }, []);
   const toggleDestination = (slug: string, on: boolean) =>
     commit({
       ...draft,
@@ -65,7 +89,14 @@ export function FilterPanel({ query, facets }: Props) {
 
   return (
     <aside aria-label="Filters" className="lg:sticky lg:top-20">
+      {/* Without JS the phone toggle cannot open anything: show the form, drop the toggle. */}
+      <noscript>
+        <style>
+          {'#filter-form{display:grid!important}#filter-toggle{display:none!important}'}
+        </style>
+      </noscript>
       <button
+        id="filter-toggle"
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -123,26 +154,19 @@ export function FilterPanel({ query, facets }: Props) {
                 aria-valuetext={
                   draft.maxBudget === undefined ? 'Any budget' : inr(budgetValue * 100)
                 }
+                onPointerDown={() => {
+                  pointerDown.current = true;
+                }}
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  setDraft({ ...draft, maxBudget: v >= facets.budget.max ? undefined : v });
-                }}
-                onPointerUp={() => navigate(searchHref(draft))}
-                onKeyUp={(e) => {
-                  if (
-                    [
-                      'ArrowLeft',
-                      'ArrowRight',
-                      'ArrowUp',
-                      'ArrowDown',
-                      'Home',
-                      'End',
-                      'PageUp',
-                      'PageDown',
-                    ].includes(e.key)
-                  ) {
-                    navigate(searchHref(draft));
-                  }
+                  setSliding({
+                    from: query.maxBudget,
+                    maxBudget: v >= facets.budget.max ? undefined : v,
+                  });
+                  // Keyboard and assistive-tech steps have no "release": commit once they pause.
+                  clearTimeout(settle.current);
+                  if (!pointerDown.current)
+                    settle.current = setTimeout(() => release.current(), BUDGET_SETTLE_MS);
                 }}
                 className="accent-primary"
               />

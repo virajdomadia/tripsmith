@@ -1,3 +1,4 @@
+import { clearDraft } from '@/lib/enquiry-draft';
 import { forwardEnquiry } from '@/lib/enquiry-forward';
 import { enquirySchema, fieldErrorsOf } from '@/lib/enquiry-schema';
 
@@ -27,12 +28,12 @@ export async function POST(request: Request): Promise<Response> {
       { status: 502 },
     );
   const retryAfter = res.headers.get('retry-after');
-  return new Response(res.body, {
-    status: res.status,
-    headers: {
-      'Content-Type': res.headers.get('content-type') ?? 'application/json',
-      'Cache-Control': 'no-store',
-      ...(retryAfter ? { 'Retry-After': retryAfter } : {}),
-    },
+  const headers = new Headers({
+    'Content-Type': res.headers.get('content-type') ?? 'application/json',
+    'Cache-Control': 'no-store',
   });
+  if (retryAfter) headers.set('Retry-After', retryAfter);
+  // A no-JS attempt may have left the visitor's details in the draft cookie; sent now, drop it.
+  if (res.status === 201) await clearDraft();
+  return new Response(res.body, { status: res.status, headers });
 }

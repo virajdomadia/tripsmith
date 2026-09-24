@@ -5,6 +5,7 @@ import { MapEmbed } from '@/components/site/contact/MapEmbed';
 import { EnquiryForm } from '@/components/site/enquiry/EnquiryForm';
 import { PageHead } from '@/components/site/PageHead';
 import { BUSINESS } from '@/lib/business';
+import { readDraft } from '@/lib/enquiry-draft';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
 import { absolute } from '@/lib/seo/site-url';
@@ -23,7 +24,8 @@ export default async function ContactPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const state = formStateFrom(await searchParams);
+  const sp = await searchParams;
+  const state = formStateFrom(sp, await readDraft(sp));
   return (
     <Container className="pb-20">
       <PageHead

@@ -9,6 +9,18 @@ const rupees = new Intl.NumberFormat('en-IN', {
 /** `14_499_00` → `₹14,499` (no space after the symbol on any ICU build). */
 export const inr = (paise: number) => rupees.format(Math.round(paise / 100)).replace(/\s/g, '');
 
+/**
+ * The one "on request" rule: price 0 is the api's "priced later" (a draft parks a date before
+ * the rate is set, and a package's starting price is 0 when every date is like that) — never a
+ * free trip. Every price shown or advertised goes through these.
+ */
+export const isPriced = (paise: number | null | undefined): paise is number =>
+  typeof paise === 'number' && paise > 0;
+
+/** `₹14,499`, or "On request" for an unpriced one. */
+export const priceOrOnRequest = (paise: number | null | undefined) =>
+  isPriced(paise) ? inr(paise) : 'On request';
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTHS = [
   'Jan',

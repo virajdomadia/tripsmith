@@ -3,7 +3,7 @@ import type { components } from '@/lib/api-types';
 import { WhatsApp } from '@/components/site/home/icons';
 import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
-import { formatDate, inr } from '@/lib/format';
+import { formatDate, priceOrOnRequest } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 import { ItineraryPdfLink } from '../ItineraryPdfLink';
 
@@ -19,7 +19,7 @@ export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
       <div className="text-[13px] font-semibold text-mute">
         From
         <b className="num block text-[34px] leading-tight tracking-tight text-ink">
-          {pkg.startingPricePaise ? inr(pkg.startingPricePaise) : 'On request'}
+          {priceOrOnRequest(pkg.startingPricePaise)}
         </b>
         per person, double sharing
       </div>

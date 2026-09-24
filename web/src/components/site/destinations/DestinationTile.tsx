@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Photo } from '@/components/site/Photo';
 import type { components } from '@/lib/api-types';
-import { inr, monthRange } from '@/lib/format';
+import { inr, isPriced, monthRange } from '@/lib/format';
 
 type Card = components['schemas']['DestinationCard'];
 
@@ -34,7 +34,7 @@ export function DestinationTile({ card, index }: { card: Card; index: number }) 
             </b>
             <small className="num text-xs font-semibold opacity-95">
               {card.tagline}
-              {card.startingPricePaise > 0 && ` · starting ${inr(card.startingPricePaise)}`}
+              {isPriced(card.startingPricePaise) && ` · starting ${inr(card.startingPricePaise)}`}
             </small>
           </span>
         </Photo>

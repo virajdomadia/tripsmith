@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { Container } from '@/components/site/Container';
 import { EnquiryForm } from '@/components/site/enquiry/EnquiryForm';
 import { PackageSummary } from '@/components/site/enquiry/PackageSummary';
-import { api, ApiRequestError } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
+import { loadPackage } from '@/lib/catalog';
+import { readDraft } from '@/lib/enquiry-draft';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
 import { absolute } from '@/lib/seo/site-url';
@@ -15,19 +15,6 @@ type Search = Record<string, string | string[] | undefined>;
 
 /** Reads searchParams (the no-JS round trip re-fills the form), so it renders per request. */
 export const dynamic = 'force-dynamic';
-
-async function loadPackage(slug: string) {
-  try {
-    return await api('/packages/{slug}', {
-      params: { slug },
-      tags: [`package:${slug}`],
-      revalidate: 3600,
-    });
-  } catch (err) {
-    if (err instanceof ApiRequestError && err.status === 404) notFound();
-    throw err;
-  }
-}
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
@@ -49,7 +36,7 @@ export default async function EnquirePage({
 }) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const pkg = await loadPackage(slug);
-  const state = formStateFrom(sp);
+  const state = formStateFrom(sp, await readDraft(sp));
 
   return (
     <Container className="pb-20">

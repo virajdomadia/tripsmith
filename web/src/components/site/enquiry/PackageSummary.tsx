@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
-import { duration, formatDate, inr } from '@/lib/format';
+import { duration, formatDate, inr, isPriced } from '@/lib/format';
 import { ItineraryPdfLink } from '../ItineraryPdfLink';
 import { Photo } from '../Photo';
 
@@ -12,7 +12,10 @@ export function PackageSummary({ pkg }: { pkg: PackageDetail }) {
   const rows: [string, string][] = [
     ['Duration', duration(pkg.nights, pkg.days)],
     ...(next ? [['Next departure', formatDate(next.date)] as [string, string]] : []),
-    ['From', pkg.startingPricePaise ? `${inr(pkg.startingPricePaise)} / person` : 'On request'],
+    [
+      'From',
+      isPriced(pkg.startingPricePaise) ? `${inr(pkg.startingPricePaise)} / person` : 'On request',
+    ],
     ...(pkg.hotels[0] ? [['Hotel', pkg.hotels[0].name] as [string, string]] : []),
   ];
   return (

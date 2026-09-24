@@ -14,6 +14,11 @@ export const TRAVELLERS = {
   children: Array.from({ length: 12 }, (_, i) => i),
 } as const;
 export const BUDGET = { min: 1_000, max: 10_00_000 } as const;
+/** The api's own wording: f"Between ₹{BUDGET_MIN_INR:,} and ₹{BUDGET_MAX_INR:,} per person" —
+ * Python's `{:,}` groups in threes, so en-US, not en-IN's lakh grouping. */
+const grouped = (n: number) => n.toLocaleString('en-US');
+export const BUDGET_MESSAGE = `Between ₹${grouped(BUDGET.min)} and ₹${grouped(BUDGET.max)} per person`;
+export const NAME_MAX = 80;
 export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
 
 const PHONE_RE = /^[6-9][0-9]{9}$/;
@@ -47,7 +52,11 @@ export const enquirySchema = z
         .max(80)
         .optional(),
     ),
-    name: z.string().trim().min(2, 'Enter your name').max(80),
+    name: z
+      .string()
+      .trim()
+      .min(2, 'Enter your name')
+      .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`),
     phone: z
       .string()
       .transform(normalisePhone)
@@ -66,13 +75,14 @@ export const enquirySchema = z
     children: z.preprocess((v) => (v === '' || v == null ? 0 : v), int(0, TRAVELLERS.maxTotal - 1)),
     message: trimmed(MESSAGE_MAX),
     preferredDates: trimmed(200),
+    // Like the api's `int(float(v))`: "1500.5" and "1e3" are rupees, truncated, then range-checked.
     budget: z.preprocess(
       blankToUndefined,
       z.coerce
         .number({ message: 'Enter a budget in rupees' })
-        .int()
-        .min(BUDGET.min, `At least ₹${BUDGET.min.toLocaleString('en-IN')} per person`)
-        .max(BUDGET.max)
+        .refine(Number.isFinite, 'Enter a budget in rupees')
+        .transform(Math.trunc)
+        .pipe(z.number().min(BUDGET.min, BUDGET_MESSAGE).max(BUDGET.max, BUDGET_MESSAGE))
         .optional(),
     ),
     changes: trimmed(MESSAGE_MAX),

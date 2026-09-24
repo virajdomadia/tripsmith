@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Photo } from '@/components/site/Photo';
 import type { components } from '@/lib/api-types';
-import { inr, monthRange } from '@/lib/format';
+import { inr, isPriced, monthRange } from '@/lib/format';
 
 type DestinationDetail = components['schemas']['DestinationDetail'];
 
@@ -42,7 +42,7 @@ export function DestinationHero({ d, from }: { d: DestinationDetail; from: numbe
             <span>Best {monthRange(d.bestMonths)}</span>
             <span>
               {plural(d.packages.length, 'trip', 'trips')}
-              {from > 0 && ` from ${inr(from)}`}
+              {isPriced(from) && ` from ${inr(from)}`}
             </span>
           </div>
         </div>
