@@ -4,7 +4,7 @@ import datetime as dt
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator
 
 from app.models.enums import PackageStatus, Theme
 from app.schemas import ApiModel
@@ -277,6 +277,9 @@ class AdminDestination(ApiModel):
     position: int
     package_count: int = Field(description="All packages, draft or live")
     live_package_count: int
+    slug_locked: bool = Field(
+        description="True once any package here has been published; the slug is then fixed"
+    )
     updated_at: dt.datetime
 
 
@@ -356,6 +359,13 @@ class PackageInput(ApiModel):
     featured: bool = False
     itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
     departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+    expected_edited_at: dt.datetime | None = Field(
+        default=None,
+        description=(
+            "The `editedAt` the form loaded. On update, a package saved since then answers 409 "
+            "instead of being overwritten; omitted, the check is skipped"
+        ),
+    )
 
     @property
     def days(self) -> int:
@@ -385,14 +395,27 @@ class PackageInput(ApiModel):
                 seen.append(t)
         return seen
 
-    @model_validator(mode="after")
-    def _check_nested(self) -> "PackageInput":
-        if len(self.itinerary) > self.days:
-            raise ValueError(f"A {self.nights}-night trip has {self.days} days at most")
-        dates = [d.date for d in self.departures]
+    # Field validators, not a model validator: the error then carries the list's own location,
+    # so the envelope files it under `itinerary` / `departures` and the form shows it on that
+    # list — a model-level error lands on `body`, which no field can show. `nights` is declared
+    # above `itinerary`, so it is already in `info.data` (absent when it failed on its own).
+    @field_validator("itinerary")
+    @classmethod
+    def _itinerary_fits(
+        cls, v: list[ItineraryDayInput], info: ValidationInfo
+    ) -> list[ItineraryDayInput]:
+        nights = info.data.get("nights")
+        if isinstance(nights, int) and len(v) > nights + 1:
+            raise ValueError(f"A {nights}-night trip has {nights + 1} days at most")
+        return v
+
+    @field_validator("departures")
+    @classmethod
+    def _unique_dates(cls, v: list[DepartureInput]) -> list[DepartureInput]:
+        dates = [d.date for d in v]
         if len(dates) != len(set(dates)):
             raise ValueError("Two departures cannot share the same date")
-        return self
+        return v
 
 
 class PackageStatusInput(ApiModel):
@@ -457,6 +480,10 @@ class AdminPackage(ApiModel):
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
+    slug_locked: bool = Field(description="True once the package has been published")
+    edited_at: dt.datetime = Field(
+        description="Moves on form saves only; send it back as `expectedEditedAt`"
+    )
     updated_at: dt.datetime
 
 

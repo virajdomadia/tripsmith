@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/admin/Sidebar';
 import { Toaster } from '@/components/ui/sonner';
+import { UnsavedChangesProvider } from '@/lib/admin/unsaved';
 import { LOGIN_PATH } from '@/lib/auth/gate';
 import { getSession } from '@/lib/auth/session';
 
@@ -13,10 +14,12 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
   return (
-    <div className="grid min-h-dvh bg-bg2 lg:grid-cols-[240px_1fr]">
-      <Sidebar session={session} />
-      <div className="grid content-start gap-5 px-4 py-5 sm:px-7 sm:py-6">{children}</div>
-      <Toaster position="bottom-right" richColors />
-    </div>
+    <UnsavedChangesProvider>
+      <div className="grid min-h-dvh bg-bg2 lg:grid-cols-[240px_1fr]">
+        <Sidebar session={session} />
+        <div className="grid content-start gap-5 px-4 py-5 sm:px-7 sm:py-6">{children}</div>
+        <Toaster position="bottom-right" richColors />
+      </div>
+    </UnsavedChangesProvider>
   );
 }

@@ -2,12 +2,15 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useEffect, useRef } from 'react';
+import { useForm, type FieldPath } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { adminRequest } from '@/lib/admin/client';
+import { saveDraft, takeDraft } from '@/lib/admin/drafts';
 import { reportAdminError } from '@/lib/admin/errors';
+import { focusFirstError } from '@/lib/admin/form-errors';
 import {
   emptyPackage,
   packageSchema,
@@ -15,6 +18,7 @@ import {
   type PackageFieldValues,
   type PackageFormValues,
 } from '@/lib/admin/package-schema';
+import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { BasicsPanel } from './BasicsPanel';
@@ -37,7 +41,8 @@ type Props = { destinations: AdminDestination[] } & (
 const panel = 'grid gap-4 rounded-card border border-line bg-bg p-5';
 const h3 = 'text-base font-extrabold';
 
-/** Top-level keys the api can pin an error on; anything else falls through to the toast. */
+/** Top-level keys the api can pin an error on (`itinerary.2.title` pins under `itinerary`);
+ *  anything else falls through to the toast. */
 const FIELDS = new Set<string>([
   'slug',
   'destinationId',
@@ -55,7 +60,17 @@ const FIELDS = new Set<string>([
   'itinerary',
   'departures',
 ]);
-const isField = (key: string): key is keyof PackageFieldValues => FIELDS.has(key);
+/** Lists whose own message renders in an `ArrayError` block rather than under an input. */
+const ARRAYS = new Set(['itinerary', 'departures']);
+/** The api's stale-edit 409: another tab or device saved this package first. */
+const STALE_KEY = 'expectedEditedAt';
+
+/** Where a server field error lands on the form, or null when no field can show it. */
+function errorTarget(key: string): FieldPath<PackageFieldValues> | null {
+  if (!FIELDS.has(key.split('.')[0] ?? '')) return null;
+  if (ARRAYS.has(key)) return `${key}.root` as FieldPath<PackageFieldValues>;
+  return key as FieldPath<PackageFieldValues>;
+}
 
 function toFieldValues(pkg: AdminPackage): PackageFieldValues {
   return {
@@ -99,19 +114,92 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
 export function PackageForm(props: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const editing = props.mode === 'edit';
+  const confirmLeave = useConfirmLeave();
+  const pkg = props.mode === 'edit' ? props.pkg : null;
+  const editing = pkg !== null;
+  const draftKey = `package:${pkg?.id ?? 'new'}`;
   const form = useForm<PackageFieldValues, unknown, PackageFormValues>({
     resolver: zodResolver(packageSchema),
-    defaultValues: editing
-      ? toFieldValues(props.pkg)
-      : emptyPackage(props.destinations[0]?.id ?? ''),
+    defaultValues: pkg ? toFieldValues(pkg) : emptyPackage(props.destinations[0]?.id ?? ''),
   });
+  const root = useRef<HTMLDivElement>(null);
+  const { release } = useUnsavedChangesGuard(form.formState.isDirty);
+
+  /* Optimistic concurrency. `expected` is the version (`editedAt`) this form edits against,
+     sent with every save so the api can refuse to overwrite a newer one. Only form saves move
+     `editedAt`, so a publish or a photo change refreshes the page without touching it. */
+  const expected = useRef<string | null>(pkg?.editedAt ?? null);
+  /** The last version the server handed this page, to spot a refresh that brought a new one. */
+  const seen = useRef<string | null>(pkg?.editedAt ?? null);
+  /** A restored sign-in draft edits against the version it was parked with; a refresh must not
+   *  quietly move it forward until the owner saves or reloads. */
+  const pinned = useRef(false);
+
+  useEffect(() => {
+    if (!pkg || pkg.editedAt === seen.current) return;
+    seen.current = pkg.editedAt;
+    // Somebody else saved. A clean form follows them; a dirty (or restored) one keeps its
+    // version on purpose, so its save answers 409 instead of overwriting what they wrote.
+    if (pinned.current || form.formState.isDirty) return;
+    form.reset(toFieldValues(pkg));
+    expected.current = pkg.editedAt;
+  }, [pkg, form]);
+
+  // Back from a sign-in (or a stale-edit reload) that interrupted an edit: put the parked
+  // values back, still dirty, over what the server has now.
+  useEffect(() => {
+    const draft = takeDraft<PackageFieldValues>(draftKey);
+    if (!draft) return;
+    form.reset(draft.values, { keepDefaultValues: true });
+    if (draft.expectedVersion) {
+      expected.current = draft.expectedVersion;
+      pinned.current = true;
+    }
+    const message = draft.expectedVersion
+      ? 'Restored unsaved changes'
+      : 'Restored your edits over the latest version — saving replaces it';
+    // A tick later: the shell's Toaster mounts after the page content.
+    setTimeout(() => toast.success(message), 0);
+  }, [draftKey, form]);
+
+  function onInvalid() {
+    toast.error('Could not save — fix the highlighted fields');
+    focusFirstError(root.current);
+  }
+
+  /** Another tab or device saved first. Reloading shows theirs; the owner's own edits are
+   *  parked and laid back on top, so choosing to look never costs them their work. */
+  function reportStale(message: string) {
+    const reload = (keep: boolean) => {
+      if (keep) saveDraft(draftKey, { values: form.getValues(), expectedVersion: null });
+      release();
+      window.location.reload();
+    };
+    toast.error(message, {
+      duration: Infinity,
+      action: { label: 'Reload, keep my edits', onClick: () => reload(true) },
+      cancel: { label: 'Discard mine', onClick: () => reload(false) },
+    });
+  }
 
   async function onSubmit(values: PackageFormValues) {
-    const body = toInput(values);
+    const body = { ...toInput(values), expectedEditedAt: expected.current };
+    // What the inputs held when the request left. Anything typed while it is in flight is
+    // newer than the save and must survive the reset below.
+    const sent = JSON.stringify(form.getValues());
     try {
-      if (editing) {
-        await adminRequest(`/admin/packages/${props.pkg.id}`, { method: 'PUT', body });
+      if (pkg) {
+        const saved = await adminRequest<AdminPackage>(`/admin/packages/${pkg.id}`, {
+          method: 'PUT',
+          body,
+        });
+        const current = form.getValues();
+        // The saved package is the new baseline either way; later keystrokes are laid back on
+        // top of it, still dirty, so the guard keeps protecting them.
+        form.reset(toFieldValues(saved));
+        if (JSON.stringify(current) !== sent) form.reset(current, { keepDefaultValues: true });
+        expected.current = seen.current = saved.editedAt;
+        pinned.current = false;
         toast.success('Saved — the public pages refresh in a few seconds');
         router.refresh();
       } else {
@@ -119,6 +207,7 @@ export function PackageForm(props: Props) {
           method: 'POST',
           body,
         });
+        form.reset(toFieldValues(created));
         toast.success('Draft saved — add photos, then publish');
         router.push(`/admin/packages/${created.id}`);
         router.refresh();
@@ -127,18 +216,40 @@ export function PackageForm(props: Props) {
       if (e instanceof ApiRequestError && e.body.fieldErrors) {
         // A 400/409 with fieldErrors: pin each message on its field. Keep this branch first —
         // a field-level error must land on the fields, never redirect via reportAdminError.
-        let first: keyof PackageFieldValues | undefined;
-        for (const [field, message] of Object.entries(e.body.fieldErrors)) {
-          if (!isField(field)) continue;
-          form.setError(field, { type: 'server', message });
-          first ??= field;
+        const entries = Object.entries(e.body.fieldErrors);
+        const stale = entries.find(([key]) => key === STALE_KEY);
+        if (stale) {
+          reportStale(stale[1]);
+          return;
         }
-        if (first) {
-          form.setFocus(first);
+        const unpinned: string[] = [];
+        let pinnedCount = 0;
+        for (const [key, message] of entries) {
+          const target = errorTarget(key);
+          if (target) {
+            form.setError(target, { type: 'server', message });
+            pinnedCount += 1;
+          } else {
+            unpinned.push(message);
+          }
+        }
+        if (pinnedCount || unpinned.length) {
+          // Always say what went wrong: a message no field can show goes in the toast word
+          // for word; when every message found its field, the toast points at them.
+          toast.error(unpinned.length ? unpinned.join(' · ') : e.body.message);
+          if (pinnedCount) focusFirstError(root.current);
           return;
         }
       }
-      reportAdminError(e, { router, pathname, fallback: 'Could not save — try again' });
+      reportAdminError(e, {
+        router,
+        pathname,
+        fallback: 'Could not save — try again',
+        onSessionExpired: () => {
+          saveDraft(draftKey, { values: form.getValues(), expectedVersion: expected.current });
+          release();
+        },
+      });
     }
   }
 
@@ -149,11 +260,15 @@ export function PackageForm(props: Props) {
        values belong to the same form, and react-hook-form tracks state in JS rather than
        through the DOM, so a field outside the <form> element still submits with it. */
     <Form {...form}>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4" noValidate>
+      <div ref={root} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="grid gap-4" noValidate>
           <section className={panel}>
             <h3 className={h3}>Basics</h3>
-            <BasicsPanel destinations={props.destinations} editing={editing} />
+            <BasicsPanel
+              destinations={props.destinations}
+              editing={editing}
+              slugLocked={pkg?.slugLocked ?? false}
+            />
           </section>
 
           <section className={panel}>
@@ -194,7 +309,7 @@ export function PackageForm(props: Props) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push('/admin/packages')}
+              onClick={() => confirmLeave(() => router.push('/admin/packages'))}
               disabled={busy}
             >
               Cancel
@@ -203,20 +318,20 @@ export function PackageForm(props: Props) {
         </form>
 
         <div className="grid content-start gap-4">
-          {editing && (
+          {pkg && (
             <section className={panel}>
               <h3 className={h3}>Status</h3>
-              <StatusPanel pkg={props.pkg} />
+              <StatusPanel pkg={pkg} />
             </section>
           )}
 
           <section className={panel}>
             <h3 className={h3}>Gallery</h3>
-            {editing ? (
+            {pkg ? (
               <GalleryUploader
-                packageId={props.pkg.id}
-                images={props.pkg.images}
-                coverImageId={props.pkg.coverImageId}
+                packageId={pkg.id}
+                images={pkg.images}
+                coverImageId={pkg.coverImageId}
               />
             ) : (
               <GalleryUploader packageId="" images={[]} coverImageId={null} disabled />
@@ -228,14 +343,10 @@ export function PackageForm(props: Props) {
             <HotelsEditor />
           </section>
 
-          {editing && (
+          {pkg && (
             <section className={panel}>
               <h3 className={h3}>Danger zone</h3>
-              <DeletePackage
-                id={props.pkg.id}
-                name={props.pkg.name}
-                enquiryCount={props.pkg.enquiryCount}
-              />
+              <DeletePackage id={pkg.id} name={pkg.name} enquiryCount={pkg.enquiryCount} />
             </section>
           )}
         </div>

@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { NativeSelect } from '@/components/admin/NativeSelect';
+import { SlugField, followSlug } from '@/components/admin/SlugField';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,23 +21,19 @@ import type { components } from '@/lib/api-types';
 type AdminDestination = components['schemas']['AdminDestination'];
 type Theme = (typeof THEMES)[number]['value'];
 
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
 /** Mockup A4's Basics panel: name, slug, destination, nights, departure city, themes, summary. */
 export function BasicsPanel({
   destinations,
   editing,
+  slugLocked = false,
 }: {
   destinations: AdminDestination[];
   editing: boolean;
+  /** Published at least once: the public URL is fixed (the api refuses a change too). */
+  slugLocked?: boolean;
 }) {
   const form = useFormContext<PackageFieldValues>();
+  const onNameChange = followSlug(form, editing);
   const themesLabelId = useId();
   const featuredLabelId = useId();
   const nights = Number(form.watch('nights'));
@@ -52,40 +49,18 @@ export function BasicsPanel({
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  onChange={(e) => {
-                    field.onChange(e);
-                    // Follow the name until the owner edits the slug themselves; after a failed
-                    // submit, re-validate so a stale "Required" clears as it fills.
-                    if (!editing && !form.getFieldState('slug').isDirty)
-                      form.setValue('slug', slugify(e.target.value), {
-                        shouldValidate: form.formState.isSubmitted,
-                      });
-                  }}
-                />
+                <Input {...field} onChange={(e) => onNameChange(e, field.onChange)} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
+        <SlugField
           name="slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Slug</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="north-goa-beaches" />
-              </FormControl>
-              <FormDescription>
-                {editing
-                  ? 'Changing this moves the public page; the old address stops working.'
-                  : 'The public address: /packages/<slug>.'}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          editing={editing}
+          locked={slugLocked}
+          placeholder="north-goa-beaches"
+          publicPath="/packages"
         />
       </div>
 

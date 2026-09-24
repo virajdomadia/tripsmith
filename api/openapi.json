@@ -104,6 +104,11 @@
             "title": "Slug",
             "type": "string"
           },
+          "slugLocked": {
+            "description": "True once any package here has been published; the slug is then fixed",
+            "title": "Sluglocked",
+            "type": "boolean"
+          },
           "tagline": {
             "title": "Tagline",
             "type": "string"
@@ -126,6 +131,7 @@
           "position",
           "packageCount",
           "livePackageCount",
+          "slugLocked",
           "updatedAt"
         ],
         "title": "AdminDestination",
@@ -407,6 +413,12 @@
             "title": "Destinationid",
             "type": "string"
           },
+          "editedAt": {
+            "description": "Moves on form saves only; send it back as `expectedEditedAt`",
+            "format": "date-time",
+            "title": "Editedat",
+            "type": "string"
+          },
           "enquiryCount": {
             "description": "All time; blocks delete when above 0",
             "title": "Enquirycount",
@@ -489,6 +501,11 @@
             "title": "Slug",
             "type": "string"
           },
+          "slugLocked": {
+            "description": "True once the package has been published",
+            "title": "Sluglocked",
+            "type": "boolean"
+          },
           "startingPricePaise": {
             "title": "Startingpricepaise",
             "type": "integer"
@@ -539,6 +556,8 @@
           "enquiryCount",
           "publishRules",
           "canPublish",
+          "slugLocked",
+          "editedAt",
           "updatedAt"
         ],
         "title": "AdminPackage",
@@ -2410,6 +2429,19 @@
             "maxItems": 20,
             "title": "Exclusions",
             "type": "array"
+          },
+          "expectedEditedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `editedAt` the form loaded. On update, a package saved since then answers 409 instead of being overwritten; omitted, the check is skipped",
+            "title": "Expectededitedat"
           },
           "faq": {
             "items": {

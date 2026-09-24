@@ -108,5 +108,15 @@ export function filterHref(f: Filters, patch: Partial<Filters>, path = INBOX_PAT
   return qs ? `${path}?${qs}` : path;
 }
 
+/**
+ * A page past the end — a hand-edited `?page=20`, or a bookmark to page 4 of a list that has
+ * since shrunk — would render an empty table under a pager with nothing highlighted. Returns
+ * the last real page's address to redirect to, or null when the page is in range.
+ */
+export function clampPageHref(f: Filters, totalPages: number): string | null {
+  const last = Math.max(1, totalPages);
+  return f.page > last ? filterHref(f, { page: last }) : null;
+}
+
 /** The export honours the current filters but never a page — it is the whole filtered view. */
 export const csvHref = (f: Filters) => filterHref(f, { page: 1 }, CSV_PATH);

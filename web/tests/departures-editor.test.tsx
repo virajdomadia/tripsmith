@@ -74,9 +74,9 @@ describe('DeparturesEditor', () => {
     expect(latest?.departures[0]?.seatsTotal).toBe('20');
   });
 
-  it('says seats left is computed, never typed', () => {
+  it('tells the truth about seats in v1: the owner lowers the total by hand', () => {
     render(<Harness />);
-    expect(screen.getByText(/seats left is computed/i)).toBeDefined();
+    expect(screen.getByText(/lower it as you sell seats offline/i)).toBeDefined();
   });
 
   it('explains an empty list', () => {

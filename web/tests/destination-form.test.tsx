@@ -53,6 +53,7 @@ const fixture: AdminDestination = {
   position: 3,
   packageCount: 0,
   livePackageCount: 0,
+  slugLocked: false,
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
@@ -85,6 +86,12 @@ describe('DestinationForm — create', () => {
 });
 
 describe('DestinationForm — edit', () => {
+  it('shows the slug read-only once a trip there has been published', () => {
+    render(<DestinationForm mode="edit" destination={{ ...fixture, slugLocked: true }} />);
+    expect((screen.getByLabelText('Slug') as HTMLInputElement).readOnly).toBe(true);
+    expect(screen.getByText('The URL is fixed once a trip has been published.')).toBeTruthy();
+  });
+
   it('submits the eight wire fields and navigates back on success', async () => {
     const user = userEvent.setup();
     adminRequest.mockResolvedValue(undefined);

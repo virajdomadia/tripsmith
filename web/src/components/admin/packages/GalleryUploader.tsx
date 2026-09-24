@@ -6,12 +6,23 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Star, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { adminRequest, uploadPackageImage } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
+import { ApiRequestError } from '@/lib/api-errors';
 import { movedIndices, reorder } from '@/lib/admin/sortable';
 import { useSortableSensors } from '@/lib/admin/sortable';
 import type { components } from '@/lib/api-types';
@@ -37,8 +48,10 @@ function Tile({
   onDelete: () => void;
   busy: boolean;
 }) {
+  // No dragging while a request is in flight: a second reorder would race the first.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: image.id,
+    disabled: busy,
   });
 
   return (
@@ -59,7 +72,8 @@ function Tile({
         <button
           type="button"
           aria-label={`Reorder photo ${index + 1}`}
-          className="cursor-grab rounded p-1 text-mute hover:text-ink focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="cursor-grab rounded p-1 text-mute hover:text-ink focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={busy}
           {...attributes}
           {...listeners}
         >
@@ -120,10 +134,15 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
   const pathname = usePathname();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  // Shown while a reorder is in flight so the tile does not snap back under the pointer.
+  // Shown from the drop until the refreshed gallery arrives, so the tile does not snap back
+  // under the pointer — cleared by the new props, not when the request settles: the refresh
+  // lands a moment after the request, and clearing early flashes the old order in between.
   const [optimistic, setOptimistic] = useState<AdminImage[] | null>(null);
+  const [confirming, setConfirming] = useState<{ image: AdminImage; index: number } | null>(null);
   const sensors = useSortableSensors();
   const shown = optimistic ?? images;
+
+  useEffect(() => setOptimistic(null), [images]);
 
   if (disabled) {
     return (
@@ -150,20 +169,43 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
     if (!files?.length) return;
     setBusy(true);
     let added = 0;
+    let expired = false;
+    const failed: string[] = [];
     try {
       // Sequential on purpose: `position` is derived from the current maximum on the server,
-      // so parallel uploads would race for the same slot.
+      // so parallel uploads would race for the same slot. One bad file does not stop the rest.
       for (const file of Array.from(files)) {
-        await uploadPackageImage(packageId, file);
-        added += 1;
+        try {
+          await uploadPackageImage(packageId, file);
+          added += 1;
+        } catch (e) {
+          if (e instanceof ApiRequestError && e.status === 401) {
+            expired = true;
+            // Say what did make it before the login redirect takes over the screen.
+            if (added) {
+              toast.success(
+                `${added} ${added === 1 ? 'photo' : 'photos'} saved before your session expired`,
+              );
+            }
+            reportAdminError(e, { router, pathname, fallback: 'Upload failed — try again' });
+            return;
+          }
+          const why = e instanceof ApiRequestError ? e.body.message : 'upload failed';
+          failed.push(`${file.name} (${why})`);
+        }
       }
-      toast.success(`${added} ${added === 1 ? 'photo' : 'photos'} uploaded`);
-      router.refresh();
-    } catch (e) {
-      reportAdminError(e, { router, pathname, fallback: 'Upload failed — try again' });
+      if (added) toast.success(`${added} ${added === 1 ? 'photo' : 'photos'} uploaded`);
+      if (failed.length) {
+        toast.error(
+          `${failed.length === 1 ? 'This photo was' : `${failed.length} photos were`} not uploaded: ${failed.join('; ')}`,
+        );
+      }
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
+      // Whatever did upload has to show up, even when a later file failed — unless the session
+      // expired: the login redirect is already on its way and a refresh would race it.
+      if (added && !expired) router.refresh();
     }
   }
 
@@ -176,7 +218,18 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
           body: { order: next.map((i) => i.id), coverId },
         }),
       'Could not reorder — try again',
-    ).then(() => setOptimistic(null));
+    );
+  }
+
+  function deletePhoto(image: AdminImage) {
+    setConfirming(null);
+    void run(
+      () =>
+        adminRequest(`/admin/packages/${packageId}/images/${image.id}`, {
+          method: 'DELETE',
+        }),
+      'Could not delete the photo — try again',
+    );
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -223,15 +276,7 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
                     'Could not save the alt text — try again',
                   )
                 }
-                onDelete={() =>
-                  void run(
-                    () =>
-                      adminRequest(`/admin/packages/${packageId}/images/${image.id}`, {
-                        method: 'DELETE',
-                      }),
-                    'Could not delete the photo — try again',
-                  )
-                }
+                onDelete={() => setConfirming({ image, index: i })}
               />
             ))}
 
@@ -256,6 +301,25 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
         Drag to reorder. Alt text describes the photo for screen readers and shows if the image
         fails to load.
       </p>
+
+      <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete photo {confirming ? confirming.index + 1 : ''}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              It comes off the gallery and the public page straight away. It cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirming && deletePhoto(confirming.image)}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <input
         ref={input}

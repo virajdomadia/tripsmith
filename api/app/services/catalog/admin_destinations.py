@@ -11,8 +11,11 @@ from app.infra.revalidate import revalidate
 from app.models import Destination, Package
 from app.models.enums import PackageStatus
 from app.schemas.catalog import AdminDestination, DestinationInput
+from app.services.catalog.slug_lock import SLUG_LOCKED
 
 DUPLICATE_SLUG = "A destination with this slug already exists"
+# (destination, all packages, live packages)
+_Counts = tuple[Destination, int, int]
 
 
 def revalidate_tags(
@@ -27,7 +30,7 @@ def revalidate_tags(
     return tags
 
 
-def _counts_query() -> Select[tuple[Destination, int, int]]:
+def _counts_query() -> Select[_Counts]:
     return (
         select(
             Destination,
@@ -37,6 +40,13 @@ def _counts_query() -> Select[tuple[Destination, int, int]]:
         .outerjoin(Package, Package.destination_id == Destination.id)
         .group_by(Destination.id)
     )
+
+
+def slug_locked(row: Destination, live_package_count: int) -> bool:
+    """A destination page that has listed a live trip has been shared and indexed: its URL stays
+    put even after that trip is unpublished, moved or deleted — `first_published_at` remembers.
+    A live package counts too: a row seeded straight into `live` never stamped it."""
+    return row.first_published_at is not None or live_package_count > 0
 
 
 def _to_admin(row: Destination, package_count: int, live_package_count: int) -> AdminDestination:
@@ -52,6 +62,7 @@ def _to_admin(row: Destination, package_count: int, live_package_count: int) -> 
         position=row.position,
         package_count=package_count,
         live_package_count=live_package_count,
+        slug_locked=slug_locked(row, live_package_count),
         updated_at=row.updated_at,
     )
 
@@ -61,7 +72,7 @@ async def list_destinations(db: AsyncSession) -> list[AdminDestination]:
     return [_to_admin(d, total, live) for d, total, live in rows.all()]
 
 
-async def _load(db: AsyncSession, id: str) -> tuple[Destination, int, int]:
+async def _load(db: AsyncSession, id: str) -> _Counts:
     row = (await db.execute(_counts_query().where(Destination.id == id))).one_or_none()
     if row is None:
         raise ApiError("not_found", "Destination not found")
@@ -117,6 +128,8 @@ async def update_destination(
     db: AsyncSession, id: str, payload: DestinationInput
 ) -> AdminDestination:
     row, total, live = await _load(db, id)
+    if payload.slug != row.slug and slug_locked(row, live):
+        raise ApiError("validation", SLUG_LOCKED, field_errors={"slug": SLUG_LOCKED})
     await _assert_slug_free(db, payload.slug, except_id=id)
     old_slug = row.slug
     _apply(row, payload)

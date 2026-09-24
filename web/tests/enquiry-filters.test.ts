@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { csvHref, filterHref, parseFilters, toQuery } from '@/lib/admin/enquiry-filters';
+import {
+  clampPageHref,
+  csvHref,
+  filterHref,
+  parseFilters,
+  toQuery,
+} from '@/lib/admin/enquiry-filters';
 
 describe('parseFilters', () => {
   it('defaults to the unfiltered first page', () => {
@@ -107,5 +113,22 @@ describe('toQuery', () => {
       q: 'x',
       page: undefined,
     });
+  });
+});
+
+describe('clampPageHref', () => {
+  it('sends a page past the end to the last page, filters kept', () => {
+    const f = parseFilters({ status: 'new', page: '20' });
+    expect(clampPageHref(f, 3)).toBe('/admin/enquiries?status=new&page=3');
+  });
+
+  it('sends a page past the end of a one-page list to the bare first page', () => {
+    expect(clampPageHref(parseFilters({ page: '4' }), 1)).toBe('/admin/enquiries');
+    expect(clampPageHref(parseFilters({ page: '4' }), 0)).toBe('/admin/enquiries');
+  });
+
+  it('leaves a page in range alone', () => {
+    expect(clampPageHref(parseFilters({ page: '3' }), 3)).toBeNull();
+    expect(clampPageHref(parseFilters({}), 1)).toBeNull();
   });
 });

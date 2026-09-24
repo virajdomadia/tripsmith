@@ -582,6 +582,11 @@ export interface components {
             region: string;
             /** Slug */
             slug: string;
+            /**
+             * Sluglocked
+             * @description True once any package here has been published; the slug is then fixed
+             */
+            slugLocked: boolean;
             /** Tagline */
             tagline: string;
             /**
@@ -694,6 +699,12 @@ export interface components {
             /** Destinationid */
             destinationId: string;
             /**
+             * Editedat
+             * Format: date-time
+             * @description Moves on form saves only; send it back as `expectedEditedAt`
+             */
+            editedAt: string;
+            /**
              * Enquirycount
              * @description All time; blocks delete when above 0
              */
@@ -727,6 +738,11 @@ export interface components {
             publishRules: components["schemas"]["PublishRule"][];
             /** Slug */
             slug: string;
+            /**
+             * Sluglocked
+             * @description True once the package has been published
+             */
+            slugLocked: boolean;
             /** Startingpricepaise */
             startingPricePaise: number;
             status: components["schemas"]["PackageStatus"];
@@ -1553,6 +1569,11 @@ export interface components {
             destinationId: string;
             /** Exclusions */
             exclusions?: string[];
+            /**
+             * Expectededitedat
+             * @description The `editedAt` the form loaded. On update, a package saved since then answers 409 instead of being overwritten; omitted, the check is skipped
+             */
+            expectedEditedAt?: string | null;
             /** Faq */
             faq?: components["schemas"]["FaqItem"][];
             /**

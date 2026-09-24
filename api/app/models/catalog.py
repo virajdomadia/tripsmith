@@ -39,6 +39,9 @@ class Destination(IdMixin, TimestampsMixin, Base):
     best_months: Mapped[list[int]] = mapped_column(ARRAY(SmallInteger), nullable=False)
     climate: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)  # ⏩ add-on B
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    # Set when the first package here goes live, never cleared: from then on the slug is fixed,
+    # even if that package is later unpublished, moved or deleted (migration 0002 backfilled).
+    first_published_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     packages: Mapped[list["Package"]] = relationship(back_populates="destination")
 
@@ -80,6 +83,12 @@ class Package(IdMixin, TimestampsMixin, Base):
         server_default=PackageStatus.DRAFT.value,
     )
     featured: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Set the first time the package goes live and never cleared: from then on the slug (the
+    # public URL) is fixed. Migration 0002 backfilled the packages already live.
+    first_published_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # The version the form's stale-edit check compares; only a form save (create/update) moves
+    # it. `updated_at` also moves on a publish or a gallery change, which are not conflicts.
+    edited_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     # Cached: min live-departure price_double_paise; recomputed on departure writes.
     starting_price_paise: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     deal_price_paise: Mapped[int | None] = mapped_column(Integer)  # ⏩ v2

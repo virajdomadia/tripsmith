@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { SlugField, followSlug } from '@/components/admin/SlugField';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { adminRequest } from '@/lib/admin/client';
@@ -25,6 +26,7 @@ import {
   toInput,
 } from '@/lib/admin/destination-schema';
 import { reportAdminError } from '@/lib/admin/errors';
+import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { CoverUploader } from './CoverUploader';
@@ -52,14 +54,6 @@ const EMPTY: FieldValues = {
 const FIELDS = new Set<string>(Object.keys(EMPTY));
 const isField = (key: string): key is keyof FieldValues => FIELDS.has(key);
 
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
 const panel = 'grid gap-4 rounded-card border border-line bg-bg p-5';
 const h3 = 'text-base font-extrabold';
 
@@ -84,6 +78,10 @@ export function DestinationForm(props: Props) {
         }
       : EMPTY,
   });
+  const onNameChange = followSlug(form, editing);
+  const confirmLeave = useConfirmLeave();
+  const { release } = useUnsavedChangesGuard(form.formState.isDirty);
+  const slugLocked = editing && props.destination.slugLocked;
 
   async function onSubmit(values: DestinationFormValues) {
     const body = toInput(values);
@@ -95,6 +93,7 @@ export function DestinationForm(props: Props) {
         await adminRequest('/admin/destinations', { method: 'POST', body });
         toast.success('Destination created');
       }
+      release();
       router.push('/admin/destinations');
       router.refresh();
     } catch (e) {
@@ -132,40 +131,18 @@ export function DestinationForm(props: Props) {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Follow the name until the owner edits the slug themselves; after a
-                        // failed submit, re-validate so a stale "Required" clears as it fills.
-                        if (!editing && !form.getFieldState('slug').isDirty)
-                          form.setValue('slug', slugify(e.target.value), {
-                            shouldValidate: form.formState.isSubmitted,
-                          });
-                      }}
-                    />
+                    <Input {...field} onChange={(e) => onNameChange(e, field.onChange)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
+            <SlugField
               name="slug"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Slug</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="goa" />
-                  </FormControl>
-                  <FormDescription>
-                    {editing
-                      ? 'Changing this moves the public page; the old address stops working.'
-                      : 'The public address: /destinations/<slug>.'}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              editing={editing}
+              locked={slugLocked}
+              placeholder="goa"
+              publicPath="/destinations"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -275,7 +252,7 @@ export function DestinationForm(props: Props) {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push('/admin/destinations')}
+            onClick={() => confirmLeave(() => router.push('/admin/destinations'))}
             disabled={busy}
           >
             Cancel
