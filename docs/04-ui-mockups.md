@@ -85,7 +85,7 @@
 |---|---|
 | S1 Home · S2 Destinations · S3 Destination page · S4 Listing + S4b empty state · S5 Package page · S6 Enquiry form · S7 Thanks · S8 About · S9 Contact · S10–S12 policies · S13 404 | **done** |
 | A1 Login · A2 Dashboard · A3 Packages list · A4 Package form · A5 Destinations · A6 Enquiries inbox · A7 Enquiry detail | **done** |
-| v2 (row B0, re-scoped 2026-09-24): Book-now flow · success · demo-mode sign-in · My bookings list + detail. The bookings desk, review form and deal fields reuse the enquiry-inbox / package-form patterns and get no mockup. All stars (hotel rows, reviews) move to a darker amber ≥ 3:1 on white with the number beside them | B0 |
+| v2 (row B0, re-scoped 2026-09-24): Book-now flow · success · demo-mode sign-in · My bookings list + detail. The bookings desk, review form and deal fields reuse the enquiry-inbox / package-form patterns and get no mockup. All stars (hotel rows, reviews) move to a darker amber ≥ 3:1 on white with the number beside them | **done 2026-09-24** — `mockups/v2-screens.html` ([artifact](https://claude.ai/artifact/TiRFQg8dvkmQvS4NprNxuf)); Viraj picked **Book now = B, side sheet** (full-height panel over the package page, steps in one scroll, total + Pay pinned in the footer; full-screen at phone width). A (inline accordion) and C (checkout page) stay in the file for reference |
 | S23–S26, A13–A14 (v3) · S27 (v4) | when those versions start (same system) |
 
 Step 4 (UI mockups) is complete for v1. The mockup's CSS block is the token source for `web/` (Tailwind theme) and its components map 1:1 to `web/components/site` and `web/components/admin`.
