@@ -133,9 +133,14 @@ async def _related(db: AsyncSession, package: Package, today: dt.date) -> list[P
 
 
 async def get_package(
-    db: AsyncSession, slug: str, *, today: dt.date | None = None
+    db: AsyncSession, slug: str, *, today: dt.date | None = None, with_related: bool = True
 ) -> PackageDetail | None:
-    """Everything the package page renders; `None` for drafts and unknown slugs (06 C1)."""
+    """Everything the package page renders; `None` for drafts and unknown slugs (06 C1).
+
+    `with_related=False` skips the related-cards query — the itinerary PDF does not draw them
+    (nor does its cache key read them), so the PDF route, the enquiry attachment and the GC
+    leave `related` empty.
+    """
     today = today or ist_today()
     p = await _live_package(db, slug)
     if p is None:
@@ -169,7 +174,7 @@ async def get_package(
         images=images,
         cover=_image_out(p.cover_image) if p.cover_image else (images[0] if images else None),
         departures=await _upcoming_departures(db, p.id, today),
-        related=await _related(db, p, today),
+        related=await _related(db, p, today) if with_related else [],
         updated_at=p.updated_at,
     )
 

@@ -151,7 +151,7 @@ class PdfService:
         ).scalars()
         current: set[str] = set()
         for slug in slugs.all():
-            pkg = await get_package(db, slug)
+            pkg = await get_package(db, slug, with_related=False)
             if pkg is not None:
                 current.add(self.key(pkg))
         await db.rollback()  # the reads are done; Blob list/delete below is network time

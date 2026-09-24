@@ -290,3 +290,13 @@ def test_day_chips_never_split_across_pages() -> None:
                 )
     # Two days, each ensure()d individually: never more than one break per day plus one spare.
     assert max_pages <= 3, max_pages
+
+
+def test_the_renderer_hash_covers_formatters_and_fonts() -> None:
+    from app.services.pdf import itinerary
+
+    names = {p.name for p in itinerary._RENDERER_SOURCES}
+    assert names == {"itinerary.py", "document.py", "format.py"}
+    assert all(p.is_file() for p in itinerary._RENDERER_SOURCES)
+    assert len(list(itinerary.FONTS_DIR.glob("*.ttf"))) >= 4  # DM Sans, four weights
+    assert re.fullmatch(r"[0-9a-f]{64}", itinerary._RENDERER)

@@ -8,6 +8,7 @@
 - SecurityHeadersMiddleware: the defence-in-depth headers (H4, docs/12).
 - HeadAsGetMiddleware: `HEAD` is answered as the `GET` it mirrors, minus the body (RFC 9110
   §9.3.2) — FastAPI routes declare GET only, so uptime monitors' `HEAD /health` was a 404.
+  It wraps the finished app (main.py `TripsmithApi`), not the `add_middleware` list.
 """
 
 import re
@@ -21,6 +22,8 @@ from app.infra import observability
 REQUEST_ID_HEADER = b"x-request-id"
 # Bounded and log-safe: what we accept from a caller before it reaches logs and Sentry tags.
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+HEAD_STATE_KEY = "head"  # `request.state.head`, set by HeadAsGetMiddleware
 
 CACHE_CONTROL_HEADER = b"cache-control"
 # Mirrored in web/src/lib/api.ts as a comment (Python and TS don't share constants).
@@ -57,7 +60,11 @@ class RequestIdMiddleware:
 class HeadAsGetMiddleware:
     """Route a `HEAD` as `GET` and drop every body chunk on the way out. The headers — including
     the GET's `Content-Length` — pass through untouched, which is exactly what HEAD promises.
-    A path with no GET still ends in the 405 → `not_found` envelope, headers only."""
+    A path with no GET still ends in the 405 → `not_found` envelope, headers only.
+
+    `request.state.head` is True for the rewritten request: a route whose GET is expensive (the
+    itinerary PDF renders and uploads) answers from what it already has instead.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -72,6 +79,8 @@ class HeadAsGetMiddleware:
                 message = {**message, "body": b""}
             await send(message)
 
+        state = scope.setdefault("state", {})
+        state[HEAD_STATE_KEY] = True
         await self.app({**scope, "method": "GET"}, receive, send_without_body)
 
 

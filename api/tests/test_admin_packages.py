@@ -229,6 +229,21 @@ def test_an_unpriced_upcoming_departure_does_not_become_the_starting_price() -> 
     assert svc.recompute_starting_price(pkg, today=today) == 1_449_900
 
 
+def test_a_sold_out_departure_does_not_become_the_starting_price() -> None:
+    """The card badge skips a full date; "from ₹X" must too, or it names a date with no seat."""
+    today = dt.date.today()
+    pkg = built_package(departures=[(soon(10), 1_000_000), (soon(60), 1_449_900)])
+    cheap, dear = pkg.departures
+    cheap.id, dear.id = "dep-cheap", "dep-dear"
+    assert svc.recompute_starting_price(pkg, today=today) == 1_000_000
+    left = {"dep-cheap": 0, "dep-dear": 5}
+    assert svc.recompute_starting_price(pkg, today=today, seats_left=left) == 1_449_900
+    full = {"dep-cheap": 0, "dep-dear": 0}
+    assert svc.recompute_starting_price(pkg, today=today, seats_left=full) == 0
+    cheap.seats_total = 0  # not in the view yet (unflushed): seats_total stands in
+    assert svc.recompute_starting_price(pkg, today=today) == 1_449_900
+
+
 def test_revalidate_tags_cover_the_old_slug_and_the_old_destination() -> None:
     assert svc.revalidate_tags("konkan-coast", "goa") == [
         "packages",

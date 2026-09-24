@@ -1,6 +1,7 @@
 """GET /cron/pdf-gc and GET /cron/daily — bearer CRON_SECRET (06 §Auth): stale itinerary PDFs,
 and the daily starting-price recompute."""
 
+import asyncio
 import datetime as dt
 from collections.abc import Sequence
 
@@ -9,9 +10,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.models import Departure, Package
+from app.services.analytics import ist_today
+from app.services.catalog.admin_packages import recompute_all_starting_prices
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
@@ -96,12 +99,14 @@ def test_cron_routes_are_not_in_the_public_contract(app: FastAPI) -> None:
     assert "/cron/daily" not in app.openapi()["paths"]
 
 
-def test_vercel_json_runs_the_daily_job_just_after_ist_midnight() -> None:
+def test_vercel_json_runs_the_daily_job_after_ist_midnight() -> None:
+    """Hobby fires a cron anywhere in its scheduled hour: 19:30 UTC is 01:00 IST, so even the
+    latest firing (01:59 IST) and the earliest (01:00) both fall on the new IST day."""
     import json
     from pathlib import Path
 
     cfg = json.loads((Path(__file__).resolve().parents[1] / "vercel.json").read_text())
-    assert cfg["crons"] == [{"path": "/cron/daily", "schedule": "35 18 * * *"}]  # 00:05 IST
+    assert cfg["crons"] == [{"path": "/cron/daily", "schedule": "30 19 * * *"}]
 
 
 # --- /cron/daily ---------------------------------------------------------------------------------
@@ -203,3 +208,63 @@ async def test_daily_needs_the_cron_secret(db_app: FastAPI, db_client: AsyncClie
     ).status_code == 401
     db_app.state.settings = make_settings()  # no secret configured: closed, not open
     assert (await db_client.get("/cron/daily", headers=AUTH)).status_code == 401
+
+
+@pytest.mark.db
+async def test_daily_skips_a_sold_out_cheapest_date(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    configured(db_app, None)
+    # north-goa's cheapest upcoming date (₹14,499, 12 Feb) sells out.
+    await db.execute(
+        update(Departure).where(Departure.price_double_paise == 14_499_00).values(seats_total=0)
+    )
+    await db.commit()
+
+    res = await db_client.get("/cron/daily", headers=AUTH)
+
+    assert res.status_code == 200, res.text
+    assert res.json()["pricesUpdated"] == 1
+    db.expire_all()
+    assert (await price_and_stamp(db, "north-goa-beaches"))[0] == 14_999_00
+
+
+@pytest.mark.db
+async def test_daily_waits_for_an_owner_save_in_flight_instead_of_overwriting_it(
+    db: AsyncSession, db_engine: AsyncEngine, revalidated: RecordingRevalidate
+) -> None:
+    """The owner reprices every date while the job runs. Without the row lock the job read the
+    old departures, computed yesterday's price and wrote it over the owner's fresh one."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    # Yesterday's cheapest date has left, so the job has a price to change.
+    await db.execute(
+        update(Departure)
+        .where(Departure.price_double_paise == 14_499_00)
+        .values(date=Departure.date - dt.timedelta(days=3650))
+    )
+    await db.commit()
+    pid = (
+        await db.execute(select(Package.id).where(Package.slug == "north-goa-beaches"))
+    ).scalar_one()
+
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as owner, factory() as job:
+        # The owner's save, uncommitted: every date at ₹20,000 and the price to match.
+        await owner.execute(
+            update(Departure)
+            .where(Departure.package_id == pid)
+            .values(price_double_paise=20_000_00)
+        )
+        await owner.execute(
+            update(Package).where(Package.id == pid).values(starting_price_paise=20_000_00)
+        )
+        running = asyncio.create_task(recompute_all_starting_prices(job, today=ist_today()))
+        await asyncio.sleep(0.5)
+        assert not running.done(), "the job must wait for the owner's row"
+        await owner.commit()
+        changed = await asyncio.wait_for(running, timeout=10)
+
+    assert changed == 0, "it computed from the owner's rows, which already agree"
+    db.expire_all()
+    assert (await price_and_stamp(db, "north-goa-beaches"))[0] == 20_000_00

@@ -1,4 +1,6 @@
-"""GET /cron/daily — 18:35 UTC = 00:05 IST, the first minutes of the business day (api/vercel.json):
+"""GET /cron/daily — scheduled `30 19 * * *` (api/vercel.json): 01:00 IST. Hobby crons fire
+anywhere within the scheduled hour, so the job runs between 01:00 and 01:59 IST — always after
+IST midnight, so `ist_today()` is the new day:
 
 1. recompute every package's starting price, since yesterday's departures no longer count, and
    revalidate the pages whose price moved;

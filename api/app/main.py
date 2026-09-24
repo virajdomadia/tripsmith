@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp
 
 from app.config import Settings, get_settings
 from app.errors import install_error_handlers
@@ -50,6 +51,16 @@ def _check_keyed_hashing(settings: Settings) -> None:
         )
 
 
+class TripsmithApi(FastAPI):
+    """FastAPI with `HeadAsGetMiddleware` around the *finished* stack — outside even Starlette's
+    ServerErrorMiddleware, which `add_middleware` cannot reach. Only there does every body a HEAD
+    could produce get dropped, the unhandled-500 envelope included (a body on a HEAD response
+    is a protocol error in h11)."""
+
+    def build_middleware_stack(self) -> ASGIApp:
+        return HeadAsGetMiddleware(super().build_middleware_stack())
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # The engine is created lazily by the first session (infra/db.py); only disposal lives here.
@@ -62,7 +73,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """`settings` lets tests build an app with Sentry off regardless of the local .env."""
     settings = settings or get_settings()
-    app = FastAPI(
+    app = TripsmithApi(
         title="Tripsmith API",
         version="0.1.0",
         docs_url="/docs",
@@ -70,15 +81,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings  # read by infra.db.get_session
+    # First: sentry-sdk's ASGI integration must wrap the middleware stack built below, and the
+    # startup checks that follow (rate limiter, email sender, keyed hashing) log at ERROR so
+    # Sentry's logging integration carries them — which it can only do once it is initialised.
+    init_sentry(settings)
     app.state.rate_limiter = build_rate_limiter(settings)  # swapped by tests; read by routers
     app.state.email_sender = build_email_sender(settings)  # swapped by tests; read by routers
     app.state.store = build_store(settings)  # Vercel Blob or None; read by services/pdf
     app.state.pdf = PdfService(app.state.store, settings)  # swapped by tests; read by routers
 
-    # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
-    init_sentry(settings)
     _check_keyed_hashing(settings)
-    app.add_middleware(HeadAsGetMiddleware)  # innermost: routing sees the GET it mirrors
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
     app.add_middleware(FreshQueryMiddleware)

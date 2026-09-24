@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.errors import ApiError
+from app.infra.db import constraint_name
 from app.infra.email import EmailSender
 from app.models import Enquiry, Package
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
@@ -101,10 +102,6 @@ async def _lock_submitter(db: AsyncSession, phone: str, package_id: str | None) 
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
 
 
-def _constraint(exc: IntegrityError) -> str:
-    return str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
-
-
 async def _recent_duplicate(
     db: AsyncSession, phone: str, package_id: str | None, since: dt.datetime
 ) -> Enquiry | None:
@@ -184,7 +181,7 @@ async def submit_enquiry(
             async with db.begin_nested():
                 db.add(enquiry)
         except IntegrityError as exc:
-            constraint = _constraint(exc)
+            constraint = constraint_name(exc)
             if REF_CONSTRAINT in constraint:
                 continue  # ref collision (1 in 2^30) — draw again
             await db.rollback()
@@ -241,7 +238,7 @@ async def _package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
     render, Blob and Resend (each can take seconds). Never raises: the lead is already saved,
     and a failed read only costs the attachment."""
     try:
-        return await get_package(db, slug)
+        return await get_package(db, slug, with_related=False)
     except Exception as exc:
         log.exception("Could not load %s for the itinerary PDF", slug)
         sentry_sdk.capture_exception(exc)

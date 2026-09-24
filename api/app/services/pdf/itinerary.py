@@ -28,6 +28,7 @@ from app.services.format import duration, inr, long_date, meals_label, seats_lab
 from app.services.pdf.document import (
     ACTION,
     BG2,
+    FONTS_DIR,
     FOOTER_HEIGHT,
     INK,
     INK2,
@@ -70,15 +71,31 @@ def pdf_filename(slug: str) -> str:
     return f"Tripsmith-{slug}-itinerary.pdf"
 
 
-# The renderer's own source and the business details in the chrome are part of the version too:
-# a deploy that changes the layout, or the phone number in the footer, re-renders every PDF once
-# instead of serving the old drawing until the next catalog edit.
-_RENDERER = hashlib.sha256(
-    b"".join(
-        (Path(__file__).parent / name).read_text(encoding="utf-8").encode()  # newlines unified
-        for name in ("itinerary.py", "document.py")
-    )
-).hexdigest()
+# The renderer is part of the version too: its own source, the formatters it prints through
+# (`services/format.py`), the badge labels and the bundled fonts. A deploy that changes any of
+# them — or the phone number in the footer — re-renders every PDF once instead of serving the
+# old drawing until the next catalog edit. Sources are read as text so a CRLF checkout on
+# Windows hashes like the LF one on Vercel; the fonts are binary.
+_APP = Path(__file__).resolve().parents[2]
+_RENDERER_SOURCES = (
+    _APP / "services" / "pdf" / "itinerary.py",
+    _APP / "services" / "pdf" / "document.py",
+    _APP / "services" / "format.py",
+)
+
+
+def _renderer_hash() -> str:
+    h = hashlib.sha256()
+    for path in _RENDERER_SOURCES:
+        h.update(path.read_text(encoding="utf-8").encode())
+    for font in sorted(FONTS_DIR.glob("*.ttf")):
+        h.update(font.name.encode())
+        h.update(font.read_bytes())
+    h.update(json.dumps({str(k): v for k, v in BADGE_LABELS.items()}, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+_RENDERER = _renderer_hash()
 
 
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:
