@@ -1,3 +1,4 @@
+import { stripDraftCookie } from '@/lib/enquiry-form-state';
 import { visitorIp } from '@/lib/enquiry-forward';
 
 /**
@@ -29,7 +30,8 @@ export async function forwardAuth(
   const headers: Record<string, string> = {
     'User-Agent': request.headers.get('user-agent') ?? 'tripsmith-web',
   };
-  const cookie = request.headers.get('cookie');
+  // Everything but the enquiry draft (visitor PII the api has no use for).
+  const cookie = stripDraftCookie(request.headers.get('cookie'));
   if (cookie) headers.cookie = cookie;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const ip = visitorIp(request);

@@ -63,7 +63,6 @@ export function EnquiryForm({
   const [focusRequest, setFocusRequest] = useState(Object.keys(fieldErrors).length > 0 ? 1 : 0);
   const formRef = useRef<HTMLFormElement>(null);
   const bannerId = useId();
-  const type = kind === 'contact' ? 'contact' : mode;
   const d = defaultValues;
 
   useEffect(() => {
@@ -288,7 +287,7 @@ export function EnquiryForm({
         </Field>
       </div>
 
-      {type === 'custom' && (
+      {kind === 'package' && mode === 'custom' && (
         <>
           <Field
             label="Preferred dates"

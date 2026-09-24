@@ -1,5 +1,5 @@
 import { cheapest, loadDestination } from '@/lib/catalog';
-import { inr, monthRange } from '@/lib/format';
+import { inr, isPriced, monthRange } from '@/lib/format';
 import { OG_CONTENT_TYPE, OG_SIZE, ogCard } from '@/lib/og/card';
 import { SITE_URL } from '@/lib/seo/site-url';
 
@@ -17,7 +17,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     cover: d.coverUrl,
     name: d.name,
     line: `${n} ${n === 1 ? 'trip' : 'trips'} · best ${monthRange(d.bestMonths)}`,
-    price: from ? `From ${inr(from)}` : null,
+    price: isPriced(from) ? `From ${inr(from)}` : null,
     site: new URL(SITE_URL).host,
   });
 }

@@ -8,7 +8,7 @@ import { PackageCard } from '@/components/site/PackageCard';
 import { Prose } from '@/components/site/Prose';
 import { api } from '@/lib/api';
 import { cheapest, loadDestination, REVALIDATE_SECONDS } from '@/lib/catalog';
-import { inr, monthRange } from '@/lib/format';
+import { inr, isPriced, monthRange, priceOrOnRequest } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
 import { absolute } from '@/lib/seo/site-url';
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const from = cheapest(d.packages.map((p) => p.startingPricePaise));
   const trips = plural(d.packages.length, 'trip', 'trips');
   return {
-    title: `${d.name} holiday packages — ${trips}${from ? ` from ${inr(from)}` : ''}`,
+    title: `${d.name} holiday packages — ${trips}${isPriced(from) ? ` from ${inr(from)}` : ''}`,
     description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
     alternates: { canonical: absolute(`/destinations/${d.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
@@ -101,7 +101,7 @@ export default async function DestinationPage({ params }: { params: Promise<Para
           <div className="sticky top-24 rounded-card border border-line p-5">
             <small className="label-caps">Trips from</small>
             <b className="num block text-[32px] font-extrabold tracking-tight">
-              {from ? inr(from) : 'On request'}
+              {priceOrOnRequest(from)}
             </b>
             <span className="text-[13px] text-mute">per person, double sharing</span>
             <Link

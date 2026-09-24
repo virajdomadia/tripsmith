@@ -98,6 +98,14 @@ describe('packageJsonLd', () => {
     const offers = ld.offers as Array<Record<string, unknown>>;
     expect(offers.map((o) => o.price)).toEqual(['14999', '17499']);
   });
+
+  it('has no offers key at all when every departure is on request', () => {
+    const ld = packageJsonLd(
+      { ...pkg, startingPricePaise: 0, departures: [departure({ priceDoublePaise: 0 })] },
+      'https://tripsmith.vercel.app/packages/north-goa-beaches',
+    );
+    expect(ld).not.toHaveProperty('offers');
+  });
 });
 
 describe('faqJsonLd', () => {

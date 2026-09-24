@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import { Container } from '@/components/site/Container';
 import { ContactInfo } from '@/components/site/contact/ContactInfo';
 import { MapEmbed } from '@/components/site/contact/MapEmbed';
 import { EnquiryForm } from '@/components/site/enquiry/EnquiryForm';
 import { PageHead } from '@/components/site/PageHead';
 import { BUSINESS } from '@/lib/business';
-import { DRAFT_COOKIE, draftFrom, formStateFrom } from '@/lib/enquiry-form-state';
+import { readDraft } from '@/lib/enquiry-draft';
+import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
 import { absolute } from '@/lib/seo/site-url';
 
@@ -24,8 +24,8 @@ export default async function ContactPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [sp, jar] = await Promise.all([searchParams, cookies()]);
-  const state = formStateFrom(sp, draftFrom(jar.get(DRAFT_COOKIE)?.value));
+  const sp = await searchParams;
+  const state = formStateFrom(sp, await readDraft(sp));
   return (
     <Container className="pb-20">
       <PageHead

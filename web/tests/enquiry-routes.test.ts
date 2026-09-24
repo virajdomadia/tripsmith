@@ -1,6 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { POST as enquiries } from '../src/app/api/enquiries/route';
-import { POST as enquire } from '../src/app/enquire/route';
+
+/** `cookies()` from next/headers, outside a request: a jar the tests can seed and inspect. */
+const jar = vi.hoisted(() => {
+  const store = new Map<string, string>();
+  return {
+    store,
+    has: (name: string) => store.has(name),
+    get: (name: string) => (store.has(name) ? { name, value: store.get(name)! } : undefined),
+    set: vi.fn((name: string, value: string) => void store.set(name, value)),
+    delete: vi.fn((name: string) => void store.delete(name)),
+  };
+});
+vi.mock('next/headers', () => ({ cookies: async () => jar }));
+
+const { POST: enquiries } = await import('../src/app/api/enquiries/route');
+const { POST: enquire } = await import('../src/app/enquire/route');
+const DRAFT = 'ts_enquiry_draft';
 
 /**
  * The web half of the enquiry funnel: `POST /enquire` (no JavaScript, native form post, always a
@@ -67,6 +82,9 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   process.env.REVALIDATE_SECRET = 's3cret';
+  jar.store.clear();
+  jar.set.mockClear();
+  jar.delete.mockClear();
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -78,12 +96,13 @@ afterEach(() => {
 describe('POST /enquire (no JavaScript)', () => {
   it('303s to the thanks page on success and clears a leftover draft', async () => {
     fetchMock.mockResolvedValue(created());
-    const res = await enquire(formPost(VALID, { cookie: 'ts_enquiry_draft=%7B%7D' }));
+    jar.store.set(DRAFT, '{"name":"Priya Rao"}');
+    const res = await enquire(formPost(VALID));
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe(
       'https://web.test/enquiry/thanks?ref=TS-ABC234&name=Priya&package=north-goa-beaches&emailed=1',
     );
-    expect(res.headers.get('set-cookie')).toMatch(/^ts_enquiry_draft=; Max-Age=0;/);
+    expect(jar.delete).toHaveBeenCalledWith(DRAFT);
   });
 
   it('sends a validation failure back with no personal details in the URL', async () => {
@@ -97,13 +116,30 @@ describe('POST /enquire (no JavaScript)', () => {
     expect(location.searchParams.get('adults')).toBe('2');
     expect(location.searchParams.get('travelMonth')).toBe('2026-11');
     expect(JSON.parse(location.searchParams.get('fieldErrors')!)).toHaveProperty('email');
-    // …what the visitor typed rides in a short-lived httpOnly cookie instead.
-    const cookie = res.headers.get('set-cookie')!;
-    expect(cookie).toMatch(
-      /^ts_enquiry_draft=[^;]+; Max-Age=600; Path=\/; HttpOnly; SameSite=Lax; Secure$/,
-    );
-    const draft = JSON.parse(decodeURIComponent(cookie.split(';')[0].split('=')[1]));
-    expect(draft).toMatchObject({ name: 'Priya Rao', email: 'not-an-email' });
+    // …what the visitor typed rides in a two-minute httpOnly cookie instead.
+    expect(jar.set).toHaveBeenCalledOnce();
+    const [name, value, options] = jar.set.mock.calls[0] as unknown as [
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(name).toBe(DRAFT);
+    expect(options).toEqual({
+      path: '/',
+      maxAge: 120,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+    });
+    expect(JSON.parse(value)).toMatchObject({ name: 'Priya Rao', email: 'not-an-email' });
+  });
+
+  it('never leaves an older draft behind when the new one is empty', async () => {
+    jar.store.set(DRAFT, '{"name":"Someone Else"}');
+    await enquire(formPost({ type: 'contact', adults: '2', website: '' }));
+    expect(jar.set).not.toHaveBeenCalled();
+    expect(jar.delete).toHaveBeenCalledWith(DRAFT);
+    expect(jar.store.has(DRAFT)).toBe(false);
   });
 
   it('keeps an api-side validation failure out of the URL too', async () => {
@@ -152,7 +188,7 @@ describe('POST /api/enquiries (JavaScript)', () => {
       jsonPost(VALID, { 'x-forwarded-for': '49.207.1.1, 10.0.0.1', 'user-agent': 'Pixel 8' }),
     );
     expect(res.status).toBe(201);
-    expect(res.headers.get('set-cookie')).toBeNull(); // no draft to clear
+    expect(jar.delete).not.toHaveBeenCalled(); // no draft to clear
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/enquiries$/);
     const headers = init.headers as Record<string, string>;
@@ -197,8 +233,9 @@ describe('POST /api/enquiries (JavaScript)', () => {
 
   it('clears a no-JS draft cookie once the enquiry is in', async () => {
     fetchMock.mockResolvedValue(created());
-    const res = await enquiries(jsonPost(VALID, { cookie: 'a=1; ts_enquiry_draft=%7B%7D' }));
-    expect(res.headers.get('set-cookie')).toMatch(/^ts_enquiry_draft=; Max-Age=0;.*Secure$/);
+    jar.store.set(DRAFT, '{}');
+    await enquiries(jsonPost(VALID));
+    expect(jar.delete).toHaveBeenCalledWith(DRAFT);
   });
 
   it('answers 502 when the api is unreachable', async () => {

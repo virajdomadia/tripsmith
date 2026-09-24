@@ -1,4 +1,4 @@
-import { DRAFT_COOKIE, draftCookieHeader } from '@/lib/enquiry-form-state';
+import { clearDraft } from '@/lib/enquiry-draft';
 import { forwardEnquiry } from '@/lib/enquiry-forward';
 import { enquirySchema, fieldErrorsOf } from '@/lib/enquiry-schema';
 
@@ -34,10 +34,6 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (retryAfter) headers.set('Retry-After', retryAfter);
   // A no-JS attempt may have left the visitor's details in the draft cookie; sent now, drop it.
-  if (res.status === 201 && request.headers.get('cookie')?.includes(`${DRAFT_COOKIE}=`))
-    headers.append(
-      'Set-Cookie',
-      draftCookieHeader(undefined, new URL(request.url).protocol === 'https:'),
-    );
+  if (res.status === 201) await clearDraft();
   return new Response(res.body, { status: res.status, headers });
 }

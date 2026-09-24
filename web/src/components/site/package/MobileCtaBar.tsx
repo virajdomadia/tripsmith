@@ -3,7 +3,7 @@ import { File, WhatsApp } from '@/components/site/home/icons';
 import type { components } from '@/lib/api-types';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
-import { inr } from '@/lib/format';
+import { priceOrOnRequest } from '@/lib/format';
 import { itineraryPdfHref } from '@/lib/pdf';
 
 type PackageDetail = components['schemas']['PackageDetail'];
@@ -22,7 +22,7 @@ export function MobileCtaBar({ pkg, url }: { pkg: PackageDetail; url: string }) 
     <div className="sticky bottom-0 z-20 -mx-4 mt-10 flex items-center gap-2 border-t border-line bg-bg/95 px-4 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
       <div className="mr-auto min-w-0 leading-tight">
         <b className="num block text-[20px] font-extrabold tracking-tight">
-          {pkg.startingPricePaise ? inr(pkg.startingPricePaise) : 'On request'}
+          {priceOrOnRequest(pkg.startingPricePaise)}
         </b>
         <small className="text-xs text-mute">per person</small>
       </div>

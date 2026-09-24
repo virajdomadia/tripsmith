@@ -1,11 +1,6 @@
 import { errorFromResponse } from '@/lib/api-errors';
-import {
-  DRAFT_COOKIE,
-  draftCookieHeader,
-  draftCookieValue,
-  PUBLIC_FIELDS,
-  thanksHref,
-} from '@/lib/enquiry-form-state';
+import { clearDraft, saveDraft } from '@/lib/enquiry-draft';
+import { PUBLIC_FIELDS, thanksHref } from '@/lib/enquiry-form-state';
 import { type EnquiryCreated, forwardEnquiry } from '@/lib/enquiry-forward';
 import { enquiryFromForm, enquirySchema, fieldErrorsOf } from '@/lib/enquiry-schema';
 
@@ -16,14 +11,6 @@ import { enquiryFromForm, enquirySchema, fieldErrorsOf } from '@/lib/enquiry-sch
  * the visitor typed (name, phone, email, messages) in a short-lived httpOnly cookie, never the URL.
  */
 
-const isHttps = (request: Request) => new URL(request.url).protocol === 'https:';
-
-function redirect(url: URL, cookie?: string): Response {
-  const headers = new Headers({ Location: url.toString() });
-  if (cookie) headers.append('Set-Cookie', cookie);
-  return new Response(null, { status: 303, headers });
-}
-
 function formUrl(raw: Record<string, string>, request: Request): URL {
   const back =
     raw.packageSlug && /^[a-z0-9-]+$/.test(raw.packageSlug)
@@ -32,23 +19,18 @@ function formUrl(raw: Record<string, string>, request: Request): URL {
   return new URL(back, request.url);
 }
 
-function backWith(
-  request: Request,
-  url: URL,
-  raw: Record<string, string>,
-  extra: Record<string, string>,
-): Response {
-  for (const k of PUBLIC_FIELDS) if (raw[k]) url.searchParams.set(k, raw[k]);
-  for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
-  if (url.pathname === '/contact') url.hash = 'enquire';
-  const draft = draftCookieValue(raw);
-  return redirect(url, draft ? draftCookieHeader(draft, isHttps(request)) : undefined);
-}
-
 export async function POST(request: Request): Promise<Response> {
   const raw = enquiryFromForm(await request.formData());
-  const url = formUrl(raw, request);
-  const back = (extra: Record<string, string>) => backWith(request, url, raw, extra);
+
+  const back = async (extra: Record<string, string>) => {
+    const url = formUrl(raw, request);
+    for (const k of PUBLIC_FIELDS) if (raw[k]) url.searchParams.set(k, raw[k]);
+    for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
+    if (url.pathname === '/contact') url.hash = 'enquire';
+    await saveDraft(raw, new URL(request.url).protocol === 'https:');
+    return Response.redirect(url, 303);
+  };
+
   const parsed = enquirySchema.safeParse(raw);
   if (!parsed.success) return back({ fieldErrors: JSON.stringify(fieldErrorsOf(parsed.error)) });
 
@@ -56,8 +38,8 @@ export async function POST(request: Request): Promise<Response> {
 
   if (res?.status === 201) {
     const body = (await res.json()) as EnquiryCreated;
-    const hadDraft = request.headers.get('cookie')?.includes(`${DRAFT_COOKIE}=`);
-    return redirect(
+    await clearDraft();
+    return Response.redirect(
       new URL(
         thanksHref({
           ref: body.ref,
@@ -67,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
         }),
         request.url,
       ),
-      hadDraft ? draftCookieHeader(undefined, isHttps(request)) : undefined,
+      303,
     );
   }
   if (!res) return back({ error: 'internal' });

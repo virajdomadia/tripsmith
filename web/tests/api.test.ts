@@ -143,7 +143,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/meta');
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('does not append fresh=1 for an empty tags array', async () => {
@@ -153,7 +153,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/meta', { tags: [] });
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('does not append fresh=1 for an auth read', async () => {
@@ -163,7 +163,7 @@ describe('api() — typed server-side fetch', () => {
     await api('/health', { auth: true });
 
     const [url] = fetchMock.mock.calls[0] as unknown as [URL];
-    expect(url.searchParams.has('fresh')).toBe(false);
+    expect(new URL(String(url)).searchParams.has('fresh')).toBe(false);
   });
 
   it('throws ApiRequestError carrying the envelope on a non-2xx response', async () => {

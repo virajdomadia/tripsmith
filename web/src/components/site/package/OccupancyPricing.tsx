@@ -1,5 +1,5 @@
 import type { components } from '@/lib/api-types';
-import { inr } from '@/lib/format';
+import { inr, isPriced } from '@/lib/format';
 
 type Departure = components['schemas']['DepartureOut'];
 
@@ -13,7 +13,7 @@ const range = (values: number[]) => {
  * the upcoming departures when prices differ by date. Departures still "on request" (price 0)
  * are left out, so a parked date never drags a range down to ₹0. */
 export function OccupancyPricing({ departures: all }: { departures: Departure[] }) {
-  const departures = all.filter((d) => d.priceDoublePaise > 0);
+  const departures = all.filter((d) => isPriced(d.priceDoublePaise));
   if (departures.length === 0) return null;
   const cells: [string, string][] = [
     ['Adult · double sharing', range(departures.map((d) => d.priceDoublePaise))],

@@ -14,8 +14,10 @@ export const TRAVELLERS = {
   children: Array.from({ length: 12 }, (_, i) => i),
 } as const;
 export const BUDGET = { min: 1_000, max: 10_00_000 } as const;
-/** The api's own wording, grouping included: f"Between ₹{BUDGET_MIN_INR:,} and ₹{BUDGET_MAX_INR:,} per person". */
-export const BUDGET_MESSAGE = 'Between ₹1,000 and ₹1,000,000 per person';
+/** The api's own wording: f"Between ₹{BUDGET_MIN_INR:,} and ₹{BUDGET_MAX_INR:,} per person" —
+ * Python's `{:,}` groups in threes, so en-US, not en-IN's lakh grouping. */
+const grouped = (n: number) => n.toLocaleString('en-US');
+export const BUDGET_MESSAGE = `Between ₹${grouped(BUDGET.min)} and ₹${grouped(BUDGET.max)} per person`;
 export const NAME_MAX = 80;
 export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
 

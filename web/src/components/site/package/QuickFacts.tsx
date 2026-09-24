@@ -1,5 +1,5 @@
 import type { components } from '@/lib/api-types';
-import { duration, inr, shortDate } from '@/lib/format';
+import { duration, priceOrOnRequest, shortDate } from '@/lib/format';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
@@ -8,7 +8,7 @@ export function QuickFacts({ pkg }: { pkg: PackageDetail }) {
   const next = pkg.departures[0];
   const facts: [string, string][] = [
     ['Duration', duration(pkg.nights, pkg.days)],
-    ['From', pkg.startingPricePaise ? inr(pkg.startingPricePaise) : 'On request'],
+    ['From', priceOrOnRequest(pkg.startingPricePaise)],
     ['Departs', pkg.departureCity.replace(/^Ex-/, '')],
     ['Stay', stay ? `${stay.stars}★ ${stay.city}` : '—'],
     ['Next date', next ? shortDate(next.date) : 'On request'],

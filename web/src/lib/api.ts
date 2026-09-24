@@ -1,6 +1,8 @@
 import { headers as requestHeaders } from 'next/headers';
+import { cache as memo } from 'react';
 import { errorFromResponse } from './api-errors';
 import type { paths } from './api-types';
+import { stripDraftCookie } from './enquiry-form-state';
 
 export {
   ApiRequestError,
@@ -28,8 +30,30 @@ const BASE = process.env.API_URL ?? 'http://localhost:8000';
 /**
  * A hung api must fail fast into the page's error boundary rather than hold the render until the
  * platform kills the function. A cold api start (target < 3 s, docs/04) fits well inside this.
+ * Next skips its per-render fetch dedupe for a request that carries a `signal`, so public reads
+ * go through `publicGet`, memoised per render with React `cache()` instead: `generateMetadata`,
+ * the page and the footer asking for the same URL still cost one request.
  */
 export const API_TIMEOUT_MS = 8_000;
+
+async function getJson(url: string, init: RequestInit): Promise<unknown> {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+  if (!res.ok)
+    throw errorFromResponse(res.status, res.statusText, await res.json().catch(() => undefined));
+  return res.json();
+}
+
+/** Public (cookie-less) GET, keyed on everything that shapes the request (`cache()` compares
+ * arguments by identity, so the tags travel as their JSON). */
+const publicGet = memo(function publicGet(
+  url: string,
+  tagsJson: string,
+  revalidate: number | false | undefined,
+) {
+  return getJson(url, {
+    next: { tags: (JSON.parse(tagsJson) as string[] | null) ?? undefined, revalidate },
+  });
+});
 
 /** Paths that have a GET operation in the contract. */
 export type GetPath = {
@@ -71,23 +95,20 @@ export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promi
     for (const one of Array.isArray(v) ? v : [v]) if (one) url.searchParams.append(k, one);
   if (init.tags && init.tags.length > 0) url.searchParams.set('fresh', '1');
 
-  const headers = new Headers();
-  let cache: RequestCache | undefined;
-  if (init.auth) {
-    // The raw header, not `cookies().toString()`: that re-encodes values, and the api never
-    // percent-decodes, so a base64 session token (`+ / =`) would stop matching its row.
-    const cookie = (await requestHeaders()).get('cookie');
-    if (cookie) headers.set('cookie', cookie);
-    cache = 'no-store';
-  }
+  if (!init.auth)
+    return publicGet(url.toString(), JSON.stringify(init.tags ?? null), init.revalidate) as Promise<
+      GetResponse<P>
+    >;
 
-  const res = await fetch(url, {
+  // The raw header, not `cookies().toString()`: that re-encodes values, and the api never
+  // percent-decodes, so a base64 session token (`+ / =`) would stop matching its row. The
+  // enquiry draft (visitor PII) is the site's business, not the api's: it is dropped.
+  const headers = new Headers();
+  const cookie = stripDraftCookie((await requestHeaders()).get('cookie'));
+  if (cookie) headers.set('cookie', cookie);
+  return getJson(url.toString(), {
     headers,
-    cache,
+    cache: 'no-store',
     next: { tags: init.tags, revalidate: init.revalidate },
-    signal: AbortSignal.timeout(API_TIMEOUT_MS),
-  });
-  if (!res.ok)
-    throw errorFromResponse(res.status, res.statusText, await res.json().catch(() => undefined));
-  return res.json() as Promise<GetResponse<P>>;
+  }) as Promise<GetResponse<P>>;
 }

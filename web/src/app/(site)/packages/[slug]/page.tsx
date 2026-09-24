@@ -23,7 +23,7 @@ import { WhatsAppPageMessage } from '@/components/site/whatsapp/WhatsAppContext'
 import { api } from '@/lib/api';
 import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { whatsappInterest } from '@/lib/business';
-import { duration, inr } from '@/lib/format';
+import { duration, inr, isPriced } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { absolute } from '@/lib/seo/site-url';
@@ -52,8 +52,8 @@ export async function generateStaticParams(): Promise<Params[]> {
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
   const p = await loadPackage(slug);
-  // 0 = every departure is on request: no "from ₹0".
-  const from = p.startingPricePaise > 0 ? ` from ${inr(p.startingPricePaise)}` : '';
+  // Every departure on request: no "from ₹0".
+  const from = isPriced(p.startingPricePaise) ? ` from ${inr(p.startingPricePaise)}` : '';
   const title = `${p.name} — ${duration(p.nights, p.days)} ${p.destination.name} package${from}`;
   return {
     title,

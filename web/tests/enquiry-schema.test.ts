@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  draftCookieHeader,
+  DRAFT_COOKIE_OPTIONS,
   draftCookieValue,
   draftFrom,
   formStateFrom,
+  isFailedRoundTrip,
+  stripDraftCookie,
   thanksHref,
 } from '../src/lib/enquiry-form-state';
 import {
@@ -169,27 +171,42 @@ describe('draft cookie', () => {
       website: '',
     });
     expect(value).toBeDefined();
-    expect(value).not.toMatch(/[;,\s]/); // safe as a cookie value
-    // Next hands the page the decoded value; both spellings parse.
+    // Next hands the page the decoded value; an encoded one parses too.
     const expected = { name: 'Priya', phone: '98450 22110', message: '50% off? café' };
     expect(draftFrom(value)).toEqual(expected);
-    expect(draftFrom(decodeURIComponent(value!))).toEqual(expected);
+    expect(draftFrom(encodeURIComponent(value!))).toEqual(expected);
     expect(draftFrom('garbage{')).toEqual({});
+    expect(draftCookieValue({ adults: '2', website: '' })).toBeUndefined();
   });
 
   it('drops the long free text rather than overflow a 4 KB cookie', () => {
     const value = draftCookieValue({ name: 'Priya', message: 'अ'.repeat(1000) });
-    expect(value!.length).toBeLessThanOrEqual(3800);
+    expect(encodeURIComponent(value!).length).toBeLessThanOrEqual(3800);
     expect(draftFrom(value)).toEqual({ name: 'Priya' });
   });
 
-  it('is httpOnly and short-lived, and clears with Max-Age=0', () => {
-    expect(draftCookieHeader('x', true)).toMatch(
-      /^ts_enquiry_draft=x; Max-Age=600; Path=\/; HttpOnly; SameSite=Lax; Secure$/,
+  it('is httpOnly, SameSite=Lax and lives two minutes', () => {
+    expect(DRAFT_COOKIE_OPTIONS).toEqual({
+      path: '/',
+      maxAge: 120,
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+  });
+
+  it('is stripped (exact name only) from what goes to the api', () => {
+    expect(stripDraftCookie('ts_session=abc+/=; ts_enquiry_draft={"name":"P"}; x=1')).toBe(
+      'ts_session=abc+/=; x=1',
     );
-    expect(draftCookieHeader(undefined, false)).toBe(
-      'ts_enquiry_draft=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
-    );
+    expect(stripDraftCookie('ts_enquiry_draft_other=1')).toBe('ts_enquiry_draft_other=1');
+    expect(stripDraftCookie('ts_enquiry_draft=1')).toBeUndefined();
+    expect(stripDraftCookie(null)).toBeUndefined();
+  });
+
+  it('is read only on the failed-submit return', () => {
+    expect(isFailedRoundTrip({ fieldErrors: '{}' })).toBe(true);
+    expect(isFailedRoundTrip({ error: 'internal' })).toBe(true);
+    expect(isFailedRoundTrip({ adults: '2' })).toBe(false);
   });
 });
 
