@@ -239,6 +239,13 @@ So replacing a seeded photo in place and re-running `seed.py` against production
 optimized image served for up to 24 hours (the `minimumCacheTTL` floor). Rename the file instead,
 or accept the delay.
 
+**v1.0.1 (2026-09-24).** The Sentry browser SDK no longer ships in the eagerly loaded chunks:
+`lib/sentry-browser.ts` imports it once the page is idle (errors only, a 51 kB chunk), taking `/`
+from 192 kB to **134 kB** First Load JS and the JavaScript fetched before `load` on `/terms` from
+178 kB to 121 kB gzipped. Web functions now run in **`bom1`** (`web/vercel.json`), beside the api
+and the database, instead of Vercel's default US region. The score was not re-measured, for the
+reason above.
+
 ### Not done here
 
 - No `lighthouse.yml` workflow — dropped in the 2026-09-15 lean re-cut. This row is a manual run,
@@ -280,7 +287,7 @@ Also checked and found clean, because a checklist that only lists what it fixed 
 no raw SQL anywhere (every query goes through SQLAlchemy constructs, so no injection surface);
 argon2id password hashing with an unknown email verified against a cached dummy hash, so login
 timing does not reveal which addresses exist; opaque 32-byte session tokens with server-side
-expiry; `safeNext` resolves the post-login target through the URL parser before scoping it to
+expiry (stored hashed since v1.0.1); `safeNext` resolves the post-login target through the URL parser before scoping it to
 `/admin`, so `//evil.example/admin` and `/admin/../x` both fall back to the dashboard; the
 enquiry detail response never includes `ip_hash`; error envelopes carry no internals (unhandled
 exceptions render `Internal server error` plus a request id); `.env*.local` is gitignored and only
@@ -359,10 +366,13 @@ Revisit if v2 adds user-generated content, where the calculus flips.
 
 - **The demo owner credentials are public.** `NEXT_PUBLIC_DEMO_EMAIL` / `NEXT_PUBLIC_DEMO_PASSWORD`
   are printed on the sign-in page and in the footer, because the point of the site is that a
-  visitor can walk into the admin. Anyone can therefore edit the catalog. The blast radius is one
-  demo database with no real customers, no payment data and no PII beyond enquiries people chose
-  to submit to a demo; restoring it is a `seed.py` run. If this ever stops being a portfolio piece,
-  that is the first thing to remove.
+  visitor can walk into the admin. Anyone can therefore edit the catalog and read the inbox. The
+  blast radius is one demo database with no real customers, no payment data and no PII beyond
+  enquiries people chose to submit to a demo; restoring it is a `seed.py` run. **Mitigated in
+  v1.0.1:** a `DemoNotice` above the enquiry submit button and on the thanks page, plus a `#demo`
+  block in the privacy policy, tells visitors that anyone with the demo login can read enquiries
+  and asks for made-up details. If this ever stops being a portfolio piece, that is the first
+  thing to remove.
 - **`/docs` is public.** It lists the admin routes, which are all `require_owner`-gated. For a
   portfolio api the contract being readable is a feature; nothing in the document is a secret.
 - **The rate limiter fails open.** If Upstash is unreachable the request is allowed and the failure
@@ -376,6 +386,27 @@ Revisit if v2 adds user-generated content, where the calculus flips.
 - **Sessions are never pruned.** Expired rows are deleted when they are next presented, so a
   session that is never used again sits in the table until its row is touched. It cannot
   authenticate — `find_session` checks `expires_at` — so this is table hygiene, not access.
+- **The PDF URL absorbs random query strings one invocation at a time** (v1.0.1). `?anything` is
+  a 308 to the bare URL, edge-cached for a day, so a repeated variant never reaches the function;
+  each _new_ variant still costs one cheap invocation (no DB, no Blob, no limiter).
+- **The enquiry draft cookie is `Path=/`** (v1.0.1). No single path covers the three form pages, so
+  the browser also sends it through the `/api/*` rewrite, where FastAPI ignores it. httpOnly,
+  SameSite=Lax, Secure on https, 2-minute life, and the web's own cookie-forwarding hops strip it.
+
+**Closed in v1.0.1** (PR #53):
+
+- **Sentry scrubbing.** api: `before_send` drops the secret, client-IP, cookie, auth and forwarding
+  headers, request cookies, `REMOTE_ADDR` and `user.ip_address`; stack-frame locals are off
+  (`include_local_variables=False`); every configured `SecretStr` is masked anywhere in the event,
+  keys included. web server/edge: `lib/sentry-scrub.ts` scrubs the same headers and masks the
+  values of server-only `*SECRET` / `*TOKEN` / `*PASSWORD` / `*_KEY` variables.
+- **Hashed sessions.** Rows store `sha256(token)` in `token_hash`; the raw token exists only in the
+  cookie, so a database read no longer yields a live session (migration `0003`, expand-only; the
+  legacy `token` column is dropped in v2).
+- **PDF per-IP limit.** `pdf:{ip}` 60 GET / 10 min, keyed on the visitor through a web handler
+  (`/packages/[slug]/itinerary.pdf`) like the other limited endpoints.
+- **Cover URL host restriction.** A destination cover must be this Blob store's host once a Blob
+  token is configured; `http://localhost` is refused on Vercel (`services/catalog/cover_url.py`).
 
 ### What changed
 

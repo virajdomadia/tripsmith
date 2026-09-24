@@ -76,7 +76,7 @@ tripsmith/
 │  │  ├─ infra/                      db.py (engine, session dependency), ratelimit.py (Upstash REST), storage.py (Blob REST), observability.py (sentry), revalidate.py (→ web)
 │  │  ├─ models/                     SQLAlchemy 2.0 declarative models, one module per table group
 │  │  └─ schemas/                    pydantic v2 request/response models — the API contract (+ meta.py constants)
-│  ├─ alembic/ + alembic.ini         revisions 0001_v1, 0002_v2, 0003_v3, 0004_v4
+│  ├─ alembic/ + alembic.ini         revisions 0001_v1, 0002–0003 (v1.0.1), then 0004_v2, 0005_v3, 0006_v4
 │  ├─ content/                       seed content: packages/*.py, destinations/*.py, testimonials.py (define_package, typed pydantic content models) · photos/ (+ CREDITS.md)
 │  ├─ assets/fonts/                  DM Sans TTF for fpdf2
 │  ├─ scripts/seed.py                upsert by slug; --local skips Blob
@@ -162,7 +162,7 @@ api: updated_at changed → next itinerary.pdf request renders a fresh file
 ### 5.5 Image upload (server-side proxy)
 ```
 web GalleryUploader → POST /api/admin/packages/:id/images (multipart: file, position; owner)
-  → api: type + size (≤ 5 MB) check → Pillow: dimensions, resize to ≤ 2000 px → infra/storage.py PUT to Blob (REST) → package_images row → 201 { id, url, width, height, position }
+  → api: type + size (≤ 4 MB) check → Pillow: dimensions, resize to ≤ 2000 px → infra/storage.py PUT to Blob (REST) → package_images row → 201 { id, url, width, height, position }
 ```
 
 ### 5.6 v3 chat (SSE across the split)
