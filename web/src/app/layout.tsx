@@ -20,17 +20,16 @@ const DESCRIPTION =
  * `metadataBase` resolves every relative OG image URL (F13) against the site's own origin — a
  * crawler cannot follow a relative one.
  *
- * `openGraph` / `twitter` are the site-wide defaults every page inherits (v1.0.1). A page that
- * sets its own `openGraph` replaces this object wholesale (Next merges metadata one key deep), so
- * those pages spread the same `OPEN_GRAPH` (lib/seo/open-graph) and override title/description.
- * The image is the site card, ./opengraph-image.tsx; twitter copies the openGraph fields.
+ * `openGraph` / `twitter` carry only what is true of every page (v1.0.1, lib/seo/open-graph):
+ * Next fills og:title / og:description from each page's own title and description, and attaches
+ * the site card (./opengraph-image.tsx) wherever a page has no card of its own.
  */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'Tripsmith', template: '%s · Tripsmith' },
   description: DESCRIPTION,
   icons: { icon: '/favicon.svg' },
-  openGraph: { ...OPEN_GRAPH, title: 'Tripsmith', description: DESCRIPTION },
+  openGraph: OPEN_GRAPH,
   twitter: { card: 'summary_large_image' },
 };
 

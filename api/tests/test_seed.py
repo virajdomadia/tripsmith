@@ -152,6 +152,19 @@ async def test_seed_without_owner_env_skips_the_user(db: AsyncSession) -> None:
     assert "owner" in result.warnings[0]
 
 
+async def test_cli_requires_an_explicit_target_never_database_url(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import seed as cli
+
+    monkeypatch.delenv("SEED_DATABASE_URL", raising=False)
+    prod = make_settings(database_url="postgresql+asyncpg://prod@127.0.0.1:1/prod")
+    monkeypatch.setattr(cli, "get_settings", lambda: prod)
+    code = await cli.main(["--local"])
+    assert code == 2
+    assert "--database-url" in capsys.readouterr().err
+
+
 async def test_cli_without_blob_token_explains_instead_of_crashing(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

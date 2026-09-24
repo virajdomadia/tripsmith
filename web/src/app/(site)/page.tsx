@@ -12,7 +12,6 @@ import { TrustStrip } from '@/components/site/home/TrustStrip';
 import { WhyUs } from '@/components/site/home/WhyUs';
 import { PackageCard } from '@/components/site/PackageCard';
 import { api } from '@/lib/api';
-import { OPEN_GRAPH } from '@/lib/seo/open-graph';
 import { siteJsonLd } from '@/lib/seo/site-jsonld';
 import { absolute, SITE_URL } from '@/lib/seo/site-url';
 
@@ -21,20 +20,11 @@ export const dynamic = 'force-dynamic';
 
 const REVALIDATE_SECONDS = 60 * 60;
 
-const HOME_TITLE = 'Tripsmith · Holidays across India, planned by people who’ve been';
-const HOME_DESCRIPTION =
-  'Short Indian holidays with real departure dates, hotels we have stayed in and per-person prices. Goa, Kerala, Himachal and more — a person calls you back within two hours.';
-
 export const metadata: Metadata = {
-  title: { absolute: HOME_TITLE },
-  description: HOME_DESCRIPTION,
+  title: { absolute: 'Tripsmith · Holidays across India, planned by people who’ve been' },
+  description:
+    'Short Indian holidays with real departure dates, hotels we have stayed in and per-person prices. Goa, Kerala, Himachal and more — a person calls you back within two hours.',
   alternates: { canonical: absolute('/') },
-  openGraph: {
-    ...OPEN_GRAPH,
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
-    url: absolute('/'),
-  },
 };
 
 const GRID = 'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3';

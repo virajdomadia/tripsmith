@@ -1,10 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { OG_CONTENT_TYPE, OG_SIZE, ogCard } from '@/lib/og/card';
-import { OPEN_GRAPH } from '@/lib/seo/open-graph';
 import { SITE_URL } from '@/lib/seo/site-url';
 
-export const alt = OPEN_GRAPH.images[0].alt;
+export const alt = 'Tripsmith — short Indian holidays with real departure dates';
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

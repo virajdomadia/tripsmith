@@ -19,7 +19,6 @@ import {
   type SearchQuery,
 } from '@/lib/search';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
-import { OPEN_GRAPH } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 type Props = { searchParams: Promise<RawSearchParams> };
@@ -30,20 +29,13 @@ const search = (query: SearchQuery) =>
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const query = parseSearchQuery(await searchParams);
-  const description =
-    'Every Tripsmith trip with real departure dates and per-person prices. Filter by destination, budget, nights, theme and travel month.';
   return {
     title: 'Holiday packages',
-    description,
+    description:
+      'Every Tripsmith trip with real departure dates and per-person prices. Filter by destination, budget, nights, theme and travel month.',
     // One indexable URL. Filtered views are shareable, but crawlers are pointed at the listing.
     alternates: { canonical: absolute('/packages') },
     robots: isFiltered(query) ? { index: false, follow: true } : undefined,
-    openGraph: {
-      ...OPEN_GRAPH,
-      title: 'Holiday packages · Tripsmith',
-      description,
-      url: absolute('/packages'),
-    },
   };
 }
 

@@ -102,7 +102,7 @@ ALEMBIC_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith uv r
 uv run python scripts/seed.py --local --database-url postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith
 ```
 
-`--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. Production migrations are a deliberate, separate command with the Neon `production` branch URL pasted in: `ALEMBIC_URL='postgresql+asyncpg://…neon.tech/neondb?ssl=require' uv run alembic upgrade head`.
+`--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. The seed is the same: `--database-url` (or `SEED_DATABASE_URL`) is required. Production is a deliberate, separate command with the Neon `production` branch URL pasted in: `ALEMBIC_URL='postgresql+asyncpg://…neon.tech/neondb?ssl=require' uv run alembic upgrade head`, and `uv run python scripts/seed.py --database-url '<same URL>'`.
 
 Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both languages. `pnpm gen:api` dumps `api/openapi.json` from the app and regenerates `web/src/lib/api-types.ts`; run it after any route or schema change (a pytest fails while `openapi.json` is stale, a vitest while `api-types.ts` is). DB tests need `TEST_DATABASE_URL` (any throwaway Postgres; CI runs a `postgres:17` service) and skip without it.
 

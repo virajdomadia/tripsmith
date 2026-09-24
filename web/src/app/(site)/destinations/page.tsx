@@ -5,7 +5,6 @@ import { Container } from '@/components/site/Container';
 import { DestinationTile } from '@/components/site/destinations/DestinationTile';
 import { api } from '@/lib/api';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
-import { OPEN_GRAPH } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 /**
@@ -29,17 +28,10 @@ const listNames = (names: string[]) =>
 
 export async function generateMetadata(): Promise<Metadata> {
   const { items } = await load();
-  const description = `${listNames(items.map((d) => d.name))} — every place Tripsmith runs trips to, with how many trips, the best months and the starting price.`;
   return {
     title: 'Destinations',
-    description,
+    description: `${listNames(items.map((d) => d.name))} — every place Tripsmith runs trips to, with how many trips, the best months and the starting price.`,
     alternates: { canonical: absolute('/destinations') },
-    openGraph: {
-      ...OPEN_GRAPH,
-      title: 'Destinations · Tripsmith',
-      description,
-      url: absolute('/destinations'),
-    },
   };
 }
 

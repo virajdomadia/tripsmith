@@ -11,6 +11,7 @@ import { cheapest, loadDestination, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { inr, monthRange } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { destinationJsonLd } from '@/lib/seo/destination-jsonld';
+import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
@@ -43,7 +44,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     description: `${d.tagline}. Best ${monthRange(d.bestMonths)}. ${d.packages.map((p) => p.name).join(', ')} — real departure dates and per-person prices.`,
     alternates: { canonical: absolute(`/destinations/${d.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
-    openGraph: { title: d.name, description: d.tagline, type: 'website' },
+    openGraph: pageOpenGraph({
+      title: d.name,
+      description: d.tagline,
+      path: `/destinations/${d.slug}`,
+    }),
     twitter: { card: 'summary_large_image' },
   };
 }

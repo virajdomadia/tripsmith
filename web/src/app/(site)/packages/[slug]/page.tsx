@@ -26,6 +26,7 @@ import { whatsappInterest } from '@/lib/business';
 import { duration, inr } from '@/lib/format';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
+import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 type Params = { slug: string };
@@ -58,7 +59,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     description: p.summary,
     alternates: { canonical: absolute(`/packages/${p.slug}`) },
     // The image is the generated card from ./opengraph-image.tsx (F13), added by Next.
-    openGraph: { title: p.name, description: p.summary, type: 'website' },
+    openGraph: pageOpenGraph({
+      title: p.name,
+      description: p.summary,
+      path: `/packages/${p.slug}`,
+    }),
     twitter: { card: 'summary_large_image' },
   };
 }

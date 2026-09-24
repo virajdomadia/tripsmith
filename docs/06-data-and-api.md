@@ -10,7 +10,7 @@
 - Time: `timestamptz`; departure dates are `date`.
 - Slugs: `text unique`, lowercase-kebab, immutable after publish.
 - Enums: Postgres enums via SQLAlchemy `Enum(..., native_enum=True)` backed by Python `StrEnum`s in `app/models/enums.py`; the same enums appear in the pydantic schemas and therefore in the generated TS types.
-- ORM: SQLAlchemy 2.0 async (asyncpg) declarative models in `app/models/`; Alembic revisions in `api/alembic/` (`uv run alembic upgrade head`); views are created with raw SQL inside the revision.
+- ORM: SQLAlchemy 2.0 async (asyncpg) declarative models in `app/models/`; Alembic revisions in `api/alembic/` (`ALEMBIC_URL=… uv run alembic upgrade head` — `ALEMBIC_URL` is required, there is no fallback to `DATABASE_URL`); views are created with raw SQL inside the revision.
 - Deletes: hard deletes only where nothing references the row; otherwise blocked in the domain layer.
 - Every table: `created_at timestamptz default now()`, mutable tables also `updated_at`.
 
