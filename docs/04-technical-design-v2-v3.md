@@ -24,50 +24,61 @@
 
 ## v2 — Booking engine
 
+**Re-validated 2026-09-24** against v1.0.1 as shipped; the decisions are listed at the end of [03-requirements-v2.md](03-requirements-v2.md). Rows B0–B14 in [07-plan.md](07-plan.md).
+
 ### 1. Data model additions
-`bookings` (id, package_id, departure_id, user_id nullable, status, hold_expires_at, total_paise, currency, contact snapshot, created_at) · `booking_travellers` (booking_id, name, age, occupancy: double/triple/single/child) · `payments` (id, booking_id, razorpay_order_id, razorpay_payment_id unique, amount_paise, status, raw webhook json) · `booking_cancellations` (booking_id, reason, status, note) · `reviews` (booking_id unique, rating, text, photo_url, approved) · `enquiry_messages` (enquiry_id, direction, subject, body, sent_at).
+Migration `0004_v2` (after B1 has stopped mapping `sessions.token`): drop `sessions.token` · `bookings` (id, ref, package_id, departure_id, user_id nullable, status, hold_expires_at, contact snapshot, quote jsonb, total_paise, paid_paise, cancel_reason, refund_needed, created_at, updated_at) · `booking_travellers` (booking_id, name, age, occupancy) · `payments` (id, booking_id, provider, razorpay_order_id, razorpay_payment_id unique, amount_paise, status, raw webhook json) · `booking_cancellations` (booking_id, reason, status, refund_note) · `reviews` (booking_id unique, rating, text, approved) · `enquiry_messages` (enquiry_id, direction, subject, body, sent_at) · the booking-aware `departure_availability` view (same columns, so live code is unaffected). Add-only apart from the `token` drop, so it runs on prod **before** the B2 code merges.
 
 ### 2. Booking state machine
 ```
 draft ──quote──▶ pending (seat hold, 10 min) ──payment captured──▶ confirmed ──departure passed──▶ completed
                      │                                                      │
-                     └──expired / failed──▶ cancelled                       └──cancellation approved──▶ cancelled
+                     └──expired / failed / seats gone──▶ cancelled          └──cancellation approved──▶ cancelled
 ```
-Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated webhook or a double click is a no-op.
+Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated webhook or a double click is a no-op. `cancel_reason` ∈ `hold_expired`, `payment_failed`, `seats_gone`, `cancellation_approved`, `owner_released`.
 
 ### 3. Seat holds — Postgres, not Redis
-- Creating a pending booking runs in one transaction: `SELECT … FOR UPDATE` on the departure row → compute `seats_left = seats_total − Σ confirmed travellers − Σ pending travellers where hold_expires_at > now()` → insert booking if enough seats.
-- Holds expire **lazily** (the formula ignores expired holds); no cron needed. Vercel Hobby crons are limited to once per day, so nothing time-critical may depend on cron.
+- Creating a pending booking runs in one transaction: `SELECT … FOR UPDATE` on the departure row → `seats_left = seats_total − Σ confirmed travellers − Σ pending travellers where hold_expires_at > now()` → insert booking if enough seats.
+- Holds expire **lazily** (the formula ignores expired holds); seat counting never depends on cron. `/cron/daily` (v1.0.1, 01:00 IST) only tidies: pending holds lapsed > 1 h → `cancelled` (`hold_expired`), confirmed with departure < IST today → `completed`, expired sessions deleted, pages of packages whose deal ended yesterday revalidated. Each job's count goes into `DailyReport`.
+- **Abuse limits:** `booking:{ip}` 5 / 10 min (through a web forwarding handler, since the rewrite loses the IP); one active hold per email or phone — a new order releases the previous hold in the same transaction. Owner "release hold" on the desk.
+- **Freshness:** hold / confirm / cancel call one helper that recomputes the package's `starting_price_paise` and posts its revalidate tags (package, listing, home). Lapsed holds fire no event; the Book-now panel therefore reads availability uncached (`?fresh=1`), and seat counts on prerendered pages are labelled indicative.
 - Upstash stays for rate limiting only. (Frontrow, project 2, is where Redis holds get showcased.)
 
 ### 4. Pricing
-- `quoteBooking(departureId, travellers[])` on the server returns the breakdown: adults × occupancy price, children × child price, single supplements, deal discount if `deal_ends_at > now()`, total. The client **never** sends amounts; the Razorpay order is created from the server quote.
+- `quote_booking(departure_id, travellers[])` returns the breakdown: adults × occupancy price, children × child price, single supplements, deal line, total. The client **never** sends amounts; the Razorpay order is created from the server quote, and the quote is snapshotted on the booking.
+- **Bookable:** package live; double/triple/child > 0 (0 = "on request", the v1 rule) and supplement ≥ 0; departure date ≥ `ist_today() + 2 days`; enough seats. Otherwise a 409 with the reason (`on_request`, `too_soon`, `sold_out`) the picker also shows.
+- **Deal:** active while `now() < deal_ends_at` (the form takes a date and stores the end of that IST day); discount per traveller = `min(starting_price − deal_price, traveller's line price)`.
 
 ### 5. Razorpay flow
-1. `POST /api/bookings` (api): quote → insert pending booking → `client.order.create({"amount": …, "currency": "INR", "receipt": booking_id})` with the official `razorpay` Python SDK (imported only in `infra/razorpay.py`) → return `order_id` + public key.
-2. Client opens Razorpay Checkout.js with the order.
-3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /api/bookings/:ref/confirm` → api verifies `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` with `hmac.compare_digest` → mark payment `captured`, booking `confirmed`.
-4. **Webhook** `POST https://api.tripsmith.virajdomadia.com/webhooks/razorpay` (raw body, hits the api domain directly): verify `X-Razorpay-Signature` with the webhook secret (`hmac`, constant-time compare); handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition. Whichever of (3) or (4) arrives first confirms; the other is a no-op.
-5. Test mode forever; keys in `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+1. `POST /bookings` (via the web handler `POST /api/bookings`, which forwards the visitor IP): quote → insert pending booking → create the order with `infra/razorpay.py` — **httpx** against `POST https://api.razorpay.com/v1/orders` (basic auth, `receipt` = booking ref), **no SDK** (the official one is sync `requests`) → return `orderId`, `amountPaise`, `keyId`.
+2. The client injects Checkout.js **on the Pay click** and opens it with `timeout: 600`.
+3. On success the client posts `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /bookings/:ref/confirm` → verify `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` with `hmac.compare_digest` → payment `captured`, booking `confirmed`.
+4. **Webhook** `POST https://tripsmith-api.vercel.app/webhooks/razorpay` (raw body; registered on production only — previews are SSO-gated): verify `X-Razorpay-Signature` with the webhook secret; handle `payment.captured` and `payment.failed`; upsert on `razorpay_payment_id`; same guarded transition; always 200 once recorded. Whichever of (3) or (4) arrives first confirms; the other is a no-op. When the custom domain arrives, the URL changes in the Razorpay dashboard.
+5. **Late capture / offline:** `confirm_payment` and `mark_paid_offline` both lock the departure and re-check seats if the hold has lapsed. Enough → confirm. Not enough → payment recorded, booking `cancelled` (`seats_gone`), `refund_needed = true`, owner + customer emailed; offline mark-paid refuses instead.
+6. Test mode forever; keys in `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. CSP adds `checkout.razorpay.com` (script) and `api.razorpay.com` (frame, connect) site-wide, plus any host a real test payment shows — verified on a deployment across every page.
 
 ### 6. Confirmation
-- `render_voucher` via `services/pdf` (fpdf2; booking ref, travellers, departure, hotels, inclusions, contact). Email via Resend with the voucher attached; WhatsApp deep link with the booking ref.
+- `render_voucher` on the `services/pdf` `Document` base (booking ref, travellers, departure, hotels, inclusions, contact), **rendered on demand, never stored** — no Blob, no cache key to go stale, no private objects. Served by `GET /account/bookings/:ref/voucher.pdf` (booking owner or admin) through a web handler, and by `GET /bookings/:ref/voucher.pdf?exp=&sig=` (HMAC over ref + expiry with `SESSION_SECRET`, 30 minutes) from the success screen.
+- Email via Resend with the voucher attached, owner new-booking email, WhatsApp deep link with the booking ref. **Demo mode:** while `EMAIL_FROM` is `@resend.dev`, customer emails are redirected to `OWNER_NOTIFY_EMAIL` (the v1 `is_test_mode` rule in `services/email/send.py`).
 
 ### 7. Customer accounts
-- **Own email OTP** (no SMS): `POST /auth/otp/request` writes a 6-digit code to the `verification` table (hashed, 10-min expiry, rate-limited per email and IP) and emails it via Resend; `POST /auth/otp/verify` creates the `users` row if needed (`role = 'customer'`) and a `sessions` row — the same cookie mechanism as the owner login. A booking made while logged out is attached to the account created/logged in at checkout by email. `/account/bookings` lists bookings with voucher download and cancellation request.
+- **Own email code** (no SMS): `POST /auth/otp/request` writes a 6-digit code to the `verification` table (hashed, 10-min expiry; `otp:{email}` 5 / 15 min and `otp-ip:{ip}` limits) and emails it — in demo mode it returns the code in the response and the UI shows it labelled. `POST /auth/otp/verify` (5 wrong tries kill the code) creates the `users` row if needed (`role = 'customer'`) and a `sessions` row — the same cookie as the owner login. Both go through web forwarding handlers (IP + `Set-Cookie`).
+- `require_user` sits beside `require_owner`. `GET /auth/session` returns the role and `newEnquiries` only for the owner; the web `/admin` gate admits `role = owner` only and redirects a customer to `/account`.
+- Bookings are attached to the account by email at verify time. `/account/bookings` lists bookings with voucher download and cancellation request.
 
 ### 8. Admin additions
-- `/admin/bookings`: list, filters (status, departure, date), detail with payment timeline, **mark paid (offline)** which creates a manual `payments` row, CSV export.
+- `/admin/bookings`: list, filters (status, departure, package, date), search, detail with payment timeline and refund-needed flag, **mark paid (offline)** with seat re-check, **release hold**, CSV export, printable departure manifest — built on the enquiry inbox's patterns (URL filters, status tabs, streamed CSV).
 - Reply from inbox: `POST /admin/enquiries/:id/reply` → Resend → `enquiry_messages` row; thread shown on the enquiry.
-- Reviews moderation: approve/hide.
-- Deals: three fields on the package form.
+- Enquiries: the admin schemas accept all six `enquiry_type` values with labels; `PATCH /admin/enquiries/:id/status` enforces the transition table in R24 (409 otherwise).
+- Reviews moderation: approve/hide. Deals: three fields on the package form.
 
 ### 9. Reviews
-- Only for `completed` bookings (departure date passed). One per booking. Aggregate rating cached on `packages.rating_avg` / `rating_count` and emitted as `AggregateRating` in JSON-LD.
+- Only for `completed` bookings. One per booking, rating + text (no photo). Aggregate cached on `packages.rating_avg` / `rating_count`, recomputed on moderation, emitted as `AggregateRating` — from approved reviews only, never testimonials. The seed adds a demo traveller with a completed past booking and an approved review. Stars use a darker amber (≥ 3:1 on white) everywhere.
 
 ### 10. Testing
-- Unit: `quoteBooking`, state-machine guards, signature verification, seat-availability formula.
-- E2E: journey to the Razorpay order; the webhook is exercised by POSTing a signed test payload to `/api/webhooks/razorpay` (Checkout.js UI is not automated — brittle).
+- Db/unit, embarrass-in-a-demo only: `quote_booking` to the paisa, last-seat concurrency (two parallel orders on a 1-seat departure), webhook 5× replay → 1 payment + 1 email, forged signature → 400, late capture with no seats.
+- Journey (api level, no browser): order → signed test webhook → confirmed → voucher 200 for the owner of the booking, 403 otherwise. Checkout.js is not automated.
+- Performance: one PageSpeed Insights run on a package page with Book now open (≥ 85), recorded in docs/12.
 
 ---
 
@@ -170,7 +181,7 @@ Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validat
 
 ## Environment variables added later
 v4: `MCP_PUBLIC_URL` (defaults to `NEXT_PUBLIC_SITE_URL`), stretch: OAuth issuer settings for the own authorization server.
-v2: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`.
+v2: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (api only — the order response carries the public key id, so the web needs no Razorpay variable).
 v3: `AI_PROVIDER` (`google` | `anthropic`), `AI_MODEL`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY` (optional), `CHAT_GLOBAL_DAILY_LIMIT`.
 
 ## Risks specific to v2/v3
@@ -179,5 +190,7 @@ v3: `AI_PROVIDER` (`google` | `anthropic`), `AI_MODEL`, `GOOGLE_GENERATIVE_AI_AP
 | Gemini free-tier quota exhausted by a traffic spike | Global daily cap + per-IP cap; UI degrades to the enquiry form |
 | Free-tier data usage terms | Catalog is fictional; no real customer PII reaches the model (names/phones are collected by the enquiry form, not sent to the model) |
 | Razorpay webhook arrives before the client callback (or never) | Both paths idempotent; pending bookings expire lazily |
+| Payment captured after the hold lapsed and the seat was resold | Checkout `timeout: 600`; re-check under the departure lock; refund-needed path with its own test |
+| Seat-hold griefing | 5 starts / 10 min / IP, one active hold per email or phone, owner release; rotation accepted |
 | Model changes behaviour after a provider update | Nightly evals catch regressions; provider pinned by `AI_MODEL` |
 | MapLibre bundle size on the package page | Load only when the storyboard is in view (`next/dynamic`, `ssr: false`) |
