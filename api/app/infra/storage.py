@@ -112,6 +112,16 @@ class BlobStore:
                 res.raise_for_status()
 
 
+def public_host(token: str) -> str | None:
+    """The host this store serves public objects from, derived from its read-write token:
+    `vercel_blob_rw_<storeId>_<secret>` → `<storeid>.public.blob.vercel-storage.com` (the same
+    split @vercel/blob does for the store id). None for a token not in that shape."""
+    parts = token.split("_", 4)
+    if len(parts) != 5 or parts[:3] != ["vercel", "blob", "rw"] or not parts[3].isalnum():
+        return None
+    return f"{parts[3].lower()}.public.blob.vercel-storage.com"
+
+
 def build_store(settings: Settings) -> BlobStore | None:
     if settings.blob_read_write_token is None:
         return None

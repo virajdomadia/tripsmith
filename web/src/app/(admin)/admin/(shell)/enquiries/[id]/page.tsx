@@ -14,6 +14,7 @@ import { emailSubject, mailtoHref, replyMessage, telHref, waHref } from '@/lib/a
 import { api, ApiRequestError } from '@/lib/api';
 import { getSession } from '@/lib/auth/session';
 import { duration, inr } from '@/lib/format';
+import { itineraryPdfHref } from '@/lib/pdf';
 
 export const metadata = { title: 'Enquiry' };
 
@@ -121,7 +122,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
                   ` · from ${inr(enquiry.package.startingPricePaise)}`}
               </span>
               <a
-                href={`/api/packages/${enquiry.package.slug}/itinerary.pdf`}
+                href={itineraryPdfHref(enquiry.package.slug)}
                 className={buttonVariants({ size: 'sm', variant: 'outline' })}
               >
                 <Download className="size-4" aria-hidden />

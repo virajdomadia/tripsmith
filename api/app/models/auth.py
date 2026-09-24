@@ -27,7 +27,12 @@ class Session(IdMixin, CreatedMixin, Base):
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # the cookie value
+    # Legacy: the raw cookie value, written only by pre-v1.0.1 code. Always NULL for new rows;
+    # dropped in v2 (the contract step after migration 0003).
+    token: Mapped[str | None] = mapped_column(Text, unique=True)
+    # sha256 hex of the cookie value (services/auth/sessions.py::hash_token) — what lookups use.
+    # Nullable only because 0003 is expand-only; every row the current code writes has one.
+    token_hash: Mapped[str | None] = mapped_column(Text, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ip: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)

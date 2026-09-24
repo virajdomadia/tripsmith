@@ -98,6 +98,16 @@ def test_owner_subject_for_a_general_enquiry() -> None:
     assert "/packages/" not in msg.html
 
 
+def test_owner_subject_is_one_line_whatever_the_name_holds() -> None:
+    # Rows written before the schema refused control characters (or by the admin) still render
+    # a single header line.
+    msg = render_owner(ctx(name="Priya\r\nBcc: x@evil.test\t Sharma"), settings=SETTINGS)
+    assert msg.subject == (
+        "New enquiry TS-ABC234 — Priya Bcc: x@evil.test Sharma · North Goa Beaches"
+    )
+    assert "\r" not in msg.subject and "\n" not in msg.subject
+
+
 def test_visitor_message_promises_the_call_and_links_whatsapp() -> None:
     msg = render_visitor(ctx(), settings=SETTINGS)
     assert msg.to == "priya@example.com" and msg.reply_to is None
@@ -154,7 +164,7 @@ def test_context_from_the_row() -> None:
 
 def test_visitor_email_links_the_pdf_when_a_package_is_attached() -> None:
     settings = make_settings(site_url="https://tripsmith.vercel.app")
-    url = "https://tripsmith.vercel.app/api/packages/north-goa-beaches/itinerary.pdf"
+    url = "https://tripsmith.vercel.app/packages/north-goa-beaches/itinerary.pdf"
 
     attached = render_visitor(ctx(), settings=settings, attached=True)
     assert url in attached.html and url in attached.text

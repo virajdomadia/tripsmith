@@ -4821,8 +4821,14 @@
           "302": {
             "description": "Redirect to the cached PDF"
           },
+          "308": {
+            "description": "Any query string: redirect to the bare URL"
+          },
           "404": {
             "description": "Draft or unknown package"
+          },
+          "429": {
+            "description": "Too many downloads from this address"
           },
           "default": {
             "content": {

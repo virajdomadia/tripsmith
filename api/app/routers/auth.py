@@ -49,16 +49,17 @@ async def post_login(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SessionInfo:
     response.headers.update(NO_STORE)
-    session = await login(
+    opened = await login(
         db,
         payload.email,
         payload.password,
         ip=client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
-    if session is None:
+    if opened is None:
         raise ApiError("unauthorized", "Wrong email or password")
-    set_session_cookie(response, session.token, session.expires_at, request.app.state.settings)
+    session, token = opened
+    set_session_cookie(response, token, session.expires_at, request.app.state.settings)
     return session_info(session, new_enquiries=await count_new_enquiries(db))
 
 

@@ -127,7 +127,9 @@ def _common(ctx: EnquiryEmailContext, settings: Settings) -> dict[str, object]:
         "business": BUSINESS,
         "site_url": site,
         "package_url": f"{site}/packages/{ctx.package_slug}" if ctx.package_slug else None,
-        "pdf_url": f"{site}/api/packages/{ctx.package_slug}/itinerary.pdf"
+        # The web's download handler (web/src/lib/pdf.ts), not the /api rewrite: it forwards the
+        # visitor's address, so the api's per-IP ceiling is per visitor.
+        "pdf_url": f"{site}/packages/{ctx.package_slug}/itinerary.pdf"
         if ctx.package_slug
         else None,
         "admin_url": f"{site}/admin/enquiries/{ctx.id}",
@@ -138,13 +140,21 @@ def _common(ctx: EnquiryEmailContext, settings: Settings) -> dict[str, object]:
     }
 
 
+def _one_line(subject: str) -> str:
+    """Any whitespace run (CR/LF included) → one space. The schema already refuses control
+    characters in a name; this keeps a subject a single header line whatever reaches it."""
+    return " ".join(subject.split())
+
+
 def render_owner(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessage:
     assert settings.owner_notify_email, "caller checks OWNER_NOTIFY_EMAIL"
     vars = _common(ctx, settings)
     return EmailMessage(
         to=settings.owner_notify_email,
         reply_to=ctx.email,
-        subject=f"New enquiry {ctx.ref} — {ctx.name} · {ctx.package_name or 'General enquiry'}",
+        subject=_one_line(
+            f"New enquiry {ctx.ref} — {ctx.name} · {ctx.package_name or 'General enquiry'}"
+        ),
         html=_render("enquiry_owner.html", **vars),
         text=_render("enquiry_owner.txt", **vars),
     )

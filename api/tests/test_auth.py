@@ -5,7 +5,7 @@ import datetime as dt
 import pytest
 from fastapi import Depends, FastAPI, Response
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Enquiry, Session, User
@@ -17,6 +17,7 @@ from app.services.auth.sessions import (
     SESSION_TTL,
     delete_session,
     find_session,
+    hash_token,
     login,
     new_token,
 )
@@ -62,12 +63,22 @@ def test_tokens_are_long_urlsafe_and_unique() -> None:
 async def test_login_creates_a_session_row(db: AsyncSession) -> None:
     await seeded_with_owner(db)
     before = dt.datetime.now(dt.UTC)
-    session = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip="1.2.3.4", user_agent="UA")
-    assert session is not None
+    opened = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip="1.2.3.4", user_agent="UA")
+    assert opened is not None
+    session, token = opened
     assert session.user.email == OWNER_EMAIL and session.user.role == UserRole.OWNER
     assert session.ip == "1.2.3.4" and session.user_agent == "UA"
     assert before + SESSION_TTL - dt.timedelta(seconds=5) <= session.expires_at
     assert await session_count(db) == 1
+    # The row holds only the digest: the cookie value appears nowhere in the table.
+    assert session.token_hash == hash_token(token) and session.token is None
+    dump = (await db.execute(text("select sessions::text from sessions"))).scalar_one()
+    assert token not in dump
+
+
+def test_hash_token_is_sha256_hex_matching_the_migration() -> None:
+    # 0003 backfills existing rows with encode(sha256(convert_to(token, 'UTF8')), 'hex').
+    assert hash_token("abc") == ("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
 
 
 @pytest.mark.db
@@ -85,11 +96,17 @@ async def test_find_session_prunes_expired_rows(db: AsyncSession) -> None:
     db.add(
         Session(
             user_id=user.id,
-            token="expired",
+            token_hash=hash_token("expired"),
             expires_at=dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1),
         )
     )
-    db.add(Session(user_id=user.id, token="live", expires_at=dt.datetime.now(dt.UTC) + SESSION_TTL))
+    db.add(
+        Session(
+            user_id=user.id,
+            token_hash=hash_token("live"),
+            expires_at=dt.datetime.now(dt.UTC) + SESSION_TTL,
+        )
+    )
     await db.commit()
 
     assert await find_session(db, "expired") is None
@@ -102,10 +119,10 @@ async def test_find_session_prunes_expired_rows(db: AsyncSession) -> None:
 @pytest.mark.db
 async def test_delete_session_is_idempotent(db: AsyncSession) -> None:
     await seeded_with_owner(db)
-    session = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
-    assert session is not None
-    await delete_session(db, session.token)
-    await delete_session(db, session.token)
+    opened = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
+    assert opened is not None
+    await delete_session(db, opened[1])
+    await delete_session(db, opened[1])
     assert await session_count(db) == 0
 
 
@@ -153,9 +170,9 @@ async def test_require_owner_rejects_missing_and_expired_sessions(
     res = await db_client.get("/_test/owner", headers=with_cookie("garbage"))
     assert res.status_code == 401
 
-    session = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
-    assert session is not None
-    res = await db_client.get("/_test/owner", headers=with_cookie(session.token))
+    opened = await login(db, OWNER_EMAIL, OWNER_PASSWORD, ip=None, user_agent=None)
+    assert opened is not None
+    res = await db_client.get("/_test/owner", headers=with_cookie(opened[1]))
     assert res.status_code == 200 and res.json() == {"email": OWNER_EMAIL}
 
 
@@ -173,9 +190,9 @@ async def test_require_owner_forbids_customers(
     )
     db.add(customer)
     await db.commit()
-    session = await login(db, "priya@example.com", "pw", ip=None, user_agent=None)
-    assert session is not None
-    res = await db_client.get("/_test/owner", headers=with_cookie(session.token))
+    opened = await login(db, "priya@example.com", "pw", ip=None, user_agent=None)
+    assert opened is not None
+    res = await db_client.get("/_test/owner", headers=with_cookie(opened[1]))
     assert res.status_code == 403 and res.json()["error"]["code"] == "forbidden"
 
 
@@ -201,7 +218,8 @@ async def test_login_route_sets_cookie_and_returns_session_info(
     assert cookie.startswith(f"{COOKIE_NAME}=") and "HttpOnly" in cookie
     row = (await db.execute(select(Session))).scalar_one()
     assert row.ip == "1.2.3.4" and row.user_agent == "UA"
-    assert res.cookies[COOKIE_NAME] == row.token
+    assert row.token_hash == hash_token(res.cookies[COOKIE_NAME])
+    assert row.token is None  # the legacy raw column is never written
 
 
 @pytest.mark.db
@@ -296,7 +314,7 @@ async def test_expired_session_is_401_and_pruned_by_the_route(
     db.add(
         Session(
             user_id=user.id,
-            token="stale",
+            token_hash=hash_token("stale"),
             expires_at=dt.datetime.now(dt.UTC) - dt.timedelta(seconds=1),
         )
     )

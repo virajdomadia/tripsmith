@@ -374,7 +374,9 @@ async def test_submit_attaches_the_itinerary_pdf_to_the_visitor_email(
     assert visitor.attachments[0].filename == "Tripsmith-north-goa-beaches-itinerary.pdf"
     assert visitor.attachments[0].content.startswith(b"%PDF-")
     assert owner.attachments == ()
-    assert "/api/packages/north-goa-beaches/itinerary.pdf" in visitor.html
+    # The web's download handler, not the /api rewrite (it forwards the visitor's address).
+    assert "/packages/north-goa-beaches/itinerary.pdf" in visitor.html
+    assert "/api/packages/" not in visitor.html
     assert len(store.objects) == 1  # the cache is warm for the emailed link
 
 

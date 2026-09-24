@@ -46,6 +46,15 @@
       "adults": 2,
       "children": 0,
       "website": ""
+    },
+    {
+      "type": "contact",
+      "name": "\u001c Meera Nair \u0085\u001f",
+      "phone": "9845022110",
+      "email": "meera@example.com",
+      "adults": 1,
+      "children": 0,
+      "website": ""
     }
   ],
   "invalid": [
@@ -54,6 +63,10 @@
     { "field": "phone", "body": { "type": "contact", "name": "Bad Phone", "phone": "+44 7700 900123", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
     { "field": "email", "body": { "type": "contact", "name": "Bad Email", "phone": "9845022110", "email": "nope", "adults": 1, "children": 0, "website": "" } },
     { "field": "name", "body": { "type": "contact", "name": "A", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "Priya\r\nBcc: x@evil.test", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "Priya\tSharma", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "\u001cA\u0085", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "Priya\u0085Sharma", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
     { "field": "adults", "body": { "type": "contact", "name": "No Adults", "phone": "9845022110", "email": "a@b.co", "adults": 0, "children": 1, "website": "" } },
     { "field": "children", "body": { "type": "contact", "name": "Too Many", "phone": "9845022110", "email": "a@b.co", "adults": 10, "children": 5, "website": "" } },
     { "field": "travelMonth", "body": { "type": "contact", "name": "Bad Month", "phone": "9845022110", "email": "a@b.co", "travelMonth": "2026-13", "adults": 1, "children": 0, "website": "" } },
