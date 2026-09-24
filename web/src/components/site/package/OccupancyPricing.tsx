@@ -10,8 +10,10 @@ const range = (values: number[]) => {
 };
 
 /** R4 occupancy table: adult double / triple, child 5–11, single supplement — as a range across
- * the upcoming departures when prices differ by date. */
-export function OccupancyPricing({ departures }: { departures: Departure[] }) {
+ * the upcoming departures when prices differ by date. Departures still "on request" (price 0)
+ * are left out, so a parked date never drags a range down to ₹0. */
+export function OccupancyPricing({ departures: all }: { departures: Departure[] }) {
+  const departures = all.filter((d) => d.priceDoublePaise > 0);
   if (departures.length === 0) return null;
   const cells: [string, string][] = [
     ['Adult · double sharing', range(departures.map((d) => d.priceDoublePaise))],

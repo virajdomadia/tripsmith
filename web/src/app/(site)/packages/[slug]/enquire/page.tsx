@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Container } from '@/components/site/Container';
@@ -6,7 +7,7 @@ import { EnquiryForm } from '@/components/site/enquiry/EnquiryForm';
 import { PackageSummary } from '@/components/site/enquiry/PackageSummary';
 import { api, ApiRequestError } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
-import { formStateFrom } from '@/lib/enquiry-form-state';
+import { DRAFT_COOKIE, draftFrom, formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
 import { absolute } from '@/lib/seo/site-url';
 
@@ -47,9 +48,9 @@ export default async function EnquirePage({
   params: Promise<Params>;
   searchParams: Promise<Search>;
 }) {
-  const [{ slug }, sp] = await Promise.all([params, searchParams]);
+  const [{ slug }, sp, jar] = await Promise.all([params, searchParams, cookies()]);
   const pkg = await loadPackage(slug);
-  const state = formStateFrom(sp);
+  const state = formStateFrom(sp, draftFrom(jar.get(DRAFT_COOKIE)?.value));
 
   return (
     <Container className="pb-20">

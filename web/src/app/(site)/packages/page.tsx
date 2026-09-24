@@ -80,13 +80,13 @@ export default async function PackagesPage({ searchParams }: Props) {
         </p>
       </header>
 
-      <SearchTransition>
+      <SearchTransition query={query}>
         <div className="grid gap-7 pt-5 lg:grid-cols-[280px_1fr] lg:items-start">
-          <FilterPanel query={query} facets={facets} />
+          <FilterPanel facets={facets} />
           <div className="min-w-0">
             {/* The card titles are h3; without this the listing jumps h1 → h3 (H3 heading order). */}
             <h2 className="sr-only">Matching trips</h2>
-            <ResultsToolbar query={query} total={results.total} chips={chips} />
+            <ResultsToolbar total={results.total} chips={chips} />
             <Results>
               {results.total > 0 ? (
                 <ResultsGrid key={queryKey} items={results.items} />

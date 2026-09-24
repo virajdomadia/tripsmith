@@ -52,7 +52,9 @@ export async function generateStaticParams(): Promise<Params[]> {
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
   const p = await loadPackage(slug);
-  const title = `${p.name} — ${duration(p.nights, p.days)} ${p.destination.name} package from ${inr(p.startingPricePaise)}`;
+  // 0 = every departure is on request: no "from ₹0".
+  const from = p.startingPricePaise > 0 ? ` from ${inr(p.startingPricePaise)}` : '';
+  const title = `${p.name} — ${duration(p.nights, p.days)} ${p.destination.name} package${from}`;
   return {
     title,
     description: p.summary,

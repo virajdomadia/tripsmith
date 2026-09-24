@@ -25,6 +25,12 @@ export {
 // `new URL(path, BASE)` tolerates a trailing slash on API_URL; next.config.ts strips it for rewrites.
 const BASE = process.env.API_URL ?? 'http://localhost:8000';
 
+/**
+ * A hung api must fail fast into the page's error boundary rather than hold the render until the
+ * platform kills the function. A cold api start (target < 3 s, docs/04) fits well inside this.
+ */
+export const API_TIMEOUT_MS = 8_000;
+
 /** Paths that have a GET operation in the contract. */
 export type GetPath = {
   [P in keyof paths]: paths[P] extends { get: object } ? P : never;
@@ -79,6 +85,7 @@ export async function api<P extends GetPath>(path: P, init: ApiInit = {}): Promi
     headers,
     cache,
     next: { tags: init.tags, revalidate: init.revalidate },
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   });
   if (!res.ok)
     throw errorFromResponse(res.status, res.statusText, await res.json().catch(() => undefined));

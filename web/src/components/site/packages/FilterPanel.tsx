@@ -2,17 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { inr } from '@/lib/format';
-import {
-  DEFAULT_SORT,
-  type Facets,
-  isFiltered,
-  searchHref,
-  type SearchQuery,
-  type Theme,
-} from '@/lib/search';
+import { DEFAULT_SORT, type Facets, isFiltered, type SearchQuery, type Theme } from '@/lib/search';
 import { NavLink, useSearch } from './SearchTransition';
 
-type Props = { query: SearchQuery; facets: Facets };
+type Props = { facets: Facets };
 
 const BUDGET_STEP = 1000; // rupees — the api rounds its facet bounds to the same step
 
@@ -21,24 +14,27 @@ const BUDGET_STEP = 1000; // rupees — the api rounds its facet bounds to the s
  * navigates through the search transition and the slider navigates on release; without it
  * "Show trips" submits the same params. Options (destinations, months, ranges) come from the
  * api's facets — nothing is hard-coded.
+ *
+ * The rail reads and writes the listing's shared query (SearchTransition), the same one the sort
+ * control uses, so neither can navigate from a stale copy. Only a budget drag is local until
+ * release.
  */
-export function FilterPanel({ query, facets }: Props) {
-  const { navigate, pending } = useSearch();
-  const [draft, setDraft] = useState(query);
+export function FilterPanel({ facets }: Props) {
+  const { query, update } = useSearch();
+  // Mid-drag budget (`{ maxBudget: undefined }` = dragged back to "Any"); null when not dragging.
+  const [sliding, setSliding] = useState<{ maxBudget?: number } | null>(null);
   const [open, setOpen] = useState(false); // phones: collapsed above the grid (S4)
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => setHydrated(true), []);
-  // Chips, "Clear all" and back/forward change the URL behind the rail's back: follow the
-  // server's query once nothing is in flight.
-  useEffect(() => {
-    if (!pending) setDraft(query);
-  }, [pending, query]);
 
-  /** Show the change now and navigate now. */
-  const commit = (next: SearchQuery) => {
-    setDraft(next);
-    navigate(searchHref(next));
+  const draft: SearchQuery = sliding ? { ...query, maxBudget: sliding.maxBudget } : query;
+  /** Navigate now; the shared query shows the change at once. */
+  const commit = (next: SearchQuery) => update(next);
+  const releaseBudget = () => {
+    if (!sliding) return;
+    commit(draft);
+    setSliding(null);
   };
   const toggleDestination = (slug: string, on: boolean) =>
     commit({
@@ -65,7 +61,14 @@ export function FilterPanel({ query, facets }: Props) {
 
   return (
     <aside aria-label="Filters" className="lg:sticky lg:top-20">
+      {/* Without JS the phone toggle cannot open anything: show the form, drop the toggle. */}
+      <noscript>
+        <style>
+          {'#filter-form{display:grid!important}#filter-toggle{display:none!important}'}
+        </style>
+      </noscript>
       <button
+        id="filter-toggle"
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -125,9 +128,9 @@ export function FilterPanel({ query, facets }: Props) {
                 }
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  setDraft({ ...draft, maxBudget: v >= facets.budget.max ? undefined : v });
+                  setSliding({ maxBudget: v >= facets.budget.max ? undefined : v });
                 }}
-                onPointerUp={() => navigate(searchHref(draft))}
+                onPointerUp={releaseBudget}
                 onKeyUp={(e) => {
                   if (
                     [
@@ -141,7 +144,7 @@ export function FilterPanel({ query, facets }: Props) {
                       'PageDown',
                     ].includes(e.key)
                   ) {
-                    navigate(searchHref(draft));
+                    releaseBudget();
                   }
                 }}
                 className="accent-primary"

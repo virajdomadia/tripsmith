@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container } from '@/components/site/Container';
+import { DemoNotice } from '@/components/site/DemoNotice';
 import { WhatsApp } from '@/components/site/home/icons';
 import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
 import { Check } from '@/components/site/package/icons';
@@ -115,6 +116,7 @@ export default async function ThanksPage({ searchParams }: { searchParams: Promi
           Browse more trips
         </Link>
       </div>
+      <DemoNotice className="mt-4 text-left" />
     </Container>
   );
 }

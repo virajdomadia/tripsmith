@@ -31,7 +31,10 @@ export function DeparturesTable({ departures }: { departures: Departure[] }) {
             return (
               <tr key={d.id} className="border-t border-line hover:bg-bg2/60">
                 <td className="px-3.5 py-3 font-bold">{formatDate(d.date)}</td>
-                <td className="num px-3.5 py-3">{inr(d.priceDoublePaise)}</td>
+                {/* 0 is the api's "priced later" — a date parked before the rate is set. */}
+                <td className="num px-3.5 py-3">
+                  {d.priceDoublePaise > 0 ? inr(d.priceDoublePaise) : 'On request'}
+                </td>
                 <td className="px-3.5 py-3">
                   <span className="inline-flex items-center gap-2">
                     <i

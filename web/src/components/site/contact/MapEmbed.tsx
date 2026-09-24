@@ -8,7 +8,7 @@ export function MapEmbed() {
         title={`Map: ${BUSINESS.address}, ${BUSINESS.city}`}
         src={BUSINESS.mapEmbedSrc}
         loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
+        referrerPolicy="strict-origin-when-cross-origin"
         className="block h-[300px] w-full"
       />
     </div>

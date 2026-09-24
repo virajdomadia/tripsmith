@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { formStateFrom, thanksHref } from '../src/lib/enquiry-form-state';
 import {
+  draftCookieHeader,
+  draftCookieValue,
+  draftFrom,
+  formStateFrom,
+  thanksHref,
+} from '../src/lib/enquiry-form-state';
+import {
+  BUDGET_MESSAGE,
   enquirySchema,
   fieldErrorsOf,
   normalisePhone,
@@ -91,17 +98,48 @@ describe('travelMonthOptions', () => {
   });
 });
 
+describe('enquirySchema budget and name match the api', () => {
+  const custom = {
+    type: 'custom',
+    packageSlug: 'north-goa-beaches',
+    name: 'Priya',
+    phone: '9845022110',
+    email: 'p@x.io',
+    adults: '2',
+  };
+
+  it('truncates a decimal budget like int(float(v))', () => {
+    expect(enquirySchema.parse({ ...custom, budget: '1500.5' }).budget).toBe(1500);
+    expect(enquirySchema.parse({ ...custom, budget: '1e3' }).budget).toBe(1000);
+  });
+
+  it('uses the api wording on both ends of the range', () => {
+    for (const budget of ['999.9', '1000001']) {
+      const parsed = enquirySchema.safeParse({ ...custom, budget });
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) expect(fieldErrorsOf(parsed.error).budget).toBe(BUDGET_MESSAGE);
+    }
+    expect(BUDGET_MESSAGE).toBe('Between ₹1,000 and ₹1,000,000 per person');
+  });
+
+  it('says what is wrong with an over-long name', () => {
+    const parsed = enquirySchema.safeParse({ ...custom, name: 'a'.repeat(81) });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) expect(fieldErrorsOf(parsed.error).name).toMatch(/80 characters/);
+  });
+});
+
 describe('formStateFrom', () => {
   it('reads the proxy redirect and ignores junk', () => {
     expect(
       formStateFrom({
         fieldErrors: '{"phone":"bad"}',
-        name: 'Priya',
+        adults: '3',
         error: 'rate_limited',
         website: 'x',
       }),
     ).toEqual({
-      defaultValues: { name: 'Priya' },
+      defaultValues: { adults: '3' },
       fieldErrors: { phone: 'bad' },
       error: 'rate_limited',
     });
@@ -110,6 +148,48 @@ describe('formStateFrom', () => {
       fieldErrors: {},
       error: undefined,
     });
+  });
+
+  it('takes typed details from the draft cookie, never from the query', () => {
+    const state = formStateFrom(
+      { name: 'From the URL', phone: '9845022110', type: 'custom' },
+      { name: 'Priya', email: 'p@x.io' },
+    );
+    expect(state.defaultValues).toEqual({ type: 'custom', name: 'Priya', email: 'p@x.io' });
+  });
+});
+
+describe('draft cookie', () => {
+  it('round-trips only the private fields', () => {
+    const value = draftCookieValue({
+      name: 'Priya',
+      phone: '98450 22110',
+      message: '50% off? café',
+      adults: '2',
+      website: '',
+    });
+    expect(value).toBeDefined();
+    expect(value).not.toMatch(/[;,\s]/); // safe as a cookie value
+    // Next hands the page the decoded value; both spellings parse.
+    const expected = { name: 'Priya', phone: '98450 22110', message: '50% off? café' };
+    expect(draftFrom(value)).toEqual(expected);
+    expect(draftFrom(decodeURIComponent(value!))).toEqual(expected);
+    expect(draftFrom('garbage{')).toEqual({});
+  });
+
+  it('drops the long free text rather than overflow a 4 KB cookie', () => {
+    const value = draftCookieValue({ name: 'Priya', message: 'अ'.repeat(1000) });
+    expect(value!.length).toBeLessThanOrEqual(3800);
+    expect(draftFrom(value)).toEqual({ name: 'Priya' });
+  });
+
+  it('is httpOnly and short-lived, and clears with Max-Age=0', () => {
+    expect(draftCookieHeader('x', true)).toMatch(
+      /^ts_enquiry_draft=x; Max-Age=600; Path=\/; HttpOnly; SameSite=Lax; Secure$/,
+    );
+    expect(draftCookieHeader(undefined, false)).toBe(
+      'ts_enquiry_draft=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
+    );
   });
 });
 
