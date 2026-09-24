@@ -72,6 +72,20 @@ def test_budget_accepts_what_a_number_input_can_post() -> None:
     assert e.budget_paise == 100_000
 
 
+@pytest.mark.parametrize("budget", ["inf", "-inf", "nan", "1e400", float("inf"), 10**400])
+def test_a_non_finite_budget_is_a_field_error_not_a_500(budget: object) -> None:
+    with pytest.raises(ValidationError) as err:
+        EnquiryCreate.model_validate({**CASES["valid"][1], "budget": budget})
+    assert "Enter a budget in rupees" in str(err.value)
+
+
+def test_a_json_budget_of_1e400_is_a_field_error() -> None:
+    body = json.dumps(CASES["valid"][1]).rstrip("}") + ', "budget": 1e400}'
+    with pytest.raises(ValidationError) as err:
+        EnquiryCreate.model_validate_json(body)
+    assert "Enter a budget in rupees" in str(err.value)
+
+
 def test_honeypot_is_a_plain_string_that_defaults_to_empty() -> None:
     e = EnquiryCreate.model_validate({**CASES["valid"][2], "website": "http://spam"})
     assert e.website == "http://spam"

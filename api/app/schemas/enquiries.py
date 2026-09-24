@@ -2,6 +2,7 @@
 must agree with every rule here — tests/fixtures/enquiry_cases.json is run by both sides."""
 
 import datetime as dt
+import math
 import re
 from typing import Annotated, Self
 
@@ -101,8 +102,13 @@ class EnquiryCreate(ApiModel):
         if isinstance(v, bool) or not isinstance(v, int | float | str):
             raise ValueError("Enter a budget in rupees")
         try:
-            rupees = int(float(v))  # a number input can post "1e3"; zod coerces the same way
-        except ValueError as e:
+            # A number input can post "1e3"; zod coerces the same way. "inf", "nan" and 1e400
+            # parse as floats but are no budget — `int()` would raise OverflowError, a 500.
+            number = float(v)
+            if not math.isfinite(number):
+                raise ValueError("not finite")
+            rupees = int(number)
+        except (ValueError, OverflowError) as e:
             raise ValueError("Enter a budget in rupees") from e
         if not BUDGET_MIN_INR <= rupees <= BUDGET_MAX_INR:
             raise ValueError(f"Between ₹{BUDGET_MIN_INR:,} and ₹{BUDGET_MAX_INR:,} per person")
