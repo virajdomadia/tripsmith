@@ -15,7 +15,14 @@ from app.infra.storage import Store
 from app.models import PackageImage
 from app.models.base import new_id
 from app.schemas.catalog import AdminImage, AdminPackage
-from app.services.catalog.admin_packages import load, revalidate_tags, to_admin
+from app.services.analytics import ist_today
+from app.services.catalog.admin_packages import (
+    assert_live_rules_hold,
+    load,
+    publish_rules,
+    revalidate_tags,
+    to_admin,
+)
 from app.services.images import ImageError, prepare_image
 
 BAD_ORDER = "The gallery order must list every photo of this package exactly once"
@@ -110,10 +117,15 @@ async def set_alt(db: AsyncSession, package_id: str, image_id: str, alt: str) ->
 
 async def remove_image(db: AsyncSession, package_id: str, image_id: str) -> None:
     """The FK is `SET NULL`, so deleting the cover would leave the package coverless — hand the
-    role to the next photo instead. The Blob object is left behind (portfolio scale)."""
+    role to the next photo instead. The Blob object is left behind (portfolio scale).
+
+    A live package keeps its publish rules: its last photo cannot go until it is unpublished.
+    """
     pkg = await load(db, package_id)
     row = await _image_of(db, package_id, image_id)
     remaining = [i for i in sorted(pkg.images, key=lambda i: i.position) if i.id != image_id]
+    before = publish_rules(pkg, image_count=len(pkg.images), today=ist_today())
+    assert_live_rules_hold(pkg, before, image_count=len(remaining))
     if pkg.cover_image_id == image_id:
         pkg.cover_image_id = remaining[0].id if remaining else None
     await db.delete(row)

@@ -4,7 +4,8 @@ import { EnquiriesTable } from '@/components/admin/enquiries/EnquiriesTable';
 import { InboxFilters } from '@/components/admin/enquiries/InboxFilters';
 import { Pager } from '@/components/admin/enquiries/Pager';
 import { buttonVariants } from '@/components/ui/button';
-import { csvHref, parseFilters, toQuery } from '@/lib/admin/enquiry-filters';
+import { redirect } from 'next/navigation';
+import { clampPageHref, csvHref, parseFilters, toQuery } from '@/lib/admin/enquiry-filters';
 import { api } from '@/lib/api';
 
 export const metadata = { title: 'Enquiries' };
@@ -23,6 +24,8 @@ export default async function EnquiriesPage({
     api('/admin/enquiries', { auth: true, searchParams: toQuery(filters) }),
     api('/admin/packages', { auth: true }),
   ]);
+  const clamped = clampPageHref(filters, inbox.totalPages);
+  if (clamped) redirect(clamped);
   const { counts } = inbox;
   return (
     <>

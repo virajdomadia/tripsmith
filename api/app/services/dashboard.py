@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Departure, Enquiry, Package, PackageView
 from app.models.catalog import departure_availability
-from app.models.enums import EnquiryStatus
+from app.models.enums import EnquiryStatus, PackageStatus
 from app.schemas.admin_enquiries import EnquiryFilters
 from app.schemas.dashboard import (
     MAX_DEPARTURES,
@@ -114,7 +114,8 @@ async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]
     """Seats come from the `departure_availability` view, so v2's bookings change nothing here.
 
     Sold-out departures stay in the list: "0 left" on a date a week away is exactly what the
-    owner opened the dashboard to see.
+    owner opened the dashboard to see. Drafts do not: a draft's dates (a fresh duplicate's
+    included) are not on sale, so they are not departures the owner has to prepare for.
     """
     rows = await db.execute(
         select(
@@ -129,7 +130,11 @@ async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]
         )
         .join(departure_availability, departure_availability.c.departure_id == Departure.id)
         .join(Package, Package.id == Departure.package_id)
-        .where(Departure.date >= today, Departure.date <= window_end(today, UPCOMING_DAYS))
+        .where(
+            Package.status == PackageStatus.LIVE,
+            Departure.date >= today,
+            Departure.date <= window_end(today, UPCOMING_DAYS),
+        )
         .order_by(Departure.date, Package.name)
         .limit(MAX_DEPARTURES)
     )
@@ -156,7 +161,12 @@ async def _upcoming_total(db: AsyncSession, today: dt.date) -> int:
         db,
         select(func.count())
         .select_from(Departure)
-        .where(Departure.date >= today, Departure.date <= window_end(today, UPCOMING_DAYS)),
+        .join(Package, Package.id == Departure.package_id)
+        .where(
+            Package.status == PackageStatus.LIVE,
+            Departure.date >= today,
+            Departure.date <= window_end(today, UPCOMING_DAYS),
+        ),
     )
 
 

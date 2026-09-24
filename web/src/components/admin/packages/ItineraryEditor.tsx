@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { blankDay, type PackageFieldValues } from '@/lib/admin/package-schema';
 import { movedIndices, useSortableSensors } from '@/lib/admin/sortable';
+import { ArrayError } from './ArrayError';
 
 const MEALS = [
   { key: 'breakfast', label: 'B', full: 'Breakfast' },
@@ -175,6 +176,8 @@ export function ItineraryEditor() {
           </span>
         </h3>
       </div>
+
+      <ArrayError name="itinerary" />
 
       {fields.length === 0 && <p className="text-sm text-mute">No days yet — add the first one.</p>}
 

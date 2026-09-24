@@ -6,7 +6,7 @@ from collections.abc import Sequence
 import pytest
 from httpx import AsyncClient
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -289,6 +289,18 @@ async def goa_id(db: AsyncSession) -> str:
     return (await db.execute(select(Destination.id).where(Destination.slug == "goa"))).scalar_one()
 
 
+async def never_published(db: AsyncSession, slug: str) -> Package:
+    """The seed publishes its packages; wind one back to a draft that was never live, so its
+    slug may still move and the live-only publish-rule guard stays out of the way."""
+    await db.execute(
+        update(Package)
+        .where(Package.slug == slug)
+        .values(status=PackageStatus.DRAFT, first_published_at=None)
+    )
+    await db.commit()
+    return await package_by_slug(db, slug)
+
+
 @pytest.mark.db
 async def test_list_returns_every_package_draft_included(db: AsyncSession) -> None:
     await seeded(db)
@@ -416,7 +428,7 @@ async def test_update_replaces_the_itinerary_and_keeps_departure_ids(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
     await seeded(db)
-    pkg = await package_by_slug(db, "north-goa-beaches")
+    pkg = await never_published(db, "north-goa-beaches")  # a 2-of-4-day itinerary is draft-only
     before = await svc.get_package(db, pkg.id)
     kept = before.departures[-1]  # the furthest-out departure
     revalidated.calls.clear()
@@ -459,7 +471,7 @@ async def test_update_revalidates_the_old_slug_and_the_old_destination(
     )
     db.add(kerala)
     await db.commit()
-    pkg = await package_by_slug(db, "north-goa-beaches")
+    pkg = await never_published(db, "north-goa-beaches")
     revalidated.calls.clear()
 
     await svc.update_package(
@@ -475,7 +487,7 @@ async def test_update_rejects_a_slug_another_package_already_uses(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
     await seeded(db)
-    pkg = await package_by_slug(db, "north-goa-beaches")
+    pkg = await never_published(db, "north-goa-beaches")
     with pytest.raises(ApiError) as exc:
         await svc.update_package(
             db, pkg.id, payload(slug="goa-quiet-escape", destinationId=await goa_id(db))
@@ -496,7 +508,7 @@ async def test_a_slug_race_past_the_precheck_is_still_a_409_not_a_500(
 
     monkeypatch.setattr(svc, "_assert_slug_free", raced)
     await seeded(db)
-    pkg = await package_by_slug(db, "north-goa-beaches")
+    pkg = await never_published(db, "north-goa-beaches")
     with pytest.raises(ApiError) as exc:
         await svc.update_package(
             db, pkg.id, payload(slug="goa-quiet-escape", destinationId=await goa_id(db))
@@ -828,3 +840,249 @@ async def test_publishing_an_incomplete_package_is_a_conflict_naming_the_rules(
     )
     assert res.status_code == 409
     assert set(res.json()["error"]["fieldErrors"]) == {"images", "itinerary", "departures"}
+
+
+# --- v1.0.1: stale edits, the slug lock, publish rules on live packages ---------------------------
+
+
+async def as_payload(db: AsyncSession, id: str, **overrides: object) -> PackageInput:
+    """The package exactly as the form would send it back, with `overrides` applied."""
+    out = await svc.get_package(db, id)
+    fields: dict[str, object] = {
+        "slug": out.slug,
+        "destinationId": out.destination_id,
+        "name": out.name,
+        "summary": out.summary,
+        "themes": out.themes,
+        "nights": out.nights,
+        "departureCity": out.departure_city,
+        "highlights": out.highlights,
+        "inclusions": out.inclusions,
+        "exclusions": out.exclusions,
+        "hotels": [h.model_dump(by_alias=True) for h in out.hotels],
+        "faq": [f.model_dump(by_alias=True) for f in out.faq],
+        "featured": out.featured,
+        "itinerary": [
+            {
+                "title": d.title,
+                "description": d.description,
+                "meals": d.meals.model_dump(),
+                "stay": d.stay,
+            }
+            for d in out.itinerary
+        ],
+        "departures": [
+            {
+                "id": d.id,
+                "date": d.date.isoformat(),
+                "seatsTotal": d.seats_total,
+                "guaranteed": d.guaranteed,
+                "priceDoublePaise": d.price_double_paise,
+                "priceTriplePaise": d.price_triple_paise,
+                "priceChildPaise": d.price_child_paise,
+                "singleSupplementPaise": d.single_supplement_paise,
+            }
+            for d in out.departures
+        ],
+        "expectedUpdatedAt": out.updated_at.isoformat(),
+    }
+    fields.update(overrides)
+    return PackageInput.model_validate(fields)
+
+
+@pytest.mark.db
+async def test_a_save_against_an_older_version_is_a_stale_409(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    tab_a = await as_payload(db, pkg.id, name="Tab A")
+    tab_b = await as_payload(db, pkg.id, name="Tab B")
+
+    first = await svc.update_package(db, pkg.id, tab_a)
+    assert first.name == "Tab A"
+    assert tab_a.expected_updated_at is not None
+    assert first.updated_at > tab_a.expected_updated_at
+    revalidated.calls.clear()
+
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, pkg.id, tab_b)
+    assert exc.value.code == "conflict"
+    assert exc.value.field_errors == {"expectedUpdatedAt": svc.STALE}
+    assert (await svc.get_package(db, pkg.id)).name == "Tab A", "tab B did not overwrite"
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_a_departure_only_edit_still_advances_the_version(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """No column on the package row changes, so the ORM `onupdate` alone would leave
+    `updated_at` where it was and a second tab could save straight past the check."""
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    body = await as_payload(db, pkg.id)
+    fewer_seats = [d.model_copy(update={"seats_total": 9}) for d in body.departures]
+    out = await svc.update_package(db, pkg.id, body.model_copy(update={"departures": fewer_seats}))
+    assert all(d.seats_total == 9 for d in out.departures)
+    assert body.expected_updated_at is not None and out.updated_at > body.expected_updated_at
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, pkg.id, body)
+    assert exc.value.field_errors == {"expectedUpdatedAt": svc.STALE}
+
+
+@pytest.mark.db
+async def test_a_save_without_a_version_skips_the_check(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    body = await as_payload(db, pkg.id, expectedUpdatedAt=None, name="No version")
+    assert (await svc.update_package(db, pkg.id, body)).name == "No version"
+
+
+@pytest.mark.db
+async def test_the_stale_409_reaches_the_client_as_a_field_error(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    body = (await as_payload(db, pkg.id)).model_dump(by_alias=True, mode="json")
+    ok = await db_client.put(f"/admin/packages/{pkg.id}", json=body, headers=cookie)
+    assert ok.status_code == 200, ok.text
+    again = await db_client.put(f"/admin/packages/{pkg.id}", json=body, headers=cookie)
+    assert again.status_code == 409
+    assert again.json()["error"]["fieldErrors"] == {"expectedUpdatedAt": svc.STALE}
+
+
+@pytest.mark.db
+async def test_a_live_package_keeps_its_slug(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    assert (await svc.get_package(db, pkg.id)).slug_locked is True
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, pkg.id, await as_payload(db, pkg.id, slug="north-goa"))
+    assert exc.value.code == "validation"
+    assert exc.value.field_errors == {"slug": "The URL is fixed once a trip has been published"}
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_the_slug_stays_fixed_after_unpublishing(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    draft = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    assert draft.slug_locked is False
+    db.add(
+        PackageImage(package_id=draft.id, url="https://blob.test/a.jpg", width=1600, height=1000)
+    )
+    await db.commit()
+
+    live = await svc.set_status(db, draft.id, PackageStatus.LIVE)
+    assert live.slug_locked is True
+    first = (await svc.load(db, draft.id)).first_published_at
+    assert first is not None
+
+    down = await svc.set_status(db, draft.id, PackageStatus.DRAFT)
+    assert down.slug_locked is True, "a shared URL stays shared"
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, draft.id, await as_payload(db, draft.id, slug="konkan"))
+    assert exc.value.field_errors == {"slug": svc.SLUG_LOCKED}
+
+    await svc.set_status(db, draft.id, PackageStatus.LIVE)
+    again = await svc.load(db, draft.id)
+    assert again.first_published_at == first, "the first publish is kept, not moved"
+
+
+@pytest.mark.db
+async def test_a_draft_that_was_never_live_can_still_move(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    draft = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    out = await svc.update_package(db, draft.id, await as_payload(db, draft.id, slug="konkan"))
+    assert out.slug == "konkan"
+
+
+@pytest.mark.db
+async def test_saving_a_live_package_with_no_departures_is_refused(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg_id = (await package_by_slug(db, "north-goa-beaches")).id
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, pkg_id, await as_payload(db, pkg_id, departures=[]))
+    assert exc.value.code == "validation" and exc.value.status == 400
+    assert "at least one upcoming departure" in exc.value.message
+    assert "Unpublish it first" in exc.value.message
+    assert set(exc.value.field_errors or {}) == {"departures"}
+    assert revalidated.calls == []
+    # The failed save rolled back: the departures its flush had deleted are all still there.
+    assert len((await svc.get_package(db, pkg_id)).departures) > 0
+
+
+@pytest.mark.db
+async def test_a_zero_price_on_a_live_package_is_refused(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    body = await as_payload(db, pkg.id)
+    unpriced = [body.departures[0].model_copy(update={"price_child_paise": 0})]
+    unpriced += body.departures[1:]
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(db, pkg.id, body.model_copy(update={"departures": unpriced}))
+    assert exc.value.status == 400
+    assert exc.value.field_errors is not None
+    assert "Prices set for every departure" in exc.value.field_errors["departures"]
+
+
+@pytest.mark.db
+async def test_a_short_itinerary_on_a_live_package_is_refused(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    body = await as_payload(db, pkg.id)
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db, pkg.id, body.model_copy(update={"itinerary": body.itinerary[:1]})
+        )
+    assert exc.value.field_errors is not None and "itinerary" in exc.value.field_errors
+
+
+@pytest.mark.db
+async def test_the_same_edits_are_fine_on_a_draft(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await never_published(db, "north-goa-beaches")
+    out = await svc.update_package(db, pkg.id, await as_payload(db, pkg.id, departures=[]))
+    assert out.departures == []
+
+
+@pytest.mark.db
+async def test_a_rule_that_lapsed_on_its_own_does_not_block_an_unrelated_edit(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """Every departure of a live trip has left: the owner can still fix a typo."""
+    await seeded(db)
+    pkg = await svc.load(db, (await package_by_slug(db, "north-goa-beaches")).id)
+    for i, d in enumerate(sorted(pkg.departures, key=lambda d: d.date)):
+        d.date = dt.date.today() - dt.timedelta(days=10 + i)
+    await db.commit()
+    out = await svc.update_package(db, pkg.id, await as_payload(db, pkg.id, name="Typo fixed"))
+    assert out.name == "Typo fixed"
+
+
+@pytest.mark.db
+async def test_a_duplicate_of_a_live_package_is_an_unlocked_draft(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    copy = await svc.duplicate_package(db, pkg.id)
+    assert copy.status is PackageStatus.DRAFT and copy.slug_locked is False

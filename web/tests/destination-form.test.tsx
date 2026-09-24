@@ -53,6 +53,7 @@ const fixture: AdminDestination = {
   position: 3,
   packageCount: 0,
   livePackageCount: 0,
+  slugLocked: false,
   updatedAt: '2026-01-01T00:00:00Z',
 };
 

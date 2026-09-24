@@ -1,6 +1,6 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   FormControl,
@@ -32,13 +32,20 @@ const slugify = (s: string) =>
 export function BasicsPanel({
   destinations,
   editing,
+  slugLocked = false,
 }: {
   destinations: AdminDestination[];
   editing: boolean;
+  /** Published at least once: the public URL is fixed (the api refuses a change too). */
+  slugLocked?: boolean;
 }) {
   const form = useFormContext<PackageFieldValues>();
   const themesLabelId = useId();
   const featuredLabelId = useId();
+  // Set by a keystroke in the slug box. Not `getFieldState('slug').isDirty`: once the form
+  // tracks `isDirty` (the unsaved-changes guard), react-hook-form re-derives every dirty field
+  // and counts the name-following slug as edited after the first letter.
+  const slugEdited = useRef(false);
   const nights = Number(form.watch('nights'));
   const days = Number.isFinite(nights) ? nights + 1 : 0;
 
@@ -58,7 +65,7 @@ export function BasicsPanel({
                     field.onChange(e);
                     // Follow the name until the owner edits the slug themselves; after a failed
                     // submit, re-validate so a stale "Required" clears as it fills.
-                    if (!editing && !form.getFieldState('slug').isDirty)
+                    if (!editing && !slugEdited.current)
                       form.setValue('slug', slugify(e.target.value), {
                         shouldValidate: form.formState.isSubmitted,
                       });
@@ -76,12 +83,23 @@ export function BasicsPanel({
             <FormItem>
               <FormLabel>Slug</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="north-goa-beaches" />
+                <Input
+                  {...field}
+                  placeholder="north-goa-beaches"
+                  onChange={(e) => {
+                    slugEdited.current = true;
+                    field.onChange(e);
+                  }}
+                  readOnly={slugLocked}
+                  className={slugLocked ? 'bg-bg2 text-mute' : undefined}
+                />
               </FormControl>
               <FormDescription>
-                {editing
-                  ? 'Changing this moves the public page; the old address stops working.'
-                  : 'The public address: /packages/<slug>.'}
+                {slugLocked
+                  ? 'The URL is fixed once a trip has been published.'
+                  : editing
+                    ? 'Changing this moves the public page; the old address stops working.'
+                    : 'The public address: /packages/<slug>.'}
               </FormDescription>
               <FormMessage />
             </FormItem>

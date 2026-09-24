@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Departure, PackageView
-from app.models.enums import EnquiryStatus
+from app.models.enums import EnquiryStatus, PackageStatus
 from app.schemas.admin_enquiries import EnquiryFilters
 from app.schemas.meta import Badge
 from app.services import admin_enquiries as inbox
@@ -348,3 +348,21 @@ async def test_the_dashboard_route_answers_no_store_and_the_camelcase_contract(
     assert body["upcomingDepartures"][0]["seatsLeft"] == 20
     assert body["upcomingDepartures"][0]["packageName"] == "North Goa Beaches"
     assert body["upcomingDepartures"][0]["badge"] is None  # 20 seats, not guaranteed
+
+
+@pytest.mark.db
+async def test_upcoming_departures_leave_out_drafts(db: AsyncSession) -> None:
+    """A draft's dates are not on sale — a fresh duplicate of a live trip included — so they
+    are not departures the owner has to get ready for, nor part of the total."""
+    live = await make_package(db)
+    draft = await make_package(db, slug="test-goa-beaches-copy", dest_slug="test-goa-2")
+    draft.status = PackageStatus.DRAFT
+    await seed_departure(db, live.id, date=TODAY + dt.timedelta(days=5))
+    await seed_departure(db, draft.id, date=TODAY + dt.timedelta(days=5))
+    await seed_departure(db, draft.id, date=TODAY + dt.timedelta(days=9))
+    await db.commit()
+
+    out = await svc.get_dashboard(db, today=TODAY)
+
+    assert [d.package_id for d in out.upcoming_departures] == [live.id]
+    assert out.upcoming_departures_total == 1

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
+import { useConfirmLeave } from '@/lib/admin/unsaved';
 import type { components } from '@/lib/api-types';
 
 type AdminPackage = components['schemas']['AdminPackage'];
@@ -23,6 +24,14 @@ export function DuplicatePackage({ id, name, variant = 'button' }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [busy, setBusy] = useState(false);
+  const confirmLeave = useConfirmLeave();
+
+  /** The copy is made from what is saved and then opened, so unsaved edits here would be lost. */
+  const start = () =>
+    confirmLeave(() => void duplicate(), {
+      description:
+        'The copy is made from the last saved version, and opening it leaves your unsaved changes here behind.',
+    });
 
   async function duplicate() {
     setBusy(true);
@@ -43,7 +52,7 @@ export function DuplicatePackage({ id, name, variant = 'button' }: Props) {
     return (
       <button
         type="button"
-        onClick={duplicate}
+        onClick={start}
         disabled={busy}
         className="ml-3 font-bold text-primary disabled:opacity-60"
       >
@@ -53,7 +62,7 @@ export function DuplicatePackage({ id, name, variant = 'button' }: Props) {
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={duplicate} disabled={busy}>
+    <Button type="button" variant="outline" size="sm" onClick={start} disabled={busy}>
       <Copy className="size-4" aria-hidden />
       {busy ? 'Duplicating…' : 'Duplicate'}
     </Button>

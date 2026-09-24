@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.models import Package, PackageImage
+from app.models.enums import PackageStatus
 from app.services.catalog import admin_package_images as svc
+from app.services.catalog.admin_packages import load
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_admin_packages import owner_cookie, package_by_slug
@@ -205,3 +207,56 @@ async def test_image_routes_round_trip(
 
     gone = await db_client.delete(f"/admin/packages/{pkg.id}/images/{image['id']}", headers=cookie)
     assert gone.status_code == 204
+
+
+@pytest.mark.db
+async def test_the_last_photo_of_a_live_package_cannot_be_deleted(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """A live trip must keep its publish rules; the owner can unpublish first."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    pkg = await load(db, (await package_by_slug(db, "north-goa-beaches")).id)
+    pkg_id = pkg.id
+    ids = [i.id for i in sorted(pkg.images, key=lambda i: i.position)]
+    assert len(ids) > 1
+    for image_id in ids[:-1]:
+        await svc.remove_image(db, pkg_id, image_id)  # all but the last are fine
+
+    with pytest.raises(ApiError) as exc:
+        await svc.remove_image(db, pkg_id, ids[-1])
+    assert exc.value.status == 400
+    assert "at least one photo" in exc.value.message
+    assert exc.value.field_errors is not None and "images" in exc.value.field_errors
+    remaining = (
+        await db.execute(select(PackageImage.id).where(PackageImage.package_id == pkg_id))
+    ).scalars()
+    assert list(remaining) == [ids[-1]]
+
+
+@pytest.mark.db
+async def test_the_last_photo_of_a_draft_can_go(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    pkg = await load(db, (await package_by_slug(db, "north-goa-beaches")).id)
+    pkg.status = PackageStatus.DRAFT
+    await db.commit()
+    for image in list(pkg.images):
+        await svc.remove_image(db, pkg.id, image.id)
+    count = await db.execute(select(PackageImage.id).where(PackageImage.package_id == pkg.id))
+    assert list(count.scalars()) == []
+
+
+@pytest.mark.db
+async def test_deleting_the_last_photo_of_a_live_package_is_a_400_on_the_route(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    cookie = await owner_cookie(db, db_client)
+    pkg = await load(db, (await package_by_slug(db, "north-goa-beaches")).id)
+    ids = [i.id for i in sorted(pkg.images, key=lambda i: i.position)]
+    for image_id in ids[:-1]:
+        res = await db_client.delete(f"/admin/packages/{pkg.id}/images/{image_id}", headers=cookie)
+        assert res.status_code == 204
+    last = await db_client.delete(f"/admin/packages/{pkg.id}/images/{ids[-1]}", headers=cookie)
+    assert last.status_code == 400
+    assert "Unpublish it first" in last.json()["error"]["message"]

@@ -1,5 +1,6 @@
 """F17 destination CRUD: service + `/admin/destinations` routes (06 §A3, §C-REST)."""
 
+import datetime as dt
 import io
 from collections.abc import Sequence
 from unittest.mock import AsyncMock
@@ -9,11 +10,12 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from PIL import Image
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.models import Destination, Package
+from app.models.enums import PackageStatus
 from app.schemas.catalog import DestinationInput
 from app.services.catalog import admin_destinations as svc
 from scripts.seed import seed
@@ -159,14 +161,58 @@ async def test_update_maps_a_concurrent_duplicate_slug_to_conflict(
     assert [r.slug for r in await svc.list_destinations(db)] == ["goa", "kerala"]
 
 
+async def never_published(db: AsyncSession) -> None:
+    """The seed publishes both Goa packages; wind them back to drafts that were never live."""
+    await db.execute(update(Package).values(status=PackageStatus.DRAFT, first_published_at=None))
+    await db.commit()
+
+
+@pytest.mark.db
+async def test_the_slug_is_fixed_while_a_trip_there_is_live(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    goa = (await db.execute(select(Destination).where(Destination.slug == "goa"))).scalar_one()
+    assert (await svc.get_destination(db, goa.id)).slug_locked is True
+    with pytest.raises(ApiError) as exc:
+        await svc.update_destination(db, goa.id, payload(slug="goa-beaches", name="Goa"))
+    assert exc.value.code == "validation"
+    assert exc.value.field_errors == {"slug": "The URL is fixed once a trip has been published"}
+    assert revalidated.calls == []
+
+    # Every other field still saves under the same slug.
+    out = await svc.update_destination(db, goa.id, payload(slug="goa", name="Goa, again"))
+    assert out.name == "Goa, again"
+
+
+@pytest.mark.db
+async def test_the_slug_stays_fixed_after_its_trips_are_unpublished(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """Once listed with a live trip, the destination page has been shared and indexed."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    goa = (await db.execute(select(Destination).where(Destination.slug == "goa"))).scalar_one()
+    await never_published(db)
+    one = (await db.execute(select(Package).limit(1))).scalar_one()
+    one.first_published_at = dt.datetime.now(dt.UTC)
+    await db.commit()
+    locked = await svc.get_destination(db, goa.id)
+    assert locked.live_package_count == 0 and locked.slug_locked is True
+    with pytest.raises(ApiError) as exc:
+        await svc.update_destination(db, goa.id, payload(slug="goa-beaches", name="Goa"))
+    assert exc.value.field_errors == {"slug": svc.SLUG_LOCKED}
+
+
 @pytest.mark.db
 async def test_update_changes_fields_and_revalidates_the_old_slug(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
     await seed(db, fixture_content(), RecordingStore(), make_settings())
     goa = (await db.execute(select(Destination).where(Destination.slug == "goa"))).scalar_one()
+    await never_published(db)  # a rename is only possible before anything there went live
     out = await svc.update_destination(db, goa.id, payload(slug="goa-beaches", name="Goa beaches"))
     assert out.slug == "goa-beaches" and out.name == "Goa beaches" and out.package_count == 2
+    assert out.slug_locked is False
     assert revalidated.calls == [
         [
             "destinations",

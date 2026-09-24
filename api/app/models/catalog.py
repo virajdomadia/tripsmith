@@ -80,6 +80,9 @@ class Package(IdMixin, TimestampsMixin, Base):
         server_default=PackageStatus.DRAFT.value,
     )
     featured: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Set the first time the package goes live and never cleared: from then on the slug (the
+    # public URL) is fixed. Migration 0002 backfilled the packages already live.
+    first_published_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     # Cached: min live-departure price_double_paise; recomputed on departure writes.
     starting_price_paise: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     deal_price_paise: Mapped[int | None] = mapped_column(Integer)  # ⏩ v2

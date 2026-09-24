@@ -104,6 +104,11 @@
             "title": "Slug",
             "type": "string"
           },
+          "slugLocked": {
+            "description": "True once any of its packages has been published; the slug is then fixed",
+            "title": "Sluglocked",
+            "type": "boolean"
+          },
           "tagline": {
             "title": "Tagline",
             "type": "string"
@@ -126,6 +131,7 @@
           "position",
           "packageCount",
           "livePackageCount",
+          "slugLocked",
           "updatedAt"
         ],
         "title": "AdminDestination",
@@ -489,6 +495,11 @@
             "title": "Slug",
             "type": "string"
           },
+          "slugLocked": {
+            "description": "True once the package has been published",
+            "title": "Sluglocked",
+            "type": "boolean"
+          },
           "startingPricePaise": {
             "title": "Startingpricepaise",
             "type": "integer"
@@ -539,6 +550,7 @@
           "enquiryCount",
           "publishRules",
           "canPublish",
+          "slugLocked",
           "updatedAt"
         ],
         "title": "AdminPackage",
@@ -2410,6 +2422,19 @@
             "maxItems": 20,
             "title": "Exclusions",
             "type": "array"
+          },
+          "expectedUpdatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `updatedAt` the form loaded. On update, a package changed since then answers 409 instead of being overwritten; omitted, the check is skipped",
+            "title": "Expectedupdatedat"
           },
           "faq": {
             "items": {

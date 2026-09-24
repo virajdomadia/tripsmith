@@ -277,6 +277,9 @@ class AdminDestination(ApiModel):
     position: int
     package_count: int = Field(description="All packages, draft or live")
     live_package_count: int
+    slug_locked: bool = Field(
+        description="True once any of its packages has been published; the slug is then fixed"
+    )
     updated_at: dt.datetime
 
 
@@ -356,6 +359,13 @@ class PackageInput(ApiModel):
     featured: bool = False
     itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
     departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+    expected_updated_at: dt.datetime | None = Field(
+        default=None,
+        description=(
+            "The `updatedAt` the form loaded. On update, a package changed since then answers "
+            "409 instead of being overwritten; omitted, the check is skipped"
+        ),
+    )
 
     @property
     def days(self) -> int:
@@ -457,6 +467,7 @@ class AdminPackage(ApiModel):
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
+    slug_locked: bool = Field(description="True once the package has been published")
     updated_at: dt.datetime
 
 

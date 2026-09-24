@@ -582,6 +582,11 @@ export interface components {
             region: string;
             /** Slug */
             slug: string;
+            /**
+             * Sluglocked
+             * @description True once any of its packages has been published; the slug is then fixed
+             */
+            slugLocked: boolean;
             /** Tagline */
             tagline: string;
             /**
@@ -727,6 +732,11 @@ export interface components {
             publishRules: components["schemas"]["PublishRule"][];
             /** Slug */
             slug: string;
+            /**
+             * Sluglocked
+             * @description True once the package has been published
+             */
+            slugLocked: boolean;
             /** Startingpricepaise */
             startingPricePaise: number;
             status: components["schemas"]["PackageStatus"];
@@ -1553,6 +1563,11 @@ export interface components {
             destinationId: string;
             /** Exclusions */
             exclusions?: string[];
+            /**
+             * Expectedupdatedat
+             * @description The `updatedAt` the form loaded. On update, a package changed since then answers 409 instead of being overwritten; omitted, the check is skipped
+             */
+            expectedUpdatedAt?: string | null;
             /** Faq */
             faq?: components["schemas"]["FaqItem"][];
             /**

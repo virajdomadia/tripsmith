@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,10 @@ from app.models.enums import PackageStatus
 from app.schemas.catalog import AdminDestination, DestinationInput
 
 DUPLICATE_SLUG = "A destination with this slug already exists"
+SLUG_LOCKED = "The URL is fixed once a trip has been published"
+
+# (destination, all packages, live packages, packages ever published)
+_Counts = tuple[Destination, int, int, int]
 
 
 def revalidate_tags(
@@ -27,19 +31,25 @@ def revalidate_tags(
     return tags
 
 
-def _counts_query() -> Select[tuple[Destination, int, int]]:
+def _counts_query() -> Select[_Counts]:
+    """ "Ever published" locks the slug: a destination page that has listed a live trip has been
+    shared and indexed, so its URL stays put even after that trip is unpublished."""
+    live = Package.status == PackageStatus.LIVE
     return (
         select(
             Destination,
             func.count(Package.id),
-            func.count(Package.id).filter(Package.status == PackageStatus.LIVE),
+            func.count(Package.id).filter(live),
+            func.count(Package.id).filter(or_(live, Package.first_published_at.is_not(None))),
         )
         .outerjoin(Package, Package.destination_id == Destination.id)
         .group_by(Destination.id)
     )
 
 
-def _to_admin(row: Destination, package_count: int, live_package_count: int) -> AdminDestination:
+def _to_admin(
+    row: Destination, package_count: int, live_package_count: int, published_count: int
+) -> AdminDestination:
     return AdminDestination(
         id=row.id,
         slug=row.slug,
@@ -52,21 +62,22 @@ def _to_admin(row: Destination, package_count: int, live_package_count: int) -> 
         position=row.position,
         package_count=package_count,
         live_package_count=live_package_count,
+        slug_locked=published_count > 0,
         updated_at=row.updated_at,
     )
 
 
 async def list_destinations(db: AsyncSession) -> list[AdminDestination]:
     rows = await db.execute(_counts_query().order_by(Destination.position, Destination.name))
-    return [_to_admin(d, total, live) for d, total, live in rows.all()]
+    return [_to_admin(d, total, live, ever) for d, total, live, ever in rows.all()]
 
 
-async def _load(db: AsyncSession, id: str) -> tuple[Destination, int, int]:
+async def _load(db: AsyncSession, id: str) -> _Counts:
     row = (await db.execute(_counts_query().where(Destination.id == id))).one_or_none()
     if row is None:
         raise ApiError("not_found", "Destination not found")
-    d, total, live = row
-    return d, int(total), int(live)
+    d, total, live, ever = row
+    return d, int(total), int(live), int(ever)
 
 
 async def get_destination(db: AsyncSession, id: str) -> AdminDestination:
@@ -110,13 +121,15 @@ async def create_destination(db: AsyncSession, payload: DestinationInput) -> Adm
     await _commit_or_conflict(db)
     await db.refresh(row)
     await revalidate(revalidate_tags(row.slug))
-    return _to_admin(row, 0, 0)
+    return _to_admin(row, 0, 0, 0)
 
 
 async def update_destination(
     db: AsyncSession, id: str, payload: DestinationInput
 ) -> AdminDestination:
-    row, total, live = await _load(db, id)
+    row, total, live, ever = await _load(db, id)
+    if payload.slug != row.slug and ever:
+        raise ApiError("validation", SLUG_LOCKED, field_errors={"slug": SLUG_LOCKED})
     await _assert_slug_free(db, payload.slug, except_id=id)
     old_slug = row.slug
     _apply(row, payload)
@@ -132,11 +145,11 @@ async def update_destination(
         .all()
     )
     await revalidate(revalidate_tags(row.slug, old_slug, package_slugs))
-    return _to_admin(row, total, live)
+    return _to_admin(row, total, live, ever)
 
 
 async def delete_destination(db: AsyncSession, id: str) -> None:
-    row, total, _ = await _load(db, id)
+    row, total, _, _ = await _load(db, id)
     if total:
         noun = "package uses" if total == 1 else "packages use"
         raise ApiError("conflict", f"{total} {noun} this destination — delete or move them first")

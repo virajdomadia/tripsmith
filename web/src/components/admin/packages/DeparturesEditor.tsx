@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { blankDeparture, type PackageFieldValues } from '@/lib/admin/package-schema';
+import { ArrayError } from './ArrayError';
 
 /**
  * The owner thinks in rupees; the wire and the database are paise, always (06 §A3). One
@@ -49,6 +50,8 @@ export function DeparturesEditor() {
           · {fields.length} {fields.length === 1 ? 'date' : 'dates'}
         </span>
       </h3>
+
+      <ArrayError name="departures" />
 
       {fields.length === 0 ? (
         <p className="text-sm text-mute">No departures yet — add the first date.</p>
@@ -210,7 +213,7 @@ export function DeparturesEditor() {
           Add departure
         </Button>
         <span className="text-[13px] text-mute">
-          Seats left is computed from bookings — never edited by hand.
+          Seats total — lower it as you sell seats offline; online bookings arrive in v2.
         </span>
       </div>
     </div>
