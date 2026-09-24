@@ -4,13 +4,19 @@ prices, questions — drawn with the same tokens, radii and marks as the web com
 web/src/components/site/package/. Pure and synchronous: takes a `PackageDetail` (the object
 the page renders) and the cover photo's bytes; every network step lives in service.py.
 
-Blob pathnames: `pdf/{slug}/{updated_at epoch}/Tripsmith-{slug}-itinerary.pdf` — the basename
-is the download filename, `pdf/{slug}/` scopes a package's versions, `pdf/` scopes the GC.
+Blob pathnames: `pdf/{slug}/{version}/Tripsmith-{slug}-itinerary.pdf` — the basename is the
+download filename, `pdf/{slug}/` scopes a package's versions, `pdf/` scopes the GC. `version`
+(`pdf_version`) hashes what the PDF draws, not `packages.updated_at`: that column only moves
+when the package row itself is written, never for a day, a departure, a photo, a seat sold or
+the destination's name — and a departure that has passed drops out of the upcoming list, so
+yesterday's PDF is never served after its first date is gone.
 """
 
-import datetime as dt
+import hashlib
 import io
+import json
 from collections.abc import Sequence
+from pathlib import Path
 
 from fpdf import XPos, YPos
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
@@ -22,6 +28,7 @@ from app.services.format import duration, inr, long_date, meals_label, seats_lab
 from app.services.pdf.document import (
     ACTION,
     BG2,
+    FONTS_DIR,
     FOOTER_HEIGHT,
     INK,
     INK2,
@@ -64,8 +71,45 @@ def pdf_filename(slug: str) -> str:
     return f"Tripsmith-{slug}-itinerary.pdf"
 
 
-def pdf_pathname(slug: str, updated_at: dt.datetime) -> str:
-    return f"{pdf_prefix(slug)}{int(updated_at.timestamp())}/{pdf_filename(slug)}"
+# The renderer is part of the version too: its own source, the formatters it prints through
+# (`services/format.py`), the badge labels and the bundled fonts. A deploy that changes any of
+# them — or the phone number in the footer — re-renders every PDF once instead of serving the
+# old drawing until the next catalog edit. Sources are read as text so a CRLF checkout on
+# Windows hashes like the LF one on Vercel; the fonts are binary.
+_APP = Path(__file__).resolve().parents[2]
+_RENDERER_SOURCES = (
+    _APP / "services" / "pdf" / "itinerary.py",
+    _APP / "services" / "pdf" / "document.py",
+    _APP / "services" / "format.py",
+)
+
+
+def _renderer_hash() -> str:
+    h = hashlib.sha256()
+    for path in _RENDERER_SOURCES:
+        h.update(path.read_text(encoding="utf-8").encode())
+    for font in sorted(FONTS_DIR.glob("*.ttf")):
+        h.update(font.name.encode())
+        h.update(font.read_bytes())
+    h.update(json.dumps({str(k): v for k, v in BADGE_LABELS.items()}, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+_RENDERER = _renderer_hash()
+
+
+def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:
+    """16 hex chars over everything `render_itinerary` draws: the package page as served today
+    (`related` and `updated_at` are not drawn), the two settings it prints, the business block
+    and the renderer. Any change → a new pathname; nothing else → the same one."""
+    drawn = pkg.model_dump(mode="json", exclude={"related", "updated_at"})
+    payload = [drawn, site_url, whatsapp_number, BUSINESS, _RENDERER]
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def pdf_pathname(slug: str, version: str) -> str:
+    return f"{pdf_prefix(slug)}{version}/{pdf_filename(slug)}"
 
 
 def prepare_cover(data: bytes) -> bytes | None:

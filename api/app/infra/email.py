@@ -8,6 +8,7 @@ failure means (services/email/send.py maps it to `email_status`).
 
 import base64
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -91,4 +92,10 @@ class ResendSender:
 def build_email_sender(settings: Settings) -> EmailSender:
     if settings.resend_api_key:
         return ResendSender(settings.resend_api_key.get_secret_value(), settings.email_from)
+    if os.environ.get("VERCEL"):
+        # Enquiries still save, but nobody hears about them. ERROR so Sentry carries it.
+        log.error(
+            "RESEND_API_KEY is unset on a deployment: enquiry emails (owner alert and visitor "
+            "confirmation) are not being sent. Set it on this project."
+        )
     return NullSender()

@@ -1397,7 +1397,7 @@ export interface components {
             enquiryMessageMax: number;
             /**
              * Imagemaxbytes
-             * @example 5242880
+             * @example 4194304
              */
             imageMaxBytes: number;
             /**
@@ -1439,7 +1439,7 @@ export interface components {
         };
         /** PackageCard */
         PackageCard: {
-            /** @description From the next upcoming departure */
+            /** @description From the next upcoming departure with seats; sold-out only when all are full */
             badge: components["schemas"]["Badge"] | null;
             /** Coverurl */
             coverUrl: string | null;

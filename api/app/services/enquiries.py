@@ -1,23 +1,32 @@
 """submitEnquiry (06 C2): honeypot, package lookup, 60 s dedupe, ref, insert, then the two emails
-(services/email); the visitor copy carries the itinerary PDF (services/pdf)."""
+(services/email); the visitor copy carries the itinerary PDF (services/pdf).
+
+Transactions stay short: the insert commits, the package page for the PDF is read in its own
+transaction that ends before any network call, and `email_status` is written in a third. No
+connection is held through the photo fetch, the render, Blob or Resend.
+"""
 
 import asyncio
+import contextlib
 import datetime as dt
 import hashlib
 import logging
 import secrets
 
 import sentry_sdk
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.errors import ApiError
+from app.infra.db import constraint_name
 from app.infra.email import EmailSender
 from app.models import Enquiry, Package
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
+from app.schemas.catalog import PackageDetail
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
+from app.services.catalog.reads import get_package
 from app.services.email.render import PackageFacts, context_from
 from app.services.email.send import EmailOutcome, send_enquiry_emails
 from app.services.pdf.service import PdfService
@@ -25,6 +34,9 @@ from app.services.pdf.service import PdfService
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
 DEDUPE_WINDOW = dt.timedelta(seconds=60)
 PACKAGE_GONE = "That trip is no longer available"
+REF_CONSTRAINT = "uq_enquiries_ref"
+PACKAGE_FK = "fk_enquiries_package_id_packages"
+REF_ATTEMPTS = 5
 # Budget for the itinerary PDF on the enquiry path: photo fetch ≤ 5 s + Blob put ≤ 10 s + Resend
 # ≤ 13 s can otherwise approach Vercel's `maxDuration 30` on the api function; drop the PDF, not
 # the lead, past this.
@@ -44,8 +56,11 @@ def hash_ip(ip: str, *, secret: str | None) -> str:
     column — it identifies the visitor as surely as the address would. `SESSION_SECRET` (already
     provisioned, otherwise unused until v2's OTP) keys it instead. Unset, in dev and CI, the
     digest stays plain: there is nothing there to protect, and the column shape does not change.
+
+    blake2b takes a key of at most 64 bytes and raises past that, so the secret is first reduced
+    to a fixed 32-byte key — a long `SESSION_SECRET` must not turn every enquiry into a 500.
     """
-    key = secret.encode() if secret else b""
+    key = hashlib.sha256(secret.encode()).digest() if secret else b""
     return hashlib.blake2b(ip.encode(), key=key, digest_size=16).hexdigest()
 
 
@@ -58,6 +73,12 @@ async def count_new_enquiries(db: AsyncSession) -> int:
     ).scalar_one()
 
 
+def _package_gone() -> ApiError:
+    return ApiError(
+        "validation", "Request validation failed", field_errors={"packageSlug": PACKAGE_GONE}
+    )
+
+
 async def _live_package(db: AsyncSession, slug: str) -> Package:
     pkg = (
         await db.execute(
@@ -65,10 +86,20 @@ async def _live_package(db: AsyncSession, slug: str) -> Package:
         )
     ).scalar_one_or_none()
     if pkg is None:
-        raise ApiError(
-            "validation", "Request validation failed", field_errors={"packageSlug": PACKAGE_GONE}
-        )
+        raise _package_gone()
     return pkg
+
+
+async def _lock_submitter(db: AsyncSession, phone: str, package_id: str | None) -> None:
+    """Serialise submissions per (phone, package) for the rest of this transaction.
+
+    A double-tap posts twice within milliseconds: without the lock both requests run the
+    duplicate check before either inserts, and the owner gets two leads. The second waits here
+    until the first commits, then finds its row. `hashtext` folds the key into the lock's int
+    space; a rare collision between two submitters only makes one wait a few milliseconds.
+    """
+    key = f"enquiry:{phone}:{package_id or ''}"
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
 
 
 async def _recent_duplicate(
@@ -118,11 +149,14 @@ async def submit_enquiry(
         # A bot filled the honeypot: look successful, keep nothing.
         return EnquiryCreated(ref=make_ref(), first_name=payload.first_name, package=ref_of)
 
+    await _lock_submitter(db, payload.phone, package_id)
     existing = await _recent_duplicate(db, payload.phone, package_id, now - DEDUPE_WINDOW)
     if existing is not None:
-        return EnquiryCreated(ref=existing.ref, first_name=payload.first_name, package=ref_of)
+        ref = existing.ref
+        await db.rollback()  # releases the lock
+        return EnquiryCreated(ref=ref, first_name=payload.first_name, package=ref_of)
 
-    for _attempt in range(5):
+    for _attempt in range(REF_ATTEMPTS):
         enquiry = Enquiry(
             ref=make_ref(),
             type=EnquiryType(payload.type.value),
@@ -142,17 +176,24 @@ async def submit_enquiry(
             ip_hash=hash_ip(ip, secret=session_secret),
             user_agent=(user_agent or "")[:300] or None,
         )
-        db.add(enquiry)
         try:
-            await db.flush()
-        except IntegrityError:
-            await db.rollback()  # ref collision (1 in 2^30) — draw again
-            continue
+            # A savepoint, not the transaction: rolling back a ref collision must keep the lock.
+            async with db.begin_nested():
+                db.add(enquiry)
+        except IntegrityError as exc:
+            constraint = constraint_name(exc)
+            if REF_CONSTRAINT in constraint:
+                continue  # ref collision (1 in 2^30) — draw again
+            await db.rollback()
+            if PACKAGE_FK in constraint:  # the package was deleted since the lookup above
+                raise _package_gone() from None
+            raise
         await db.refresh(enquiry, ["created_at"])  # server default, printed in the emails
         ctx = context_from(enquiry, facts)
         await db.commit()
         break
     else:
+        await db.rollback()
         raise ApiError("internal", "Could not allocate an enquiry reference")
 
     outcome = EmailOutcome(EmailStatus.SKIPPED, False)
@@ -161,10 +202,11 @@ async def submit_enquiry(
         # when a package is on the enquiry; `attachment_for` never raises, but a slow render or
         # Blob upload could otherwise block the request past Vercel's function budget).
         attachment = None
-        if pdf and facts:
+        detail = await _package_for_pdf(db, facts.slug) if pdf and facts else None
+        if pdf and facts and detail:
             try:
                 attachment = await asyncio.wait_for(
-                    pdf.attachment_for(db, facts.slug), timeout=PDF_ATTACHMENT_TIMEOUT
+                    pdf.attachment_for(detail), timeout=PDF_ATTACHMENT_TIMEOUT
                 )
             except TimeoutError:
                 log.warning(
@@ -189,3 +231,18 @@ async def submit_enquiry(
     return EnquiryCreated(
         ref=ctx.ref, first_name=payload.first_name, package=ref_of, emailed=outcome.visitor_emailed
     )
+
+
+async def _package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
+    """The package page the PDF draws, read in its own short transaction and ended before the
+    render, Blob and Resend (each can take seconds). Never raises: the lead is already saved,
+    and a failed read only costs the attachment."""
+    try:
+        return await get_package(db, slug, with_related=False)
+    except Exception as exc:
+        log.exception("Could not load %s for the itinerary PDF", slug)
+        sentry_sdk.capture_exception(exc)
+        return None
+    finally:
+        with contextlib.suppress(Exception):  # a dead connection is the pool's problem now
+            await db.rollback()  # read-only; hands the connection back to the pool

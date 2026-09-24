@@ -4,17 +4,22 @@ import asyncio
 import datetime as dt
 import hashlib
 import re
+from collections.abc import AsyncIterator
 
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.errors import ApiError
+from app.infra.db import get_session
 from app.infra.ratelimit import RateLimitResult
 from app.models import Enquiry
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType
-from app.services.enquiries import hash_ip, make_ref
+from app.schemas.enquiries import EnquiryCreate
+from app.services import enquiries as enquiries_svc
+from app.services.enquiries import hash_ip, make_ref, submit_enquiry
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
@@ -445,6 +450,14 @@ def test_ip_hash_is_keyed_so_it_cannot_be_reversed_by_enumeration() -> None:
     assert len(keyed) == 32
 
 
+def test_ip_hash_accepts_a_secret_longer_than_blake2bs_key_limit() -> None:
+    # blake2b keys stop at 64 bytes; `openssl rand -hex 50` is a perfectly good SESSION_SECRET.
+    long_secret = "s" * 100
+    keyed = hash_ip("49.207.1.1", secret=long_secret)
+    assert len(keyed) == 32
+    assert keyed != hash_ip("49.207.1.1", secret="s" * 99)
+
+
 @pytest.mark.db
 async def test_stored_ip_hash_uses_the_configured_secret(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
@@ -455,3 +468,113 @@ async def test_stored_ip_hash_uses_the_configured_secret(
     assert res.status_code == 201
     stored = (await db.execute(select(Enquiry.ip_hash))).scalar_one()
     assert stored == hash_ip("49.207.1.1", secret="pepper")
+
+
+@pytest.mark.db
+async def test_a_double_tap_saves_one_enquiry(db: AsyncSession, db_engine: AsyncEngine) -> None:
+    """Two submissions racing in separate transactions: without the per-(phone, package) lock
+    both pass the duplicate check before either inserts."""
+    await seeded(db)
+    payload = EnquiryCreate.model_validate(BODY)
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+
+    async def submit() -> str:
+        async with factory() as session:
+            created = await submit_enquiry(session, payload, ip="1.2.3.4", user_agent="UA")
+            return created.ref
+
+    refs = await asyncio.gather(*(submit() for _ in range(4)))
+
+    assert len(set(refs)) == 1, "every tap gets the same reference back"
+    assert await count(db) == 1
+
+
+@pytest.mark.db
+async def test_a_ref_collision_draws_again_but_nothing_else_is_retried(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    await submit_enquiry(db, EnquiryCreate.model_validate(BODY), ip="1.2.3.4", user_agent=None)
+    taken = (await db.execute(select(Enquiry.ref))).scalar_one()
+    draws = iter([taken, taken, "TS-FRESH2"])
+    monkeypatch.setattr("app.services.enquiries.make_ref", lambda: next(draws))
+
+    other = {**BODY, "phone": "9845000000"}
+    created = await submit_enquiry(
+        db, EnquiryCreate.model_validate(other), ip="1.2.3.4", user_agent=None
+    )
+
+    assert created.ref == "TS-FRESH2"
+    assert await count(db) == 2
+
+
+@pytest.mark.db
+async def test_a_package_deleted_mid_submit_is_a_field_error_not_five_retries(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await seeded(db)
+    real_lock = enquiries_svc._lock_submitter
+    draws: list[str] = []
+    real_make_ref = enquiries_svc.make_ref
+
+    def counting_ref() -> str:
+        draws.append("x")
+        return real_make_ref()
+
+    async def lock_then_vanish(session: AsyncSession, phone: str, package_id: str | None) -> None:
+        # The owner deletes the package between the lookup and the insert.
+        await session.execute(text("DELETE FROM packages WHERE id = :id"), {"id": package_id})
+        await real_lock(session, phone, package_id)
+
+    monkeypatch.setattr(enquiries_svc, "_lock_submitter", lock_then_vanish)
+    monkeypatch.setattr(enquiries_svc, "make_ref", counting_ref)
+
+    with pytest.raises(ApiError) as exc:
+        await submit_enquiry(db, EnquiryCreate.model_validate(BODY), ip="1.2.3.4", user_agent=None)
+
+    assert exc.value.code == "validation"
+    assert exc.value.field_errors == {"packageSlug": enquiries_svc.PACKAGE_GONE}
+    assert len(draws) == 1, "an FK violation is not a ref collision"
+
+
+@pytest.mark.db
+async def test_no_transaction_is_open_while_the_pdf_renders_and_the_mail_goes(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Photo fetch, render, Blob and Resend take seconds; a transaction open across them pins
+    one of the function's few pooled connections."""
+    await seeded(db)
+    open_during: list[bool] = []
+    factory_sessions: list[AsyncSession] = []
+
+    override = db_app.dependency_overrides[get_session]
+
+    async def recording_override() -> AsyncIterator[AsyncSession]:
+        async for session in override():
+            factory_sessions.append(session)
+            yield session
+
+    db_app.dependency_overrides[get_session] = recording_override
+    sender = mailing(db_app, FakeSender())
+    with_pdf(db_app, FakeBlobStore())
+    real_attachment_for = PdfService.attachment_for
+    real_send = sender.send
+
+    async def watched_attachment(self: PdfService, pkg: object) -> object:
+        open_during.append(factory_sessions[0].in_transaction())
+        return await real_attachment_for(self, pkg)  # type: ignore[arg-type]
+
+    async def watched_send(message: object) -> object:
+        open_during.append(factory_sessions[0].in_transaction())
+        return await real_send(message)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(PdfService, "attachment_for", watched_attachment)
+    monkeypatch.setattr(sender, "send", watched_send)
+
+    res = await db_client.post("/enquiries", json=BODY)
+
+    assert res.status_code == 201, res.text
+    assert len(sender.sent) == 2 and any(m.attachments for m in sender.sent)
+    assert open_during == [False, False, False]
+    row = (await db.execute(select(Enquiry))).scalar_one()
+    assert row.email_status == EmailStatus.SENT

@@ -10,6 +10,7 @@ from app.models import Departure, Package, Testimonial
 from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
 from app.schemas.catalog import HomeData, HomeStats, TestimonialOut
+from app.services.analytics import ist_today
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import list_destinations
@@ -73,7 +74,7 @@ async def _stats(db: AsyncSession, today: dt.date, destinations: int) -> HomeSta
 
 async def get_home_data(db: AsyncSession, *, today: dt.date | None = None) -> HomeData:
     """Destinations (display order), featured-first package cards, testimonials, live counts."""
-    today = today or dt.date.today()
+    today = today or ist_today()
     destinations = await list_destinations(db)
     packages = await _featured_first(db)
     upcoming = await next_departures(db, today)

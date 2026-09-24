@@ -36,6 +36,7 @@ from app.models import (  # noqa: E402
     User,
 )
 from app.models.enums import UserRole  # noqa: E402
+from app.services.analytics import ist_today  # noqa: E402
 from app.services.auth.passwords import hash_password  # noqa: E402
 from app.services.catalog.pricing import starting_price  # noqa: E402
 from content import Content, load_content  # noqa: E402
@@ -221,7 +222,7 @@ async def seed(
     *,
     today: dt.date | None = None,
 ) -> SeedResult:
-    today = today or dt.date.today()
+    today = today or ist_today()
     result = SeedResult()
     await _seed_owner(db, settings, result)
     destinations = {d.slug: await _seed_destination(db, d, store) for d in content.destinations}

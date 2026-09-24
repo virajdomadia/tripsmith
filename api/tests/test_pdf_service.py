@@ -1,28 +1,26 @@
 """services/pdf/service.py — the network side of the PDF: cover fetch, Blob cache, attachment,
 GC. Every failure degrades; nothing here may raise into a request."""
 
-import datetime as dt
 from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.storage import BlobInfo
-from app.models import Package
+from app.models import Departure, Destination, ItineraryDay, Package, PackageImage
+from app.models.enums import PackageStatus
 from app.services.catalog.reads import get_package
-from app.services.pdf.itinerary import pdf_pathname
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
-from tests.pdf_fixture import UPDATED_AT, package
+from tests.pdf_fixture import package
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
 COVER_JPEG = (
     Path(__file__).resolve().parents[1] / "content" / "photos" / "goa" / "agonda-sunset.jpg"
 )
-KEY = pdf_pathname("north-goa-beaches", UPDATED_AT)
 # `package(images=n)` (tests/pdf_fixture.py) gives n distinct image URLs, the cover first.
 
 
@@ -75,6 +73,15 @@ def service(
         make_settings(site_url="https://t.test"),
         transport=transport or cover_transport(),
     )
+
+
+KEY = service(None).key(package())
+
+
+def test_key_is_the_pathname_scheme_with_a_content_version() -> None:
+    assert KEY.startswith("pdf/north-goa-beaches/")
+    assert KEY.endswith("/Tripsmith-north-goa-beaches-itinerary.pdf")
+    assert service(None).key(package(days=6)) != KEY
 
 
 async def test_cached_url_matches_the_exact_pathname() -> None:
@@ -131,29 +138,20 @@ async def test_put_stores_under_the_key_and_degrades() -> None:
     assert await service(FakeBlobStore(fail=True)).put(package(), b"%PDF-x") is None
 
 
-@pytest.mark.db
-async def test_attachment_for_renders_warms_the_cache_and_names_the_file(db: AsyncSession) -> None:
-    await seed(db, fixture_content(), RecordingStore(), make_settings())
+async def test_attachment_for_renders_warms_the_cache_and_names_the_file() -> None:
     store = FakeBlobStore()
-    att = await service(store).attachment_for(db, "north-goa-beaches")
+    att = await service(store).attachment_for(package())
     assert att is not None
     assert att.filename == "Tripsmith-north-goa-beaches-itinerary.pdf"
     assert att.content.startswith(b"%PDF-")
-    assert len(store.objects) == 1
-    assert next(iter(store.objects)).startswith("pdf/north-goa-beaches/")
-    assert await service(store).attachment_for(db, "no-such-trip") is None
+    assert list(store.objects) == [KEY]
 
 
-@pytest.mark.db
-async def test_attachment_for_skips_the_put_when_the_cache_is_warm(db: AsyncSession) -> None:
-    await seed(db, fixture_content(), RecordingStore(), make_settings())
-    pkg = await get_package(db, "north-goa-beaches")
-    assert pkg is not None
-    key = pdf_pathname(pkg.slug, pkg.updated_at)
+async def test_attachment_for_skips_the_put_when_the_cache_is_warm() -> None:
     store = FakeBlobStore()
-    store.objects[key] = b"already-cached"
+    store.objects[KEY] = b"already-cached"
 
-    att = await service(store).attachment_for(db, "north-goa-beaches")
+    att = await service(store).attachment_for(package())
 
     assert att is not None
     assert att.filename == "Tripsmith-north-goa-beaches-itinerary.pdf"
@@ -161,24 +159,77 @@ async def test_attachment_for_skips_the_put_when_the_cache_is_warm(db: AsyncSess
     assert store.puts == []  # rendering still happens (cheap); the upload is what's skipped
 
 
-@pytest.mark.db
-async def test_attachment_for_never_raises(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    await seed(db, fixture_content(), RecordingStore(), make_settings())
-
+async def test_attachment_for_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*a: object, **k: object) -> bytes:
         raise RuntimeError("fpdf exploded")
 
     monkeypatch.setattr("app.services.pdf.service.render_itinerary", boom)
-    assert await service(FakeBlobStore()).attachment_for(db, "north-goa-beaches") is None
+    assert await service(FakeBlobStore()).attachment_for(package()) is None
+
+
+# --- the key follows the catalog (db) ------------------------------------------------------------
+
+
+async def live_key(db: AsyncSession, slug: str = "north-goa-beaches") -> str:
+    pkg = await get_package(db, slug)
+    assert pkg is not None
+    return service(None).key(pkg)
+
+
+async def package_id(db: AsyncSession, slug: str = "north-goa-beaches") -> str:
+    return (await db.execute(select(Package.id).where(Package.slug == slug))).scalar_one()
+
+
+async def row_updated_at(db: AsyncSession) -> object:
+    stmt = select(Package.updated_at).where(Package.slug == "north-goa-beaches")
+    return (await db.execute(stmt)).scalar_one()
+
+
+@pytest.mark.db
+async def test_the_key_moves_with_edits_that_never_touch_the_package_row(
+    db: AsyncSession,
+) -> None:
+    """The v1 key was `updated_at`, which none of these writes move: the PDF went stale."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    pid = await package_id(db)
+    stamp = await row_updated_at(db)
+    detail = await get_package(db, "north-goa-beaches")
+    assert detail is not None and len(detail.departures) >= 2
+    cheapest = min(detail.departures, key=lambda d: d.price_double_paise)
+    pricier = next(d for d in detail.departures if d.id != cheapest.id)
+    edits = {
+        "day title": update(ItineraryDay)
+        .where(ItineraryDay.package_id == pid, ItineraryDay.day_no == 1)
+        .values(title="A different first day"),
+        "non-cheapest departure price": update(Departure)
+        .where(Departure.id == pricier.id)
+        .values(price_double_paise=pricier.price_double_paise + 100_000),
+        "image": update(PackageImage)
+        .where(PackageImage.package_id == pid)
+        .values(alt="A new caption"),
+        "destination name": update(Destination)
+        .where(Destination.slug == "goa")
+        .values(name="Goa, India"),
+    }
+    for what, stmt in edits.items():
+        before = await live_key(db)
+        await db.execute(stmt)
+        await db.commit()
+        assert await live_key(db) != before, what
+    assert await row_updated_at(db) == stamp, "none of these touched the package row"
+
+
+async def current_keys(db: AsyncSession) -> set[str]:
+    stmt = select(Package.slug).where(Package.status == PackageStatus.LIVE)
+    slugs = (await db.execute(stmt)).scalars().all()
+    return {await live_key(db, slug) for slug in slugs}
 
 
 @pytest.mark.db
 async def test_gc_deletes_every_pathname_that_is_not_current(db: AsyncSession) -> None:
     await seed(db, fixture_content(), RecordingStore(), make_settings())
-    rows = (await db.execute(Package.__table__.select())).all()
-    current = {pdf_pathname(r.slug, r.updated_at) for r in rows}
+    current = await current_keys(db)
+    assert len(current) == 2
     store = FakeBlobStore()
     for key in current:
         store.objects[key] = b"keep"
@@ -190,13 +241,11 @@ async def test_gc_deletes_every_pathname_that_is_not_current(db: AsyncSession) -
 
     assert (report.deleted, report.kept, report.configured) == (2, 2, True)
     assert set(store.objects) == current | {"packages/goa/photo.jpg"}
-    # An edit rotates the key: the old object becomes stale on the next run. `updated_at` is
-    # bumped explicitly (not left to `onupdate=func.now()`) so the new epoch second is always
-    # distinct from the seeded one, however fast this test happens to run.
+    # An edit the PDF draws rotates the key: the old object becomes stale on the next run.
     await db.execute(
-        update(Package)
-        .where(Package.slug == "north-goa-beaches")
-        .values(featured=True, updated_at=Package.updated_at + dt.timedelta(seconds=2))
+        update(ItineraryDay)
+        .where(ItineraryDay.package_id == await package_id(db), ItineraryDay.day_no == 1)
+        .values(title="A different first day")
     )
     await db.commit()
     report = await service(store).gc(db)

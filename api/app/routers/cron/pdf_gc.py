@@ -1,5 +1,6 @@
-"""GET /cron/pdf-gc — weekly: delete itinerary PDFs whose `updated_at` key is no longer
-current (04 §5). Blob errors surface as a 500 so Vercel's cron log shows the failure."""
+"""GET /cron/pdf-gc — delete itinerary PDFs whose key is no longer current (04 §5). Scheduled
+as part of `/cron/daily`; this route stays for a run by hand. Blob errors surface as a 500 so
+Vercel's cron log shows the failure."""
 
 from typing import Annotated
 

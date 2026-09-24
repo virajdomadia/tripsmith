@@ -5,7 +5,9 @@
 
 DB harness (S10): tests marked `db` need `TEST_DATABASE_URL`. Once per session the schema is
 rebuilt through Alembic (downgrade base → upgrade head, so the downgrade path is exercised too);
-before every test all tables are truncated. Without the variable, `db` tests are skipped.
+before every test all tables are truncated. Without the variable, `db` tests are skipped —
+unless `REQUIRE_DB_TESTS=1` (CI sets it), where a missing URL fails the run instead, so a broken
+Postgres service can never turn into a green build that ran none of them.
 """
 
 import os
@@ -47,6 +49,8 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     if TEST_DATABASE_URL:
         return
+    if os.environ.get("REQUIRE_DB_TESTS") == "1" and any("db" in i.keywords for i in items):
+        raise pytest.UsageError("REQUIRE_DB_TESTS=1 but TEST_DATABASE_URL is not set")
     skip = pytest.mark.skip(reason="TEST_DATABASE_URL not set")
     for item in items:
         if "db" in item.keywords:

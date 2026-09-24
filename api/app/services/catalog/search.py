@@ -28,6 +28,7 @@ from app.schemas.catalog import (
     SortOrder,
 )
 from app.schemas.meta import THEME_LABELS
+from app.services.analytics import ist_today
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import month_bounds
@@ -186,7 +187,7 @@ async def search_packages(
     """Live packages matching `params` as cards, plus the facets the filter panel needs.
     The v3 `searchPackages` tool calls this with the same `SearchParams`."""
     params = params or SearchParams()
-    today = today or dt.date.today()
+    today = today or ist_today()
     stmt = apply_filters(select(Package).where(Package.status == PackageStatus.LIVE), params, today)
     packages = (
         (

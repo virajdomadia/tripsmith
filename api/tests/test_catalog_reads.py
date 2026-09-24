@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Departure, Package
@@ -285,3 +285,44 @@ async def test_destinations_without_live_packages_are_hidden(
     assert gone.status_code == 404
     assert gone.json()["error"]["message"] == "Destination not found"
     assert (await db_client.get("/destinations/atlantis")).status_code == 404
+
+
+@pytest.mark.db
+async def test_destination_page_puts_on_request_packages_last(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    """Price 0 is "on request" (every departure passed), not the cheapest — the same rule search
+    and home follow."""
+    await seeded(db)
+    await db.execute(
+        update(Package).where(Package.slug == "north-goa-beaches").values(starting_price_paise=0)
+    )
+    await db.commit()
+
+    d = (await db_client.get("/destinations/goa")).json()
+
+    assert [p["slug"] for p in d["packages"]] == ["goa-quiet-escape", "north-goa-beaches"]
+
+
+@pytest.mark.db
+async def test_card_badge_skips_a_sold_out_first_departure(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    """The badge comes from the next departure a visitor can still book; "Sold out" only when
+    every upcoming date is full."""
+    await seeded(db)
+    first = dt.date(2026, 11, 20)  # north-goa-beaches: guaranteed, 16 seats; then 18 Dec, 4 seats
+    await db.execute(update(Departure).where(Departure.date == first).values(seats_total=0))
+    await db.commit()
+
+    cards = {p["slug"]: p for p in (await db_client.get("/destinations/goa")).json()["packages"]}
+    assert cards["north-goa-beaches"]["badge"] == "filling-fast"
+
+    pid = (
+        await db.execute(select(Package.id).where(Package.slug == "north-goa-beaches"))
+    ).scalar_one()
+    await db.execute(update(Departure).where(Departure.package_id == pid).values(seats_total=0))
+    await db.commit()
+
+    cards = {p["slug"]: p for p in (await db_client.get("/destinations/goa")).json()["packages"]}
+    assert cards["north-goa-beaches"]["badge"] == "sold-out"

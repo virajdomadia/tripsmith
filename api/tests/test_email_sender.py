@@ -107,3 +107,12 @@ def test_build_picks_resend_only_with_a_key() -> None:
     assert isinstance(build_email_sender(make_settings()), NullSender)
     s = build_email_sender(make_settings(resend_api_key="re_x", email_from="T <a@b.co>"))
     assert isinstance(s, ResendSender)
+
+
+def test_build_logs_an_error_on_vercel_without_a_key(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("VERCEL", "1")
+    with caplog.at_level(logging.ERROR, logger="app.infra.email"):
+        build_email_sender(make_settings())
+    assert "RESEND_API_KEY is unset on a deployment" in caplog.text

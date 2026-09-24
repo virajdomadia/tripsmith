@@ -229,6 +229,21 @@ def test_an_unpriced_upcoming_departure_does_not_become_the_starting_price() -> 
     assert svc.recompute_starting_price(pkg, today=today) == 1_449_900
 
 
+def test_a_sold_out_departure_does_not_become_the_starting_price() -> None:
+    """The card badge skips a full date; "from ₹X" must too, or it names a date with no seat."""
+    today = dt.date.today()
+    pkg = built_package(departures=[(soon(10), 1_000_000), (soon(60), 1_449_900)])
+    cheap, dear = pkg.departures
+    cheap.id, dear.id = "dep-cheap", "dep-dear"
+    assert svc.recompute_starting_price(pkg, today=today) == 1_000_000
+    left = {"dep-cheap": 0, "dep-dear": 5}
+    assert svc.recompute_starting_price(pkg, today=today, seats_left=left) == 1_449_900
+    full = {"dep-cheap": 0, "dep-dear": 0}
+    assert svc.recompute_starting_price(pkg, today=today, seats_left=full) == 0
+    cheap.seats_total = 0  # not in the view yet (unflushed): seats_total stands in
+    assert svc.recompute_starting_price(pkg, today=today) == 1_449_900
+
+
 def test_revalidate_tags_cover_the_old_slug_and_the_old_destination() -> None:
     assert svc.revalidate_tags("konkan-coast", "goa") == [
         "packages",
@@ -459,6 +474,27 @@ async def test_update_revalidates_the_old_slug_and_the_old_destination(
 async def test_update_rejects_a_slug_another_package_already_uses(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
+    await seeded(db)
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    with pytest.raises(ApiError) as exc:
+        await svc.update_package(
+            db, pkg.id, payload(slug="goa-quiet-escape", destinationId=await goa_id(db))
+        )
+    assert exc.value.code == "conflict" and exc.value.field_errors == {"slug": svc.DUPLICATE_SLUG}
+    assert revalidated.calls == []
+
+
+@pytest.mark.db
+async def test_a_slug_race_past_the_precheck_is_still_a_409_not_a_500(
+    db: AsyncSession, revalidated: RecordingRevalidate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another request takes the slug between the pre-check and the write: the mid-write flush
+    in `_replace_children` meets the unique index first, and must answer like the commit does."""
+
+    async def raced(*_: object, **__: object) -> None:
+        return None
+
+    monkeypatch.setattr(svc, "_assert_slug_free", raced)
     await seeded(db)
     pkg = await package_by_slug(db, "north-goa-beaches")
     with pytest.raises(ApiError) as exc:

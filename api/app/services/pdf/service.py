@@ -1,8 +1,11 @@
 """`PdfService`: everything around `render_itinerary` that touches the network — the cover
-photo, the Blob cache (find / put), the email attachment and the weekly GC. Lives on
+photo, the Blob cache (find / put), the email attachment and the daily GC. Lives on
 `app.state.pdf`. Every method degrades (logs + Sentry) instead of raising, except `gc()`, which
 raises so the cron log shows failures: a package download falls back to streaming, an enquiry
 goes out without the attachment.
+
+Nothing here holds a database session across the network: callers load the `PackageDetail`,
+end their transaction, then hand the plain model in (`gc` alone reads, then lists and deletes).
 """
 
 import asyncio
@@ -17,6 +20,7 @@ from app.config import Settings
 from app.infra.email import EmailAttachment
 from app.infra.storage import BlobStore
 from app.models import Package
+from app.models.enums import PackageStatus
 from app.schemas.catalog import PackageDetail
 from app.schemas.pdf import GcReport
 from app.services.catalog.reads import get_package
@@ -26,6 +30,7 @@ from app.services.pdf.itinerary import (
     pdf_filename,
     pdf_pathname,
     pdf_prefix,
+    pdf_version,
     render_itinerary,
 )
 
@@ -50,10 +55,19 @@ class PdfService:
 
     # --- cache ---------------------------------------------------------------------------------
 
+    def key(self, pkg: PackageDetail) -> str:
+        """The Blob pathname for this exact rendering (itinerary.py: `pdf_version`)."""
+        version = pdf_version(
+            pkg,
+            site_url=self._settings.site_url,
+            whatsapp_number=self._settings.whatsapp_number,
+        )
+        return pdf_pathname(pkg.slug, version)
+
     async def cached_url(self, pkg: PackageDetail) -> str | None:
         if self._store is None:
             return None
-        key = pdf_pathname(pkg.slug, pkg.updated_at)
+        key = self.key(pkg)
         try:
             blobs = await self._store.list(pdf_prefix(pkg.slug))
         except Exception as exc:
@@ -65,8 +79,7 @@ class PdfService:
         if self._store is None:
             return None
         try:
-            key = pdf_pathname(pkg.slug, pkg.updated_at)
-            return await self._store.put(key, pdf, PDF_CONTENT_TYPE)
+            return await self._store.put(self.key(pkg), pdf, PDF_CONTENT_TYPE)
         except Exception as exc:
             self._degrade("Blob put failed for %s", pkg.slug, exc)
             return None
@@ -112,28 +125,36 @@ class PdfService:
 
     # --- email ---------------------------------------------------------------------------------
 
-    async def attachment_for(self, db: AsyncSession, slug: str) -> EmailAttachment | None:
-        """The visitor's attachment for a live package; also warms the Blob cache. Never raises."""
+    async def attachment_for(self, pkg: PackageDetail) -> EmailAttachment | None:
+        """The visitor's attachment for a live package; also warms the Blob cache. Never raises.
+        Takes the loaded package, not a session: photo fetch, render and Blob can take seconds
+        and must not pin a pooled connection (the caller ends its transaction first)."""
         try:
-            pkg = await get_package(db, slug)
-            if pkg is None:
-                return None
             pdf = await self.build(pkg)
             if await self.cached_url(pkg) is None:  # a warm cache needs no upload on this path
                 await self.put(pkg, pdf)
-            return EmailAttachment(filename=pdf_filename(slug), content=pdf)
+            return EmailAttachment(filename=pdf_filename(pkg.slug), content=pdf)
         except Exception as exc:
-            self._degrade("Itinerary PDF failed for %s", slug, exc)
+            self._degrade("Itinerary PDF failed for %s", pkg.slug, exc)
             return None
 
     # --- gc ------------------------------------------------------------------------------------
 
     async def gc(self, db: AsyncSession) -> GcReport:
-        """Delete every `pdf/` object whose pathname is not a package's current key."""
+        """Delete every `pdf/` object whose pathname is not a live package's current key — the
+        key as of today, so a PDF still listing a departed date goes too. Drafts have no PDF
+        route (it 404s), so their objects are garbage as well."""
         if self._store is None:
             return GcReport(deleted=0, kept=0, configured=False)
-        rows = (await db.execute(select(Package.slug, Package.updated_at))).all()
-        current = {pdf_pathname(slug, updated_at) for slug, updated_at in rows}
+        slugs = (
+            await db.execute(select(Package.slug).where(Package.status == PackageStatus.LIVE))
+        ).scalars()
+        current: set[str] = set()
+        for slug in slugs.all():
+            pkg = await get_package(db, slug, with_related=False)
+            if pkg is not None:
+                current.add(self.key(pkg))
+        await db.rollback()  # the reads are done; Blob list/delete below is network time
         blobs = await self._store.list(PDF_PREFIX)
         stale = [b.url for b in blobs if b.pathname not in current]
         await self._store.delete(stale)

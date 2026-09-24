@@ -10,6 +10,7 @@ developer's `.env.local` has one.
 from collections.abc import AsyncIterator
 
 from fastapi import Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -24,6 +25,12 @@ _engines: dict[str, AsyncEngine] = {}
 
 class DatabaseNotConfigured(RuntimeError):
     pass
+
+
+def constraint_name(exc: IntegrityError) -> str:
+    """The violated constraint's name (asyncpg sets `constraint_name`), else the driver's
+    message — callers match on a substring, so either carries the name they look for."""
+    return str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
 
 
 def make_engine(url: str) -> AsyncEngine:

@@ -2013,7 +2013,7 @@
           },
           "imageMaxBytes": {
             "examples": [
-              5242880
+              4194304
             ],
             "title": "Imagemaxbytes",
             "type": "integer"
@@ -2134,7 +2134,7 @@
                 "type": "null"
               }
             ],
-            "description": "From the next upcoming departure"
+            "description": "From the next upcoming departure with seats; sold-out only when all are full"
           },
           "coverUrl": {
             "anyOf": [
