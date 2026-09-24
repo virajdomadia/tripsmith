@@ -4,7 +4,7 @@
 
 > **Revision 2026-09-13: backend switched from Hono to FastAPI.** `api/` is now FastAPI (Python 3.12, uv, SQLAlchemy + Alembic, pydantic, pytest); `shared/` is gone and the contract is `api/openapi.json` → generated `web/src/lib/api-types.ts`. What PR #1 (`feat/1.0.2-workspace`, merged as 270f27e — old numbering) and PR #3 (`fix/pr1-review-followups`, merged as 1ccf5da) built for the Hono api and `shared/` is removed in **S1**; their web-side pieces are kept. The v1 rows below were then re-cut into structure C the same evening (see the next note).
 
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 15 h · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 17 h (raised from 15 at re-validation, 2026-09-24) · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
 How the lifecycle maps onto milestones: step 8 (setup) **is** milestone 1.0 (the walking skeleton); steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
@@ -97,42 +97,47 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 ---
 
-## v2 — Booking engine (≈ 15 h) — requirements: [03-requirements-v2.md](03-requirements-v2.md)
-Starts with a step-3 re-validation (30 min): re-read R14–R25 against what v1 actually shipped, adjust, then go.
+## v2 — Booking engine (≈ 17 h) — requirements: [03-requirements-v2.md](03-requirements-v2.md)
+**Re-validated 2026-09-24** (lifecycle step 3, against v1.0.1 as shipped): 17 findings + 6 docs/17 carry-overs decided one by one with Viraj, recorded at the end of 03-requirements-v2. The old rows 2.0.1–2.3.3 are replaced by **B0–B14** ("bN" in chat means one of these rows). Budget raised 15 → 17 h for the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip.
 
-### Milestone 2.0 — Checkout (≈ 6 h)
+**Rules for every row:** own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`. New accounts/keys only in the row that first needs them. Prod migrations expand-first — Neon dev rehearsal, then Viraj runs `ALEMBIC_URL=… uv run alembic upgrade head` on prod, then the code merges. A merge touching web + api → check the web wasn't prerendered against the old api (redeploy web if so). Tests only where a failure would embarrass a demo.
+
+### Milestone 2.0 — Checkout (≈ 8.25 h)
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| 2.0.1 | Razorpay test account, keys, webhook endpoint registered (preview + prod), `infra/razorpay.py` (official `razorpay` Python SDK: orders; `hmac` signature verify) | 0.5 h | order created from a script |
-| 2.0.2 | Alembic `0004_v2` (next free revision; v1.0.1 used 0002–0003): bookings, travellers, payments, cancellations, reviews, enquiry_messages, enums; **replace** `departure_availability` view; SQLAlchemy models + pydantic schemas | 1 h | view returns correct `seats_left` with pending/confirmed/expired fixtures |
-| 2.0.3 | `services/booking`: `quote_booking` (occupancy rules, child rate, single supplement, deal), state guards, `create_booking_order` (locked transaction, hold 10 min), `confirm_payment` (HMAC verify, guarded transition) + pytest incl. last-seat concurrency | 2 h | tests green incl. concurrency |
-| 2.0.4 | Book-now UI: departure picker (seatsLeft, badges), travellers builder, live breakdown, contact step, Checkout.js integration, success screen | 2 h | flow works with a Razorpay test card at 360 px |
-| 2.0.5 | Deploy; CI green | 0.5 h | production accepts a test-mode booking |
+| B0 | **Mockups** for the signature v2 screens: Book-now flow (departure picker with live seats + reasons, travellers builder, live breakdown with deal line, contact, Pay, "no longer available"), success (ref, voucher, WhatsApp, demo notice), demo-mode sign-in with the code on screen, My bookings list + detail. Price counter motion; darker-amber stars. Desk / reviews / deal fields reuse existing patterns — no mockup | 0.75 h | Viraj picks/adjusts before B5 |
+| B1 | **v2 prep (code only, no migration):** stop mapping `sessions.token`; role-aware `GET /auth/session` (`newEnquiries` owner-only) + web `/admin` gate owners only, customer → `/account`; admin enquiry schemas accept all six types with labels; enquiry status transition table (409); fix the `conversation_id` comment | 0.75 h | deployed; owner login + inbox unchanged |
+| B2 | **Migration `0004_v2`:** drop `sessions.token`; booking enums (incl. `cancel_reason`); bookings (+ `cancel_reason`, `refund_needed`), travellers, payments, cancellations, reviews (no photo), enquiry_messages; booking-aware `departure_availability` view; models + schemas | 1 h | view returns correct `seats_left` with pending/confirmed/expired fixtures; prod at 0004 before merge |
+| B3 | **Quote + hold engine:** `quote_booking` (occupancy rules, child rate, supplement, flat per-person deal, bookable rules: live, priced, ≥ IST today + 2, seats); `create_booking_order` (departure lock, 10-min hold, release the same email/phone's hold, `booking:{ip}` limit); freshness helper (recompute starting price + revalidate tags) | 2 h | pricing matrix to the paisa + last-seat concurrency green |
+| B4 | **Razorpay:** `infra/razorpay.py` (httpx orders, `hmac` verify, fake for tests); `POST /bookings/:ref/confirm`; late-capture and offline re-check helper (`seats_gone`, `refund_needed`). **Viraj creates the Razorpay test account + keys here** | 1.25 h | order created from a script; forged signature → 400; late capture with no seats never confirms |
+| B5 | **Book-now UI** from B0: live availability, travellers, breakdown, contact, Checkout.js injected on Pay (`timeout: 600`), success screen, `POST /api/bookings` forwarding handler, CSP for Razorpay (verified on a deployment across every page), demo notice, no-JS "Enquire to book", 360 px | 2.5 h | a test-card booking completes on production |
 
-### Milestone 2.1 — Webhooks & confirmation (≈ 3 h)
-| # | Task | Est. |
-|---|---|---|
-| 2.1.1 | `POST /api/webhooks/razorpay`: raw body, signature verify, `payment.captured` / `payment.failed`, idempotent upsert, always 200 after recording | 1 h |
-| 2.1.2 | `render_voucher` (fpdf2, reuses the `Document` base), private Blob storage, authenticated voucher route | 1 h |
-| 2.1.3 | Confirmation email (customer, voucher attached) + owner new-booking email; e2e: order → signed test webhook → confirmed → voucher | 1 h |
+### Milestone 2.1 — Webhooks & confirmation (≈ 2.25 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| B6 | **Webhook** `POST /webhooks/razorpay`: raw body, signature, `payment.captured` / `payment.failed`, idempotent upsert on payment id, always 200 after recording; registered on production only (`tripsmith-api.vercel.app`) | 1 h | 5× replay → 1 payment, 1 email |
+| B7 | **Voucher + emails:** `render_voucher` on the `Document` base, rendered on demand (never stored); `/account/bookings/[ref]/voucher.pdf` handler + 30-min signed link; customer email with voucher + owner new-booking email (demo-mode redirect); WhatsApp link | 1.25 h | api journey test: order → signed webhook → confirmed → voucher 200 for its owner, 403 otherwise |
 
-### Milestone 2.2 — Accounts & admin (≈ 4 h)
-| # | Task | Est. |
-|---|---|---|
-| 2.2.1 | Own email OTP (`POST /auth/otp/request` / `verify` over the `verification` table, Resend), OTP rate limit, `require_user`, `/account` shell, attach booking by email at checkout | 1 h |
-| 2.2.2 | `/account/bookings` list + detail (voucher, request cancellation) | 0.5 h |
-| 2.2.3 | Admin bookings desk: list/filters/search, detail with payment timeline, mark-paid-offline, CSV, departure manifest | 1.5 h |
-| 2.2.4 | Cancellation resolution (approve/reject + refund note + email); reply-from-inbox (Resend + thread) | 1 h |
+### Milestone 2.2 — Accounts & desk (≈ 4 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| B8 | **Customer accounts:** email code request/verify over `verification` (demo mode shows the code), 5 / 15 min / email + per-IP limits, 5 tries per code, forwarding handlers (IP + `Set-Cookie`), `require_user`, bookings attached by email, `/account` shell, logout, demo notice at sign-in; session pruning in `/cron/daily` | 1.25 h | logged-out booking appears after verifying the same email |
+| B9 | **My bookings:** list + detail, voucher download, request cancellation (policy linked) | 0.5 h | |
+| B10 | **Bookings desk:** list/filters/search, detail with payment timeline + refund-needed flag, mark paid offline (re-check), release hold, CSV, printable manifest; `/cron/daily` sweeps lapsed holds (> 1 h) and completes departed bookings | 1.5 h | numbers match `departure_availability` |
+| B11 | **Cancellation resolution** (approve/reject + refund note + email, seats freed) and **reply from inbox** (Resend + `enquiry_messages` thread) | 0.75 h | |
 
-### Milestone 2.3 — Deals & reviews (≈ 2 h) — closes lifecycle 10–12, 17 for v2
-| # | Task | Est. |
-|---|---|---|
-| 2.3.1 | Deal fields in package form + validation; strikethrough display on cards/page; quote applies deal; home deals strip; JSON-LD `Offer.price` | 1 h |
-| 2.3.2 | Reviews: submission for completed bookings, moderation, aggregate on package + `AggregateRating`; `completed` transition (lazy on read) | 0.5 h |
-| 2.3.3 | Security/perf pass for v2 (webhook, ownership checks, checkout Lighthouse), `docs/17-post-launch.md` v2 section, case study update | 0.5 h |
-| Stretch | Split payment (D, 8 h) → trip hub (C, 6 h) → departure-city pricing (3 h), in that order | |
+### Milestone 2.3 — Deals, reviews, close (≈ 2.5 h) — closes lifecycle 10–12, 17 for v2
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| B12 | **Deals:** three form fields (end = a date, stored as end of IST day) with validation; strikethrough on cards and page; home deals strip; JSON-LD `Offer.price`; `/cron/daily` revalidates ended deals | 1 h | an ended deal disappears without a deploy |
+| B13 | **Reviews:** form for completed bookings (rating + text), moderation, aggregate from approved reviews only + `AggregateRating`; darker-amber stars everywhere; seed a demo traveller with a completed past booking + one approved review | 1 h | demo shows the whole loop |
+| B14 | **v2 close:** security pass (webhook, ownership, limits, CSP), one PageSpeed Insights run on a package page with Book now open (≥ 85) into docs/12, docs/17 v2 section, README + case study, portfolio card | 0.5 h | v2 signed off |
 
-**v2 total: ≈ 15 h** (6 + 3 + 4 + 2).
+**v2 total: ≈ 17 h** (8.25 + 2.25 + 4 + 2.5).
+
+**v2 add-ons** (optional, only after v4): split payment (D, 8 h) · trip hub (C, 6 h) · departure-city pricing (3 h) · auto-link enquiry → booking (0.5 h) · review photos (1 h).
+
+---
 
 ## v3 — AI concierge (≈ 15 h) — requirements: [03-requirements-v3.md](03-requirements-v3.md)
 Starts with a step-3 re-validation (30 min): confirm the provider/free-tier situation and R26–R33 against v1+v2 as shipped.
@@ -189,10 +194,10 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | Version | Milestones | Hours | Cumulative |
 |---|---|---|---|
 | v1 | 1.0 – 1.4 | 35 | 35 |
-| v2 | 2.0 – 2.3 | 15 | 50 |
-| v3 | 3.0 – 3.3 | 15 | 65 |
-| v4 | 4.0 | 6 | 71 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 102 |
+| v2 | 2.0 – 2.3 | 17 | 52 |
+| v3 | 3.0 – 3.3 | 15 | 67 |
+| v4 | 4.0 | 6 | 73 |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 104 |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 

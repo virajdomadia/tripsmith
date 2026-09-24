@@ -72,24 +72,23 @@ A deep review of the shipped v1 — every router, every public page, the admin f
 
 **Ready to build on:** the contract pipeline, the tag-invalidation convention, the seed pipeline with licence-checked photos, the admin shell, the email and PDF services, the rate limiter, and a database whose hot paths have been explained at 50k rows.
 
-**Open items, in the order they should be taken:**
+**Open items, in the order they should be taken.** Re-validated 2026-09-24 at the start of v2: each item now names where it lands — a v2 row in [07-plan.md](07-plan.md), or why it stays out. (Vercel Web Analytics, formerly item 4, was enabled and redeployed on 2026-09-24 and is removed.)
 
-1. **Enquiry types.** The ORM enum carries three forward-compat values (`callback`, `group`, `chat-handoff`) that the wire enum does not. A row with one would 500 the inbox. Resolve before v2 ships callbacks.
-2. **Drop `sessions.token`.** `0003` was expand-only; the contract step (drop the nullable raw-token column) goes in the first v2 migration.
-3. **A trustworthy performance number** — PSI with a key, or a CI Lighthouse job on a stable host. v1.0.1 removed the known TBT cause; the score has not been re-measured.
-4. **Vercel Web Analytics is not switched on.** `@vercel/analytics` is mounted and the CSP allows it, but its script 404s until the owner clicks Enable in the Vercel dashboard. Until then the only page-view data is our own beacon.
-5. **Row-lock races are untested by automation.** The `FOR UPDATE` paths (stale-save 409, publish, gallery, the daily price recompute) are reasoned about and hand-checked, not exercised by a concurrent test; only the enquiry dedupe has one.
-6. **Enquiry status transitions are unconstrained.** Any status can move to any other; there is no spec for which moves are legal, so v1.0.1 left it alone. Decide before v2 links bookings to enquiries.
-7. **The marigold star glyphs on the hotel rows are 2.00:1** against white (H3). Everywhere else
+1. **Enquiry types.** The ORM enum carries three forward-compat values (`callback`, `group`, `chat-handoff`) that the wire enum does not. A row with one would 500 the inbox. Resolve before v2 ships callbacks. → **v2 B1:** the admin schemas take all six with labels; the public form keeps three.
+2. **Drop `sessions.token`.** `0003` was expand-only; the contract step (drop the nullable raw-token column) goes in the first v2 migration. → **v2 B1** stops mapping it, **B2** (`0004_v2`) drops it.
+3. **A trustworthy performance number** — PSI with a key, or a CI Lighthouse job on a stable host. v1.0.1 removed the known TBT cause; the score has not been re-measured. → **v2 B14:** one PageSpeed Insights run, recorded in docs/12.
+4. **Row-lock races are untested by automation.** The `FOR UPDATE` paths (stale-save 409, publish, gallery, the daily price recompute) are reasoned about and hand-checked, not exercised by a concurrent test; only the enquiry dedupe has one. → Not in v2 beyond the last-seat test (B3); the rest stay hand-checked under the lean rule.
+5. **Enquiry status transitions are unconstrained.** Any status can move to any other; there is no spec for which moves are legal, so v1.0.1 left it alone. Decide before v2 links bookings to enquiries. → **v2 B1:** a transition table (nothing returns to `new`; `closed` can reopen to `contacted`), 409 otherwise; automatic enquiry → booking linking is a v2 add-on.
+6. **The marigold star glyphs on the hotel rows are 2.00:1** against white (H3). Everywhere else
    marigold is a fill with dark text on it, so recolouring the stars is a design decision rather
    than a bug fix — it is the one accessibility item v1 knowingly leaves open, and it is the
-   owner's call.
-8. **Session hygiene** — sessions are only pruned when presented; a cron sweep is a few lines.
-9. **Blob orphans** — deleting a package or photo leaves the object readable at its URL.
-10. **Web Sentry source maps** — deferred under the lean rule; web stack traces are minified until a `SENTRY_AUTH_TOKEN` upload is set up.
-11. **Accepted residuals from v1.0.1** — each new random query string on the PDF URL still costs one (cheap) function invocation before its 308 is edge-cached; the thanks page carries the visitor's first name in `?name=` (same-origin referrers only); the enquiry draft cookie is `Path=/`, so it also rides the `/api/*` rewrite (httpOnly, 2-minute life, stripped by the web's forwarding hops).
-12. **The demo credentials** are public by design; since v1.0.1 the site says so wherever a visitor types personal details. If this ever stops being a portfolio piece, that is the first thing to remove (docs/12 has the full list of accepted risks).
-13. **Custom domain** — `tripsmith.virajdomadia.com` is deferred until the domain is bought; four env vars and the Resend sending domain change with it.
+   owner's call. → **Decided for v2 (B0/B13):** a darker amber (≥ 3:1) for every star, hotels and reviews, with the number beside it.
+7. **Session hygiene** — sessions are only pruned when presented; a cron sweep is a few lines. → **v2 B8:** `/cron/daily` deletes expired sessions.
+8. **Blob orphans** — deleting a package or photo leaves the object readable at its URL. → Not in v2: v2 stores no new objects (vouchers rendered on demand, reviews without photos).
+9. **Web Sentry source maps** — deferred under the lean rule; web stack traces are minified until a `SENTRY_AUTH_TOKEN` upload is set up. → Not in v2.
+10. **Accepted residuals from v1.0.1** — each new random query string on the PDF URL still costs one (cheap) function invocation before its 308 is edge-cached; the thanks page carries the visitor's first name in `?name=` (same-origin referrers only); the enquiry draft cookie is `Path=/`, so it also rides the `/api/*` rewrite (httpOnly, 2-minute life, stripped by the web's forwarding hops).
+11. **The demo credentials** are public by design; since v1.0.1 the site says so wherever a visitor types personal details. If this ever stops being a portfolio piece, that is the first thing to remove (docs/12 has the full list of accepted risks). → **v2 B5/B8:** the demo login now also shows bookings, so the notice extends to checkout and sign-in.
+12. **Custom domain** — `tripsmith.virajdomadia.com` is deferred until the domain is bought; four env vars and the Resend sending domain change with it. → Not in v2; until then v2 runs in **demo mode** (sign-in codes on screen, customer emails to the owner). The Razorpay webhook URL joins the switch-over list.
 
 **What v2 should not redo:** the visual system, the mockups, or the no-JS discipline. All three are load-bearing and none of them slowed v1 down.
 

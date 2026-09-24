@@ -85,7 +85,8 @@
 |---|---|
 | S1 Home · S2 Destinations · S3 Destination page · S4 Listing + S4b empty state · S5 Package page · S6 Enquiry form · S7 Thanks · S8 About · S9 Contact · S10–S12 policies · S13 404 | **done** |
 | A1 Login · A2 Dashboard · A3 Packages list · A4 Package form · A5 Destinations · A6 Enquiries inbox · A7 Enquiry detail | **done** |
-| S14–S22, A8–A12 (v2) · S23–S26, A13–A14 (v3) · S27 (v4) | when those versions start (same system) |
+| v2 (row B0, re-scoped 2026-09-24): Book-now flow · success · demo-mode sign-in · My bookings list + detail. The bookings desk, review form and deal fields reuse the enquiry-inbox / package-form patterns and get no mockup. All stars (hotel rows, reviews) move to a darker amber ≥ 3:1 on white with the number beside them | B0 |
+| S23–S26, A13–A14 (v3) · S27 (v4) | when those versions start (same system) |
 
 Step 4 (UI mockups) is complete for v1. The mockup's CSS block is the token source for `web/` (Tailwind theme) and its components map 1:1 to `web/components/site` and `web/components/admin`.
 
