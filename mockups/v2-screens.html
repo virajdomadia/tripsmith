@@ -1,0 +1,484 @@
+<title>Tripsmith v2 Screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap">
+<style>
+  /* Review chrome (not part of the product) */
+  :root { color-scheme: light; --c-bg: #ECEEF1; --c-ink: #1C1C1A; --c-mute: #5E6470; --c-line: #D5D9DF; }
+  html, body { background: var(--c-bg); }
+  body { font: 14px/1.45 "DM Sans", system-ui, sans-serif; color: var(--c-ink); padding-inline: 0; }
+  .chrome { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; background: #fff; border-bottom: 1px solid var(--c-line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .chrome h1 { font-size: 14px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  .chrome h1 small { font-weight: 600; color: var(--c-mute); margin-left: 6px; }
+  .grp { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .grp > span { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--c-mute); margin-right: 4px; }
+  .grp button { font: 600 13px "DM Sans", sans-serif; border: 1px solid var(--c-line); background: #fff; color: var(--c-ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .grp button[aria-pressed="true"] { background: var(--c-ink); color: #fff; border-color: var(--c-ink); }
+  .grp button:focus-visible { outline: 2px solid #1B4FD8; outline-offset: 2px; }
+  .stage { padding: 16px 16px 60px; }
+  .note { max-width: 1100px; margin: 0 auto 14px; background: #fff; border: 1px solid var(--c-line); border-radius: 10px; padding: 12px 16px; font-size: 13px; display: grid; gap: 4px; }
+  .note b { font-size: 14px; }
+  .note p { margin: 0; color: #3B4148; max-width: 110ch; }
+  .frame { margin: 0 auto; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.16); overflow: clip; border-radius: 8px; position: relative; }
+  .frame.desktop { max-width: 1320px; }
+  .frame.phone { width: 390px; max-width: 100%; border-radius: 30px; border: 8px solid #1C1C1A; }
+
+  /* ================= SYSTEM: K · Ocean + Marigold (web/src/app/globals.css) ================= */
+  .site { container: site / inline-size; position: relative; min-height: 640px;
+    --bg: #FFFFFF; --bg2: #F3F6FC; --ink: #14202A; --ink2: #3B4148; --mute: #5E6B76; --line: #E3E8EC;
+    --pri: #1B4FD8; --pri-ink: #143EAD; --pri-soft: #E8EEFF; --act: #F2A93B; --act-ink: #D98F1F;
+    --ok: #1F7A4D; --ok-soft: #E3F0EA; --warn: #B0501C; --warn-soft: #FFF1DD; --wa: #17823F;
+    --star: #B7791F; /* NEW in v2: 3.64:1 on white — replaces marigold star glyphs (2.00:1) */
+    --ease: cubic-bezier(.22, 1, .36, 1);
+    background: var(--bg); color: var(--ink); font: 15px/1.5 "DM Sans", system-ui, sans-serif; }
+  .site * { box-sizing: border-box; }
+  .site h1, .site h2, .site h3, .site h4 { margin: 0; font-weight: 800; letter-spacing: -.03em; text-wrap: balance; line-height: 1.1; }
+  .site p { margin: 0; }
+  .site a { color: inherit; }
+  .site img { display: block; max-width: 100%; }
+  .site :focus-visible { outline: 2px solid var(--pri); outline-offset: 3px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .wrap { width: min(1220px, 100% - 48px); margin-inline: auto; }
+  .ic { width: 18px; height: 18px; flex: none; }
+  .ph { position: relative; overflow: hidden; background: #DDE3E6; }
+  .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font: 700 14px "DM Sans", sans-serif; text-decoration: none; border: 1.5px solid transparent; cursor: pointer; background: var(--act); color: var(--ink); transition: transform .35s var(--ease), background .25s; box-shadow: 0 8px 20px -10px rgba(242,169,59,.8); white-space: nowrap; }
+  .btn:hover { background: var(--act-ink); transform: translateY(-2px); }
+  .btn.pri { background: var(--pri); color: #fff; box-shadow: 0 8px 20px -10px rgba(27,79,216,.7); }
+  .btn.pri:hover { background: var(--pri-ink); }
+  .btn.line { background: #fff; color: var(--ink); border-color: var(--line); box-shadow: none; }
+  .btn.line:hover { border-color: var(--ink); }
+  .btn.wa { background: var(--wa); color: #fff; box-shadow: none; }
+  .btn.sm { padding: 8px 14px; font-size: 13px; border-radius: 10px; }
+  .btn.block { width: 100%; padding: 15px; font-size: 16px; }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; line-height: 1.2; white-space: nowrap; }
+  .badge.fill { background: var(--warn-soft); color: var(--warn); } .badge.sure { background: var(--ok-soft); color: var(--ok); } .badge.sold, .badge.muted { background: #EEF0F2; color: #5E6B76; } .badge.new { background: var(--pri-soft); color: var(--pri); }
+  .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-weight: 700; }
+  .demo { display: flex; gap: 10px; align-items: flex-start; background: var(--pri-soft); color: var(--pri-ink); border-radius: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
+  .demo .ic { width: 16px; height: 16px; margin-top: 2px; }
+  .stars { display: inline-flex; align-items: center; gap: 2px; color: var(--star); }
+  .stars svg { width: 15px; height: 15px; }
+  .site .stars > span { color: var(--star); }
+  .site .stars > span.off { color: #C9CFD5; }
+  .stars b { color: var(--ink); font-size: 14px; margin-left: 6px; font-weight: 800; }
+
+  /* site header */
+  .top { display: flex; align-items: center; gap: 26px; padding: 14px 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font: 800 20px "DM Sans", sans-serif; letter-spacing: -.03em; color: var(--pri); text-decoration: none; }
+  .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--pri); display: grid; place-items: center; }
+  .logo i::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--act); }
+  .top nav { display: flex; gap: 22px; margin-left: auto; font-weight: 600; font-size: 14px; }
+  .top nav a { text-decoration: none; } .top nav a.on { color: var(--pri); }
+  .crumbs { font-size: 13px; color: var(--mute); display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* package page (compressed) */
+  .phead { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; margin-top: 12px; }
+  .phead .ph { border-radius: 14px; height: 300px; }
+  .ptitle { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-top: 18px; flex-wrap: wrap; }
+  .ptitle h1 { font-size: clamp(28px, 3.6cqi, 42px); }
+  .ptitle .sub { display: flex; gap: 14px; flex-wrap: wrap; color: var(--mute); font-weight: 600; font-size: 14px; margin-top: 6px; }
+  .pgrid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 44px; margin-top: 26px; align-items: start; padding-bottom: 60px; }
+  .pgrid h2 { font-size: 24px; margin: 0 0 14px; }
+  .lede { font-size: 17px; color: var(--ink2); max-width: 62ch; }
+  .hotels { display: grid; gap: 10px; }
+  .hotel { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+  .hotel .ph { width: 96px; aspect-ratio: 4 / 3; border-radius: 10px; flex: none; }
+  .hotel b { display: block; font-size: 16px; }
+  .hotel span { color: var(--mute); font-size: 13px; }
+  .deal { display: inline-flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .deal s { color: var(--mute); font-weight: 600; }
+  .deal .tag { background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
+
+  /* booking components (shared by A/B/C) */
+  .bk { display: grid; gap: 14px; }
+  .step { display: grid; gap: 10px; }
+  .step > header { display: flex; align-items: baseline; gap: 10px; }
+  .step > header .n { width: 24px; height: 24px; border-radius: 8px; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex: none; transform: translateY(3px); }
+  .step > header h3 { font-size: 17px; }
+  .step > header .sum { margin-left: auto; font-size: 13px; color: var(--mute); font-weight: 600; text-align: right; }
+  .deps { display: grid; gap: 8px; }
+  .dep { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; text-align: left; width: 100%; border: 1.5px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 12px; cursor: pointer; font: inherit; color: inherit; transition: border-color .2s, background .2s; }
+  .dep:hover { border-color: var(--ink); }
+  .dep[aria-pressed="true"] { border-color: var(--pri); background: var(--pri-soft); box-shadow: inset 0 0 0 1px var(--pri); }
+  .dep .d { font-weight: 800; }
+  .dep .p { font-weight: 800; text-align: right; }
+  .dep .m { font-size: 12.5px; color: var(--mute); font-weight: 600; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dep .p small { display: block; font-size: 11.5px; color: var(--mute); font-weight: 600; }
+  .dep.off { cursor: not-allowed; background: #F7F8FA; border-style: dashed; }
+  .dep.off:hover { border-color: var(--line); }
+  .dep.off .d, .dep.off .p { color: #6E7A85; }
+  .dep .why { justify-self: end; }
+  .dep a.why { font-size: 12.5px; font-weight: 700; color: var(--pri); text-decoration: none; }
+  .live { font-size: 12px; color: var(--ok); font-weight: 700; display: inline-flex; gap: 6px; align-items: center; }
+  .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  .rooms { display: grid; gap: 6px; }
+  .room { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .room:last-child { border-bottom: 0; }
+  .room b { display: block; font-size: 15px; }
+  .room small { color: var(--mute); font-size: 12.5px; font-weight: 600; }
+  .ctr { display: inline-flex; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .ctr button { width: 36px; height: 36px; border: 0; background: #fff; font: 700 18px "DM Sans", sans-serif; cursor: pointer; color: var(--ink); }
+  .ctr button:hover { background: var(--bg2); }
+  .ctr button:disabled { color: #C3C9CF; cursor: default; background: #fff; }
+  .ctr output { min-width: 30px; text-align: center; font-weight: 800; }
+  .warnline { font-size: 13px; color: var(--warn); font-weight: 700; background: var(--warn-soft); border-radius: 10px; padding: 8px 10px; }
+  .brk { display: grid; gap: 6px; font-size: 14px; }
+  .brk .l { display: flex; justify-content: space-between; gap: 12px; }
+  .brk .l span:first-child { color: var(--ink2); }
+  .brk .l.deal span { color: var(--ok); font-weight: 700; }
+  .brk .tot { display: flex; justify-content: space-between; align-items: baseline; border-top: 1.5px solid var(--ink); padding-top: 10px; margin-top: 4px; }
+  .brk .tot span { font-weight: 700; }
+  .brk .tot b { font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
+  .brk .pp { font-size: 12.5px; color: var(--mute); text-align: right; font-weight: 600; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fields .full { grid-column: 1 / -1; }
+  .fld { display: grid; gap: 4px; }
+  .fld label { font-size: 12px; font-weight: 700; color: var(--ink2); }
+  .fld input, .fld textarea, .fld select { border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 12px; font: 500 15px "DM Sans", sans-serif; width: 100%; background: #fff; color: var(--ink); }
+  .fld input:focus, .fld textarea:focus { border-color: var(--pri); outline: none; box-shadow: 0 0 0 3px var(--pri-soft); }
+  .fine { font-size: 12.5px; color: var(--mute); }
+  .fine a { color: var(--pri); font-weight: 700; text-decoration: none; }
+  .lock { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--mute); font-weight: 600; justify-content: center; }
+  .lock .ic { width: 14px; height: 14px; }
+  .gone { border: 1.5px solid var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 12px; display: grid; gap: 6px; color: var(--ink); }
+  .gone b { color: var(--warn); }
+
+  /* Variant A — the sticky card becomes the stepper */
+  .cardA { position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: grid; gap: 16px; background: #fff; box-shadow: 0 30px 60px -40px rgba(20,32,42,.35); }
+  .cardA .acc { border-top: 1px solid var(--line); padding-top: 14px; }
+  .cardA .acc.closed .body { display: none; }
+  .cardA .acc.closed header { cursor: pointer; }
+  .cardA .acc.closed header h3 { color: var(--mute); }
+
+  /* Variant B — side sheet */
+  .sheetwrap { position: absolute; inset: 0; background: rgba(15,25,35,.42); display: flex; justify-content: flex-end; z-index: 10; }
+  .sheet { width: min(480px, 100%); height: 100%; background: #fff; display: grid; grid-template-rows: auto 1fr auto; box-shadow: -30px 0 60px -30px rgba(0,0,0,.4); animation: slide .45s var(--ease); }
+  @keyframes slide { from { transform: translateX(40px); opacity: .6; } }
+  .sheet > header { display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .sheet > header .ph { width: 52px; height: 52px; border-radius: 10px; flex: none; }
+  .sheet > header b { display: block; font-size: 16px; letter-spacing: -.02em; }
+  .sheet > header small { color: var(--mute); font-weight: 600; }
+  .sheet > header button { margin-left: auto; width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; cursor: pointer; font-size: 18px; }
+  .sheet .scroll { overflow: auto; padding: 18px; display: grid; gap: 22px; align-content: start; }
+  .sheet > footer { border-top: 1px solid var(--line); padding: 12px 18px; display: grid; gap: 8px; background: #fff; }
+  .sheet > footer .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .sheet > footer .row b { font-size: 24px; letter-spacing: -.03em; }
+
+  /* Variant C — checkout page */
+  .co { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; align-items: start; padding: 20px 0 60px; }
+  .co .steps { display: grid; gap: 18px; }
+  .co .panel { border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+  .co .sumC { position: sticky; top: 16px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 30px 60px -40px rgba(20,32,42,.35); }
+  .co .sumC .ph { aspect-ratio: 16 / 9; }
+  .co .sumC .b { padding: 16px 18px; display: grid; gap: 12px; }
+  .co .sumC h3 { font-size: 18px; }
+  .co .bar { display: none; }
+
+  /* Razorpay stand-in */
+  .rzp { position: absolute; inset: 0; background: rgba(15,25,35,.55); display: grid; place-items: center; z-index: 30; padding: 16px; }
+  .rzp .box { width: min(360px, 100%); background: #fff; border-radius: 14px; padding: 18px; display: grid; gap: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.4); }
+  .rzp .box .hd { display: flex; justify-content: space-between; align-items: baseline; }
+  .rzp .box .hd b { font-size: 15px; }
+  .rzp .box .amt { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+  .rzp .ph2 { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; color: var(--mute); font-size: 13px; text-align: center; }
+  .rzp .sim { display: grid; gap: 6px; }
+  .rzp .sim .btn { justify-content: flex-start; }
+
+  /* success */
+  .ok { max-width: 760px; margin: 0 auto; padding: 40px 0 60px; display: grid; gap: 20px; }
+  .ok .head { display: grid; gap: 10px; justify-items: start; }
+  .ok .tick { width: 56px; height: 56px; border-radius: 16px; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center; }
+  .ok .tick .ic { width: 28px; height: 28px; }
+  .ok h1 { font-size: clamp(30px, 4cqi, 40px); }
+  .ref { font: 800 15px "DM Sans", sans-serif; letter-spacing: .06em; background: var(--bg2); border: 1px dashed #C4CFDE; border-radius: 8px; padding: 4px 10px; }
+  .ticket { border: 1px solid var(--line); border-radius: 18px; display: grid; grid-template-columns: 200px 1fr; overflow: hidden; }
+  .ticket .ph { min-height: 100%; }
+  .ticket .b { padding: 18px 20px; display: grid; gap: 12px; }
+  .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; }
+  .kv div small { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); font-weight: 700; }
+  .kv div b { font-size: 15px; }
+  .acts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .next { border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; background: var(--bg2); }
+  .next h3 { font-size: 17px; }
+  .next p { color: var(--ink2); font-size: 14px; margin-top: 4px; }
+
+  /* sign in */
+  .auth { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 36px 0 60px; max-width: 920px; margin: 0 auto; }
+  .authcard { border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 14px; align-content: start; }
+  .authcard h2 { font-size: 24px; }
+  .authcard > p { color: var(--ink2); }
+  .code { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .code input { text-align: center; font: 800 22px "DM Sans", sans-serif; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 0; width: 100%; min-width: 0; color: var(--ink); }
+  .code input:focus { border-color: var(--pri); outline: none; box-shadow: 0 0 0 3px var(--pri-soft); }
+  .democode { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #14202A; color: #fff; border-radius: 12px; padding: 12px 14px; }
+  .democode small { display: block; color: #B7C0C8; font-size: 12px; font-weight: 600; }
+  .democode b { font-size: 24px; letter-spacing: .18em; font-weight: 800; }
+  .democode .btn { background: #fff; color: var(--ink); box-shadow: none; }
+
+  /* account */
+  .acct { padding: 26px 0 60px; display: grid; gap: 20px; }
+  .acct .hd { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+  .acct .hd h1 { font-size: clamp(28px, 3.6cqi, 38px); }
+  .acct .hd p { color: var(--mute); margin-top: 4px; }
+  .tabs { display: flex; gap: 4px; background: var(--bg2); border-radius: 12px; padding: 4px; width: max-content; max-width: 100%; overflow-x: auto; }
+  .tabs span { padding: 8px 14px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--mute); white-space: nowrap; }
+  .tabs span.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .blist { display: grid; gap: 12px; }
+  .brow { display: grid; grid-template-columns: 128px 1fr auto; gap: 16px; align-items: center; border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+  .brow .ph { aspect-ratio: 4 / 3; border-radius: 10px; }
+  .brow h3 { font-size: 17px; }
+  .brow .meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--mute); font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .brow .side { display: grid; gap: 8px; justify-items: end; padding-right: 6px; }
+  .brow.dim { background: #FAFBFC; }
+  .brow.dim .ph { filter: grayscale(.6); opacity: .8; }
+  .cd { font-size: 12.5px; font-weight: 700; color: var(--pri); }
+
+  .det { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 32px; align-items: start; padding: 22px 0 60px; }
+  .det .main { display: grid; gap: 22px; }
+  .det .card { border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; display: grid; gap: 12px; }
+  .det .card h2 { font-size: 19px; }
+  table.tr { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.tr th { text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); font-weight: 700; padding: 0 0 8px; }
+  table.tr td { border-top: 1px solid var(--line); padding: 10px 0; }
+  .tl { display: grid; gap: 0; }
+  .tl div { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: baseline; font-size: 14px; padding: 6px 0; }
+  .tl div i { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); transform: translateY(1px); }
+  .tl div i.pend { background: #C3C9CF; }
+  .tl div span:last-child { color: var(--mute); font-size: 12.5px; }
+  .rate { display: flex; gap: 4px; }
+  .rate button { border: 0; background: none; padding: 2px; cursor: pointer; color: #C9CFD5; }
+  .rate button.on { color: var(--star); }
+  .rate button svg { width: 30px; height: 30px; }
+  .revs { display: grid; gap: 14px; }
+  .rev { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; }
+  .rev .who { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--mute); font-weight: 600; }
+  .agg { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .agg .big { font-size: 44px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+
+  @container site (max-width: 760px) {
+    .wrap { width: calc(100% - 32px); }
+    .top nav { display: none; }
+    .phead { grid-template-columns: 1fr; } .phead .ph { height: 220px; } .phead .ph:nth-child(2) { display: none; }
+    .pgrid, .co, .det { grid-template-columns: 1fr; gap: 24px; }
+    .cardA { position: static; }
+    .co .sumC { display: none; }
+    .co { padding-bottom: 110px; }
+    .co .bar { display: flex; position: sticky; bottom: 0; margin: 0 -16px; padding: 12px 16px; background: #fff; border-top: 1px solid var(--line); justify-content: space-between; align-items: center; gap: 12px; box-shadow: 0 -10px 30px -20px rgba(0,0,0,.3); }
+    .co .bar b { font-size: 22px; letter-spacing: -.03em; display: block; }
+    .co .bar small { color: var(--mute); font-weight: 600; font-size: 12px; }
+    .fields { grid-template-columns: 1fr; }
+    .ticket { grid-template-columns: 1fr; } .ticket .ph { aspect-ratio: 16 / 9; }
+    .kv { grid-template-columns: 1fr 1fr; }
+    .next { grid-template-columns: 1fr; }
+    .auth { grid-template-columns: 1fr; padding-top: 20px; }
+    .brow { grid-template-columns: 84px 1fr; }
+    .brow .side { grid-column: 1 / -1; justify-items: start; grid-auto-flow: column; justify-content: space-between; align-items: center; padding: 0 4px 4px; }
+    .sheet { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .site *, .sheet { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="chrome">
+  <h1>Tripsmith v2 · B0 <small>mockups for sign-off before B5</small></h1>
+  <div class="grp" id="screens"><span>Screen</span></div>
+  <div class="grp" id="views"><span>View</span><button data-w="desktop" aria-pressed="true">Desktop</button><button data-w="phone" aria-pressed="false">Phone 390</button></div>
+</div>
+<div class="stage">
+  <div class="note" id="note"></div>
+  <div class="frame desktop" id="frame"><div class="site" id="site"></div></div>
+</div>
+
+<script>
+(() => {
+  // ---------- data: Munnar & Alleppey Houseboat, as seeded (api/content/packages/munnar_alleppey_houseboat.py) ----------
+  const PKG = { name: 'Munnar & Alleppey Houseboat', slug: 'munnar-alleppey-houseboat', dur: '4N / 5D', dest: 'Kerala', from: 21999, deal: 19999, dealLabel: 'Early-bird', dealEnds: '31 Oct' };
+  const DEAL_OFF = PKG.from - PKG.deal; // flat amount off per traveller (decision 4)
+  const DEPS = [
+    { id: 'n13', day: 'Fri', date: '13 Nov 2026', double: 22999, triple: 20999, child: 13499, sup: 9500, left: 0, total: 12, g: true },
+    { id: 'd18', day: 'Fri', date: '18 Dec 2026', double: 25999, triple: 23999, child: 15499, sup: 11000, left: 3, total: 10 },
+    { id: 'j15', day: 'Fri', date: '15 Jan 2027', double: 21999, triple: 19999, child: 12999, sup: 9000, left: 9, total: 12, g: true },
+    { id: 'f12', day: 'Fri', date: '12 Feb 2027', double: 21999, triple: 19999, child: 12999, sup: 9000, left: 12, total: 12 },
+    { id: 'm12', day: 'Fri', date: '12 Mar 2027', double: 0, triple: 0, child: 0, sup: 0, left: 12, total: 12 },
+  ];
+  const IMG = { a: 'img/munnar-1.jpg', b: 'img/kerala-1.jpg', c: 'img/munnar-2.jpg', d: 'img/kerala-2.jpg', goa: 'img/goa-3.jpg', raj: 'img/udaipur-1.jpg' };
+
+  const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+  const el = (s) => document.querySelector(s);
+  const ICON = {
+    check: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    info: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>',
+    lock: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    down: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    chat: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.4-4A8 8 0 1 1 8.5 19z"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z"/></svg>',
+  };
+  const stars = (r, n) => `<span class="stars" aria-label="${r} out of 5">${[1,2,3,4,5].map(i => `<span class="${i <= Math.round(r) ? '' : 'off'}">${ICON.star}</span>`).join('')}${n === false ? '' : `<b class="num">${r.toFixed(1)}</b>`}</span>`;
+
+  // ---------- booking state + quote (mirrors quote_booking: server-side in B3) ----------
+  const S = { dep: 'j15', rooms: { double: 1, triple: 0, single: 0 }, children: 1, step: 1, pay: null, gone: false };
+  const bookable = d => d.double > 0 && d.triple > 0 && d.child > 0 && d.left > 0;
+  const why = d => d.double === 0 ? 'on' : d.left === 0 ? 'sold' : null;
+  const adults = () => S.rooms.double * 2 + S.rooms.triple * 3 + S.rooms.single;
+  const party = () => adults() + S.children;
+  function quote() {
+    const d = DEPS.find(x => x.id === S.dep);
+    const lines = [];
+    if (S.rooms.double) lines.push([`Double sharing · ${S.rooms.double * 2} × ${inr(d.double)}`, S.rooms.double * 2 * d.double]);
+    if (S.rooms.triple) lines.push([`Triple sharing · ${S.rooms.triple * 3} × ${inr(d.triple)}`, S.rooms.triple * 3 * d.triple]);
+    if (S.rooms.single) lines.push([`Single room · ${S.rooms.single} × ${inr(d.double + d.sup)}`, S.rooms.single * (d.double + d.sup)]);
+    if (S.children) lines.push([`Child 5–11 · ${S.children} × ${inr(d.child)}`, S.children * d.child]);
+    const n = party();
+    const off = n * DEAL_OFF; // capped per traveller at the traveller's own price — never binds here
+    const sub = lines.reduce((a, l) => a + l[1], 0);
+    return { d, lines, off, n, total: sub - off };
+  }
+
+  // ---------- shared components ----------
+  function depList() {
+    return `<div class="deps" role="group" aria-label="Departures">${DEPS.map(d => {
+      const w = why(d);
+      if (w === 'sold') return `<div class="dep off"><span class="d">${d.day} ${d.date}</span><span class="badge sold why">Sold out</span><span class="m">Fully booked</span><span></span></div>`;
+      if (w === 'on') return `<div class="dep off"><span class="d">${d.day} ${d.date}</span><a class="why" href="#enquire">Price on request — enquire</a><span class="m">Dates confirmed, price not yet set</span><span></span></div>`;
+      const low = d.left <= 4;
+      return `<button class="dep" data-dep="${d.id}" aria-pressed="${S.dep === d.id}"><span class="d">${d.day} ${d.date}</span><span class="p num">${inr(d.double - DEAL_OFF)}<small><s>${inr(d.double)}</s> pp twin</small></span><span class="m">${low ? `<span class="badge fill">${d.left} seats left</span>` : d.g ? `<span class="badge sure">Guaranteed</span> ${d.left} seats left` : `${d.left} seats left`}</span><span></span></button>`;
+    }).join('')}</div><span class="live">Live availability · updated just now</span>`;
+  }
+  function roomsBlock() {
+    const row = (k, t, s, dis) => `<div class="room"><div><b>${t}</b><small>${s}</small></div><div class="ctr"><button data-r="${k}" data-v="-1" aria-label="Fewer ${t}" ${S.rooms[k] === 0 ? 'disabled' : ''}>−</button><output class="num">${S.rooms[k]}</output><button data-r="${k}" data-v="1" aria-label="More ${t}" ${dis ? 'disabled' : ''}>+</button></div></div>`;
+    const full = party();
+    const d = DEPS.find(x => x.id === S.dep);
+    const short = full > d.left ? `<div class="warnline">Only ${d.left} seats left on ${d.date} — your party needs ${full}. Pick another date or fewer travellers.</div>` : '';
+    return `<div class="rooms">${row('double', 'Double room', '2 adults · twin sharing', full + 2 > 12)}${row('triple', 'Triple room', '3 adults · extra bed', full + 3 > 12)}${row('single', 'Single room', `1 adult · +${inr(d.sup)} supplement`, full + 1 > 12)}<div class="room"><div><b>Children 5–11</b><small>Share a parent's room · child rate</small></div><div class="ctr"><button data-c="-1" aria-label="Fewer children" ${S.children === 0 ? 'disabled' : ''}>−</button><output class="num">${S.children}</output><button data-c="1" aria-label="More children" ${full + 1 > 12 || adults() === 0 ? 'disabled' : ''}>+</button></div></div></div>${short}<p class="fine">${adults()} adult${adults() === 1 ? '' : 's'}, ${S.children} child${S.children === 1 ? '' : 'ren'} · up to 12 per booking.</p>`;
+  }
+  function breakdown() {
+    const q = quote();
+    return `<div class="brk">${q.lines.map(l => `<div class="l"><span>${l[0]}</span><span class="num">${inr(l[1])}</span></div>`).join('')}<div class="l deal"><span>${PKG.dealLabel} deal · ${q.n} × −${inr(DEAL_OFF)}</span><span class="num">−${inr(q.off)}</span></div><div class="tot"><span>Total</span><b class="num" data-total="${q.total}">${inr(q.total)}</b></div><div class="pp num">${inr(q.total / Math.max(q.n, 1))} per traveller · everything under Inclusions</div></div>`;
+  }
+  function contact() {
+    return `<div class="fields"><div class="fld full"><label for="c-name">Lead traveller</label><input id="c-name" value="Ananya Rao" autocomplete="name"></div><div class="fld"><label for="c-phone">Mobile</label><input id="c-phone" value="98450 12345" inputmode="tel"></div><div class="fld"><label for="c-email">Email</label><input id="c-email" value="ananya.rao@example.com" type="email"></div></div><p class="fine">Your voucher and trip details go to this email. We'll call once, to confirm your hotels.</p>`;
+  }
+  const demoNote = `<div class="demo">${ICON.info}<span><b>Demo site.</b> Payments run in Razorpay test mode — use a Razorpay test card. Bookings are visible to anyone using the public demo login, so use test details.</span></div>`;
+  const payBtn = (cls = 'btn block') => { const q = quote(); const ok = party() <= q.d.left && adults() > 0; return `<button class="${cls}" data-pay ${ok ? '' : 'disabled'}>Pay <span class="num" data-paytotal>${inr(q.total)}</span></button>`; };
+  const goneBox = () => S.gone ? `<div class="gone"><b>${S.gone} is no longer available</b><span>Someone booked the last seats while you were paying. You haven't been charged. Pick another date — your travellers are kept.</span></div>` : '';
+
+  function rzp() {
+    if (!S.pay) return '';
+    const q = quote();
+    return `<div class="rzp"><div class="box" role="dialog" aria-label="Payment"><div class="hd"><b>Razorpay Checkout</b><span class="badge muted">Test mode</span></div><div class="amt num">${inr(q.total)}</div><div class="ph2">Razorpay's own card / UPI / netbanking window opens here (not ours to style). Closes itself after 10 minutes.</div><div class="sim"><span class="eyebrow">Mockup only — simulate the outcome</span><button class="btn pri sm" data-sim="ok">${ICON.check} Payment succeeds</button><button class="btn line sm" data-sim="gone">Seats taken while paying</button><button class="btn line sm" data-sim="close">Close the window</button></div></div></div>`;
+  }
+
+  // ---------- page shells ----------
+  const header = (nav = 'Trips') => `<div class="wrap top"><a class="logo" href="#"><i></i>Tripsmith</a><nav><a href="#">Explore</a><a href="#" class="${nav === 'Trips' ? 'on' : ''}">Trips</a><a href="#">Enquire</a><a href="#" class="${nav === 'My trips' ? 'on' : ''}">My trips</a></nav></div>`;
+  const pkgTop = () => `<div class="wrap"><div class="crumbs"><a href="#">Home</a> / <a href="#">Kerala</a> / <span>${PKG.name}</span></div><div class="phead"><div class="ph"><img src="${IMG.a}" alt="Tea estates rolling over the hills of Munnar"></div><div class="ph"><img src="${IMG.b}" alt="A houseboat on the Alleppey backwaters"></div></div><div class="ptitle"><div><h1>${PKG.name}</h1><div class="sub"><span>${PKG.dur}</span><span>Munnar · Alleppey · Fort Kochi</span><span>${stars(4.6, false)} <b style="color:var(--ink)">4.6</b> · 3 reviews</span></div></div><div class="deal"><s class="num">${inr(PKG.from)}</s><b class="num" style="font-size:26px;letter-spacing:-.03em">${inr(PKG.deal)}</b><span class="tag">${PKG.dealLabel} · ends ${PKG.dealEnds}</span></div></div></div>`;
+  const pkgLeft = () => `<div style="display:grid;gap:28px"><div><h2>Overview</h2><p class="lede">Two nights among Munnar's tea estates, a night on a private houseboat on the backwaters, and a last evening in Fort Kochi.</p></div><div><h2>Where you stay</h2><div class="hotels">${hotelRow('Tea Valley Resort', 'Munnar · 2 nights', 3, IMG.a)}${hotelRow('Spice Routes houseboat', 'Alleppey · 1 night', 4, IMG.b)}${hotelRow('Fort House', 'Fort Kochi · 1 night', 3, IMG.d)}</div></div></div>`;
+  const hotelRow = (n, s, st, img) => `<div class="hotel"><div class="ph"><img src="${img}" alt=""></div><div><b>${n}</b><span>${s}</span><div>${stars(st, false)} <span class="num" style="font-weight:700;color:var(--ink)">${st}-star</span></div></div></div>`;
+
+  // Variant A — inline accordion in the sticky card
+  function variantA() {
+    const q = quote();
+    const acc = (n, title, sum, body) => `<div class="acc step ${S.step === n ? '' : 'closed'}" data-open="${n}"><header><span class="n">${n}</span><h3>${title}</h3><span class="sum">${S.step === n ? '' : sum}</span></header><div class="body step">${body}</div></div>`;
+    return `${header()}${pkgTop()}<div class="wrap pgrid">${pkgLeft()}<aside><div class="cardA" aria-label="Book this trip"><div class="deal"><span class="eyebrow" style="width:100%">Book now</span><b class="num" style="font-size:30px;letter-spacing:-.03em" data-total2>${inr(q.total)}</b><span class="fine">for ${q.n} travellers</span></div>${goneBox()}${acc(1, 'Date', `${q.d.day} ${q.d.date}`, depList())}${acc(2, 'Travellers', `${q.n} travellers`, roomsBlock() + breakdown())}${acc(3, 'Contact', 'Ananya Rao', contact())}${S.step < 3 ? `<button class="btn block" data-nextstep>Continue</button>` : payBtn()}<div class="lock">${ICON.lock} Seats held for 10 minutes once you press Pay</div>${demoNote}</div></aside></div>${rzp()}`;
+  }
+  // Variant B — side sheet over the package page
+  function variantB() {
+    const q = quote();
+    const sheet = `<div class="sheetwrap"><div class="sheet" role="dialog" aria-label="Book ${PKG.name}"><header><div class="ph"><img src="${IMG.a}" alt=""></div><div><b>${PKG.name}</b><small>${PKG.dur} · Book now</small></div><button aria-label="Close">×</button></header><div class="scroll">${goneBox()}<div class="step"><header><span class="n">1</span><h3>Pick a date</h3></header>${depList()}</div><div class="step"><header><span class="n">2</span><h3>Who's travelling</h3></header>${roomsBlock()}</div><div class="step"><header><span class="n">3</span><h3>Price</h3></header>${breakdown()}</div><div class="step"><header><span class="n">4</span><h3>Contact</h3></header>${contact()}</div>${demoNote}</div><footer><div class="row"><div><span class="fine">${q.n} travellers · ${q.d.date}</span><br><b class="num" data-total2>${inr(q.total)}</b></div>${payBtn('btn')}</div><div class="lock">${ICON.lock} Seats held for 10 minutes once you press Pay</div></footer></div></div>`;
+    return `${header()}${pkgTop()}<div class="wrap pgrid">${pkgLeft()}<aside><div class="cardA"><b class="num" style="font-size:30px">${inr(PKG.deal)}</b><span class="fine">per traveller, twin sharing, from</span><button class="btn block">Book now</button><button class="btn line block">Enquire</button></div></aside></div>${sheet}${rzp()}`;
+  }
+  // Variant C — dedicated checkout page
+  function variantC() {
+    const q = quote();
+    return `${header()}<div class="wrap"><div class="crumbs" style="padding-top:6px"><a href="#">${PKG.name}</a> / <span>Book</span></div><div class="co"><div class="steps"><h1 style="font-size:clamp(28px,3.6cqi,40px)">Book ${PKG.name}</h1>${goneBox()}<div class="panel step"><header><span class="n">1</span><h3>Pick a date</h3></header>${depList()}</div><div class="panel step"><header><span class="n">2</span><h3>Who's travelling</h3></header>${roomsBlock()}</div><div class="panel step"><header><span class="n">3</span><h3>Lead traveller</h3></header>${contact()}</div>${demoNote}<div class="bar"><div><b class="num" data-total2>${inr(q.total)}</b><small>${q.n} travellers · ${q.d.date}</small></div>${payBtn('btn')}</div></div><aside class="sumC"><div class="ph"><img src="${IMG.b}" alt="A houseboat on the Alleppey backwaters"></div><div class="b"><h3>${PKG.name}</h3><span class="fine">${PKG.dur} · ${q.d.day} ${q.d.date}</span>${breakdown()}${payBtn()}<div class="lock">${ICON.lock} Seats held for 10 minutes once you press Pay</div></div></aside></div></div>${rzp()}`;
+  }
+
+  function success() {
+    const q = quote();
+    return `${header()}<div class="wrap"><div class="ok"><div class="head"><div class="tick">${ICON.check}</div><h1>You're going to Kerala.</h1><p style="color:var(--ink2);font-size:17px">Booking <span class="ref">TB-7K2Q9M</span> is confirmed and paid. Your voucher is ready.</p></div><div class="ticket"><div class="ph"><img src="${IMG.c}" alt="Munnar tea gardens"></div><div class="b"><h2 style="font-size:20px">${PKG.name}</h2><div class="kv"><div><small>Departs</small><b>${q.d.day} ${q.d.date}</b></div><div><small>Travellers</small><b>${adults()} adults, ${S.children} child</b></div><div><small>Paid</small><b class="num">${inr(q.total)}</b></div><div><small>Starts at</small><b>Kochi airport</b></div><div><small>Hotels</small><b>3 stays</b></div><div><small>Lead</small><b>Ananya Rao</b></div></div><div class="acts"><button class="btn">${ICON.down} Download voucher (PDF)</button><button class="btn wa">${ICON.chat} WhatsApp us</button></div><p class="fine">This download link works for 30 minutes. After that, find the voucher in My trips.</p></div></div><div class="next"><div><h3>Keep this booking in one place</h3><p>Sign in with ananya.rao@example.com — we'll send a 6-digit code. Your booking is already waiting there.</p></div><button class="btn pri">Go to My trips</button></div><div class="demo">${ICON.info}<span><b>Demo mode — email delivery is off.</b> The confirmation email with this voucher went to the site owner's inbox instead of yours.</span></div></div></div>`;
+  }
+
+  function signin() {
+    return `${header('My trips')}<div class="wrap"><div class="auth"><div class="authcard"><span class="eyebrow">Step 1</span><h2>Sign in to My trips</h2><p>Use the email you booked with. No password — we send a 6-digit code.</p><div class="fld"><label for="s-email">Email</label><input id="s-email" type="email" value="ananya.rao@example.com"></div><button class="btn block pri">Send code</button><p class="fine">Booked without an account? Your trips appear here as soon as you sign in with the same email.</p></div><div class="authcard"><span class="eyebrow">Step 2</span><h2>Enter your code</h2><p>Sent to ananya.rao@example.com · valid for 10 minutes.</p><div class="democode"><div><small>Demo mode — email delivery is off. Your code:</small><b class="num">482 913</b></div><button class="btn sm" data-fill>Fill it in</button></div><div class="code" role="group" aria-label="6-digit code">${[0,1,2,3,4,5].map(i => `<input id="code-${i}" inputmode="numeric" maxlength="1" aria-label="Digit ${i + 1}">`).join('')}</div><button class="btn block">Sign in</button><p class="fine">Wrong code 5 times and it stops working — just ask for a new one. <a href="#">Resend code</a></p></div></div></div>`;
+  }
+
+  function account() {
+    const row = (img, t, meta, badge, side, dim) => `<div class="brow ${dim ? 'dim' : ''}"><div class="ph"><img src="${img}" alt=""></div><div><h3>${t}</h3><div class="meta">${meta}</div></div><div class="side">${badge}${side}</div></div>`;
+    return `${header('My trips')}<div class="wrap acct"><div class="hd"><div><h1>My trips</h1><p>ananya.rao@example.com</p></div><button class="btn line sm">Sign out</button></div><div class="tabs"><span class="on">Upcoming · 2</span><span>Past · 1</span><span>Cancelled · 1</span></div><div class="blist">
+      ${row(IMG.a, PKG.name, `<span>Fri 15 Jan 2027</span><span>2 adults, 1 child</span><span class="num">TB-7K2Q9M</span>`, `<span class="badge sure">Confirmed</span>`, `<span class="cd">in 113 days</span><button class="btn sm line">${ICON.down} Voucher</button>`)}
+      ${row(IMG.raj, 'Jaipur, Jodhpur & Udaipur', `<span>Fri 5 Feb 2027</span><span>2 adults</span><span class="num">TB-3HW8PL</span>`, `<span class="badge fill">Cancellation requested</span>`, `<span class="fine">We reply within a day</span>`)}
+      ${row(IMG.goa, 'North Goa Beaches', `<span>Fri 14 Aug 2026</span><span>2 adults</span><span class="num">TB-Q4N2ZD</span>`, `<span class="badge muted">Completed</span>`, `<button class="btn sm">Review your trip</button>`)}
+      ${row(IMG.d, PKG.name, `<span>Fri 18 Dec 2026</span><span>4 adults</span><span class="num">TB-9CXV1R</span>`, `<span class="badge muted">Not completed</span>`, `<span class="fine">Payment wasn't finished — seats released</span>`, true)}
+    </div><div class="demo">${ICON.info}<span><b>Demo account.</b> "Demo traveller" is seeded with a past Goa trip so the review flow can be tried. Anything you add here is visible to other visitors.</span></div></div>`;
+  }
+
+  function detail() {
+    const q = quote();
+    return `${header('My trips')}<div class="wrap"><div class="crumbs" style="padding-top:6px"><a href="#">My trips</a> / <span>TB-7K2Q9M</span></div><div class="det"><div class="main"><div style="display:grid;gap:8px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="badge sure">Confirmed</span><span class="ref">TB-7K2Q9M</span></div><h1 style="font-size:clamp(28px,3.6cqi,38px)">${PKG.name}</h1><p style="color:var(--mute);font-weight:600">${q.d.day} ${q.d.date} → Tue 19 Jan 2027 · starts at Kochi airport</p></div>
+      <div class="card"><h2>Travellers</h2><table class="tr"><thead><tr><th>Name</th><th>Age</th><th>Room</th></tr></thead><tbody><tr><td>Ananya Rao</td><td class="num">34</td><td>Double</td></tr><tr><td>Vikram Rao</td><td class="num">36</td><td>Double</td></tr><tr><td>Mira Rao</td><td class="num">8</td><td>Child</td></tr></tbody></table></div>
+      <div class="card"><h2>What you paid</h2>${breakdown()}<div class="tl"><div><i></i><span>Paid by card · Razorpay</span><span>24 Sep, 11:42</span></div><div><i></i><span>Voucher emailed</span><span>24 Sep, 11:42</span></div></div></div>
+      <div class="card"><h2>Need to cancel?</h2><p class="fine" style="font-size:14px;color:var(--ink2)">Tell us why and we'll reply within a day. Refunds follow our <a href="#">cancellation policy</a>. We'll confirm the refund amount when we reply.</p><div class="fld"><label for="cx">Reason</label><textarea id="cx" rows="3" placeholder="e.g. Dates clash with a family wedding"></textarea></div><div><button class="btn line sm">Request cancellation</button></div></div></div>
+      <aside class="card" style="position:sticky;top:16px"><h2>Your voucher</h2><p class="fine" style="font-size:14px;color:var(--ink2)">Hotels, day plan, pickup details and our 24×7 number. Show it on your phone at check-in.</p><button class="btn block">${ICON.down} Download voucher</button><button class="btn wa block">${ICON.chat} WhatsApp about this trip</button></aside></div></div>`;
+  }
+
+  function reviews() {
+    let r = 4;
+    return `${header()}<div class="wrap"><div class="det"><div class="main"><div class="card"><span class="eyebrow">Package page · Reviews</span><div class="agg"><span class="big num">4.6</span><div>${stars(4.6, false)}<p class="fine">From 3 travellers who went · only verified bookings can review</p></div></div><div class="revs"><div class="rev"><div class="who"><span>Karthik S. · travelled Aug 2026</span>${stars(5, false)}</div><p>The houseboat night was the highlight — the crew cooked karimeen fry for us and the backwaters at sunrise were unreal.</p></div><div class="rev"><div class="who"><span>Priya & Arjun · travelled Jul 2026</span>${stars(4, false)}</div><p>Munnar was misty in July, so Eravikulam views came and went. Hotels were exactly as described.</p></div></div></div>
+      <div class="card"><span class="eyebrow">Where you stay · stars recoloured</span><div class="hotels">${hotelRow('Tea Valley Resort', 'Munnar · 2 nights', 3, IMG.a)}${hotelRow('Spice Routes houseboat', 'Alleppey · 1 night', 4, IMG.b)}</div><p class="fine">Old: marigold <span style="color:#F2A93B">★★★</span> 2.00:1 on white. New: amber <span style="color:#B7791F">★★★</span> 3.64:1, number printed beside.</p></div></div>
+      <aside class="card"><span class="eyebrow">My trips · completed booking</span><h2>How was North Goa Beaches?</h2><div class="rate" role="radiogroup" aria-label="Rating">${[1,2,3,4,5].map(i => `<button role="radio" aria-checked="${i === r}" aria-label="${i} star${i > 1 ? 's' : ''}" class="${i <= r ? 'on' : ''}" data-rate="${i}">${ICON.star}</button>`).join('')}</div><div class="fld"><label for="rv">Your review</label><textarea id="rv" rows="4">Beach shacks were great, and the pickup at Thivim was on time. Would skip the Saturday market next time.</textarea></div><button class="btn">Submit review</button><p class="fine">Reviews show on the package page after we check them — usually within a day.</p></aside></div></div>`;
+  }
+
+  // ---------- screens ----------
+  const SCREENS = [
+    { id: 'A', label: 'Book now · A Inline', fn: variantA, note: ['Book now — A · the sticky card becomes the stepper', 'Book now lives in the right-hand card you already know from v1: date → travellers → contact as an accordion, the total counting up and down in the card header. Least new UI; on a phone it stacks under the photos. Click dates, add rooms or children, then Continue → Pay.'] },
+    { id: 'B', label: 'Book now · B Sheet', fn: variantB, note: ['Book now — B · a side sheet over the package page', 'Book now opens a full-height sheet (full-screen on a phone): all four steps in one scroll, the total and Pay pinned in the footer. The package stays visible behind it, and closing it keeps the choices.'] },
+    { id: 'C', label: 'Book now · C Page', fn: variantC, note: ['Book now — C · its own checkout page', '/packages/…/book: numbered steps on the left, a sticky photo + price summary with Pay on the right (a total bar with Pay on a phone). The most "real checkout" feel; one extra page load.'] },
+    { id: 'ok', label: 'Success', fn: success, note: ['Success', 'Straight after payment: booking ref, a ticket-style summary, voucher download (30-minute signed link), WhatsApp, and the nudge into My trips. The demo-mode line explains where the email went.'] },
+    { id: 'in', label: 'Sign in', fn: signin, note: ['Sign in — demo mode', 'Both steps side by side. While email is in Resend test mode the code is printed in a dark strip with "Fill it in"; when a real sending domain exists the strip disappears on its own.'] },
+    { id: 'my', label: 'My trips', fn: account, note: ['My trips', 'Upcoming, past and cancelled bookings. Row states: confirmed (countdown + voucher), cancellation requested, completed (review prompt), and a checkout that was never paid.'] },
+    { id: 'det', label: 'Booking detail', fn: detail, note: ['Booking detail', 'Travellers, what was paid with the payment timeline, the voucher, and the cancellation request with the policy linked.'] },
+    { id: 'rev', label: 'Reviews + stars', fn: reviews, note: ['Reviews and the new star colour', 'Amber #B7791F (3.64:1) replaces marigold stars everywhere, always with the number beside them. Left: how reviews show on the package page. Right: the review form a completed booking gets — click the stars.'] },
+  ];
+  let cur = 'A', view = 'desktop';
+  const site = el('#site'), frame = el('#frame');
+  const scr = el('#screens');
+  SCREENS.forEach(s => { const b = document.createElement('button'); b.textContent = s.label; b.dataset.s = s.id; scr.appendChild(b); });
+
+  let shownTotal = null;
+  function animateTotal(to) {
+    const nodes = site.querySelectorAll('[data-total], [data-total2], [data-paytotal]');
+    const from = shownTotal ?? to; shownTotal = to;
+    if (from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t0 = performance.now(), dur = 450;
+    const tick = t => { const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 3); const v = from + (to - from) * e; nodes.forEach(n => n.textContent = inr(v)); if (k < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  function render() {
+    const s = SCREENS.find(x => x.id === cur);
+    site.innerHTML = s.fn();
+    el('#note').innerHTML = `<b>${s.note[0]}</b><p>${s.note[1]}</p>`;
+    scr.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === cur));
+    if (['A', 'B', 'C'].includes(cur)) animateTotal(quote().total);
+  }
+  scr.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cur = b.dataset.s; S.pay = null; S.gone = false; shownTotal = null; render(); try { localStorage.setItem('ts-b0-screen', cur); } catch (_) {} });
+  el('#views').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; view = b.dataset.w; frame.className = 'frame ' + view; el('#views').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+  site.addEventListener('click', e => {
+    const t = e.target.closest('button, [data-open]'); if (!t) return;
+    if (t.dataset.dep) { S.dep = t.dataset.dep; S.gone = false; }
+    else if (t.dataset.r) { S.rooms[t.dataset.r] = Math.max(0, S.rooms[t.dataset.r] + +t.dataset.v); if (adults() === 0) S.children = 0; }
+    else if (t.dataset.c) { S.children = Math.max(0, S.children + +t.dataset.c); }
+    else if (t.hasAttribute('data-nextstep')) { S.step = Math.min(3, S.step + 1); }
+    else if (t.dataset.open && t.classList.contains('closed')) { S.step = +t.dataset.open; }
+    else if (t.hasAttribute('data-pay')) { S.pay = 'open'; }
+    else if (t.dataset.sim === 'ok') { S.pay = null; cur = 'ok'; }
+    else if (t.dataset.sim === 'gone') { const d = DEPS.find(x => x.id === S.dep); S.pay = null; S.gone = d.date; S.step = 1; d.left = 0; S.dep = DEPS.find(x => bookable(x)).id; }
+    else if (t.dataset.sim === 'close') { S.pay = null; }
+    else if (t.hasAttribute('data-fill')) { '482913'.split('').forEach((d, i) => { const inp = site.querySelector('#code-' + i); if (inp) inp.value = d; }); return; }
+    else if (t.dataset.rate) { const r = +t.dataset.rate; site.querySelectorAll('[data-rate]').forEach(b => { b.classList.toggle('on', +b.dataset.rate <= r); b.setAttribute('aria-checked', +b.dataset.rate === r); }); return; }
+    else return;
+    render();
+  });
+  try { const saved = localStorage.getItem('ts-b0-screen'); if (saved && SCREENS.some(s => s.id === saved)) cur = saved; } catch (_) {}
+  const h = location.hash.slice(1); if (SCREENS.some(s => s.id === h)) cur = h;
+  render();
+})();
+</script>
