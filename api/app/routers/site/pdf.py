@@ -1,6 +1,6 @@
-"""GET /packages/{slug}/itinerary.pdf (04 §5): 302 to the Blob-cached PDF keyed by
-`updated_at`, rendered on the first request; streamed inline when no store is configured
-(dev, CI) or Blob is down — a download never 5xx's because of the cache."""
+"""GET /packages/{slug}/itinerary.pdf (04 §5): 302 to the Blob-cached PDF keyed by what it
+draws (`pdf_version`), rendered on the first request; streamed inline when no store is
+configured (dev, CI) or Blob is down — a download never 5xx's because of the cache."""
 
 from typing import Annotated
 
@@ -32,6 +32,9 @@ async def get_itinerary_pdf(
     slug: str, request: Request, db: Annotated[AsyncSession, Depends(get_session)]
 ) -> Response:
     pkg = await get_package(db, slug)
+    # End the read transaction now: Blob list, photo fetch, render and put below can take
+    # seconds, and an open transaction would pin one of the function's few pooled connections.
+    await db.rollback()
     if pkg is None:
         raise ApiError("not_found", "Package not found")
     service: PdfService = request.app.state.pdf

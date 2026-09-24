@@ -19,11 +19,12 @@ from app.services.pdf.itinerary import (
     pdf_filename,
     pdf_pathname,
     pdf_prefix,
+    pdf_version,
     prepare_cover,
     prepare_gallery_image,
     render_itinerary,
 )
-from tests.pdf_fixture import UPDATED_AT, package
+from tests.pdf_fixture import package
 
 PHOTOS = Path(__file__).resolve().parents[1] / "content" / "photos" / "goa"
 COVER_JPEG = PHOTOS / "agonda-sunset.jpg"
@@ -54,14 +55,65 @@ def test_pathname_scheme() -> None:
     assert PDF_PREFIX == "pdf/"
     assert pdf_prefix("north-goa-beaches") == "pdf/north-goa-beaches/"
     assert pdf_filename("north-goa-beaches") == "Tripsmith-north-goa-beaches-itinerary.pdf"
-    epoch = int(UPDATED_AT.timestamp())
     assert (
-        pdf_pathname("north-goa-beaches", UPDATED_AT)
-        == f"pdf/north-goa-beaches/{epoch}/Tripsmith-north-goa-beaches-itinerary.pdf"
+        pdf_pathname("north-goa-beaches", "0123456789abcdef")
+        == "pdf/north-goa-beaches/0123456789abcdef/Tripsmith-north-goa-beaches-itinerary.pdf"
     )
-    # Same instant in another zone keys the same object.
-    ist = UPDATED_AT.astimezone(dt.timezone(dt.timedelta(hours=5, minutes=30)))
-    assert pdf_pathname("north-goa-beaches", ist) == pdf_pathname("north-goa-beaches", UPDATED_AT)
+
+
+def version(pkg: object, *, site_url: str = SITE, whatsapp_number: str = "919845012345") -> str:
+    return pdf_version(pkg, site_url=site_url, whatsapp_number=whatsapp_number)  # type: ignore[arg-type]
+
+
+def test_version_is_stable_and_ignores_what_the_pdf_does_not_draw() -> None:
+    base = package()
+    assert re.fullmatch(r"[0-9a-f]{16}", version(base))
+    assert version(package()) == version(base)
+    untouched = base.model_copy(
+        update={"updated_at": base.updated_at + dt.timedelta(days=3), "related": []}
+    )
+    assert version(untouched) == version(base)
+
+
+def test_version_moves_with_every_edit_updated_at_does_not_see() -> None:
+    """`packages.updated_at` stays put for all of these — the old key served stale PDFs."""
+    base = package(images=3)
+    edits = {
+        "day title": {
+            "itinerary": [
+                base.itinerary[0].model_copy(update={"title": "A new first day"}),
+                *base.itinerary[1:],
+            ]
+        },
+        "non-cheapest departure price": {
+            "departures": [
+                *base.departures[:-1],
+                base.departures[-1].model_copy(update={"price_double_paise": 9_999_900}),
+            ]
+        },
+        "a seat sold": {
+            "departures": [
+                base.departures[0].model_copy(update={"seats_left": 15}),
+                *base.departures[1:],
+            ]
+        },
+        "departed date dropped": {"departures": base.departures[1:]},
+        "image": {
+            "images": [
+                *base.images[:-1],
+                base.images[-1].model_copy(update={"url": "https://blob.test/new.jpg"}),
+            ]
+        },
+        "cover": {"cover": base.images[1]},
+        "destination name": {
+            "destination": base.destination.model_copy(update={"name": "North Goa"})
+        },
+    }
+    before = version(base)
+    for what, update in edits.items():
+        assert version(base.model_copy(update=update)) != before, what
+    assert version(base, site_url="https://tripsmith.in") != before
+    assert version(base, whatsapp_number="919800000000") != before
 
 
 def test_prepare_cover_bakes_the_hero_treatment_as_jpeg() -> None:
