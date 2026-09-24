@@ -79,7 +79,11 @@ const nextConfig: NextConfig = {
   },
   // The OG card (F13) reads DM Sans from disk at runtime; tracing missed the TTFs for one of the
   // two image routes, so ship them explicitly (keys are picomatch `contains` on the route path).
-  outputFileTracingIncludes: { 'opengraph-image*': ['./src/lib/og/fonts/*.ttf'] },
+  // The site-wide card (app/opengraph-image.tsx) is prerendered, but should it ever render at
+  // runtime it reads the home hero from disk as well.
+  outputFileTracingIncludes: {
+    'opengraph-image*': ['./src/lib/og/fonts/*.ttf', './src/assets/home/hero.jpg'],
+  },
   async headers() {
     // Everything except `/api/*`, which the rewrite below hands to the api — and the api sets its
     // own headers. Matching both would send two Content-Security-Policy headers on one response,
@@ -87,14 +91,23 @@ const nextConfig: NextConfig = {
     // allowance when reached through this origin.
     return [{ source: '/((?!api/).*)', headers: securityHeaders }];
   },
+  async redirects() {
+    // Swagger UI served through the rewrite below fetches `/openapi.json` from *this* origin,
+    // which 404s, so `/api/docs` rendered an empty page. Send it to the api's own origin, where
+    // the spec it loads is on the same host. Temporary: the api's public host is not final.
+    return [{ source: '/api/docs', destination: `${API_URL}/docs`, permanent: false }];
+  },
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];
   },
 };
 
 // Runtime error capture only: no source-map upload (no SENTRY_AUTH_TOKEN in CI yet), no telemetry.
+// The browser SDK is errors-only and lazy (src/instrumentation-client.ts), so there are no
+// navigation spans for an `onRouterTransitionStart` export to start; its build warning is noise.
 export default withSentryConfig(nextConfig, {
   silent: true,
   telemetry: false,
   sourcemaps: { disable: true },
+  suppressOnRouterTransitionStartWarning: true,
 });

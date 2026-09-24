@@ -244,9 +244,11 @@ or accept the delay.
 - No `lighthouse.yml` workflow — dropped in the 2026-09-15 lean re-cut. This row is a manual run,
   recorded above.
 - **TBT was not tuned.** It is the largest single drag on the home score (300 ms, sub-score 0.78)
-  and nothing in this row touches it. The likely candidates are the home `SearchBar` and the
-  listing's filter panel hydrating on the main thread. Left for a later row, deliberately: this
-  one was scoped to images, fonts, cache headers and query plans.
+  and nothing in this row touches it. Left for a later row, deliberately: this one was scoped to
+  images, fonts, cache headers and query plans. (The candidates guessed here — the home
+  `SearchBar` and the listing's filter panel — were wrong. The v1.0.1 review traced it to the
+  Sentry browser SDK in the eagerly loaded chunks, now loaded after the page is idle;
+  docs/17.)
 - The 14.4 kB of legacy-JavaScript polyfills Chrome flags is Next's own build output; Chrome
   estimates 0 ms FCP/LCP saving from removing it. Left alone.
 

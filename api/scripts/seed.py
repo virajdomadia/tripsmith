@@ -1,9 +1,12 @@
 """Seed the database from the typed content in api/content/ (04 §4, 06). Safe to re-run: every
 row is upserted by its natural key (slug / date / file), children are replaced in place.
 
-    uv run python scripts/seed.py            # uploads photos to Vercel Blob, needs the token
-    uv run python scripts/seed.py --local    # file URLs served by the dev server instead
-    uv run python scripts/seed.py --database-url postgresql+asyncpg://…   # another target
+    uv run python scripts/seed.py --database-url postgresql+asyncpg://…          # Blob photos
+    uv run python scripts/seed.py --local --database-url postgresql+asyncpg://…  # file URLs
+
+The target is required: --database-url, or SEED_DATABASE_URL in the environment. There is no
+fallback to DATABASE_URL, because api/.env.local holds production there (same rule as
+alembic/env.py and ALEMBIC_URL).
 
 The owner user comes from OWNER_EMAIL / OWNER_PASSWORD (skipped with a warning if unset).
 """
@@ -12,6 +15,7 @@ import argparse
 import asyncio
 import datetime as dt
 import io
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -247,7 +251,7 @@ async def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--local", action="store_true", help="no Blob upload; file URLs instead")
-    parser.add_argument("--database-url", help="override DATABASE_URL")
+    parser.add_argument("--database-url", help="target database (required, or SEED_DATABASE_URL)")
     parser.add_argument(
         "--local-base-url",
         default="http://localhost:8000/seed-photos",
@@ -256,12 +260,12 @@ async def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    url = args.database_url or (
-        settings.database_url.get_secret_value() if settings.database_url else None
-    )
+    url = args.database_url or os.environ.get("SEED_DATABASE_URL")
     if not url:
         print(
-            "DATABASE_URL is not set (api/.env.local) and --database-url not given", file=sys.stderr
+            "No target database. Pass --database-url (or set SEED_DATABASE_URL); the seed never"
+            " falls back to DATABASE_URL, which is production in api/.env.local.",
+            file=sys.stderr,
         )
         return 2
     try:

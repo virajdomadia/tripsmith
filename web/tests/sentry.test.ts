@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sentryOptions } from '../src/lib/sentry';
+import { sentryOptions, withoutTracing } from '../src/lib/sentry';
 
 describe('sentryOptions', () => {
   it('is disabled without a DSN', () => {
@@ -30,18 +30,26 @@ describe('sentryOptions', () => {
         NEXT_PUBLIC_VERCEL_ENV: 'production',
         NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA: 'def',
       }),
-    ).toMatchObject({ environment: 'production', release: 'def', tracesSampleRate: 0.1 });
+    ).toMatchObject({ environment: 'production', release: 'def' });
   });
 
   it('omits release when unknown so the build-time release injected by withSentryConfig wins', () => {
     expect('release' in sentryOptions({ SENTRY_DSN: 'x' })).toBe(false);
   });
 
-  it('never sends PII and samples traces lightly outside development', () => {
+  it('never sends PII and samples server traces lightly outside development', () => {
     const prod = sentryOptions({ SENTRY_DSN: 'x', VERCEL_ENV: 'production' });
     expect(prod.sendDefaultPii).toBe(false);
     expect(prod.tracesSampleRate).toBe(0.1);
     expect(sentryOptions({ SENTRY_DSN: 'x' }).tracesSampleRate).toBe(1);
+  });
+
+  it('the browser is errors only: no trace sampling and no BrowserTracing integration', () => {
+    const browser = sentryOptions({ NEXT_PUBLIC_SENTRY_DSN: 'x' }, 'browser');
+    expect('tracesSampleRate' in browser).toBe(false);
+    expect(browser.integrations).toBe(withoutTracing);
+    const defaults = [{ name: 'Breadcrumbs' }, { name: 'BrowserTracing' }, { name: 'Dedupe' }];
+    expect(withoutTracing(defaults).map((i) => i.name)).toEqual(['Breadcrumbs', 'Dedupe']);
   });
 });
 
