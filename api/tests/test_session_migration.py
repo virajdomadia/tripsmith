@@ -1,5 +1,6 @@
-"""Migration 0002: sessions opened before v1.0.1 hold the raw token; the upgrade hashes them in
-place, so the cookie a signed-in owner already has keeps working."""
+"""Migration 0003 (expand-only): sessions opened before v1.0.1 hold only the raw token; the
+upgrade backfills `token_hash` beside it, so the cookie a signed-in owner already has keeps
+working, and the old code's `token` column stays readable until the v2 contract step."""
 
 import asyncio
 import datetime as dt
@@ -33,13 +34,13 @@ async def _sql(url: str, *statements: str) -> list[tuple[object, ...]]:
 
 
 @pytest.mark.db
-def test_upgrade_hashes_existing_sessions_in_place(migrated_database_url: str) -> None:
+def test_upgrade_backfills_hashes_and_keeps_the_old_column(migrated_database_url: str) -> None:
     # Sync on purpose: env.py runs its own event loop, like the conftest harness.
     cfg = Config(os.path.join(API_DIR, "alembic.ini"))
     url = migrated_database_url
     expires = (dt.datetime.now(dt.UTC) + dt.timedelta(days=1)).isoformat()
     try:
-        command.downgrade(cfg, "0001")
+        command.downgrade(cfg, "0002")
         asyncio.run(
             _sql(
                 url,
@@ -47,15 +48,28 @@ def test_upgrade_hashes_existing_sessions_in_place(migrated_database_url: str) -
                 "insert into users (id, name, email, role) "
                 "values ('u-mig', 'Owner', 'mig@tripsmith.demo', 'owner')",
                 "insert into sessions (id, user_id, token, expires_at) "
-                f"values ('s-mig', 'u-mig', '{RAW}', '{expires}')",
+                f"values ('s-old', 'u-mig', '{RAW}', '{expires}')",
             )
         )
         command.upgrade(cfg, "head")
-        rows = asyncio.run(_sql(url, "select token_hash from sessions where id = 's-mig'"))
-        assert rows == [(hash_token(RAW),)]
+        rows = asyncio.run(_sql(url, "select token, token_hash from sessions where id = 's-old'"))
+        assert rows == [(RAW, hash_token(RAW))]  # expand: the old column is untouched
 
-        command.downgrade(cfg, "0001")  # tokens cannot be recovered: the rows go
-        assert asyncio.run(_sql(url, "select count(*) from sessions")) == [(0,)]
+        # Old code still running after the migration: it inserts `token` only — allowed now
+        # that the column is nullable-compatible both ways. New code writes `token_hash` only.
+        asyncio.run(
+            _sql(
+                url,
+                "insert into sessions (id, user_id, token, expires_at) "
+                f"values ('s-gap', 'u-mig', 'opened-by-old-code', '{expires}')",
+                "insert into sessions (id, user_id, token_hash, expires_at) "
+                f"values ('s-new', 'u-mig', '{hash_token('new')}', '{expires}')",
+            )
+        )
+
+        command.downgrade(cfg, "0002")  # new-code rows have no raw token: they go
+        rows = asyncio.run(_sql(url, "select id from sessions order by id"))
+        assert rows == [("s-gap",), ("s-old",)]
     finally:
         command.upgrade(cfg, "head")
         asyncio.run(_sql(url, "truncate table users cascade"))

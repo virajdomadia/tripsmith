@@ -71,13 +71,13 @@ async def test_login_creates_a_session_row(db: AsyncSession) -> None:
     assert before + SESSION_TTL - dt.timedelta(seconds=5) <= session.expires_at
     assert await session_count(db) == 1
     # The row holds only the digest: the cookie value appears nowhere in the table.
-    assert session.token_hash == hash_token(token) and len(session.token_hash) == 64
+    assert session.token_hash == hash_token(token) and session.token is None
     dump = (await db.execute(text("select sessions::text from sessions"))).scalar_one()
     assert token not in dump
 
 
 def test_hash_token_is_sha256_hex_matching_the_migration() -> None:
-    # 0002 hashes existing rows with encode(sha256(convert_to(token, 'UTF8')), 'hex').
+    # 0003 backfills existing rows with encode(sha256(convert_to(token, 'UTF8')), 'hex').
     assert hash_token("abc") == ("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
 
 
@@ -219,6 +219,7 @@ async def test_login_route_sets_cookie_and_returns_session_info(
     row = (await db.execute(select(Session))).scalar_one()
     assert row.ip == "1.2.3.4" and row.user_agent == "UA"
     assert row.token_hash == hash_token(res.cookies[COOKIE_NAME])
+    assert row.token is None  # the legacy raw column is never written
 
 
 @pytest.mark.db

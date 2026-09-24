@@ -1,6 +1,7 @@
 """`/admin/destinations` (06 §C-REST): owner CRUD; the cover upload proxy lives here too (C3)."""
 
 import asyncio
+import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile, status
@@ -18,6 +19,7 @@ from app.schemas.catalog import (
 )
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_destinations as svc
+from app.services.catalog.cover_url import check_cover_url
 from app.services.images import MAX_BYTES, ImageError, prepare_image
 
 router = APIRouter(
@@ -25,6 +27,12 @@ router = APIRouter(
 )
 
 Db = Annotated[AsyncSession, Depends(get_session)]
+
+
+def _check_cover(request: Request, payload: DestinationInput) -> None:
+    check_cover_url(
+        payload.cover_url, request.app.state.settings, on_vercel=bool(os.environ.get("VERCEL"))
+    )
 
 
 @router.get("", operation_id="listAdminDestinations", response_model_by_alias=True)
@@ -74,16 +82,20 @@ async def get_route(id: str, response: Response, db: Db) -> AdminDestination:
     status_code=status.HTTP_201_CREATED,
     response_model_by_alias=True,
 )
-async def create_route(payload: DestinationInput, response: Response, db: Db) -> AdminDestination:
+async def create_route(
+    payload: DestinationInput, request: Request, response: Response, db: Db
+) -> AdminDestination:
     response.headers.update(NO_STORE)
+    _check_cover(request, payload)
     return await svc.create_destination(db, payload)
 
 
 @router.put("/{id}", operation_id="updateDestination", response_model_by_alias=True)
 async def update_route(
-    id: str, payload: DestinationInput, response: Response, db: Db
+    id: str, payload: DestinationInput, request: Request, response: Response, db: Db
 ) -> AdminDestination:
     response.headers.update(NO_STORE)
+    _check_cover(request, payload)
     return await svc.update_destination(db, id, payload)
 
 

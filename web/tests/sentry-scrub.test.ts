@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scrubEvent } from '../src/lib/sentry-scrub';
+import { makeScrubber, scrubEvent, secretValues } from '../src/lib/sentry-scrub';
 
 describe('scrubEvent', () => {
   it('drops the internal secret, visitor address and cookies, case-insensitively', () => {
@@ -27,5 +27,57 @@ describe('scrubEvent', () => {
 
   it('leaves an event with no request alone', () => {
     expect(scrubEvent({ type: 'transaction', request: undefined })).toEqual({ type: 'transaction' });
+  });
+});
+
+describe('makeScrubber', () => {
+  const scrub = makeScrubber({
+    REVALIDATE_SECRET: 'rv-secret-value-123',
+    NEXT_PUBLIC_SITE_KEY: 'public-value-kept',
+    API_URL: 'https://api.example.test',
+  });
+
+  it('masks a secret value anywhere in the event, keys included', () => {
+    const event = scrub({
+      message: 'failed with rv-secret-value-123',
+      exception: { values: [{ value: 'header was rv-secret-value-123' }] },
+      breadcrumbs: [{ message: 'fetch', data: { note: 'x rv-secret-value-123 y' } }],
+      extra: { 'rv-secret-value-123': 'as a key', kept: 'https://api.example.test' },
+      contexts: { hop: { secret: ['rv-secret-value-123'] } },
+    } as Record<string, unknown>);
+    expect(JSON.stringify(event)).not.toContain('rv-secret-value-123');
+    expect(event.message).toBe('[Filtered]');
+    expect(event.extra).toEqual({ '[Filtered]': 'as a key', kept: 'https://api.example.test' });
+  });
+
+  it('masks a truncated copy but not ordinary text', () => {
+    const out = scrub({
+      extra: {
+        dots: 'trimmed rv-secret-v...',
+        ellipsis: 'trimmed rv-secret-v\u2026 more',
+        end: 'ends rv-secre',
+        short: 'rv-secr...',
+        plain: 'an ordinary rv-secret mention elsewhere',
+      },
+    } as Record<string, unknown>);
+    expect(out.extra).toEqual({
+      dots: '[Filtered]',
+      ellipsis: '[Filtered]',
+      end: '[Filtered]',
+      short: 'rv-secr...',
+      plain: 'an ordinary rv-secret mention elsewhere',
+    });
+  });
+
+  it('only treats server secrets as secrets', () => {
+    expect(
+      secretValues({
+        REVALIDATE_SECRET: 'rv-secret-value-123',
+        BLOB_READ_WRITE_TOKEN: 'token-value-123',
+        NEXT_PUBLIC_SITE_KEY: 'public-value-kept',
+        SHORT_SECRET: 'short',
+        API_URL: 'https://api.example.test',
+      }),
+    ).toEqual(['rv-secret-value-123', 'token-value-123']);
   });
 });

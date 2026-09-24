@@ -137,7 +137,8 @@ async def test_a_query_string_308s_to_the_bare_url_before_any_work(
         assert res.status_code == 308
         # Relative, so it resolves under the web's /api/ prefix and on the api's own origin alike.
         assert res.headers["location"] == "itinerary.pdf"
-        assert res.headers["cache-control"] == "public, s-maxage=60, stale-while-revalidate=300"
+        # A day at the edge: a repeated variant never reaches the function again.
+        assert res.headers["cache-control"] == "public, s-maxage=86400"
     assert limiter.hits == [] and store.puts == []
 
 
@@ -162,3 +163,40 @@ async def test_downloads_are_rate_limited_per_address(
     assert limiter.hits == ["pdf:203.0.113.5"] * 3
     other = await db_client.get(PATH, headers={"X-Forwarded-For": "203.0.113.6"})
     assert other.status_code == 302
+
+
+@pytest.mark.db
+async def test_unknown_packages_and_head_requests_are_not_counted(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    with_store(db_app, FakeBlobStore())
+    limiter = CountingLimiter(limit=1)
+    db_app.state.rate_limiter = limiter
+    headers = {"X-Forwarded-For": "203.0.113.5"}
+
+    for _ in range(3):
+        missing = await db_client.get("/packages/atlantis/itinerary.pdf", headers=headers)
+        assert missing.status_code == 404
+        assert (await db_client.head(PATH, headers=headers)).status_code == 200
+    assert limiter.hits == []
+    assert (await db_client.get(PATH, headers=headers)).status_code == 302  # still has its one
+
+
+@pytest.mark.db
+async def test_the_web_handler_forwarded_address_is_the_key(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    """Through the web's handler every visitor arrives from Vercel's hop address; the trusted
+    `X-Client-Ip` keeps them in separate buckets."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    with_store(db_app, FakeBlobStore())
+    db_app.state.settings = make_settings(revalidate_secret="web-to-api-secret")
+    limiter = CountingLimiter(limit=1)
+    db_app.state.rate_limiter = limiter
+    hop = {"X-Forwarded-For": "76.76.21.21", "X-Internal-Secret": "web-to-api-secret"}
+
+    first = await db_client.get(PATH, headers={**hop, "X-Client-Ip": "49.207.1.1"})
+    second = await db_client.get(PATH, headers={**hop, "X-Client-Ip": "49.207.2.2"})
+    assert first.status_code == second.status_code == 302
+    assert limiter.hits == ["pdf:49.207.1.1", "pdf:49.207.2.2"]

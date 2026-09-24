@@ -164,7 +164,7 @@ def test_context_from_the_row() -> None:
 
 def test_visitor_email_links_the_pdf_when_a_package_is_attached() -> None:
     settings = make_settings(site_url="https://tripsmith.vercel.app")
-    url = "https://tripsmith.vercel.app/api/packages/north-goa-beaches/itinerary.pdf"
+    url = "https://tripsmith.vercel.app/packages/north-goa-beaches/itinerary.pdf"
 
     attached = render_visitor(ctx(), settings=settings, attached=True)
     assert url in attached.html and url in attached.text

@@ -7,13 +7,17 @@ FastAPI integrations wrap every request. No DSN = Sentry off (local dev, CI, tes
 Scrubbing: the web's server-side hops send `REVALIDATE_SECRET` as `X-Internal-Secret` and the
 visitor's address as `X-Client-Ip` (infra/client_ip.py). The SDK's own header filter only knows
 the standard names, so `_scrub` drops ours — plus the standard ones, belt and braces — from
-every event and transaction. Stack-frame locals are the other route out: a middleware frame's
-`scope` holds the raw ASGI header list, so the `EventScrubber` denylist filters any `headers`
-key (recursively) along with the header names themselves. Last, every configured secret's
-*value* is masked wherever it appears as a string, whatever key it hides under.
+every event and transaction. Stack-frame locals are off (`include_local_variables=False`):
+they carried the raw ASGI header list (a middleware frame's `scope`) and visitor addresses
+(`key="pdf:1.2.3.4"`), and there is no reliable way to scrub values by name. The
+`EventScrubber` denylist still filters those header names (and any `headers` collection)
+wherever a dict can land — breadcrumbs, extra, spans. Last, every configured secret's *value*
+is masked wherever it appears in a string or a key, including a truncated copy ending in an
+ellipsis (the SDK trims long strings that way).
 """
 
 import os
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -52,7 +56,8 @@ _EXTRA_DENYLIST = sorted(
     SCRUBBED_HEADERS | {h.replace("-", "_") for h in SCRUBBED_HEADERS} | {"headers", "raw_headers"}
 )
 FILTERED = "[Filtered]"
-SECRET_MIN_LENGTH = 8  # shorter values would mask ordinary words
+SECRET_MIN_LENGTH = 8  # shorter values (or prefixes) would mask ordinary words
+ELLIPSIS_RE = re.compile("\\.\\.\\.|…")
 
 
 def _scrub(event: Any, _hint: Any) -> Any:
@@ -75,11 +80,25 @@ def _scrub(event: Any, _hint: Any) -> Any:
     return event
 
 
+def _leaks(text: str, secrets: tuple[str, ...]) -> bool:
+    """A secret appears whole, or cut short: 8+ of its leading characters right before an
+    ellipsis or at the very end of the string."""
+    if any(s in text for s in secrets):
+        return True
+    cuts = [len(text), *(m.start() for m in ELLIPSIS_RE.finditer(text))]
+    return any(
+        text[:cut].endswith(s[:n])
+        for s in secrets
+        for cut in cuts
+        for n in range(SECRET_MIN_LENGTH, len(s))
+    )
+
+
 def _mask(value: Any, secrets: tuple[str, ...]) -> Any:
     if isinstance(value, str):
-        return FILTERED if any(s in value for s in secrets) else value
+        return FILTERED if _leaks(value, secrets) else value
     if isinstance(value, dict):
-        return {k: _mask(v, secrets) for k, v in value.items()}
+        return {_mask(k, secrets): _mask(v, secrets) for k, v in value.items()}
     if isinstance(value, list):
         return [_mask(v, secrets) for v in value]
     return value
@@ -119,6 +138,7 @@ def init_sentry(settings: Settings, *, transport: Transport | None = None) -> bo
         send_default_pii=False,
         traces_sample_rate=0.1,
         integrations=[StarletteIntegration(), FastApiIntegration()],
+        include_local_variables=False,
         event_scrubber=EventScrubber(
             denylist=DEFAULT_DENYLIST + _EXTRA_DENYLIST,
             pii_denylist=DEFAULT_PII_DENYLIST,

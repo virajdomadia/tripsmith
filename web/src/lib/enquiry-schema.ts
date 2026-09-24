@@ -26,6 +26,10 @@ export const NAME_CONTROL_MESSAGE = 'Enter your name on one line, without specia
 const PHONE_RE = /^[6-9][0-9]{9}$/;
 /** C0 + DEL + C1 controls and U+2028/9 — mirrors `CONTROL_RE` in the api schema. */
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+/** Python's `str.strip()` also drops U+001C–U+001F and U+0085, which JS `trim()` keeps — so a
+ * name wrapped in them must not be refused here for a control character the api never sees. */
+const pythonStrip = (v: string) =>
+  v.replace(/^[\s\u001c-\u001f\u0085]+|[\s\u001c-\u001f\u0085]+$/g, '');
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])(-[0-9]{2})?$/; // YYYY-MM (the form) or a date (the contract)
 
@@ -56,12 +60,14 @@ export const enquirySchema = z
         .max(80)
         .optional(),
     ),
-    name: z
-      .string()
-      .trim()
-      .min(2, 'Enter your name')
-      .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`)
-      .refine((n) => !CONTROL_RE.test(n), NAME_CONTROL_MESSAGE),
+    name: z.preprocess(
+      (v) => (typeof v === 'string' ? pythonStrip(v) : v),
+      z
+        .string()
+        .min(2, 'Enter your name')
+        .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`)
+        .refine((n) => !CONTROL_RE.test(n), NAME_CONTROL_MESSAGE),
+    ),
     phone: z
       .string()
       .transform(normalisePhone)

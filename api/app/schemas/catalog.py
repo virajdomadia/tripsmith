@@ -1,15 +1,11 @@
 """Catalog response models (06 C, Part D) and the `GET /packages` query model."""
 
 import datetime as dt
-import os
 from enum import StrEnum
 from typing import Annotated, Literal
-from urllib.parse import urlsplit
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from app.config import get_settings
-from app.infra.storage import public_host
 from app.models.enums import PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.meta import Badge
@@ -20,32 +16,10 @@ BUDGET_MAX_RUPEES = 10_000_000
 PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 # Mirrors web/next.config.ts `images.remotePatterns`: prod Blob storage, or (dev only) the
-# `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against. The shape
-# only: `check_cover_url` narrows it at runtime — the published contract stays environment-free.
+# `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against.
 COVER_URL_PATTERN = (
     r"^(https://[a-z0-9-]+\.public\.blob\.vercel-storage\.com/\S*|http://localhost(:\d+)?/\S*)$"
 )
-
-
-def _own_blob_host() -> str | None:
-    token = get_settings().blob_read_write_token
-    return public_host(token.get_secret_value()) if token else None
-
-
-def check_cover_url(url: str) -> str:
-    """Runtime half of `COVER_URL_PATTERN`: a localhost cover only off Vercel (it cannot render
-    for anyone else), and a Blob cover only from this deployment's own store when a store is
-    configured — another store's object can vanish or change under us. Without a token (dev,
-    CI) any `*.public.blob.vercel-storage.com` host passes, as the pattern says."""
-    host = urlsplit(url).hostname or ""
-    if host == "localhost":
-        if os.environ.get("VERCEL"):
-            raise ValueError("Upload the cover image — a localhost URL only works in development")
-        return url
-    own = _own_blob_host()
-    if own is not None and host != own:
-        raise ValueError("Upload the cover image here — links to other image stores are not used")
-    return url
 
 
 class SortOrder(StrEnum):
@@ -282,11 +256,6 @@ class DestinationInput(ApiModel):
     @classmethod
     def _strip(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
-
-    @field_validator("cover_url")
-    @classmethod
-    def _cover_host(cls, v: str) -> str:
-        return check_cover_url(v)
 
     @field_validator("best_months")
     @classmethod

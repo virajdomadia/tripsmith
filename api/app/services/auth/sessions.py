@@ -1,8 +1,10 @@
 """Opaque 30-day sessions in the `sessions` table (06 §A2).
 
-The token is the cookie value; the table stores only its SHA-256 (`token_hash`), so a leaked
+The token is the cookie value; a row stores only its SHA-256 (`token_hash`), so a leaked
 backup or a read-only SQL hole yields no usable cookie. A plain hash is enough — the token is
 256 random bits, so there is nothing to brute-force and no need for a slow or keyed hash.
+Rows from before v1.0.1 still carry the raw value in the legacy `token` column (migration 0003
+is expand-only) until they expire or the v2 contract step drops it; nothing here reads it.
 """
 
 import asyncio
@@ -27,8 +29,8 @@ def new_token() -> str:
 
 
 def hash_token(token: str) -> str:
-    """What `sessions.token_hash` holds. Mirrored in SQL by migration 0002
-    (`encode(sha256(convert_to(token, 'UTF8')), 'hex')`), which hashed the rows in place."""
+    """What `sessions.token_hash` holds. Mirrored in SQL by migration 0003
+    (`encode(sha256(convert_to(token, 'UTF8')), 'hex')`), which backfilled the existing rows."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 

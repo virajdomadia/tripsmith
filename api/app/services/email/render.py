@@ -127,7 +127,9 @@ def _common(ctx: EnquiryEmailContext, settings: Settings) -> dict[str, object]:
         "business": BUSINESS,
         "site_url": site,
         "package_url": f"{site}/packages/{ctx.package_slug}" if ctx.package_slug else None,
-        "pdf_url": f"{site}/api/packages/{ctx.package_slug}/itinerary.pdf"
+        # The web's download handler (web/src/lib/pdf.ts), not the /api rewrite: it forwards the
+        # visitor's address, so the api's per-IP ceiling is per visitor.
+        "pdf_url": f"{site}/packages/{ctx.package_slug}/itinerary.pdf"
         if ctx.package_slug
         else None,
         "admin_url": f"{site}/admin/enquiries/{ctx.id}",
