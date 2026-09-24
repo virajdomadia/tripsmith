@@ -4,7 +4,12 @@ import {
   csvHref,
   filterHref,
   parseFilters,
+  STATUS_MOVES,
+  statusChoices,
   toQuery,
+  TYPES,
+  typeHeadline,
+  typeLabel,
 } from '@/lib/admin/enquiry-filters';
 
 describe('parseFilters', () => {
@@ -43,11 +48,16 @@ describe('parseFilters', () => {
   });
 
   it('drops values the api would reject instead of forwarding them', () => {
-    const f = parseFilters({ status: 'archived', type: 'callback', from: 'yesterday', page: '0' });
+    const f = parseFilters({ status: 'archived', type: 'booking', from: 'yesterday', page: '0' });
     expect(f.status).toBeUndefined();
     expect(f.type).toBeUndefined();
     expect(f.from).toBeUndefined();
     expect(f.page).toBe(1);
+  });
+
+  it('accepts every inbox type, including the v2/v3 ones (R24)', () => {
+    expect(parseFilters({ type: 'callback' }).type).toBe('callback');
+    expect(parseFilters({ type: 'chat-handoff' }).type).toBe('chat-handoff');
   });
 
   it('takes the first value when a param repeats', () => {
@@ -130,5 +140,40 @@ describe('clampPageHref', () => {
   it('leaves a page in range alone', () => {
     expect(clampPageHref(parseFilters({ page: '3' }), 3)).toBeNull();
     expect(clampPageHref(parseFilters({}), 1)).toBeNull();
+  });
+});
+
+describe('type labels', () => {
+  it('labels all six types and falls back to the raw value for an unknown one', () => {
+    expect(TYPES.map(typeLabel)).toEqual([
+      'Standard',
+      'Customise',
+      'Contact',
+      'Callback request',
+      'Group enquiry',
+      'From concierge',
+    ]);
+    expect(typeLabel('booking')).toBe('booking');
+    expect(typeLabel('toString')).toBe('toString'); // own keys only, never the prototype
+  });
+
+  it('adds "enquiry" to the v1 labels only', () => {
+    expect(typeHeadline('custom')).toBe('Customise enquiry');
+    expect(typeHeadline('group')).toBe('Group enquiry');
+    expect(typeHeadline('callback')).toBe('Callback request');
+  });
+});
+
+describe('status moves (R24)', () => {
+  it('never returns to new and reopens closed as contacted', () => {
+    expect(Object.values(STATUS_MOVES).some((to) => to.includes('new'))).toBe(false);
+    expect(STATUS_MOVES.closed).toEqual(['contacted']);
+  });
+
+  it('offers the current status plus its legal moves, in tab order', () => {
+    expect(statusChoices('new')).toEqual(['new', 'contacted', 'converted', 'closed']);
+    expect(statusChoices('contacted')).toEqual(['contacted', 'converted', 'closed']);
+    expect(statusChoices('converted')).toEqual(['converted', 'closed']);
+    expect(statusChoices('closed')).toEqual(['contacted', 'closed']);
   });
 });

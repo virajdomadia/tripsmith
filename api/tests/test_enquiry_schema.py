@@ -105,3 +105,12 @@ def test_a_name_is_one_line_with_a_friendly_message(name: str) -> None:
 def test_surrounding_newlines_are_trimmed_not_rejected() -> None:
     e = EnquiryCreate.model_validate({**CASES["valid"][2], "name": "\r\n Sneha Iyer \n"})
     assert e.name == "Sneha Iyer"
+
+
+@pytest.mark.parametrize("kind", ["callback", "group", "chat-handoff"])
+def test_the_public_form_still_takes_only_the_v1_types(kind: str) -> None:
+    # The inbox reads all six (`AdminEnquiryType`); the public contract stays at three (R24).
+    body = {**expand(CASES["valid"][0]), "type": kind}
+    with pytest.raises(ValidationError) as exc:
+        EnquiryCreate.model_validate(body)
+    assert ("type",) in {tuple(err["loc"]) for err in exc.value.errors()}

@@ -11,6 +11,7 @@ from app.infra.client_ip import RateLimited, client_ip
 from app.infra.db import get_session
 from app.infra.ratelimit import RateLimiter
 from app.models import Session
+from app.models.enums import UserRole
 from app.schemas.auth import LoginRequest, SessionInfo
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
 from app.services.auth.deps import current_session
@@ -34,6 +35,13 @@ async def login_rate_limit(request: Request) -> None:
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _session_info(db: AsyncSession, session: Session) -> SessionInfo:
+    """The new-enquiry count is owner-only data (R18): a customer session never runs the query
+    and gets `newEnquiries: null`."""
+    is_owner = session.user.role == UserRole.OWNER
+    return session_info(session, new_enquiries=await count_new_enquiries(db) if is_owner else None)
 
 
 @router.post(
@@ -60,7 +68,7 @@ async def post_login(
         raise ApiError("unauthorized", "Wrong email or password")
     session, token = opened
     set_session_cookie(response, token, session.expires_at, request.app.state.settings)
-    return session_info(session, new_enquiries=await count_new_enquiries(db))
+    return await _session_info(db, session)
 
 
 @router.post(
@@ -89,4 +97,4 @@ async def get_session_route(
     response.headers.update(NO_STORE)
     if session is None:
         raise ApiError("unauthorized", "Sign in to continue")
-    return session_info(session, new_enquiries=await count_new_enquiries(db))
+    return await _session_info(db, session)

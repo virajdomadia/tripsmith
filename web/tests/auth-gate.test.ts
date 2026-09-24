@@ -34,18 +34,23 @@ describe('loginHref', () => {
 
 describe('gateDecision', () => {
   it('sends a signed-out visitor to the form with the target path', () => {
-    expect(gateDecision('/admin/enquiries?status=new', false)).toEqual({
+    expect(gateDecision('/admin/enquiries?status=new', 'anonymous')).toEqual({
       kind: 'login',
       next: '/admin/enquiries?status=new',
     });
   });
   it('lets a signed-out visitor see the form', () => {
-    expect(gateDecision('/admin/login', false)).toEqual({ kind: 'allow' });
-    expect(gateDecision('/admin/login?error=credentials', false)).toEqual({ kind: 'allow' });
+    expect(gateDecision('/admin/login', 'anonymous')).toEqual({ kind: 'allow' });
+    expect(gateDecision('/admin/login?error=credentials', 'anonymous')).toEqual({ kind: 'allow' });
   });
   it('sends a signed-in owner from the form to the dashboard', () => {
-    expect(gateDecision('/admin/login', true)).toEqual({ kind: 'home' });
-    expect(gateDecision('/admin', true)).toEqual({ kind: 'allow' });
+    expect(gateDecision('/admin/login', 'owner')).toEqual({ kind: 'home' });
+    expect(gateDecision('/admin', 'owner')).toEqual({ kind: 'allow' });
+  });
+  it('sends a signed-in customer to their account, from the form too (R18)', () => {
+    expect(gateDecision('/admin', 'customer')).toEqual({ kind: 'account' });
+    expect(gateDecision('/admin/enquiries?status=new', 'customer')).toEqual({ kind: 'account' });
+    expect(gateDecision('/admin/login', 'customer')).toEqual({ kind: 'account' });
   });
 });
 

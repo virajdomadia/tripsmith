@@ -16,6 +16,7 @@ from app.schemas.admin_enquiries import (
     EnquiryNoteInput,
     EnquiryStatusInput,
 )
+from app.schemas.meta import AdminEnquiryType
 from app.services import admin_enquiries as svc
 from app.services.email.render import IST
 from tests.test_auth import OWNER_EMAIL, OWNER_PASSWORD, seeded_with_owner, with_cookie
@@ -60,6 +61,15 @@ def test_filters_reject_nonsense_values() -> None:
         EnquiryFilters.model_validate({"page": 0})
     with pytest.raises(ValidationError):
         EnquiryFilters.model_validate({"q": "x" * 81})
+
+
+def test_the_inbox_type_enum_is_every_db_enquiry_type() -> None:
+    # `AdminEnquiryType` is a separate wire enum only to keep OpenAPI names unique (R24).
+    assert [t.value for t in AdminEnquiryType] == [t.value for t in EnquiryType]
+    assert set(svc.TYPE_LABELS) == set(EnquiryType)  # the CSV labels every type
+    assert EnquiryFilters.model_validate({"type": "chat-handoff"}).type == (
+        AdminEnquiryType.CHAT_HANDOFF
+    )
 
 
 # --- writes ---------------------------------------------------------------------------------------
@@ -396,6 +406,42 @@ async def test_status_changes_and_owner_notes_interleave_in_one_timeline(
     ]
 
 
+S = EnquiryStatus
+LEGAL_MOVES = {
+    (S.NEW, S.CONTACTED),
+    (S.NEW, S.CONVERTED),
+    (S.NEW, S.CLOSED),
+    (S.CONTACTED, S.CONVERTED),
+    (S.CONTACTED, S.CLOSED),
+    (S.CONVERTED, S.CLOSED),
+    (S.CLOSED, S.CONTACTED),
+}
+
+
+def test_the_transition_table_is_r24() -> None:
+    table = {(old, new) for old, moves in svc.ALLOWED_MOVES.items() for new in moves}
+    assert table == LEGAL_MOVES
+
+
+@pytest.mark.db
+@pytest.mark.parametrize(
+    ("old", "new"), [(old, new) for old in S for new in S if old != new], ids=str
+)
+async def test_status_moves_follow_the_transition_table(
+    db: AsyncSession, old: EnquiryStatus, new: EnquiryStatus
+) -> None:
+    row = await make_enquiry(db, ref="TS-MOVE11", status=old)
+    await db.commit()
+    if (old, new) in LEGAL_MOVES:
+        assert (await svc.set_status(db, row.id, new)).status == new
+        return
+    with pytest.raises(ApiError) as exc:
+        await svc.set_status(db, row.id, new)
+    assert exc.value.code == "conflict" and exc.value.status == 409
+    stored = await svc.get_enquiry(db, row.id)
+    assert stored.status == old and stored.notes == []  # nothing written
+
+
 @pytest.mark.db
 async def test_writes_404_for_an_unknown_id(db: AsyncSession) -> None:
     with pytest.raises(ApiError) as exc:
@@ -522,6 +568,36 @@ async def test_detail_status_and_notes_round_trip(db: AsyncSession, db_client: A
         "Status changed from New to Contacted",
         "Called back",
     ]
+
+
+@pytest.mark.db
+async def test_an_illegal_status_move_is_a_409(db: AsyncSession, db_client: AsyncClient) -> None:
+    headers = await owner_headers(db, db_client)
+    row = await make_enquiry(db, ref="TS-ILL111", status=EnquiryStatus.CONTACTED)
+    await db.commit()
+    res = await db_client.patch(
+        f"/admin/enquiries/{row.id}/status", json={"status": "new"}, headers=headers
+    )
+    assert res.status_code == 409
+    assert res.json()["error"]["message"] == "An enquiry can't move from Contacted to New"
+
+
+@pytest.mark.db
+async def test_a_callback_enquiry_lists_and_loads_in_the_inbox(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    # R24: a v2 type the public form can't submit yet must not 500 the owner's inbox.
+    headers = await owner_headers(db, db_client)
+    row = await make_enquiry(db, ref="TS-CALL11", type=EnquiryType.CALLBACK, package_id=None)
+    await db.commit()
+
+    listed = await db_client.get("/admin/enquiries", params={"type": "callback"}, headers=headers)
+    assert listed.status_code == 200, listed.text
+    assert [(r["ref"], r["type"]) for r in listed.json()["items"]] == [("TS-CALL11", "callback")]
+    detail = await db_client.get(f"/admin/enquiries/{row.id}", headers=headers)
+    assert detail.status_code == 200 and detail.json()["type"] == "callback"
+    csv = await db_client.get("/admin/enquiries.csv", headers=headers)
+    assert csv.status_code == 200 and "Callback request" in csv.text
 
 
 @pytest.mark.db

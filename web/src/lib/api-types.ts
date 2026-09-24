@@ -656,7 +656,7 @@ export interface components {
             status: components["schemas"]["EnquiryStatus"];
             /** Travelmonth */
             travelMonth: string | null;
-            type: components["schemas"]["EnquiryType"];
+            type: components["schemas"]["AdminEnquiryType"];
             /**
              * Updatedat
              * Format: date-time
@@ -665,6 +665,15 @@ export interface components {
             /** Useragent */
             userAgent: string | null;
         };
+        /**
+         * AdminEnquiryType
+         * @description Every `enquiry_type` DB value (`app.models.enums.EnquiryType`), as the inbox reads and
+         *     filters them (R24): a row of any type lists and loads. A separate wire enum rather than the
+         *     ORM one because two enums both named `EnquiryType` would collide in the OpenAPI schema;
+         *     tests/test_admin_enquiries.py keeps the values identical to the ORM enum's.
+         * @enum {string}
+         */
+        AdminEnquiryType: "standard" | "custom" | "contact" | "callback" | "group" | "chat-handoff";
         /** AdminImage */
         AdminImage: {
             /** Alt */
@@ -1226,7 +1235,7 @@ export interface components {
              * @description First of the month
              */
             travelMonth: string | null;
-            type: components["schemas"]["EnquiryType"];
+            type: components["schemas"]["AdminEnquiryType"];
         };
         /**
          * EnquiryStatus
@@ -1239,10 +1248,10 @@ export interface components {
         };
         /**
          * EnquiryType
-         * @description The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.
+         * @description The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.
          *
          *     `callback`, `group` and `chat-handoff` are forward-compat DB values that join here with
-         *     their features (v2 add-on / v3).
+         *     their features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.
          * @enum {string}
          */
         EnquiryType: "standard" | "custom" | "contact";
@@ -1693,7 +1702,9 @@ export interface components {
         };
         /**
          * SessionInfo
-         * @description What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16).
+         * @description What `GET /auth/session` (and `POST /auth/login`) returns. `user.role` is what the web
+         *     `/admin` gate checks; `newEnquiries` feeds the admin sidebar badge (F16) and is owner-only
+         *     data, so it is null for any other role (R18).
          */
         SessionInfo: {
             /**
@@ -1703,9 +1714,9 @@ export interface components {
             expiresAt: string;
             /**
              * Newenquiries
-             * @description Enquiries still in status `new`
+             * @description Enquiries still in status `new`; owner sessions only
              */
-            newEnquiries: number;
+            newEnquiries?: number | null;
             user: components["schemas"]["SessionUser"];
         };
         /** SessionUser */
@@ -2047,7 +2058,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["EnquiryStatus"] | null;
-                type?: components["schemas"]["EnquiryType"] | null;
+                type?: components["schemas"]["AdminEnquiryType"] | null;
                 packageId?: string | null;
                 /** @description Received on or after this IST day */
                 from?: string | null;
@@ -2088,7 +2099,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["EnquiryStatus"] | null;
-                type?: components["schemas"]["EnquiryType"] | null;
+                type?: components["schemas"]["AdminEnquiryType"] | null;
                 packageId?: string | null;
                 /** @description Received on or after this IST day */
                 from?: string | null;

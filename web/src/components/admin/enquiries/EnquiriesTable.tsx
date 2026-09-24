@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { TYPE_LABELS } from '@/lib/admin/enquiry-filters';
+import { typeLabel } from '@/lib/admin/enquiry-filters';
 import type { components } from '@/lib/api-types';
 import { MONTHS } from '@/lib/format';
 import { istShortDate } from './ist-date';
@@ -81,7 +81,7 @@ export function EnquiriesTable({ items }: { items: EnquiryRow[] }) {
                 <span className="text-xs text-mute">{phoneLabel(e.phone)}</span>
               </TableCell>
               <TableCell className="text-ink2">{e.package?.name ?? '—'}</TableCell>
-              <TableCell className="text-ink2">{TYPE_LABELS[e.type]}</TableCell>
+              <TableCell className="text-ink2">{typeLabel(e.type)}</TableCell>
               <TableCell className="whitespace-nowrap text-ink2">
                 {e.travelMonth
                   ? `${monthLabel(e.travelMonth)} · ${partyLabel(e.adults, e.children)}`

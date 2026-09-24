@@ -289,7 +289,7 @@
             "title": "Travelmonth"
           },
           "type": {
-            "$ref": "#/components/schemas/EnquiryType"
+            "$ref": "#/components/schemas/AdminEnquiryType"
           },
           "updatedAt": {
             "format": "date-time",
@@ -334,6 +334,19 @@
         ],
         "title": "AdminEnquiry",
         "type": "object"
+      },
+      "AdminEnquiryType": {
+        "description": "Every `enquiry_type` DB value (`app.models.enums.EnquiryType`), as the inbox reads and\nfilters them (R24): a row of any type lists and loads. A separate wire enum rather than the\nORM one because two enums both named `EnquiryType` would collide in the OpenAPI schema;\ntests/test_admin_enquiries.py keeps the values identical to the ORM enum's.",
+        "enum": [
+          "standard",
+          "custom",
+          "contact",
+          "callback",
+          "group",
+          "chat-handoff"
+        ],
+        "title": "AdminEnquiryType",
+        "type": "string"
       },
       "AdminImage": {
         "properties": {
@@ -1601,7 +1614,7 @@
             "title": "Travelmonth"
           },
           "type": {
-            "$ref": "#/components/schemas/EnquiryType"
+            "$ref": "#/components/schemas/AdminEnquiryType"
           }
         },
         "required": [
@@ -1643,7 +1656,7 @@
         "type": "object"
       },
       "EnquiryType": {
-        "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3).",
+        "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.",
         "enum": [
           "standard",
           "custom",
@@ -2736,7 +2749,7 @@
         "type": "object"
       },
       "SessionInfo": {
-        "description": "What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16).",
+        "description": "What `GET /auth/session` (and `POST /auth/login`) returns. `user.role` is what the web\n`/admin` gate checks; `newEnquiries` feeds the admin sidebar badge (F16) and is owner-only\ndata, so it is null for any other role (R18).",
         "properties": {
           "expiresAt": {
             "format": "date-time",
@@ -2744,10 +2757,17 @@
             "type": "string"
           },
           "newEnquiries": {
-            "description": "Enquiries still in status `new`",
-            "minimum": 0.0,
-            "title": "Newenquiries",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Enquiries still in status `new`; owner sessions only",
+            "title": "Newenquiries"
           },
           "user": {
             "$ref": "#/components/schemas/SessionUser"
@@ -2755,8 +2775,7 @@
         },
         "required": [
           "user",
-          "expiresAt",
-          "newEnquiries"
+          "expiresAt"
         ],
         "title": "SessionInfo",
         "type": "object"
@@ -3327,7 +3346,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/EnquiryType"
+                  "$ref": "#/components/schemas/AdminEnquiryType"
                 },
                 {
                   "type": "null"
@@ -3481,7 +3500,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/EnquiryType"
+                  "$ref": "#/components/schemas/AdminEnquiryType"
                 },
                 {
                   "type": "null"

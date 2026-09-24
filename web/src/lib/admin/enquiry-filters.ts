@@ -1,13 +1,21 @@
 import type { components } from '@/lib/api-types';
 
 export type EnquiryStatus = components['schemas']['EnquiryStatus'];
-export type EnquiryType = components['schemas']['EnquiryType'];
+/** All six DB types — the inbox reads every one; the public form submits only the v1 three. */
+export type EnquiryType = components['schemas']['AdminEnquiryType'];
 
 export const INBOX_PATH = '/admin/enquiries';
 export const CSV_PATH = '/api/admin/enquiries.csv';
 
 export const STATUSES = ['new', 'contacted', 'converted', 'closed'] as const;
-export const TYPES = ['standard', 'custom', 'contact'] as const;
+export const TYPES = [
+  'standard',
+  'custom',
+  'contact',
+  'callback',
+  'group',
+  'chat-handoff',
+] as const satisfies readonly EnquiryType[];
 
 export const STATUS_LABELS: Record<EnquiryStatus, string> = {
   new: 'New',
@@ -16,12 +24,39 @@ export const STATUS_LABELS: Record<EnquiryStatus, string> = {
   closed: 'Closed',
 };
 
-/** "Customise", not "Custom" — the public form calls it "Customise this trip" (06 §meta). */
+/** "Customise", not "Custom" — the public form calls it "Customise this trip" (06 §meta).
+ *  Mirrored by the api's CSV `TYPE_LABELS` (services/admin_enquiries.py). */
 export const TYPE_LABELS: Record<EnquiryType, string> = {
   standard: 'Standard',
   custom: 'Customise',
   contact: 'Contact',
+  callback: 'Callback request',
+  group: 'Group enquiry',
+  'chat-handoff': 'From concierge',
 };
+
+/** A type's label, or the raw value for one this build doesn't know yet — a newer api must not
+ *  crash an older inbox. */
+export const typeLabel = (t: string): string =>
+  Object.hasOwn(TYPE_LABELS, t) ? TYPE_LABELS[t as EnquiryType] : t;
+
+/** The detail page's subtitle: "Standard enquiry", but "Callback request", not "Callback request
+ *  enquiry" — the v2/v3 labels already name what they are. */
+export const typeHeadline = (t: string): string =>
+  t === 'standard' || t === 'custom' || t === 'contact' ? `${typeLabel(t)} enquiry` : typeLabel(t);
+
+/** R24: the moves the owner may make — nothing returns to `new`; `closed → contacted` reopens.
+ *  Mirrors the api's `ALLOWED_MOVES`, which answers 409 to anything else. */
+export const STATUS_MOVES: Record<EnquiryStatus, readonly EnquiryStatus[]> = {
+  new: ['contacted', 'converted', 'closed'],
+  contacted: ['converted', 'closed'],
+  converted: ['closed'],
+  closed: ['contacted'],
+};
+
+/** What the status control shows: the current status plus its legal moves, in tab order. */
+export const statusChoices = (current: EnquiryStatus): EnquiryStatus[] =>
+  STATUSES.filter((s) => s === current || STATUS_MOVES[current].includes(s));
 
 export interface Filters {
   status?: EnquiryStatus;

@@ -26,7 +26,15 @@ describe('StatusPicker', () => {
     expect(screen.getByRole('button', { name: 'Contacted' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
-    expect(screen.getByRole('button', { name: 'New' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Closed' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
+
+  it('offers only the legal moves (R24): nothing returns to New', () => {
+    render(<StatusPicker id="enq_1" status="converted" />);
+    const names = screen.getAllByRole('button').map((b) => b.textContent);
+    expect(names).toEqual(['Converted', 'Closed']);
   });
 
   it('patches the api and refreshes so the sidebar badge follows', async () => {

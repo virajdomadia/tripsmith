@@ -7,6 +7,8 @@ import { SESSION_COOKIE } from './cookie';
 
 export const ADMIN_HOME = '/admin';
 export const LOGIN_PATH = '/admin/login';
+/** Where a signed-in customer lands instead of `/admin` (R18). Built in B8 — 404s until then. */
+export const ACCOUNT_PATH = '/account';
 
 export type LoginError = 'credentials' | 'rate_limited' | 'unavailable';
 
@@ -48,9 +50,16 @@ export function loginHref(opts: {
   return s ? `${LOGIN_PATH}?${s}` : LOGIN_PATH;
 }
 
-export type Gate = { kind: 'allow' } | { kind: 'login'; next: string } | { kind: 'home' };
+/** Who the api says the cookie belongs to. `customer` is any signed-in role that isn't `owner`. */
+export type Viewer = 'owner' | 'customer' | 'anonymous';
 
-export function gateDecision(pathWithSearch: string, signedIn: boolean): Gate {
+export type Gate =
+  { kind: 'allow' } | { kind: 'login'; next: string } | { kind: 'home' } | { kind: 'account' };
+
+export function gateDecision(pathWithSearch: string, viewer: Viewer): Gate {
+  // Owners only (R18): a customer is validly signed in, just not here — the form included.
+  if (viewer === 'customer') return { kind: 'account' };
+  const signedIn = viewer === 'owner';
   const path = pathWithSearch.split('?')[0];
   const isForm = path === LOGIN_PATH;
   if (isForm) return signedIn ? { kind: 'home' } : { kind: 'allow' };

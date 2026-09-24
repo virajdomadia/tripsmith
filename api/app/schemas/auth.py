@@ -26,8 +26,12 @@ class SessionUser(ApiModel):
 
 
 class SessionInfo(ApiModel):
-    """What `GET /auth/session` returns; `newEnquiries` feeds the admin sidebar badge (F16)."""
+    """What `GET /auth/session` (and `POST /auth/login`) returns. `user.role` is what the web
+    `/admin` gate checks; `newEnquiries` feeds the admin sidebar badge (F16) and is owner-only
+    data, so it is null for any other role (R18)."""
 
     user: SessionUser
     expires_at: datetime
-    new_enquiries: int = Field(ge=0, description="Enquiries still in status `new`")
+    new_enquiries: int | None = Field(
+        default=None, ge=0, description="Enquiries still in status `new`; owner sessions only"
+    )

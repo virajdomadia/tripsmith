@@ -3,8 +3,8 @@
 The token is the cookie value; a row stores only its SHA-256 (`token_hash`), so a leaked
 backup or a read-only SQL hole yields no usable cookie. A plain hash is enough — the token is
 256 random bits, so there is nothing to brute-force and no need for a slow or keyed hash.
-Rows from before v1.0.1 still carry the raw value in the legacy `token` column (migration 0003
-is expand-only) until they expire or the v2 contract step drops it; nothing here reads it.
+Rows from before v1.0.1 may still carry the raw value in the legacy `token` column (migration
+0003 was expand-only); the model no longer maps it, and migration 0004_v2 drops it.
 """
 
 import asyncio
@@ -94,7 +94,7 @@ async def delete_session(db: AsyncSession, token: str) -> None:
     await db.commit()
 
 
-def session_info(session: Session, *, new_enquiries: int) -> SessionInfo:
+def session_info(session: Session, *, new_enquiries: int | None) -> SessionInfo:
     u = session.user
     return SessionInfo(
         user=SessionUser(id=u.id, name=u.name, email=u.email, role=u.role),
