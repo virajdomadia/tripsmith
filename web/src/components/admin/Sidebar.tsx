@@ -37,7 +37,7 @@ export function Sidebar({ session }: { session: SessionInfo }) {
             key={href}
             href={href}
             exact={'exact' in rest ? rest.exact : false}
-            count={href === '/admin/enquiries' ? newEnquiries : undefined}
+            count={href === '/admin/enquiries' ? (newEnquiries ?? undefined) : undefined}
           >
             <Icon className="size-4" aria-hidden />
             {label}

@@ -1,4 +1,4 @@
-"""Enquiries (06 A4). `conversation_id` is a plain ⏩ column until 0003_v3 adds the FK."""
+"""Enquiries (06 A4). `conversation_id` is a plain ⏩ column until the v3 migration adds the FK."""
 
 from datetime import date
 
@@ -41,7 +41,9 @@ class Enquiry(IdMixin, TimestampsMixin, Base):
         nullable=False,
         server_default=EmailStatus.SKIPPED.value,
     )
-    conversation_id: Mapped[str | None] = mapped_column(Text)  # ⏩ v3 handoff (FK in 0003)
+    conversation_id: Mapped[str | None] = mapped_column(
+        Text
+    )  # ⏩ v3 handoff (FK with the v3 migration)
     ip_hash: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)
 

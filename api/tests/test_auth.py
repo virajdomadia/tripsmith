@@ -71,7 +71,7 @@ async def test_login_creates_a_session_row(db: AsyncSession) -> None:
     assert before + SESSION_TTL - dt.timedelta(seconds=5) <= session.expires_at
     assert await session_count(db) == 1
     # The row holds only the digest: the cookie value appears nowhere in the table.
-    assert session.token_hash == hash_token(token) and session.token is None
+    assert session.token_hash == hash_token(token)
     dump = (await db.execute(text("select sessions::text from sessions"))).scalar_one()
     assert token not in dump
 
@@ -219,7 +219,9 @@ async def test_login_route_sets_cookie_and_returns_session_info(
     row = (await db.execute(select(Session))).scalar_one()
     assert row.ip == "1.2.3.4" and row.user_agent == "UA"
     assert row.token_hash == hash_token(res.cookies[COOKIE_NAME])
-    assert row.token is None  # the legacy raw column is never written
+    # The legacy raw column is unmapped (0004_v2 drops it) and never written.
+    raw = await db.execute(text("select token from sessions where id = :id"), {"id": row.id})
+    assert raw.scalar_one() is None
 
 
 @pytest.mark.db
@@ -369,3 +371,29 @@ async def test_session_payload_carries_the_new_enquiry_count(
     await add_enquiry(db, EnquiryStatus.NEW)
     res = await db_client.get("/auth/session", headers=with_cookie(token))
     assert res.status_code == 200 and res.json()["newEnquiries"] == 2
+
+
+@pytest.mark.db
+async def test_customer_session_has_its_role_and_no_enquiry_count(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    await seeded_with_owner(db)
+    await add_enquiry(db, EnquiryStatus.NEW)
+    db.add(
+        User(
+            name="Meera",
+            email="meera@example.com",
+            password_hash=hash_password("customer-pw"),
+            role=UserRole.CUSTOMER,
+        )
+    )
+    await db.commit()
+    login_res = await db_client.post(
+        "/auth/login", json={"email": "meera@example.com", "password": "customer-pw"}
+    )
+    assert login_res.status_code == 200
+    assert login_res.json()["user"]["role"] == "customer"
+    assert login_res.json()["newEnquiries"] is None  # owner-only data (R18)
+    res = await db_client.get("/auth/session", headers=with_cookie(login_res.cookies[COOKIE_NAME]))
+    assert res.status_code == 200
+    assert res.json()["user"]["role"] == "customer" and res.json()["newEnquiries"] is None

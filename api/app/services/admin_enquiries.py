@@ -38,7 +38,7 @@ from app.schemas.admin_enquiries import (
     StatusCounts,
 )
 from app.schemas.enquiries import PackageRef, normalise_phone
-from app.schemas.meta import EnquiryType
+from app.schemas.meta import AdminEnquiryType
 from app.services.analytics import ist_today
 from app.services.email.render import IST
 from app.services.format import MONTHS
@@ -98,15 +98,8 @@ def _row(row: Enquiry, package_slug: str | None, package_name: str | None) -> En
     return EnquiryRow(
         id=row.id,
         ref=row.ref,
-        # `Enquiry.type` is the ORM's `app.models.enums.EnquiryType`; the wire schema has its own
-        # (identical-valued) enum — same string values, so this round-trips by value. The ORM
-        # enum also carries three v2/v3 forward-compat values (`callback`, `group`,
-        # `chat-handoff`, see `app.models.enums`) that the wire enum does not. Nothing in v1 can
-        # write one, but a row that did would raise `ValueError` here and 500 the whole inbox —
-        # `_detail` below has the identical lookup and the identical risk. `csv_record` degrades
-        # instead, via `TYPE_LABELS.get(..., row.type.value)`. Resolve this asymmetry before v2
-        # ships callbacks.
-        type=EnquiryType(row.type.value),
+        # The ORM enum → the wire enum by value; `AdminEnquiryType` carries all six DB values.
+        type=AdminEnquiryType(row.type.value),
         status=row.status,
         name=row.name,
         phone=row.phone,
@@ -254,9 +247,7 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
     return AdminEnquiry(
         id=row.id,
         ref=row.ref,
-        # Same by-value round-trip as `_row` above — same forward-compat 500 risk, documented
-        # there.
-        type=EnquiryType(row.type.value),
+        type=AdminEnquiryType(row.type.value),  # by value, as in `_row`
         status=row.status,
         name=row.name,
         phone=row.phone,
@@ -295,6 +286,19 @@ STATUS_LABELS: dict[EnquiryStatus, str] = {
 }
 
 
+# R24: the moves the owner may make. Nothing returns to `new`; `closed → contacted` is the reopen.
+# Mirrored by the web status picker (web/src/lib/admin/enquiry-filters.ts `STATUS_MOVES`), which
+# only offers these.
+ALLOWED_MOVES: dict[EnquiryStatus, frozenset[EnquiryStatus]] = {
+    EnquiryStatus.NEW: frozenset(
+        {EnquiryStatus.CONTACTED, EnquiryStatus.CONVERTED, EnquiryStatus.CLOSED}
+    ),
+    EnquiryStatus.CONTACTED: frozenset({EnquiryStatus.CONVERTED, EnquiryStatus.CLOSED}),
+    EnquiryStatus.CONVERTED: frozenset({EnquiryStatus.CLOSED}),
+    EnquiryStatus.CLOSED: frozenset({EnquiryStatus.CONTACTED}),
+}
+
+
 def status_note(old: EnquiryStatus, new: EnquiryStatus) -> str:
     """Auto notes are worded distinctly rather than flagged by a column: v1 adds no `kind` to
     `enquiry_notes`, because one timeline of calls and status moves is what the owner reads."""
@@ -305,9 +309,14 @@ async def set_status(db: AsyncSession, id: str, status: EnquiryStatus) -> AdminE
     """One transaction: the new status and the note that records it land together, or not at all.
 
     Re-selecting the same status is a no-op — the owner clicking the tab they are already on
-    should not add a line to the timeline.
+    should not add a line to the timeline. Any other move outside `ALLOWED_MOVES` is a 409.
     """
     row = await load_enquiry(db, id)
+    if row.status != status and status not in ALLOWED_MOVES[row.status]:
+        raise ApiError(
+            "conflict",
+            f"An enquiry can't move from {STATUS_LABELS[row.status]} to {STATUS_LABELS[status]}",
+        )
     if row.status != status:
         db.add(EnquiryNote(enquiry_id=row.id, body=status_note(row.status, status)))
         row.status = status
@@ -354,10 +363,14 @@ CSV_HEADERS = (
 # form, so an enquiry reading `=cmd|'/c calc'!A0` would run when the owner opens the export.
 RISKY_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
+# Mirrors the web inbox's `TYPE_LABELS` (web/src/lib/admin/enquiry-filters.ts).
 TYPE_LABELS: dict[OrmEnquiryType, str] = {
     OrmEnquiryType.STANDARD: "Standard",
     OrmEnquiryType.CUSTOM: "Customise",
     OrmEnquiryType.CONTACT: "Contact",
+    OrmEnquiryType.CALLBACK: "Callback request",
+    OrmEnquiryType.GROUP: "Group enquiry",
+    OrmEnquiryType.CHAT_HANDOFF: "From concierge",
 }
 EMAIL_STATUS_LABELS: dict[EmailStatus, str] = {
     EmailStatus.SENT: "Sent",

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { monthLabel, partyLabel, phoneLabel } from './EnquiriesTable';
-import { TYPE_LABELS } from '@/lib/admin/enquiry-filters';
+import { typeLabel } from '@/lib/admin/enquiry-filters';
 import type { components } from '@/lib/api-types';
 import { inr } from '@/lib/format';
 
@@ -36,7 +36,7 @@ export function EnquiryFacts({ enquiry: e }: { enquiry: AdminEnquiry }) {
       <Fact label="Name">{e.name}</Fact>
       <Fact label="Mobile">+91 {phoneLabel(e.phone)}</Fact>
       <Fact label="Email">{e.email}</Fact>
-      <Fact label="Type">{TYPE_LABELS[e.type]}</Fact>
+      <Fact label="Type">{typeLabel(e.type)}</Fact>
       <Fact label="Package">
         {e.package ? (
           <Link href={`/packages/${e.package.slug}`} className="text-primary" target="_blank">

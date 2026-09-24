@@ -1,18 +1,27 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/auth/cookie';
-import { ADMIN_HOME, gateDecision, hasSessionCookie, loginHref } from '@/lib/auth/gate';
+import {
+  ACCOUNT_PATH,
+  ADMIN_HOME,
+  gateDecision,
+  hasSessionCookie,
+  loginHref,
+  type Viewer,
+} from '@/lib/auth/gate';
 
 /**
- * Gates `/admin/*` (04 §Auth). With no session cookie the answer needs no network; with one,
- * the api decides (`GET /auth/session` with the raw Cookie header — never re-encoded). Any
- * failure counts as signed out; the api still enforces `require_owner` on its own routes.
+ * Gates `/admin/*` (04 §Auth) to owners (R18). With no session cookie the answer needs no
+ * network; with one, the api decides (`GET /auth/session` with the raw Cookie header — never
+ * re-encoded) and its `user.role` tells an owner from a customer. Any failure counts as signed
+ * out; the api still enforces `require_owner` on its own routes.
  */
 
 /**
- * `'ok'` and `'unauthorized'` are answers from the api; `'unknown'` covers everything else
- * (5xx, a thrown fetch, a timeout) — a transient failure must not look like a bad cookie.
+ * `'owner'`, `'customer'` and `'unauthorized'` are answers from the api; `'unknown'` covers
+ * everything else (5xx, a thrown fetch, a timeout, an unreadable body) — a transient failure
+ * must not look like a bad cookie.
  */
-type SessionCheck = 'ok' | 'unauthorized' | 'unknown';
+type SessionCheck = 'owner' | 'customer' | 'unauthorized' | 'unknown';
 
 async function hasSession(cookie: string): Promise<SessionCheck> {
   // Read per call, not at module scope: tests override `process.env.API_URL` after this module
@@ -24,9 +33,11 @@ async function hasSession(cookie: string): Promise<SessionCheck> {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });
-    if (res.ok) return 'ok';
     if (res.status === 401) return 'unauthorized';
-    return 'unknown';
+    if (!res.ok) return 'unknown';
+    const role = ((await res.json()) as { user?: { role?: unknown } }).user?.role;
+    if (role === 'owner') return 'owner';
+    return typeof role === 'string' ? 'customer' : 'unknown';
   } catch {
     return 'unknown';
   }
@@ -38,12 +49,17 @@ export async function middleware(request: NextRequest) {
   // `hasCookie` already implies `cookie !== null`; the extra check just narrows the type.
   const check: SessionCheck =
     hasCookie && cookie !== null ? await hasSession(cookie) : 'unauthorized';
-  const signedIn = check === 'ok';
+  const viewer: Viewer = check === 'owner' || check === 'customer' ? check : 'anonymous';
   const { pathname, search } = request.nextUrl;
-  const decision = gateDecision(pathname + search, signedIn);
+  const decision = gateDecision(pathname + search, viewer);
 
   if (decision.kind === 'allow') return NextResponse.next();
-  const target = decision.kind === 'home' ? ADMIN_HOME : loginHref({ next: decision.next });
+  const target =
+    decision.kind === 'home'
+      ? ADMIN_HOME
+      : decision.kind === 'account'
+        ? ACCOUNT_PATH // the customer keeps their cookie: they are validly signed in
+        : loginHref({ next: decision.next });
   const response = NextResponse.redirect(new URL(target, request.url), 303);
   // A cookie the api actively rejected is dead weight on every request — drop it. A transient
   // failure ('unknown') leaves the cookie alone: it may still be good once the api recovers.

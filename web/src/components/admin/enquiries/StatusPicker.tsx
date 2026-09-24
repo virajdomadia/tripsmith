@@ -5,12 +5,13 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
-import { STATUSES, STATUS_LABELS, type EnquiryStatus } from '@/lib/admin/enquiry-filters';
+import { STATUS_LABELS, statusChoices, type EnquiryStatus } from '@/lib/admin/enquiry-filters';
 
 /**
  * Mockup A7's one-click status control. `router.refresh()` afterwards re-renders the server
  * components, which is also what moves the sidebar's new-enquiry badge: it rides along on
- * `GET /auth/session` (F16), so nothing here needs to know the badge exists.
+ * `GET /auth/session` (F16), so nothing here needs to know the badge exists. Only legal moves
+ * (R24 `STATUS_MOVES`) are offered beside the current status; the api 409s anything else.
  */
 export function StatusPicker({ id, status }: { id: string; status: EnquiryStatus }) {
   const router = useRouter();
@@ -37,7 +38,7 @@ export function StatusPicker({ id, status }: { id: string; status: EnquiryStatus
 
   return (
     <div className="flex flex-wrap gap-1" role="group" aria-label="Enquiry status">
-      {STATUSES.map((s) => {
+      {statusChoices(status).map((s) => {
         const active = s === status;
         return (
           <button

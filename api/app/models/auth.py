@@ -27,9 +27,8 @@ class Session(IdMixin, CreatedMixin, Base):
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    # Legacy: the raw cookie value, written only by pre-v1.0.1 code. Always NULL for new rows;
-    # dropped in v2 (the contract step after migration 0003).
-    token: Mapped[str | None] = mapped_column(Text, unique=True)
+    # The legacy raw `token` column (pre-v1.0.1) is deliberately unmapped: it is still in the
+    # table, nullable and unwritten, until migration 0004_v2 drops it.
     # sha256 hex of the cookie value (services/auth/sessions.py::hash_token) — what lookups use.
     # Nullable only because 0003 is expand-only; every row the current code writes has one.
     token_hash: Mapped[str | None] = mapped_column(Text, unique=True)

@@ -29,15 +29,30 @@ class Badge(StrEnum):
 
 
 class EnquiryType(StrEnum):
-    """The v1 subset of the `enquiry_type` DB enum (06 A1) — what the form can submit.
+    """The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.
 
     `callback`, `group` and `chat-handoff` are forward-compat DB values that join here with
-    their features (v2 add-on / v3).
+    their features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.
     """
 
     STANDARD = "standard"
     CUSTOM = "custom"
     CONTACT = "contact"
+
+
+class AdminEnquiryType(StrEnum):
+    """Every `enquiry_type` DB value (`app.models.enums.EnquiryType`), as the inbox reads and
+    filters them (R24): a row of any type lists and loads. A separate wire enum rather than the
+    ORM one because two enums both named `EnquiryType` would collide in the OpenAPI schema;
+    tests/test_admin_enquiries.py keeps the values identical to the ORM enum's.
+    """
+
+    STANDARD = "standard"
+    CUSTOM = "custom"
+    CONTACT = "contact"
+    CALLBACK = "callback"
+    GROUP = "group"
+    CHAT_HANDOFF = "chat-handoff"
 
 
 THEME_LABELS: dict[Theme, str] = {

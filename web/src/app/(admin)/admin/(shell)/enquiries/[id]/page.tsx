@@ -9,7 +9,7 @@ import { NotesPanel } from '@/components/admin/enquiries/NotesPanel';
 import { RelatedEnquiries } from '@/components/admin/enquiries/RelatedEnquiries';
 import { StatusPicker } from '@/components/admin/enquiries/StatusPicker';
 import { buttonVariants } from '@/components/ui/button';
-import { TYPE_LABELS } from '@/lib/admin/enquiry-filters';
+import { typeHeadline } from '@/lib/admin/enquiry-filters';
 import { emailSubject, mailtoHref, replyMessage, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { api, ApiRequestError } from '@/lib/api';
 import { getSession } from '@/lib/auth/session';
@@ -37,7 +37,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
     <>
       <PageHead
         title={`${enquiry.ref} · ${enquiry.name}`}
-        subtitle={`${TYPE_LABELS[enquiry.type]} enquiry${
+        subtitle={`${typeHeadline(enquiry.type)}${
           enquiry.package ? ` · ${enquiry.package.name}` : ''
         } · received ${istFullDate(enquiry.createdAt)}`}
         actions={

@@ -13,7 +13,7 @@ from pydantic import Field, ValidationInfo, field_validator
 from app.models.enums import EmailStatus, EnquiryStatus, PackageStatus
 from app.schemas import ApiModel
 from app.schemas.enquiries import PackageRef
-from app.schemas.meta import EnquiryType
+from app.schemas.meta import AdminEnquiryType
 
 PAGE_SIZE = 50
 MAX_PAGE = 10_000
@@ -31,7 +31,7 @@ class EnquiryFilters(ApiModel):
     """
 
     status: EnquiryStatus | None = None
-    type: EnquiryType | None = None
+    type: AdminEnquiryType | None = None
     package_id: str | None = Field(default=None, max_length=40)
     from_: dt.date | None = Field(
         default=None, alias="from", description="Received on or after this IST day"
@@ -65,7 +65,7 @@ class EnquiryRow(ApiModel):
 
     id: str
     ref: str
-    type: EnquiryType
+    type: AdminEnquiryType
     status: EnquiryStatus
     name: str
     phone: str
@@ -118,7 +118,7 @@ class AdminEnquiry(ApiModel):
 
     id: str
     ref: str
-    type: EnquiryType
+    type: AdminEnquiryType
     status: EnquiryStatus
     name: str
     phone: str
