@@ -1,6 +1,6 @@
 # Tripsmith — Database + API Design (whole app: v1, v2, v3, v4, add-ons)
 
-**Lifecycle step:** 6 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI
+**Lifecycle step:** 6 of 17 · **Written:** 2026-09-12 · **Revised:** 2026-09-13 — backend switched from Hono to FastAPI · 2026-09-24 — v1.0.1 hardening (as-built corrections)
 **Inputs:** [03-requirements.md](03-requirements.md), [04-technical-design.md](04-technical-design.md), [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md), [05-architecture.md](05-architecture.md)
 **Scope:** every table and every endpoint the product will ever have, tagged with the version that introduces it. **Revised 2026-09-12:** all of Part C is served by `api/` as REST endpoints; `web/` calls them via the `/api/*` rewrite. **Revised 2026-09-13:** `api/` is FastAPI (Python) — SQLAlchemy models, Alembic migrations, pydantic schemas; the auth tables are our own (§A2); image upload is a server-side proxy; `GET /meta` added. The "action" names in the tables are the api service-function names (written here in the camelCase the API contract uses; the Python functions are the snake_case equivalents); their HTTP routes are in §C-REST. v1 builds only the v1-tagged tables **plus the forward-compat columns marked ⏩** (nullable, unused by v1 UI) so v2/v3 need no destructive migrations.
 
@@ -8,7 +8,7 @@
 - IDs: `text` primary keys, cuid2 (`cuid2` PyPI package, `cuid_wrapper()`); human refs (`TS-7F3K2Q`) for enquiries and bookings.
 - Money: **integer paise** (`_paise` suffix), INR only. Never floats.
 - Time: `timestamptz`; departure dates are `date`.
-- Slugs: `text unique`, lowercase-kebab, immutable after publish.
+- Slugs: `text unique`, lowercase-kebab, immutable after publish — enforced from v1.0.1: a package slug locks once `first_published_at` is set (or it is live), a destination slug once it has had a live package; a change is a 400 `fieldErrors.slug`.
 - Enums: Postgres enums via SQLAlchemy `Enum(..., native_enum=True)` backed by Python `StrEnum`s in `app/models/enums.py`; the same enums appear in the pydantic schemas and therefore in the generated TS types.
 - ORM: SQLAlchemy 2.0 async (asyncpg) declarative models in `app/models/`; Alembic revisions in `api/alembic/` (`ALEMBIC_URL=… uv run alembic upgrade head` — `ALEMBIC_URL` is required, there is no fallback to `DATABASE_URL`); views are created with raw SQL inside the revision.
 - Deletes: hard deletes only where nothing references the row; otherwise blocked in the domain layer.
@@ -39,7 +39,7 @@
 
 ### A2. Auth (own implementation) — v1
 **`users`** — id, name, email unique, password_hash text null (argon2; null for OTP-only customers), **role user_role default 'customer'** ⏩, created_at, updated_at.
-**`sessions`** — id, user_id FK → users (cascade), token text unique (opaque, random, the cookie value), expires_at timestamptz, ip, user_agent, created_at. Index `(user_id)`; expired rows are deleted lazily on lookup.
+**`sessions`** — id, user_id FK → users (cascade), token_hash text unique (hex sha256 of the opaque random token; the raw token lives only in the cookie), expires_at timestamptz, ip, user_agent, created_at. Index `(user_id)`; expired rows are deleted lazily on lookup. The legacy `token` column is nullable and unused since `0003`; dropping it is the v2 contract step.
 **`verification`** — id, identifier text (email), code_hash text, expires_at timestamptz, consumed_at null, created_at. Index `(identifier, created_at desc)`. ⏩ Created in `0001_v1`, used only by the v2 email OTP (`POST /auth/otp/request` / `verify`).
 The seed creates the single `role = 'owner'` row from `OWNER_EMAIL` / `OWNER_PASSWORD`. v2 adds no auth tables.
 
@@ -57,6 +57,7 @@ The seed creates the single `role = 'owner'` row from `OWNER_EMAIL` / `OWNER_PAS
 | best_months | smallint[] | 1–12 |
 | climate | jsonb | ⏩ add-on B: `[{month, rain, heat, crowd, price}]` × 12, each 1–3 |
 | position | smallint | display order |
+| first_published_at | timestamptz null | set when one of its packages first goes live; locks the slug |
 | created_at, updated_at | timestamptz | |
 
 **`packages`**
@@ -77,13 +78,15 @@ The seed creates the single `role = 'owner'` row from `OWNER_EMAIL` / `OWNER_PAS
 | cover_image_id | text FK → package_images (set null) | |
 | status | package_status default 'draft' | |
 | featured | boolean default false | home page |
-| starting_price_paise | integer | **cached**: min live-departure `price_double_paise`; recomputed on departure writes |
+| starting_price_paise | integer | **cached**: min `price_double_paise` over upcoming, priced departures with seats left (0 = on request); recomputed on package writes and daily by `/cron/daily` |
 | deal_price_paise | integer null | ⏩ v2 |
 | deal_label | text null | ⏩ v2 |
 | deal_ends_at | timestamptz null | ⏩ v2 |
 | rating_avg | numeric(2,1) null | ⏩ v2 reviews |
 | rating_count | integer default 0 | ⏩ v2 reviews |
-| created_at, updated_at | timestamptz | `updated_at` keys the PDF cache |
+| first_published_at | timestamptz null | set on the first publish, never cleared; locks the slug |
+| edited_at | timestamptz null | moved only by form saves; the optimistic-concurrency version (`editedAt` / `expectedEditedAt`, C4) |
+| created_at, updated_at | timestamptz | |
 
 Indexes: `(destination_id, status)`, `(status, featured)`, GIN on `themes`.
 
@@ -222,6 +225,8 @@ erDiagram
 | `0004_v4` | `mcp_requests` |
 | `0005+_addons` | one migration per add-on table group, only when built |
 
+As built, v1.0.1 added two expand-only revisions, so the v2+ revisions above take the next free numbers (`0004` onward) when built: `0002_first_published_at` (`packages.first_published_at`, `packages.edited_at`, `destinations.first_published_at`, backfilled from live/enquired packages) and `0003_hash_session_tokens` (`sessions.token_hash`, backfilled; `token` made nullable). Both run before the api deploy; prod is at `0003`.
+
 ---
 
 ## Part B — Seed content shape (v1)
@@ -264,8 +269,9 @@ package = define_package(
 - Auth: own session cookie (opaque token from `sessions`, first-party through the rewrite). `/admin/*` routes depend on `require_owner`; `/account/*` (v2) on `require_user`. Webhooks use provider signatures; crons use `Authorization: Bearer CRON_SECRET`.
 - `GET /meta` (v1, public, cached like other public GETs) returns the constants both sides need: `themes` (with labels), `badges` (with labels), `enquiryTypes`, `limits` (`maxTravellers`, `maxThemesPerPackage`, `enquiryMessageMax`, `imageMaxBytes`). The same values are OpenAPI enums in the generated types; the endpoint exists for runtime labels and for anything outside the TS build (MCP clients, the developer page).
 - Public `GET`s send `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`; web additionally tags its fetches for on-demand revalidation. A tagged fetch adds `?fresh=1`, which `FreshQueryMiddleware` (`api/app/middleware.py`) answers with `no-store` instead, so the revalidated re-fetch isn't delayed by Vercel's edge cache sitting in front of the api.
-- `web/` keeps only: `POST /revalidate` (secret), OG image routes, sitemap/robots, and the no-JS enquiry proxy.
-- Rate-limit keys: `enquiry:{ip}`, `login:{ip}`, `chat:{ip}:{day}`, `chat:global:{day}`.
+- `web/` keeps only: `POST /revalidate` (secret), OG image routes, sitemap/robots, the no-JS enquiry proxy, and thin forwarding handlers that pass the visitor's address to the api's limiter (`X-Client-Ip` + shared secret — the plain rewrite would give every visitor Vercel's hop address): `POST /api/enquiries`, `POST /api/views`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /packages/[slug]/itinerary.pdf`. `/api/docs` is a 307 to the api's own `/docs`.
+- Rate-limit keys (sliding window, one atomic Upstash `EVAL`; rejected hits are not recorded): `enquiry:{ip}` 5 / 10 min, `login:{ip}` 10 / 10 min, `views:{ip}` 60 / 10 min (silent 204), `pdf:{ip}` 60 / 10 min (GET only; v1.0.1); v3 `chat:{ip}:{day}`, `chat:global:{day}`.
+- `HEAD` is answered on every `GET` route (GET's status and headers, no body); the PDF route never renders on a `HEAD`.
 
 ### C-REST. Endpoint map (whole app)
 | Version | Method + path | Handler (see tables below) | Auth |
@@ -285,7 +291,7 @@ package = define_package(
 | v1 | `GET/POST/PUT/DELETE /admin/packages[/:id]` · `POST /admin/packages/:id/status` · `POST /admin/packages/:id/duplicate` | package CRUD | owner |
 | v1 | `POST /admin/packages/:id/images` (multipart proxy upload) · `PATCH /admin/packages/:id/images` (whole gallery order + cover) · `PATCH /admin/packages/:id/images/:imageId` (alt text) · `DELETE /admin/packages/:id/images/:imageId` | image ops | owner |
 | v1 | `GET /admin/enquiries?status=&type=&packageId=&from=&to=&q=&page=` (server-side filter, name/phone search, 50 per page) · `GET /admin/enquiries/:id` · `PATCH /admin/enquiries/:id/status` (auto-appends a note) · `POST /admin/enquiries/:id/notes` · `GET /admin/enquiries.csv` (streamed, UTF-8 BOM, honours the filters) | enquiries | owner |
-| v1 | `GET /cron/pdf-gc` | cron | CRON_SECRET |
+| v1 | `GET /cron/daily` (scheduled `30 19 * * *` = 01:00 IST) · `GET /cron/pdf-gc` (by hand) | cron | CRON_SECRET |
 | v1 | `GET /docs` · `GET /openapi.json` | OpenAPI | public |
 | v2 | `POST /auth/otp/request` · `POST /auth/otp/verify` | own email OTP | public, rate-limited |
 | v2 | `POST /bookings/quote` · `POST /bookings` · `POST /bookings/:ref/confirm` | booking | public (session optional) |
@@ -317,29 +323,31 @@ package = define_package(
 ### C3. Non-JSON routes — v1
 | Where | Method + path | Behaviour |
 |---|---|---|
-| api | `GET /packages/:slug/itinerary.pdf` (`maxDuration 30`) | 404 if draft; 302 to cached Blob PDF or render → store → 302 |
+| api | `GET /packages/:slug/itinerary.pdf` (`maxDuration 30`) | any query string → 308 to the bare URL (edge-cached a day); 404 if draft; `pdf:{ip}` limit; 302 (`no-store`) to the Blob PDF at `pdf/{slug}/{version}/…`, rendering and storing it on a miss. `version` is a 16-hex sha256 of everything the PDF draws (package detail, settings, renderer source), so any content edit or a departed date gives a new key. Site links, the email and the admin use the web path `/packages/{slug}/itinerary.pdf`, which forwards to this route |
 | api | `POST /views` | body `{ slug }`; UA bot filter; upsert `package_views`; 204 |
-| api | `POST /admin/packages/:id/images` | owner only; `multipart/form-data` (`file`, `position?`, `alt?`); `image/jpeg\|png\|webp` ≤ 5 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST; 201 with the `package_images` row |
+| api | `POST /admin/packages/:id/images` | owner only; `multipart/form-data` (`file`, `position?`, `alt?`); `image/jpeg\|png\|webp` ≤ 4 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST; 201 with the `package_images` row |
 | api | `POST /admin/destinations/cover` | owner only; `multipart/form-data` (`file`); `image/jpeg\|png\|webp` ≤ 4 MB; Pillow reads dimensions and resizes to ≤ 2000 px; PUT to Blob via REST to `destinations/uploads/`; 201 with the Blob URL. Destination covers use the same validate-and-resize helper (`services/images.py`) through `POST /admin/destinations/cover`, which returns the Blob URL the form then stores in `coverUrl`. |
-| api | `GET /cron/pdf-gc` | `Authorization: Bearer CRON_SECRET`; delete Blob PDFs whose `updatedAt` key no longer matches |
+| api | `GET /cron/daily` | `Authorization: Bearer CRON_SECRET`; locks the packages, recomputes every `starting_price_paise` (pinning `updated_at`), revalidates the ones that moved, then runs the PDF GC |
+| api | `GET /cron/pdf-gc` | same auth; deletes every `pdf/` object that is not a package's current version key |
 | web | `POST /revalidate` | `{ secret, tags[] }` from api → `revalidateTag` |
 | web | `GET /sitemap.xml`, `/robots.txt` | built from `GET /api/packages` + `/api/destinations` |
 | web | `/packages/[slug]/opengraph-image`, `/destinations/[slug]/opengraph-image` | `next/og` from API data |
-| web | `POST /enquire` | no-JS proxy → `POST /api/enquiries` → redirect |
+| web | `POST /enquire` | no-JS proxy → `POST /api/enquiries` → redirect (private fields ride a short-lived httpOnly draft cookie on a failed submit, never the URL) |
+| web | `POST /api/enquiries` · `POST /api/views` · `POST /api/auth/login` · `POST /api/auth/logout` · `GET /packages/[slug]/itinerary.pdf` | forwarding handlers (C0) |
 
 ### C4. Admin endpoints — v1 (`/admin/*`, owner)
 | Action | Input | Notes |
 |---|---|---|
 | `createDestination` / `updateDestination` / `deleteDestination` | destination fields | delete blocked if packages exist |
-| `createPackage` / `updatePackage` | all package fields incl. `days[]`, `departures[]`, `faq[]`, `hotels[]` | one transaction; recompute `starting_price_paise`; revalidate |
-| `setPackageStatus` | `{ id, status }` | live requires ≥ 1 image, ≥ 1 departure, full itinerary |
+| `createPackage` / `updatePackage` | all package fields incl. `days[]`, `departures[]`, `faq[]`, `hotels[]`; optional `expectedEditedAt` | one transaction, package row `FOR UPDATE`; `expectedEditedAt` ≠ stored `editedAt` → 409 `fieldErrors.expectedEditedAt` (stale tab); recompute `starting_price_paise`; revalidate |
+| `setPackageStatus` | `{ id, status }` | live requires the four publish rules: ≥ 1 photo, full itinerary, ≥ 1 upcoming departure, every departure priced. They hold on live packages too: a save or photo delete that would break a rule that held before is a 400 ("unpublish it first") |
 | `duplicatePackage` | `{ id }` | copies everything as draft, slug `-copy`, name "(copy)" |
 | `deletePackage` | `{ id }` | blocked if enquiries or bookings reference it |
-| `uploadImage` / `reorderImages` / `removeImage` / `setCover` | image ops | upload is the multipart proxy (C3) |
+| `uploadImage` / `reorderImages` / `removeImage` / `setCover` | image ops | upload is the multipart proxy (C3); `removeImage` keeps the publish rules |
 | `updateEnquiryStatus` | `{ id, status }` | |
 | `addEnquiryNote` | `{ id, body }` | |
 | `exportEnquiriesCsv` | current filter params | returns a Blob URL (short-lived) or streams CSV |
-| `getDashboard` (read) | — | enquiries this week vs last, by status, top packages by enquiries/views (30 d), departures next 30 d with `seatsLeft` |
+| `getDashboard` (read) | — | enquiries this week vs last, by status, top packages by enquiries/views (30 d), live packages' departures next 30 d with `seatsLeft` |
 
 ### C5. v2 — Booking
 **Customer actions**
@@ -426,6 +434,6 @@ Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `
 Rules that matter: Indian mobile `^[6-9]\d{9}$`; slugs `^[a-z0-9-]+$`; `days === nights + 1`; departure `date >= today` on create; prices `int >= 0`; `adults >= 1`, `children >= 0`, `adults + children <= 12` per booking; themes ≤ 3 per package.
 
 ## Part E — Data lifecycle & privacy
-- Enquiries and bookings are retained indefinitely (demo). `ip_hash` is SHA-256 with a server salt; user agents are truncated to 200 chars.
+- Enquiries and bookings are retained indefinitely (demo). `ip_hash` is blake2b keyed with `sha256(SESSION_SECRET)`; user agents are truncated to 200 chars.
 - The AI provider receives: the conversation text and tool results (package data). It never receives enquiry names/phones — `createEnquiry`'s inputs are collected by a form the tool triggers in the UI, not typed into the chat.
 - Blob objects are public-read (images, PDFs are marketing material); vouchers (v2) are uploaded with `access: 'private'` and served through the authenticated route.

@@ -1,6 +1,6 @@
 # Tripsmith v1 — Requirements & Scope
 
-**Lifecycle step:** 3 of 17 · **Version:** v1 "Agency website" · **Locked:** 2026-09-12
+**Lifecycle step:** 3 of 17 · **Version:** v1 "Agency website" · **Locked:** 2026-09-12 · **Amended:** 2026-09-24 (R10, R13 — marked inline)
 **Source:** [PRD.md](../PRD.md). This document is the definitive v1 feature list. Anything not here is not in v1.
 
 Rule used to decide inclusion: a feature is in v1 only if (a) an agency owner would reject the site without it, (b) the v2/v3 data model needs it now, or (c) it costs under an hour and a reviewer will see it.
@@ -81,7 +81,7 @@ As a visitor I can send a package to family.
 ### R10. Catalog management
 - Destinations: create / edit / delete (delete blocked if it has packages), cover upload, intro, best months.
 - Packages: create / edit / delete, **draft ↔ live**, all fields from R4 including gallery upload (multi-image, reorder), itinerary day editor (add / remove / reorder days), inclusions / exclusions / highlights / FAQ lists, occupancy pricing, theme tags.
-- Departures per package: add / edit / delete (date, price per person, seats total, seats left, guaranteed flag).
+- Departures per package: add / edit / delete (date, price per person, seats total, guaranteed flag). _Amended 2026-09-24:_ the owner edits **seats total** only, lowering it as seats sell offline; seats left is derived, and from v2 it subtracts online bookings.
 - **Duplicate package** → new draft copy with "(copy)" suffix.
 - Image upload to blob storage with size/type validation and auto-resize.
 - **Accept:** saving a live package revalidates its public page, listing, destination page and PDF cache within seconds; validation errors inline; no data loss on validation failure.
@@ -107,9 +107,10 @@ As a visitor I can send a package to family.
 - Accessibility: keyboard navigable, visible focus, alt text on all images, colour contrast AA.
 - Responsive: mobile-first, tested at 360, 768, 1280 px.
 - Security: input validation on every server action, CSRF-safe forms, rate limiting on forms and login, secrets in env only.
-- Monitoring: Sentry (client + server), Vercel analytics, uptime check on `/`.
+- Monitoring: Sentry (client + server), Vercel analytics, uptime check on `/`. _Amended 2026-09-24:_ the uptime check is deferred; Vercel Web Analytics is mounted but waits on the dashboard toggle.
 - Seed script: 6 destinations, 12 genuine packages (real places, hotels, plausible 2026 prices, full itineraries), ~40 departures, 6 testimonials, owner account.
-- Tests: unit tests for `searchPackages`, pricing/badge logic, enquiry validation; e2e for the visitor journey (home → listing → package → enquiry → confirmation) and the owner journey (login → edit package → see it live).
+- Tests: unit tests for `searchPackages`, pricing/badge logic, enquiry validation; e2e for the visitor journey (home → listing → package → enquiry → confirmation) and the owner journey (login → edit package → see it live). _Amended 2026-09-24:_ the e2e journeys were dropped in the 2026-09-15 lean re-cut; both journeys are covered by api route tests plus web route and component tests, and the owner journey was walked on production (F18).
+- _Amended 2026-09-24:_ the Lighthouse perf ≥ 90 bar (R4, Performance above) is a manual spot-check, not a CI gate — owner decision 2026-09-23 (docs/12 H2).
 
 ---
 

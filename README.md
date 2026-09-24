@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, and — from v3 — have an AI concierge plan the itinerary and start the booking for you.
 
-> **Status: v1 shipped** (2026-09-24) — the agency website is live and complete: 12 packages across 6 destinations, faceted search, itinerary PDFs, WhatsApp-first enquiries, and an owner admin that runs the catalog and the inbox. Milestones 1.0–1.4 are done, including the SEO, performance, accessibility and security rows — the honest account of what that took is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2** booking engine (Razorpay checkout, accounts, reviews). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
+> **Status: v1.0.1** (2026-09-24) — the agency website is live and complete: 12 packages across 6 destinations, faceted search, itinerary PDFs, WhatsApp-first enquiries, and an owner admin that runs the catalog and the inbox. Milestones 1.0–1.4 are done, including the SEO, performance, accessibility and security rows — the honest account of what that took is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2** booking engine (Razorpay checkout, accounts, reviews). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
 >
 > **Live:** [tripsmith.vercel.app](https://tripsmith.vercel.app) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · owner demo sign-in is printed on the site footer.
 
@@ -50,9 +50,21 @@ Four decisions carry most of the design:
 
 ## Stack
 
-**web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · GSAP · react-hook-form + zod · Vitest + Testing Library · Playwright · pnpm
+**web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
 **api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id session auth · fpdf2 (itinerary PDFs) · Jinja2 + Resend (email) · Pillow · httpx · pytest · uv
 **platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract)
+
+## v1.0.1 hardening
+
+A deep review of the shipped v1 led to five fix PRs (#50–#54), all merged on 2026-09-24:
+
+- **Correct over time:** the itinerary PDF is cached by a hash of its content, not `updated_at`; a daily cron (01:00 IST) recomputes starting prices and garbage-collects PDFs; every "today" is IST.
+- **Safe with two actors:** enquiry dedupe holds an advisory lock; admin saves are optimistic-concurrency checked (409 on a stale tab); slugs lock after first publish; live packages keep their publish rules.
+- **Visitor-facing:** an error boundary and an 8 s fetch timeout, no double submits, no personal details in redirect URLs, and a demo notice wherever a visitor types personal details.
+- **Security:** Sentry events are scrubbed of secrets, IPs and frame locals; sessions are stored as sha256 hashes; the PDF route is rate-limited per visitor; cover URLs are restricted to this Blob store.
+- **Performance:** the Sentry browser SDK loads after idle (First Load JS on `/` 192 → 134 kB); web functions run in `bom1`.
+
+Details in [docs/17-post-launch.md](docs/17-post-launch.md#v101-hardening-2026-09-24).
 
 ## What is in v1
 
@@ -71,14 +83,14 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
                     sitemap.ts · robots.ts · opengraph-image.tsx per detail route · middleware.ts
   src/components/   site/ (home, package, destinations, enquiry, whatsapp) · admin/ · ui/ (shadcn)
   src/lib/          api.ts (typed client) · api-types.ts (generated) · seo/ · og/ · admin/ · business.ts
-  tests/            46 vitest files (283 tests)
+  tests/            56 vitest files (360 tests)
 api/        FastAPI (Python 3.12, uv)
   app/routers/      site/ (catalog, enquiries, pdf, views, meta, health) · admin/ (packages, images,
                     destinations, enquiries, dashboard) · auth.py · cron/
   app/services/     catalog/ · enquiries · admin_enquiries · analytics · auth/ · email/ · pdf/ · images
   app/infra/        db · storage (Blob) · email · ratelimit · revalidate · cache · client_ip · observability
   app/models/ schemas/ · middleware.py (request id, blank params, fresh, security headers) · errors.py
-  alembic/ content/ scripts/seed.py · tests/ (443 pytest, DB harness)
+  alembic/ content/ scripts/seed.py · tests/ (538 pytest, DB harness)
 docs/       lifecycle steps 3–12: requirements v1–v4, user flows, technical design, architecture,
             data + API, plan, security + performance, post-launch review
 mockups/    every v1 screen in the final K · Ocean + Marigold system, plus the direction explorations
@@ -104,7 +116,7 @@ uv run python scripts/seed.py --local --database-url postgresql+asyncpg://postgr
 
 `--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. The seed is the same: `--database-url` (or `SEED_DATABASE_URL`) is required. Production is a deliberate, separate command with the Neon `production` branch URL pasted in: `ALEMBIC_URL='postgresql+asyncpg://…neon.tech/neondb?ssl=require' uv run alembic upgrade head`, and `uv run python scripts/seed.py --database-url '<same URL>'`.
 
-Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both languages. `pnpm gen:api` dumps `api/openapi.json` from the app and regenerates `web/src/lib/api-types.ts`; run it after any route or schema change (a pytest fails while `openapi.json` is stale, a vitest while `api-types.ts` is). DB tests need `TEST_DATABASE_URL` (any throwaway Postgres; CI runs a `postgres:17` service) and skip without it.
+Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both languages. `pnpm gen:api` dumps `api/openapi.json` from the app and regenerates `web/src/lib/api-types.ts`; run it after any route or schema change (a pytest fails while `openapi.json` is stale, a vitest while `api-types.ts` is). DB tests need `TEST_DATABASE_URL` (any throwaway Postgres; CI runs a `postgres:17` service) and skip without it — unless `REQUIRE_DB_TESTS=1` (set in CI), which fails the run instead.
 
 ## Roadmap
 
