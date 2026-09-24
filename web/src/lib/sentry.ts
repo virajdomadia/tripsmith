@@ -18,7 +18,29 @@ export type SentryEnv = Partial<
 > &
   Record<string, string | undefined>;
 
-export function sentryOptions(env: SentryEnv) {
+export type SentryOptions = {
+  dsn: string | undefined;
+  enabled: boolean;
+  environment: string;
+  release?: string;
+  sendDefaultPii: false;
+  /** Server and edge only. */
+  tracesSampleRate?: number;
+  /** Browser only. */
+  integrations?: typeof withoutTracing;
+  debug: boolean;
+};
+
+/**
+ * `runtime` decides tracing. Server and edge keep a light sample of performance traces. The
+ * browser is errors only (v1.0.1): no `tracesSampleRate`, and the BrowserTracing default
+ * integration is dropped, so nothing patches fetch/XHR or watches long animation frames on the
+ * visitor's main thread. (The SDK is also loaded after the page is idle — instrumentation-client.)
+ */
+export function sentryOptions(
+  env: SentryEnv,
+  runtime: 'server' | 'browser' = 'server',
+): SentryOptions {
   const dsn = env.SENTRY_DSN || env.NEXT_PUBLIC_SENTRY_DSN || undefined;
   // Vercel exposes both spellings; only the NEXT_PUBLIC_ ones reach the browser bundle.
   const environment = env.VERCEL_ENV || env.NEXT_PUBLIC_VERCEL_ENV || 'development';
@@ -31,7 +53,14 @@ export function sentryOptions(env: SentryEnv) {
     // withSentryConfig injects into the client bundle.
     ...(release ? { release } : {}),
     sendDefaultPii: false,
-    tracesSampleRate: environment === 'development' ? 1 : 0.1,
+    ...(runtime === 'browser'
+      ? { integrations: withoutTracing }
+      : { tracesSampleRate: environment === 'development' ? 1 : 0.1 }),
     debug: env.SENTRY_DEBUG === '1', // SDK logs every envelope it sends — for verifying delivery
   };
+}
+
+/** Sentry's `integrations` callback: the defaults minus BrowserTracing. */
+export function withoutTracing<T extends { name: string }>(defaults: T[]): T[] {
+  return defaults.filter((integration) => integration.name !== 'BrowserTracing');
 }
