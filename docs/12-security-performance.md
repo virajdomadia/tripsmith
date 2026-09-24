@@ -247,7 +247,7 @@ or accept the delay.
   and nothing in this row touches it. Left for a later row, deliberately: this one was scoped to
   images, fonts, cache headers and query plans. (The candidates guessed here — the home
   `SearchBar` and the listing's filter panel — were wrong. The v1.0.1 review traced it to the
-  Sentry browser SDK in the root chunk, ~58 kB gzipped, now loaded after the page is idle;
+  Sentry browser SDK in the eagerly loaded chunks, now loaded after the page is idle;
   docs/17.)
 - The 14.4 kB of legacy-JavaScript polyfills Chrome flags is Next's own build output; Chrome
   estimates 0 ms FCP/LCP saving from removing it. Left alone.

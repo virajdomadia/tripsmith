@@ -6,7 +6,7 @@ let loading: Promise<SentryModule> | undefined;
 
 /**
  * The browser SDK, loaded on demand and initialised exactly once (v1.0.1). A static
- * `import '@sentry/nextjs'` anywhere in client code puts the whole SDK (~58 kB gzipped) back into
+ * `import '@sentry/nextjs'` anywhere in client code puts the SDK (~115 kB gzipped) back into
  * the chunks every page downloads, so every client caller — the idle-time start in
  * instrumentation-client.ts and global-error.tsx — goes through this promise instead. Whoever
  * comes first triggers the download and the init; the capture always runs after init.
