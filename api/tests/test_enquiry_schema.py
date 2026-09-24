@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.enquiries import EnquiryCreate, normalise_phone
+from app.schemas.enquiries import NAME_CONTROL_MESSAGE, EnquiryCreate, normalise_phone
 
 CASES = json.loads((Path(__file__).parent / "fixtures" / "enquiry_cases.json").read_text("utf-8"))
 
@@ -89,3 +89,19 @@ def test_a_json_budget_of_1e400_is_a_field_error() -> None:
 def test_honeypot_is_a_plain_string_that_defaults_to_empty() -> None:
     e = EnquiryCreate.model_validate({**CASES["valid"][2], "website": "http://spam"})
     assert e.website == "http://spam"
+
+
+@pytest.mark.parametrize(
+    "name", ["Priya\r\nBcc: x@evil.test", "Priya\nSharma", "Pri\x00ya", "Priya\u2028S"]
+)
+def test_a_name_is_one_line_with_a_friendly_message(name: str) -> None:
+    with pytest.raises(ValidationError) as exc:
+        EnquiryCreate.model_validate({**CASES["valid"][2], "name": name})
+    (err,) = exc.value.errors()
+    assert err["loc"] == ("name",)
+    assert NAME_CONTROL_MESSAGE in err["msg"]
+
+
+def test_surrounding_newlines_are_trimmed_not_rejected() -> None:
+    e = EnquiryCreate.model_validate({**CASES["valid"][2], "name": "\r\n Sneha Iyer \n"})
+    assert e.name == "Sneha Iyer"

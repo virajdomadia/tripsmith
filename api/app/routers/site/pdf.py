@@ -6,6 +6,14 @@ The redirect is `no-store`: its target is a versioned key the daily GC deletes o
 package moves on, so an edge-cached 302 would outlive the object it points at. A `HEAD` (link
 checkers, crawlers) never renders or uploads: it answers the cached redirect, else a bodyless
 200 with the PDF's content type.
+
+Abuse (v1.0.1): the route is public and every request costs a Blob `list` (an advanced
+operation on Vercel's meter), and a miss a render. So a query string — which the route never
+reads, and which would give each variant its own edge-cache entry — is answered with a 308 to
+the bare URL before any work, and each address gets `PDF_LIMIT` downloads per window. Reached
+through the web's `/api/:path*` rewrite the address is what Vercel stamps on that hop (the
+views/enquiry route handlers exist for the same reason — infra/client_ip.py), so there the
+ceiling is shared by everyone: hence generous, and a real reader never meets it.
 """
 
 from typing import Annotated
@@ -16,13 +24,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.cache import NO_STORE, PUBLIC_CACHE_CONTROL
+from app.infra.client_ip import RateLimited, client_ip
 from app.infra.db import get_session
+from app.infra.ratelimit import RateLimiter
 from app.middleware import HEAD_STATE_KEY
 from app.services.catalog.reads import get_package
 from app.services.pdf.itinerary import pdf_filename
 from app.services.pdf.service import PdfService
 
 router = APIRouter(tags=["public"])
+
+PDF_LIMIT = 60
+PDF_WINDOW_SECONDS = 600
 
 
 @router.get(
@@ -32,12 +45,30 @@ router = APIRouter(tags=["public"])
     responses={
         302: {"description": "Redirect to the cached PDF"},
         200: {"content": {"application/pdf": {}}, "description": "The PDF (no Blob store)"},
+        308: {"description": "Any query string: redirect to the bare URL"},
         404: {"description": "Draft or unknown package"},
+        429: {"description": "Too many downloads from this address"},
     },
 )
 async def get_itinerary_pdf(
     slug: str, request: Request, db: Annotated[AsyncSession, Depends(get_session)]
 ) -> Response:
+    if request.url.query:
+        # Relative on purpose: through the web's rewrite the visitor's path is
+        # `/api/packages/{slug}/itinerary.pdf`, and a bare `itinerary.pdf` resolves against
+        # whichever path the client actually requested, dropping only the query.
+        return RedirectResponse(
+            "itinerary.pdf", status_code=308, headers={"Cache-Control": PUBLIC_CACHE_CONTROL}
+        )
+    limiter: RateLimiter = request.app.state.rate_limiter
+    limited = await limiter.hit(
+        f"pdf:{client_ip(request)}", limit=PDF_LIMIT, window_seconds=PDF_WINDOW_SECONDS
+    )
+    if not limited.allowed:
+        raise RateLimited(
+            limited.retry_after, "Too many downloads from this connection — try again shortly"
+        )
+
     pkg = await get_package(db, slug, with_related=False)
     # End the read transaction now: Blob list, photo fetch, render and put below can take
     # seconds, and an open transaction would pin one of the function's few pooled connections.

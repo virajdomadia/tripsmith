@@ -3,13 +3,25 @@ sentry_sdk.capture_exception directly for handled failures.
 
 `init_sentry` runs once in `create_app()` before the middleware stack, so the SDK's Starlette /
 FastAPI integrations wrap every request. No DSN = Sentry off (local dev, CI, tests).
+
+Scrubbing: the web's server-side hops send `REVALIDATE_SECRET` as `X-Internal-Secret` and the
+visitor's address as `X-Client-Ip` (infra/client_ip.py). The SDK's own header filter only knows
+the standard names, so `_scrub` drops ours — plus the standard ones, belt and braces — from
+every event and transaction. Stack-frame locals are the other route out: a middleware frame's
+`scope` holds the raw ASGI header list, so the `EventScrubber` denylist filters any `headers`
+key (recursively) along with the header names themselves. Last, every configured secret's
+*value* is masked wherever it appears as a string, whatever key it hides under.
 """
 
 import os
+from collections.abc import Callable
+from typing import Any
 
 import sentry_sdk
+from pydantic import SecretStr
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, DEFAULT_PII_DENYLIST, EventScrubber
 from sentry_sdk.transport import Transport
 from sentry_sdk.utils import event_from_exception
 
@@ -17,11 +29,88 @@ from app.config import Settings
 
 FLUSH_TIMEOUT_SECONDS = 2.0  # only paid on a 500
 
+# Lower-case header names never sent to Sentry (compared case-insensitively).
+SCRUBBED_HEADERS = frozenset(
+    {
+        "x-internal-secret",
+        "x-client-ip",
+        "cookie",
+        "set-cookie",
+        "authorization",
+        "proxy-authorization",
+        "x-forwarded-for",
+        "x-real-ip",
+        "x-vercel-forwarded-for",
+        "x-vercel-proxied-for",
+        "forwarded",
+    }
+)
+# EventScrubber compares whole keys, lower-cased; headers appear both dashed and underscored.
+# `headers` / `raw_headers` catch whole header collections in frame locals (the ASGI scope);
+# the event's own `request.headers` is scrubbed by content, never by that key.
+_EXTRA_DENYLIST = sorted(
+    SCRUBBED_HEADERS | {h.replace("-", "_") for h in SCRUBBED_HEADERS} | {"headers", "raw_headers"}
+)
+FILTERED = "[Filtered]"
+SECRET_MIN_LENGTH = 8  # shorter values would mask ordinary words
+
+
+def _scrub(event: Any, _hint: Any) -> Any:
+    """Strip secret and visitor-identifying headers, the remote address and any user ip from
+    the request payload. Never raises or drops the event."""
+    request = event.get("request")
+    if isinstance(request, dict):
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            request["headers"] = {
+                k: v for k, v in headers.items() if str(k).lower() not in SCRUBBED_HEADERS
+            }
+        request.pop("cookies", None)
+        env = request.get("env")
+        if isinstance(env, dict):
+            env.pop("REMOTE_ADDR", None)
+    user = event.get("user")
+    if isinstance(user, dict):
+        user.pop("ip_address", None)
+    return event
+
+
+def _mask(value: Any, secrets: tuple[str, ...]) -> Any:
+    if isinstance(value, str):
+        return FILTERED if any(s in value for s in secrets) else value
+    if isinstance(value, dict):
+        return {k: _mask(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask(v, secrets) for v in value]
+    return value
+
+
+def _secret_values(settings: Settings) -> tuple[str, ...]:
+    """Every configured `SecretStr` setting's value (REVALIDATE_SECRET, SESSION_SECRET, …)."""
+    values = (getattr(settings, name) for name in type(settings).model_fields)
+    return tuple(
+        s
+        for v in values
+        if isinstance(v, SecretStr) and len(s := v.get_secret_value()) >= SECRET_MIN_LENGTH
+    )
+
+
+def build_before_send(settings: Settings) -> Callable[[Any, Any], Any]:
+    """`before_send` / `before_send_transaction`: `_scrub`, then mask secret values anywhere."""
+    secrets = _secret_values(settings)
+
+    def before_send(event: Any, hint: Any) -> Any:
+        event = _scrub(event, hint)
+        return _mask(event, secrets) if secrets else event
+
+    return before_send
+
 
 def init_sentry(settings: Settings, *, transport: Transport | None = None) -> bool:
     """Returns True when the SDK is active. `transport` (tests) replaces the HTTP transport."""
     if not settings.sentry_dsn:
         return False
+    before_send = build_before_send(settings)
     sentry_sdk.init(
         dsn=settings.sentry_dsn,
         # Vercel sets both; locally they are absent.
@@ -30,6 +119,13 @@ def init_sentry(settings: Settings, *, transport: Transport | None = None) -> bo
         send_default_pii=False,
         traces_sample_rate=0.1,
         integrations=[StarletteIntegration(), FastApiIntegration()],
+        event_scrubber=EventScrubber(
+            denylist=DEFAULT_DENYLIST + _EXTRA_DENYLIST,
+            pii_denylist=DEFAULT_PII_DENYLIST,
+            recursive=True,
+        ),
+        before_send=before_send,
+        before_send_transaction=before_send,
         transport=transport,
     )
     return True

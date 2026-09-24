@@ -2987,8 +2987,22 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Any query string: redirect to the bare URL */
+            308: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Draft or unknown package */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many downloads from this address */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

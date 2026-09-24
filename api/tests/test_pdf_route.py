@@ -13,6 +13,7 @@ from app.services.pdf.service import PdfService
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
+from tests.test_enquiries import CountingLimiter
 from tests.test_pdf_service import FakeBlobStore, cover_transport
 
 PATH = "/packages/north-goa-beaches/itinerary.pdf"
@@ -118,3 +119,46 @@ async def test_head_never_renders_or_uploads(
     warm = await db_client.head(PATH)
     assert warm.status_code == 302 and warm.headers["location"] == location
     assert warm.content == b"" and len(store.puts) == 1
+
+
+@pytest.mark.db
+async def test_a_query_string_308s_to_the_bare_url_before_any_work(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    """Random queries must not multiply edge-cache entries or Blob lists: neither the limiter
+    nor the store is touched."""
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    store = with_store(db_app, FakeBlobStore(fail=True))  # any list or put would raise → 200
+    limiter = CountingLimiter()
+    db_app.state.rate_limiter = limiter
+    assert store is not None
+    for method in ("GET", "HEAD"):
+        res = await db_client.request(method, f"{PATH}?v=123&utm_source=x")
+        assert res.status_code == 308
+        # Relative, so it resolves under the web's /api/ prefix and on the api's own origin alike.
+        assert res.headers["location"] == "itinerary.pdf"
+        assert res.headers["cache-control"] == "public, s-maxage=60, stale-while-revalidate=300"
+    assert limiter.hits == [] and store.puts == []
+
+
+@pytest.mark.db
+async def test_downloads_are_rate_limited_per_address(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    with_store(db_app, FakeBlobStore())
+    limiter = CountingLimiter(limit=2)
+    db_app.state.rate_limiter = limiter
+    headers = {"X-Forwarded-For": "203.0.113.5"}
+
+    for _ in range(2):
+        assert (await db_client.get(PATH, headers=headers)).status_code == 302
+    res = await db_client.get(PATH, headers=headers)
+
+    assert res.status_code == 429
+    assert res.json()["error"]["code"] == "rate_limited"
+    assert res.headers["retry-after"] == "600"
+    assert res.headers["cache-control"] == "no-store"
+    assert limiter.hits == ["pdf:203.0.113.5"] * 3
+    other = await db_client.get(PATH, headers={"X-Forwarded-For": "203.0.113.6"})
+    assert other.status_code == 302

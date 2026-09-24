@@ -21,7 +21,11 @@ export const BUDGET_MESSAGE = `Between ₹${grouped(BUDGET.min)} and ₹${groupe
 export const NAME_MAX = 80;
 export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
 
+export const NAME_CONTROL_MESSAGE = 'Enter your name on one line, without special characters';
+
 const PHONE_RE = /^[6-9][0-9]{9}$/;
+/** C0 + DEL + C1 controls and U+2028/9 — mirrors `CONTROL_RE` in the api schema. */
+const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])(-[0-9]{2})?$/; // YYYY-MM (the form) or a date (the contract)
 
@@ -56,7 +60,8 @@ export const enquirySchema = z
       .string()
       .trim()
       .min(2, 'Enter your name')
-      .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`),
+      .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`)
+      .refine((n) => !CONTROL_RE.test(n), NAME_CONTROL_MESSAGE),
     phone: z
       .string()
       .transform(normalisePhone)

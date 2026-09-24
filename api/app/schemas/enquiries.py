@@ -18,6 +18,10 @@ BUDGET_MIN_INR = 1_000
 BUDGET_MAX_INR = 10_00_000
 
 PHONE_MESSAGE = "Enter a 10-digit Indian mobile number"
+# C0 + DEL + C1 controls and the Unicode line/paragraph separators: a name is one line of text,
+# and it lands in the owner email's subject (services/email/render.py).
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+NAME_CONTROL_MESSAGE = "Enter your name on one line, without special characters"
 
 
 def normalise_phone(raw: str) -> str:
@@ -58,6 +62,13 @@ class EnquiryCreate(ApiModel):
     @classmethod
     def _strip_name(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
+
+    @field_validator("name")
+    @classmethod
+    def _one_line_name(cls, v: str) -> str:
+        if CONTROL_RE.search(v):
+            raise ValueError(NAME_CONTROL_MESSAGE)
+        return v
 
     @field_validator("message", "preferred_dates", "changes", mode="before")
     @classmethod

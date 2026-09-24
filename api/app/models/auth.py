@@ -27,7 +27,8 @@ class Session(IdMixin, CreatedMixin, Base):
     __table_args__ = (Index("ix_sessions_user_id", "user_id"),)
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # the cookie value
+    # sha256 hex of the cookie value (services/auth/sessions.py::hash_token) — never the token
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ip: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)
