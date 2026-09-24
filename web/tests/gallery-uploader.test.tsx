@@ -78,6 +78,27 @@ describe('GalleryUploader', () => {
     );
   });
 
+  it('on an expired session says what was saved and leaves the refresh to the login', async () => {
+    uploadPackageImage
+      .mockResolvedValueOnce(image('a', 0))
+      .mockResolvedValueOnce(image('b', 1))
+      .mockRejectedValueOnce(
+        new ApiRequestError(401, { code: 'unauthorized', message: 'Sign in to continue' }),
+      );
+    const { container } = render(
+      <GalleryUploader packageId="p1" images={[]} coverImageId={null} />,
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [file('a.jpg'), file('b.jpg'), file('c.jpg'), file('d.jpg')] },
+    });
+
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    expect(toastSuccess).toHaveBeenCalledWith('2 photos saved before your session expired');
+    expect(uploadPackageImage).toHaveBeenCalledTimes(3);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it('asks before deleting a photo', async () => {
     const user = userEvent.setup();
     adminRequest.mockResolvedValue(undefined);

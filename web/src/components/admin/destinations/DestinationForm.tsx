@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
-import { useId, useRef } from 'react';
+import { useId } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { SlugField, followSlug } from '@/components/admin/SlugField';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { adminRequest } from '@/lib/admin/client';
@@ -53,14 +54,6 @@ const EMPTY: FieldValues = {
 const FIELDS = new Set<string>(Object.keys(EMPTY));
 const isField = (key: string): key is keyof FieldValues => FIELDS.has(key);
 
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
 const panel = 'grid gap-4 rounded-card border border-line bg-bg p-5';
 const h3 = 'text-base font-extrabold';
 
@@ -69,10 +62,6 @@ export function DestinationForm(props: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const monthsLabelId = useId();
-  // Set by a keystroke in the slug box. Not `getFieldState('slug').isDirty`: once the form
-  // tracks `isDirty` (the unsaved-changes guard), react-hook-form re-derives every dirty field
-  // and counts the name-following slug as edited after the first letter.
-  const slugEdited = useRef(false);
   const editing = props.mode === 'edit';
   const form = useForm<FieldValues, unknown, DestinationFormValues>({
     resolver: zodResolver(destinationSchema),
@@ -89,6 +78,7 @@ export function DestinationForm(props: Props) {
         }
       : EMPTY,
   });
+  const onNameChange = followSlug(form, editing);
   const confirmLeave = useConfirmLeave();
   const { release } = useUnsavedChangesGuard(form.formState.isDirty);
   const slugLocked = editing && props.destination.slugLocked;
@@ -141,51 +131,18 @@ export function DestinationForm(props: Props) {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Follow the name until the owner edits the slug themselves; after a
-                        // failed submit, re-validate so a stale "Required" clears as it fills.
-                        if (!editing && !slugEdited.current)
-                          form.setValue('slug', slugify(e.target.value), {
-                            shouldValidate: form.formState.isSubmitted,
-                          });
-                      }}
-                    />
+                    <Input {...field} onChange={(e) => onNameChange(e, field.onChange)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
+            <SlugField
               name="slug"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Slug</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="goa"
-                      onChange={(e) => {
-                        slugEdited.current = true;
-                        field.onChange(e);
-                      }}
-                      readOnly={slugLocked}
-                      className={slugLocked ? 'bg-bg2 text-mute' : undefined}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {slugLocked
-                      ? 'The URL is fixed once a trip has been published.'
-                      : editing
-                        ? 'Changing this moves the public page; the old address stops working.'
-                        : 'The public address: /destinations/<slug>.'}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
+              editing={editing}
+              locked={slugLocked}
+              placeholder="goa"
+              publicPath="/destinations"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

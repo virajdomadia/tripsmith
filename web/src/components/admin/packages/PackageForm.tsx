@@ -63,7 +63,7 @@ const FIELDS = new Set<string>([
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures']);
 /** The api's stale-edit 409: another tab or device saved this package first. */
-const STALE_KEY = 'expectedUpdatedAt';
+const STALE_KEY = 'expectedEditedAt';
 
 /** Where a server field error lands on the form, or null when no field can show it. */
 function errorTarget(key: string): FieldPath<PackageFieldValues> | null {
@@ -125,35 +125,41 @@ export function PackageForm(props: Props) {
   const root = useRef<HTMLDivElement>(null);
   const { release } = useUnsavedChangesGuard(form.formState.isDirty);
 
-  /* Optimistic concurrency. `expected` is the version this form edits against, sent with every
-     save so the api can refuse to overwrite a newer one. `baseline` is that version's content,
-     so a refresh can tell a status or gallery change (same content, new version: follow it)
-     from somebody else's edit (new content: keep the old version, so the save answers 409
-     rather than silently overwriting what they wrote). */
-  const expected = useRef<string | null>(pkg?.updatedAt ?? null);
-  const baseline = useRef(pkg ? JSON.stringify(toFieldValues(pkg)) : '');
+  /* Optimistic concurrency. `expected` is the version (`editedAt`) this form edits against,
+     sent with every save so the api can refuse to overwrite a newer one. Only form saves move
+     `editedAt`, so a publish or a photo change refreshes the page without touching it. */
+  const expected = useRef<string | null>(pkg?.editedAt ?? null);
+  /** The last version the server handed this page, to spot a refresh that brought a new one. */
+  const seen = useRef<string | null>(pkg?.editedAt ?? null);
+  /** A restored sign-in draft edits against the version it was parked with; a refresh must not
+   *  quietly move it forward until the owner saves or reloads. */
+  const pinned = useRef(false);
 
   useEffect(() => {
-    if (!pkg) return;
-    const content = JSON.stringify(toFieldValues(pkg));
-    if (content === baseline.current) {
-      expected.current = pkg.updatedAt;
-    } else if (!form.formState.isDirty) {
-      form.reset(toFieldValues(pkg));
-      baseline.current = content;
-      expected.current = pkg.updatedAt;
-    }
-    // Dirty over somebody else's newer content: `expected` stays behind on purpose.
+    if (!pkg || pkg.editedAt === seen.current) return;
+    seen.current = pkg.editedAt;
+    // Somebody else saved. A clean form follows them; a dirty (or restored) one keeps its
+    // version on purpose, so its save answers 409 instead of overwriting what they wrote.
+    if (pinned.current || form.formState.isDirty) return;
+    form.reset(toFieldValues(pkg));
+    expected.current = pkg.editedAt;
   }, [pkg, form]);
 
-  // Back from a sign-in that interrupted an edit: put the parked values back, still dirty.
+  // Back from a sign-in (or a stale-edit reload) that interrupted an edit: put the parked
+  // values back, still dirty, over what the server has now.
   useEffect(() => {
     const draft = takeDraft<PackageFieldValues>(draftKey);
     if (!draft) return;
     form.reset(draft.values, { keepDefaultValues: true });
-    if (draft.expectedUpdatedAt) expected.current = draft.expectedUpdatedAt;
+    if (draft.expectedVersion) {
+      expected.current = draft.expectedVersion;
+      pinned.current = true;
+    }
+    const message = draft.expectedVersion
+      ? 'Restored unsaved changes'
+      : 'Restored your edits over the latest version — saving replaces it';
     // A tick later: the shell's Toaster mounts after the page content.
-    setTimeout(() => toast.success('Restored unsaved changes'), 0);
+    setTimeout(() => toast.success(message), 0);
   }, [draftKey, form]);
 
   function onInvalid() {
@@ -161,31 +167,39 @@ export function PackageForm(props: Props) {
     focusFirstError(root.current);
   }
 
+  /** Another tab or device saved first. Reloading shows theirs; the owner's own edits are
+   *  parked and laid back on top, so choosing to look never costs them their work. */
   function reportStale(message: string) {
+    const reload = (keep: boolean) => {
+      if (keep) saveDraft(draftKey, { values: form.getValues(), expectedVersion: null });
+      release();
+      window.location.reload();
+    };
     toast.error(message, {
       duration: Infinity,
-      action: {
-        label: 'Reload',
-        onClick: () => {
-          release();
-          window.location.reload();
-        },
-      },
+      action: { label: 'Reload, keep my edits', onClick: () => reload(true) },
+      cancel: { label: 'Discard mine', onClick: () => reload(false) },
     });
   }
 
   async function onSubmit(values: PackageFormValues) {
-    const body = { ...toInput(values), expectedUpdatedAt: expected.current };
+    const body = { ...toInput(values), expectedEditedAt: expected.current };
+    // What the inputs held when the request left. Anything typed while it is in flight is
+    // newer than the save and must survive the reset below.
+    const sent = JSON.stringify(form.getValues());
     try {
       if (pkg) {
         const saved = await adminRequest<AdminPackage>(`/admin/packages/${pkg.id}`, {
           method: 'PUT',
           body,
         });
-        const next = toFieldValues(saved);
-        form.reset(next);
-        baseline.current = JSON.stringify(next);
-        expected.current = saved.updatedAt;
+        const current = form.getValues();
+        // The saved package is the new baseline either way; later keystrokes are laid back on
+        // top of it, still dirty, so the guard keeps protecting them.
+        form.reset(toFieldValues(saved));
+        if (JSON.stringify(current) !== sent) form.reset(current, { keepDefaultValues: true });
+        expected.current = seen.current = saved.editedAt;
+        pinned.current = false;
         toast.success('Saved — the public pages refresh in a few seconds');
         router.refresh();
       } else {
@@ -209,21 +223,21 @@ export function PackageForm(props: Props) {
           return;
         }
         const unpinned: string[] = [];
-        let pinned = 0;
+        let pinnedCount = 0;
         for (const [key, message] of entries) {
           const target = errorTarget(key);
           if (target) {
             form.setError(target, { type: 'server', message });
-            pinned += 1;
+            pinnedCount += 1;
           } else {
             unpinned.push(message);
           }
         }
-        if (pinned) {
-          // Always say something: a message with no field to sit under (the gallery, a
-          // whole-body rule) goes in the toast; otherwise the toast points at the fields.
+        if (pinnedCount || unpinned.length) {
+          // Always say what went wrong: a message no field can show goes in the toast word
+          // for word; when every message found its field, the toast points at them.
           toast.error(unpinned.length ? unpinned.join(' · ') : e.body.message);
-          focusFirstError(root.current);
+          if (pinnedCount) focusFirstError(root.current);
           return;
         }
       }
@@ -232,7 +246,7 @@ export function PackageForm(props: Props) {
         pathname,
         fallback: 'Could not save — try again',
         onSessionExpired: () => {
-          saveDraft(draftKey, { values: form.getValues(), expectedUpdatedAt: expected.current });
+          saveDraft(draftKey, { values: form.getValues(), expectedVersion: expected.current });
           release();
         },
       });

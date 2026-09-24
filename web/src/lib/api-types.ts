@@ -584,7 +584,7 @@ export interface components {
             slug: string;
             /**
              * Sluglocked
-             * @description True once any of its packages has been published; the slug is then fixed
+             * @description True once any package here has been published; the slug is then fixed
              */
             slugLocked: boolean;
             /** Tagline */
@@ -698,6 +698,12 @@ export interface components {
             destination: components["schemas"]["DestinationRef"];
             /** Destinationid */
             destinationId: string;
+            /**
+             * Editedat
+             * Format: date-time
+             * @description Moves on form saves only; send it back as `expectedEditedAt`
+             */
+            editedAt: string;
             /**
              * Enquirycount
              * @description All time; blocks delete when above 0
@@ -1564,10 +1570,10 @@ export interface components {
             /** Exclusions */
             exclusions?: string[];
             /**
-             * Expectedupdatedat
-             * @description The `updatedAt` the form loaded. On update, a package changed since then answers 409 instead of being overwritten; omitted, the check is skipped
+             * Expectededitedat
+             * @description The `editedAt` the form loaded. On update, a package saved since then answers 409 instead of being overwritten; omitted, the check is skipped
              */
-            expectedUpdatedAt?: string | null;
+            expectedEditedAt?: string | null;
             /** Faq */
             faq?: components["schemas"]["FaqItem"][];
             /**

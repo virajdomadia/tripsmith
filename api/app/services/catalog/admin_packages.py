@@ -33,6 +33,7 @@ from app.schemas.catalog import (
     PublishRule,
 )
 from app.services.analytics import ist_today
+from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
 
 DUPLICATE_SLUG = "A package with this slug already exists"
 ENQUIRY_WINDOW_DAYS = 30
@@ -41,7 +42,6 @@ UNKNOWN_DESTINATION = "Pick a destination that exists"
 FOREIGN_DEPARTURE = "A departure in this payload belongs to another package"
 DUPLICATE_DEPARTURE = "Two departures cannot share the same date"
 STALE = "This package was changed in another tab or by someone else — reload to see the latest"
-SLUG_LOCKED = "The URL is fixed once a trip has been published"
 LIVE_RULES_BROKEN = "This trip is live, so this change would break its publish rules"
 
 
@@ -181,6 +181,22 @@ def can_publish(rules: Sequence[PublishRule]) -> bool:
 def slug_locked(pkg: Package) -> bool:
     """Live counts too: a row seeded straight into `live` never passed through `set_status`."""
     return pkg.first_published_at is not None or pkg.status is PackageStatus.LIVE
+
+
+def edited_at(pkg: Package) -> dt.datetime:
+    """The form's version. A row inserted without one (the seed, or the old code during a
+    deploy) falls back to `created_at` — never `updated_at`, which a publish or a gallery
+    change moves and would turn into a spurious conflict."""
+    return pkg.edited_at or pkg.created_at
+
+
+def _stamp_published(pkg: Package, destination: Destination, now: dt.datetime) -> None:
+    """The package and its destination were public from `now`: both slugs are fixed from here,
+    whatever happens to the package later (unpublished, moved, deleted)."""
+    if pkg.first_published_at is None:
+        pkg.first_published_at = now
+    if destination.first_published_at is None:
+        destination.first_published_at = now
 
 
 # Where a broken rule is shown on the form. `images` has no form field — it lands in the toast.
@@ -332,6 +348,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         publish_rules=rules,
         can_publish=can_publish(rules),
         slug_locked=slug_locked(pkg),
+        edited_at=edited_at(pkg),
         updated_at=pkg.updated_at,
     )
 
@@ -520,7 +537,7 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
     yet, and a fresh row is what the owner meant."""
     await _assert_destination_exists(db, payload.destination_id)
     await _assert_slug_free(db, payload.slug, except_id=None)
-    pkg = Package(status=PackageStatus.DRAFT)
+    pkg = Package(status=PackageStatus.DRAFT, edited_at=dt.datetime.now(dt.UTC))
     _apply_fields(pkg, payload)
     pkg.itinerary = _new_days(payload)
     pkg.departures = [_fill_departure(Departure(), row) for row in payload.departures]
@@ -533,14 +550,16 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
 
 
 async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> AdminPackage:
-    """Optimistic concurrency: the form sends the `updatedAt` it loaded, and a package that has
-    moved on since (another tab, another device) is refused rather than silently overwritten.
-    Every successful save stamps a fresh `updated_at` — an itinerary- or departure-only edit
-    changes no column on the package row, so the ORM's `onupdate` alone would not advance it.
+    """Optimistic concurrency: the form sends the `editedAt` it loaded, and a package saved
+    since (another tab, another device) is refused rather than silently overwritten. Only form
+    saves move `edited_at`, so a publish or a photo upload elsewhere is never a conflict.
+    `updated_at` is stamped too — an itinerary- or departure-only edit changes no column on the
+    package row, so the ORM's `onupdate` alone would not advance the owner's "last edited".
     """
     pkg = await load(db, id, lock=True)
-    if payload.expected_updated_at is not None and pkg.updated_at != payload.expected_updated_at:
-        raise ApiError("conflict", STALE, field_errors={"expectedUpdatedAt": STALE})
+    expected = payload.expected_edited_at
+    if expected is not None and edited_at(pkg) != expected:
+        raise ApiError("conflict", STALE, field_errors={"expectedEditedAt": STALE})
     if payload.slug != pkg.slug and slug_locked(pkg):
         raise ApiError("validation", SLUG_LOCKED, field_errors={"slug": SLUG_LOCKED})
     await _assert_destination_exists(db, payload.destination_id)
@@ -560,7 +579,14 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     )
     # The wall clock, not the column's `now()` default: now() is the transaction start, which
     # can predate the commit of a save this one waited on behind the row lock.
-    pkg.updated_at = dt.datetime.now(dt.UTC)
+    now = dt.datetime.now(dt.UTC)
+    pkg.updated_at = pkg.edited_at = now
+    if pkg.status is PackageStatus.LIVE:
+        # A live package moved to another destination makes that one public too. Fetched by
+        # id: `pkg.destination` is still the relationship loaded before the move.
+        destination = await db.get(Destination, payload.destination_id)
+        if destination is not None:
+            _stamp_published(pkg, destination, now)
     await _commit_or_conflict(db)
     out = await to_admin(db, await load(db, id))
     await revalidate(
@@ -570,8 +596,9 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
 
 
 async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminPackage:
-    """Going live runs the four rules; unpublishing is always allowed (06 §C4)."""
-    pkg = await load(db, id)
+    """Going live runs the four rules; unpublishing is always allowed (06 §C4). The row is
+    locked so a concurrent photo delete cannot slip under the rules between check and write."""
+    pkg = await load(db, id, lock=True)
     if status is PackageStatus.LIVE:
         rules = publish_rules(pkg, image_count=len(pkg.images), today=ist_today())
         failed = [r for r in rules if not r.ok]
@@ -581,8 +608,7 @@ async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminP
                 "This package is not ready to go live yet",
                 field_errors={r.key: r.label for r in failed},
             )
-        if pkg.first_published_at is None:
-            pkg.first_published_at = dt.datetime.now(dt.UTC)
+        _stamp_published(pkg, pkg.destination, dt.datetime.now(dt.UTC))
     pkg.status = status
     await db.commit()
     out = await to_admin(db, await load(db, id))

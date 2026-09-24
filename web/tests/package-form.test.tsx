@@ -116,7 +116,8 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   publishRules: [],
   canPublish: false,
   slugLocked: false,
-  updatedAt: '2026-09-20T10:00:00.123456Z',
+  editedAt: '2026-09-20T10:00:00.123456Z',
+  updatedAt: '2026-09-20T11:00:00Z',
   ...over,
 });
 
@@ -170,19 +171,42 @@ describe('PackageForm — errors that belong to a whole list', () => {
     );
     renderForm();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Request validation failed'));
+    // The real reason, not the envelope's generic "Request validation failed".
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('A 3-night trip has 4 days at most'),
+    );
   });
 });
 
 describe('PackageForm — stale edits', () => {
   it('sends the version it loaded with every save', async () => {
     const user = userEvent.setup();
-    adminRequest.mockResolvedValue(fixture({ updatedAt: '2026-09-21T09:00:00Z' }));
+    adminRequest.mockResolvedValue(fixture({ editedAt: '2026-09-21T09:00:00Z' }));
     renderForm();
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(adminRequest).toHaveBeenCalled());
     const [, init] = adminRequest.mock.calls[0] as [string, { body: Record<string, unknown> }];
-    expect(init.body.expectedUpdatedAt).toBe('2026-09-20T10:00:00.123456Z');
+    expect(init.body.expectedEditedAt).toBe('2026-09-20T10:00:00.123456Z');
+
+    // The next save goes out against the version the first one produced.
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(adminRequest).toHaveBeenCalledTimes(2));
+    const [, again] = adminRequest.mock.calls[1] as [string, { body: Record<string, unknown> }];
+    expect(again.body.expectedEditedAt).toBe('2026-09-21T09:00:00Z');
+  });
+
+  it('keeps the version it loaded when a publish or gallery change refreshes the page', () => {
+    const { rerender } = renderForm();
+    // Status / photo change: same editedAt, new updatedAt, so nothing to follow or fear.
+    rerender(
+      <PackageForm
+        mode="edit"
+        pkg={fixture({ status: 'live', updatedAt: '2026-09-22T00:00:00Z' })}
+        destinations={[destination]}
+      />,
+    );
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('North Goa Beaches');
   });
 
   it('offers a reload when another tab saved first', async () => {
@@ -193,15 +217,43 @@ describe('PackageForm — stale edits', () => {
       new ApiRequestError(409, {
         code: 'conflict',
         message: stale,
-        fieldErrors: { expectedUpdatedAt: stale },
+        fieldErrors: { expectedEditedAt: stale },
       }),
     );
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
     renderForm();
+    const name = screen.getByLabelText('Name');
+    await user.clear(name);
+    await user.type(name, 'Mine');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
-    const [message, opts] = toastError.mock.calls[0] as [string, { action: { label: string } }];
+    type Opts = {
+      action: { label: string; onClick: () => void };
+      cancel: { label: string; onClick: () => void };
+    };
+    const [message, opts] = toastError.mock.calls[0] as [string, Opts];
     expect(message).toBe(stale);
-    expect(opts.action.label).toBe('Reload');
+    expect(opts.action.label).toBe('Reload, keep my edits');
+    expect(opts.cancel.label).toBe('Discard mine');
+
+    // Keeping: the edits are parked for the reloaded page, which lays them on the new version.
+    opts.action.onClick();
+    expect(reload).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    cleanup();
+    renderForm(fixture({ name: 'Theirs', editedAt: '2026-09-23T00:00:00Z' }));
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Mine');
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Restored your edits over the latest version — saving replaces it',
+      ),
+    );
+    adminRequest.mockResolvedValue(fixture({ name: 'Mine', editedAt: '2026-09-24T00:00:00Z' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(adminRequest).toHaveBeenCalledTimes(2));
+    const [, init] = adminRequest.mock.calls[1] as [string, { body: Record<string, unknown> }];
+    expect(init.body.expectedEditedAt).toBe('2026-09-23T00:00:00Z');
   });
 });
 
@@ -230,6 +282,56 @@ describe('PackageForm — an expired session', () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Restored unsaved changes'));
     expect(window.sessionStorage.getItem('tripsmith:admin-draft:package:p1')).toBeNull();
   });
+
+  it('keeps the parked version even when a newer one arrives on refresh', async () => {
+    const user = userEvent.setup();
+    window.sessionStorage.setItem(
+      'tripsmith:admin-draft:package:p1',
+      JSON.stringify({
+        savedAt: Date.now(),
+        values: { ...fixture(), name: 'Parked' },
+        expectedVersion: '2026-09-20T10:00:00.123456Z',
+      }),
+    );
+    const { rerender } = renderForm(fixture({ editedAt: '2026-09-21T00:00:00Z' }));
+    rerender(
+      <PackageForm
+        mode="edit"
+        pkg={fixture({ editedAt: '2026-09-22T00:00:00Z' })}
+        destinations={[destination]}
+      />,
+    );
+    adminRequest.mockResolvedValue(fixture({ editedAt: '2026-09-23T00:00:00Z' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(adminRequest).toHaveBeenCalled());
+    const [, init] = adminRequest.mock.calls[0] as [string, { body: Record<string, unknown> }];
+    expect(init.body.expectedEditedAt).toBe('2026-09-20T10:00:00.123456Z');
+    expect(init.body.name).toBe('Parked');
+  });
+});
+
+describe('PackageForm — typing while a save is in flight', () => {
+  it('keeps the keystrokes and stays dirty on top of the saved version', async () => {
+    const user = userEvent.setup();
+    let resolve: (v: AdminPackage) => void = () => {};
+    adminRequest.mockReturnValue(new Promise<AdminPackage>((r) => (resolve = r)));
+    renderForm();
+    const name = screen.getByLabelText('Name') as HTMLInputElement;
+    await user.clear(name);
+    await user.type(name, 'Saved name');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(adminRequest).toHaveBeenCalled());
+
+    await user.type(name, ' plus more');
+    resolve(fixture({ name: 'Saved name', editedAt: '2026-09-21T00:00:00Z' }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(name.value).toBe('Saved name plus more');
+
+    // Still dirty: leaving now would lose the extra words, so the browser prompt stays armed.
+    const leaving = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+  });
 });
 
 describe('PackageForm — slug', () => {
@@ -242,5 +344,29 @@ describe('PackageForm — slug', () => {
   it('stays editable on a draft that has never been live', () => {
     renderForm();
     expect((screen.getByLabelText('Slug') as HTMLInputElement).readOnly).toBe(false);
+  });
+
+  it('does not overwrite a hand-written slug after a restored draft', async () => {
+    const user = userEvent.setup();
+    window.sessionStorage.setItem(
+      'tripsmith:admin-draft:package:new',
+      JSON.stringify({
+        savedAt: Date.now(),
+        values: { ...fixture(), name: 'Goa', slug: 'my-own-slug' },
+        expectedVersion: null,
+      }),
+    );
+    render(<PackageForm mode="create" destinations={[destination]} />);
+    const slug = screen.getByLabelText('Slug') as HTMLInputElement;
+    await waitFor(() => expect(slug.value).toBe('my-own-slug'));
+    await user.type(screen.getByLabelText('Name'), ' beaches');
+    expect(slug.value).toBe('my-own-slug');
+  });
+
+  it('follows the name on a create form while the slug is still the derived one', async () => {
+    const user = userEvent.setup();
+    render(<PackageForm mode="create" destinations={[destination]} />);
+    await user.type(screen.getByLabelText('Name'), 'Goa Beaches');
+    expect((screen.getByLabelText('Slug') as HTMLInputElement).value).toBe('goa-beaches');
   });
 });

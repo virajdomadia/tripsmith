@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef } from 'react';
+import { useId } from 'react';
 import { useFormContext } from 'react-hook-form';
 import {
   FormControl,
@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { NativeSelect } from '@/components/admin/NativeSelect';
+import { SlugField, followSlug } from '@/components/admin/SlugField';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,14 +20,6 @@ import type { components } from '@/lib/api-types';
 
 type AdminDestination = components['schemas']['AdminDestination'];
 type Theme = (typeof THEMES)[number]['value'];
-
-const slugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 
 /** Mockup A4's Basics panel: name, slug, destination, nights, departure city, themes, summary. */
 export function BasicsPanel({
@@ -40,12 +33,9 @@ export function BasicsPanel({
   slugLocked?: boolean;
 }) {
   const form = useFormContext<PackageFieldValues>();
+  const onNameChange = followSlug(form, editing);
   const themesLabelId = useId();
   const featuredLabelId = useId();
-  // Set by a keystroke in the slug box. Not `getFieldState('slug').isDirty`: once the form
-  // tracks `isDirty` (the unsaved-changes guard), react-hook-form re-derives every dirty field
-  // and counts the name-following slug as edited after the first letter.
-  const slugEdited = useRef(false);
   const nights = Number(form.watch('nights'));
   const days = Number.isFinite(nights) ? nights + 1 : 0;
 
@@ -59,51 +49,18 @@ export function BasicsPanel({
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  onChange={(e) => {
-                    field.onChange(e);
-                    // Follow the name until the owner edits the slug themselves; after a failed
-                    // submit, re-validate so a stale "Required" clears as it fills.
-                    if (!editing && !slugEdited.current)
-                      form.setValue('slug', slugify(e.target.value), {
-                        shouldValidate: form.formState.isSubmitted,
-                      });
-                  }}
-                />
+                <Input {...field} onChange={(e) => onNameChange(e, field.onChange)} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
+        <SlugField
           name="slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Slug</FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder="north-goa-beaches"
-                  onChange={(e) => {
-                    slugEdited.current = true;
-                    field.onChange(e);
-                  }}
-                  readOnly={slugLocked}
-                  className={slugLocked ? 'bg-bg2 text-mute' : undefined}
-                />
-              </FormControl>
-              <FormDescription>
-                {slugLocked
-                  ? 'The URL is fixed once a trip has been published.'
-                  : editing
-                    ? 'Changing this moves the public page; the old address stops working.'
-                    : 'The public address: /packages/<slug>.'}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          editing={editing}
+          locked={slugLocked}
+          placeholder="north-goa-beaches"
+          publicPath="/packages"
         />
       </div>
 

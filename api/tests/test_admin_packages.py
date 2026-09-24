@@ -884,7 +884,7 @@ async def as_payload(db: AsyncSession, id: str, **overrides: object) -> PackageI
             }
             for d in out.departures
         ],
-        "expectedUpdatedAt": out.updated_at.isoformat(),
+        "expectedEditedAt": out.edited_at.isoformat(),
     }
     fields.update(overrides)
     return PackageInput.model_validate(fields)
@@ -901,14 +901,14 @@ async def test_a_save_against_an_older_version_is_a_stale_409(
 
     first = await svc.update_package(db, pkg.id, tab_a)
     assert first.name == "Tab A"
-    assert tab_a.expected_updated_at is not None
-    assert first.updated_at > tab_a.expected_updated_at
+    assert tab_a.expected_edited_at is not None
+    assert first.edited_at > tab_a.expected_edited_at
     revalidated.calls.clear()
 
     with pytest.raises(ApiError) as exc:
         await svc.update_package(db, pkg.id, tab_b)
     assert exc.value.code == "conflict"
-    assert exc.value.field_errors == {"expectedUpdatedAt": svc.STALE}
+    assert exc.value.field_errors == {"expectedEditedAt": svc.STALE}
     assert (await svc.get_package(db, pkg.id)).name == "Tab A", "tab B did not overwrite"
     assert revalidated.calls == []
 
@@ -917,18 +917,19 @@ async def test_a_save_against_an_older_version_is_a_stale_409(
 async def test_a_departure_only_edit_still_advances_the_version(
     db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
-    """No column on the package row changes, so the ORM `onupdate` alone would leave
-    `updated_at` where it was and a second tab could save straight past the check."""
+    """No column on the package row changes, yet the version must still move — or a second
+    tab could save straight past the check. The owner's "last edited" moves with it."""
     await seeded(db)
     pkg = await package_by_slug(db, "north-goa-beaches")
     body = await as_payload(db, pkg.id)
     fewer_seats = [d.model_copy(update={"seats_total": 9}) for d in body.departures]
     out = await svc.update_package(db, pkg.id, body.model_copy(update={"departures": fewer_seats}))
     assert all(d.seats_total == 9 for d in out.departures)
-    assert body.expected_updated_at is not None and out.updated_at > body.expected_updated_at
+    assert body.expected_edited_at is not None and out.edited_at > body.expected_edited_at
+    assert out.updated_at >= out.edited_at
     with pytest.raises(ApiError) as exc:
         await svc.update_package(db, pkg.id, body)
-    assert exc.value.field_errors == {"expectedUpdatedAt": svc.STALE}
+    assert exc.value.field_errors == {"expectedEditedAt": svc.STALE}
 
 
 @pytest.mark.db
@@ -937,7 +938,7 @@ async def test_a_save_without_a_version_skips_the_check(
 ) -> None:
     await seeded(db)
     pkg = await package_by_slug(db, "north-goa-beaches")
-    body = await as_payload(db, pkg.id, expectedUpdatedAt=None, name="No version")
+    body = await as_payload(db, pkg.id, expectedEditedAt=None, name="No version")
     assert (await svc.update_package(db, pkg.id, body)).name == "No version"
 
 
@@ -952,7 +953,7 @@ async def test_the_stale_409_reaches_the_client_as_a_field_error(
     assert ok.status_code == 200, ok.text
     again = await db_client.put(f"/admin/packages/{pkg.id}", json=body, headers=cookie)
     assert again.status_code == 409
-    assert again.json()["error"]["fieldErrors"] == {"expectedUpdatedAt": svc.STALE}
+    assert again.json()["error"]["fieldErrors"] == {"expectedEditedAt": svc.STALE}
 
 
 @pytest.mark.db
@@ -1086,3 +1087,81 @@ async def test_a_duplicate_of_a_live_package_is_an_unlocked_draft(
     pkg = await package_by_slug(db, "north-goa-beaches")
     copy = await svc.duplicate_package(db, pkg.id)
     assert copy.status is PackageStatus.DRAFT and copy.slug_locked is False
+
+
+@pytest.mark.db
+async def test_a_publish_or_a_gallery_change_is_not_a_conflict_for_the_form(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    """Tab A has the form open; tab B uploads a photo, changes the cover and republishes. None
+    of that touches what the form edits, so tab A saves without a 409."""
+    await seeded(db)
+    pkg = await svc.load(db, (await package_by_slug(db, "north-goa-beaches")).id)
+    form = await as_payload(db, pkg.id, name="Saved from tab A")
+    other = next(i.id for i in pkg.images if i.id != pkg.cover_image_id)
+    pkg.cover_image_id = other  # what "make cover" writes
+    await db.commit()
+    await svc.set_status(db, pkg.id, PackageStatus.DRAFT)
+    await svc.set_status(db, pkg.id, PackageStatus.LIVE)
+    out = await svc.update_package(db, pkg.id, form)
+    assert out.name == "Saved from tab A"
+
+
+@pytest.mark.db
+async def test_publishing_stamps_the_destination_too(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    draft = await svc.create_package(db, payload(destinationId=await goa_id(db)))
+    goa = (await db.execute(select(Destination).where(Destination.slug == "goa"))).scalar_one()
+    goa.first_published_at = None
+    db.add(
+        PackageImage(package_id=draft.id, url="https://blob.test/a.jpg", width=1600, height=1000)
+    )
+    await db.commit()
+    await svc.set_status(db, draft.id, PackageStatus.LIVE)
+    await db.refresh(goa)
+    assert goa.first_published_at is not None
+
+
+@pytest.mark.db
+async def test_moving_a_live_package_stamps_its_new_destination(
+    db: AsyncSession, revalidated: RecordingRevalidate
+) -> None:
+    await seeded(db)
+    kerala = Destination(
+        slug="kerala",
+        name="Kerala",
+        tagline="Backwaters and tea hills",
+        intro="A long enough intro to satisfy nothing in particular here.",
+        cover_url="https://blob.test/kerala.jpg",
+        region="South India",
+        best_months=[11, 12],
+    )
+    db.add(kerala)
+    await db.commit()
+    pkg = await package_by_slug(db, "north-goa-beaches")
+    await svc.update_package(db, pkg.id, await as_payload(db, pkg.id, destinationId=kerala.id))
+    await db.refresh(kerala)
+    assert kerala.first_published_at is not None
+
+
+@pytest.mark.db
+async def test_list_level_errors_land_on_the_list_not_the_body(
+    db: AsyncSession, db_client: AsyncClient, revalidated: RecordingRevalidate
+) -> None:
+    """The form can show `itinerary` / `departures`; it has nowhere to show `body`."""
+    cookie = await owner_cookie(db, db_client)
+    body = payload(destinationId=await goa_id(db)).model_dump(by_alias=True, mode="json")
+    too_long = await db_client.post("/admin/packages", json={**body, "nights": 2}, headers=cookie)
+    assert too_long.status_code == 400
+    assert too_long.json()["error"]["fieldErrors"] == {
+        "itinerary": "A 2-night trip has 3 days at most"
+    }
+    clash = [body["departures"][0], body["departures"][0]]
+    same_day = await db_client.post(
+        "/admin/packages", json={**body, "departures": clash}, headers=cookie
+    )
+    assert same_day.json()["error"]["fieldErrors"] == {
+        "departures": "Two departures cannot share the same date"
+    }

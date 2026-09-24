@@ -169,6 +169,7 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
     if (!files?.length) return;
     setBusy(true);
     let added = 0;
+    let expired = false;
     const failed: string[] = [];
     try {
       // Sequential on purpose: `position` is derived from the current maximum on the server,
@@ -179,6 +180,13 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
           added += 1;
         } catch (e) {
           if (e instanceof ApiRequestError && e.status === 401) {
+            expired = true;
+            // Say what did make it before the login redirect takes over the screen.
+            if (added) {
+              toast.success(
+                `${added} ${added === 1 ? 'photo' : 'photos'} saved before your session expired`,
+              );
+            }
             reportAdminError(e, { router, pathname, fallback: 'Upload failed — try again' });
             return;
           }
@@ -195,8 +203,9 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
     } finally {
       setBusy(false);
       if (input.current) input.current.value = '';
-      // Whatever did upload has to show up, even when a later file failed.
-      if (added) router.refresh();
+      // Whatever did upload has to show up, even when a later file failed — unless the session
+      // expired: the login redirect is already on its way and a refresh would race it.
+      if (added && !expired) router.refresh();
     }
   }
 

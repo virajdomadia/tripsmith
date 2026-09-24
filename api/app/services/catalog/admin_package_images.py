@@ -57,6 +57,9 @@ async def add_image(
         raise ApiError("validation", str(exc), field_errors={"file": str(exc)}) from exc
     pathname = f"packages/{pkg.slug}/uploads/{new_id()}.{image.ext}"
     url = await store.put(pathname, image.data, image.content_type)
+    # Lock only now — not across the upload — and re-read: the position and the cover below
+    # must see any photo another request added or removed while the bytes were in flight.
+    pkg = await load(db, package_id, lock=True)
     row = PackageImage(
         package_id=pkg.id,
         url=url,
@@ -79,7 +82,7 @@ async def reorder_images(
     db: AsyncSession, package_id: str, order: list[str], cover_id: str | None
 ) -> AdminPackage:
     """One call carries the whole gallery order — a partial order is a bug, not a patch."""
-    pkg = await load(db, package_id)
+    pkg = await load(db, package_id, lock=True)
     by_id = {i.id: i for i in pkg.images}
     if len(order) != len(set(order)) or set(order) != by_id.keys():
         raise ApiError("validation", BAD_ORDER, field_errors={"order": BAD_ORDER})
@@ -120,8 +123,10 @@ async def remove_image(db: AsyncSession, package_id: str, image_id: str) -> None
     role to the next photo instead. The Blob object is left behind (portfolio scale).
 
     A live package keeps its publish rules: its last photo cannot go until it is unpublished.
+    The row lock serialises this with a publish and with other deletes, so two requests can
+    never each remove "not the last" photo and leave a live trip with none.
     """
-    pkg = await load(db, package_id)
+    pkg = await load(db, package_id, lock=True)
     row = await _image_of(db, package_id, image_id)
     remaining = [i for i in sorted(pkg.images, key=lambda i: i.position) if i.id != image_id]
     before = publish_rules(pkg, image_count=len(pkg.images), today=ist_today())
