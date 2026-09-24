@@ -6,6 +6,8 @@
 - FreshQueryMiddleware: `?fresh=1` forces `Cache-Control: no-store` so the web's tag-revalidated
   reads skip the Vercel edge cache in front of this api (docs/06, cache-header convention).
 - SecurityHeadersMiddleware: the defence-in-depth headers (H4, docs/12).
+- HeadAsGetMiddleware: `HEAD` is answered as the `GET` it mirrors, minus the body (RFC 9110
+  §9.3.2) — FastAPI routes declare GET only, so uptime monitors' `HEAD /health` was a 404.
 """
 
 import re
@@ -50,6 +52,27 @@ class RequestIdMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_id)
+
+
+class HeadAsGetMiddleware:
+    """Route a `HEAD` as `GET` and drop every body chunk on the way out. The headers — including
+    the GET's `Content-Length` — pass through untouched, which is exactly what HEAD promises.
+    A path with no GET still ends in the 405 → `not_found` envelope, headers only."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_without_body(message: Message) -> None:
+            if message["type"] == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app({**scope, "method": "GET"}, receive, send_without_body)
 
 
 class BlankQueryParamsMiddleware:

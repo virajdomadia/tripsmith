@@ -39,7 +39,7 @@ async def test_meta_limits_match_the_validation_rules(client: AsyncClient) -> No
         "maxTravellers": 12,
         "maxThemesPerPackage": 3,
         "enquiryMessageMax": 1000,
-        "imageMaxBytes": 5 * 1024 * 1024,
+        "imageMaxBytes": 4 * 1024 * 1024,
     }
 
 

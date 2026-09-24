@@ -18,6 +18,7 @@ from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import (
     BlankQueryParamsMiddleware,
     FreshQueryMiddleware,
+    HeadAsGetMiddleware,
     RequestIdMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -27,7 +28,7 @@ from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
-from app.routers.cron import pdf_gc
+from app.routers.cron import daily, pdf_gc
 from app.routers.site import catalog, enquiries, health, meta, pdf, views
 from app.services.pdf.service import PdfService
 
@@ -77,6 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Before the middleware stack is built, so sentry-sdk's ASGI integration wraps everything below.
     init_sentry(settings)
     _check_keyed_hashing(settings)
+    app.add_middleware(HeadAsGetMiddleware)  # innermost: routing sees the GET it mirrors
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
     app.add_middleware(FreshQueryMiddleware)
@@ -100,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(enquiries.router)
     app.include_router(views.router)
     app.include_router(pdf_gc.router)
+    app.include_router(daily.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`

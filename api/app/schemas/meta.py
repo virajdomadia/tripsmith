@@ -65,7 +65,9 @@ ENQUIRY_TYPE_LABELS: dict[EnquiryType, str] = {
 MAX_TRAVELLERS = 12  # adults + children per enquiry/booking
 MAX_THEMES_PER_PACKAGE = 3
 ENQUIRY_MESSAGE_MAX = 1000  # chars; not fixed by the docs — chosen in S4b
-IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 04 §4: uploads ≤ 5 MB
+# 04 §4 said 5 MB, but Vercel caps a function's request body at 4.5 MB: a 5 MB upload never
+# reaches the API. 4 MB is the one limit — enforced by services/images.py, advertised here.
+IMAGE_MAX_BYTES = 4 * 1024 * 1024
 
 
 class ThemeOption(ApiModel):

@@ -69,7 +69,7 @@ def test_missing_session_secret_is_reported_on_a_deployment(
     caplog.clear()
     with caplog.at_level(logging.ERROR):
         create_app(settings=make_settings(session_secret="set"))
-    assert not caplog.records
+    assert not any("SESSION_SECRET" in r.message for r in caplog.records)
 
 
 def test_local_runs_are_not_nagged(

@@ -8,7 +8,9 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-MAX_BYTES = 4 * 1024 * 1024  # Vercel's function body cap is 4.5 MB
+from app.schemas.meta import IMAGE_MAX_BYTES
+
+MAX_BYTES = IMAGE_MAX_BYTES  # Vercel's function body cap is 4.5 MB; /meta advertises the same
 MAX_SIDE = 2000
 MAX_PIXELS = 40_000_000
 MEGAPIXELS_MSG = "Images must be under 40 megapixels"
