@@ -104,7 +104,7 @@ Starts with a step-3 re-validation (30 min): re-read R14–R25 against what v1 a
 | # | Task | Est. | Done when |
 |---|---|---|---|
 | 2.0.1 | Razorpay test account, keys, webhook endpoint registered (preview + prod), `infra/razorpay.py` (official `razorpay` Python SDK: orders; `hmac` signature verify) | 0.5 h | order created from a script |
-| 2.0.2 | Alembic `0002_v2`: bookings, travellers, payments, cancellations, reviews, enquiry_messages, enums; **replace** `departure_availability` view; SQLAlchemy models + pydantic schemas | 1 h | view returns correct `seats_left` with pending/confirmed/expired fixtures |
+| 2.0.2 | Alembic `0004_v2` (next free revision; v1.0.1 used 0002–0003): bookings, travellers, payments, cancellations, reviews, enquiry_messages, enums; **replace** `departure_availability` view; SQLAlchemy models + pydantic schemas | 1 h | view returns correct `seats_left` with pending/confirmed/expired fixtures |
 | 2.0.3 | `services/booking`: `quote_booking` (occupancy rules, child rate, single supplement, deal), state guards, `create_booking_order` (locked transaction, hold 10 min), `confirm_payment` (HMAC verify, guarded transition) + pytest incl. last-seat concurrency | 2 h | tests green incl. concurrency |
 | 2.0.4 | Book-now UI: departure picker (seatsLeft, badges), travellers builder, live breakdown, contact step, Checkout.js integration, success screen | 2 h | flow works with a Razorpay test card at 360 px |
 | 2.0.5 | Deploy; CI green | 0.5 h | production accepts a test-mode booking |
@@ -141,7 +141,7 @@ Starts with a step-3 re-validation (30 min): confirm the provider/free-tier situ
 | # | Task | Est. | Done when |
 |---|---|---|---|
 | 3.0.1 | Gemini API key (free tier), **pydantic-ai** with the Gemini and Anthropic providers, `services/ai/provider.py` building the `Agent` from `AI_PROVIDER`/`AI_MODEL` | 0.5 h | a script streams a reply from both providers |
-| 3.0.2 | Alembic `0003_v3`: conversations, messages, departure_alerts, ai_generations; enforce `enquiries.conversation_id` FK | 0.5 h | |
+| 3.0.2 | Alembic `0005_v3`: conversations, messages, departure_alerts, ai_generations; enforce `enquiries.conversation_id` FK | 0.5 h | |
 | 3.0.3 | `POST /chat` (SSE via `sse-starlette`): quotas (per-IP, per-conversation, global), session cookie, persistence, `agent.run_stream` with `searchPackages` + `checkAvailability` tools (`services/ai/tools.py`), named SSE events, system prompt v1 | 2 h | tool calls hit the v1 functions; quotas tested |
 | 3.0.4 | Concierge UI: launcher, panel (mobile full-height), in-house `useConcierge` hook (fetch stream over SSE, event reducer), streaming text, package cards + departure lists from tool-result events, example prompts, privacy note, lazy-loaded | 2.5 h | "3 days in Goa under ₹15k" shows correct cards at 360 px |
 | 3.0.5 | Deploy; CI green | 0.5 h | live on production |
@@ -176,7 +176,7 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 ### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| 4.0.1 | Alembic `0004_v4` (`mcp_requests`); confirm the v3 tools in `services/ai/tools.py` are plain typed functions registrable by both the chat agent and MCP | 1 h | chat unchanged; unit tests still green |
+| 4.0.1 | Alembic `0006_v4` (`mcp_requests`); confirm the v3 tools in `services/ai/tools.py` are plain typed functions registrable by both the chat agent and MCP | 1 h | chat unchanged; unit tests still green |
 | 4.0.2 | `services/mcp` with the official **`mcp` Python SDK** (`FastMCP`, Streamable HTTP, stateless) mounted at `/mcp` by `routers/mcp.py`: register 4 tools, rate limits, request logging, error mapping; MCP Inspector smoke test script | 1.5 h | Inspector lists and calls all tools against local |
 | 4.0.3 | Resources (`packages`, `packages/{slug}`, `destinations/{slug}`) via `services/catalog/markdown.py`; `plan-a-trip` prompt | 1 h | a client reads a package and quotes its price |
 | 4.0.4 | Dashboard tile "trips planned via MCP" + top tools; evals MCP driver running the 20 conversations against preview; Inspector smoke test in CI | 1 h | evals pass via MCP |

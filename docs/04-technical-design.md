@@ -56,11 +56,11 @@
 - Admin CRUD forms: shadcn `Form` components typed from `api-types.ts`; itinerary-day and gallery editors use `useFieldArray` with drag-to-reorder (`@dnd-kit`).
 
 ## 4. Media
-- Uploads are a **server-side proxy**: browser POSTs `multipart/form-data` to `POST /api/admin/packages/:id/images` (owner) → api checks type (`image/jpeg|png|webp`) and size (≤ 5 MB), Pillow reads dimensions and resizes to ≤ 2000 px on the long edge → `infra/storage.py` PUTs to Vercel Blob over its REST API (`PUT https://blob.vercel-storage.com/<pathname>`, `Authorization: Bearer $BLOB_READ_WRITE_TOKEN`, `x-api-version: 7`, `x-content-type`, `x-add-random-suffix: 0`, `x-allow-overwrite: 1`) → row in `package_images` (`url`, `width`, `height`, `position`). No client-upload token endpoint. `next/image` with `remotePatterns` for the Blob host.
+- Uploads are a **server-side proxy**: browser POSTs `multipart/form-data` to `POST /api/admin/packages/:id/images` (owner) → api checks type (`image/jpeg|png|webp`) and size (≤ 4 MB, `IMAGE_MAX_BYTES`), Pillow reads dimensions and resizes to ≤ 2000 px on the long edge → `infra/storage.py` PUTs to Vercel Blob over its REST API (`PUT https://blob.vercel-storage.com/<pathname>`, `Authorization: Bearer $BLOB_READ_WRITE_TOKEN`, `x-api-version: 7`, `x-content-type`, `x-add-random-suffix: 0`, `x-allow-overwrite: 1`) → row in `package_images` (`url`, `width`, `height`, `position`). No client-upload token endpoint. `next/image` with `remotePatterns` for the Blob host.
 - Gallery order stored as `position`; cover = position 0.
 
 ## 5. PDF
-- api `GET /packages/:slug/itinerary.pdf`: look up the live package + `updated_at`; pathname `pdf/{slug}/{updated_at_epoch}/Tripsmith-{slug}-itinerary.pdf` (the basename is the download filename). Blob `list(prefix=pdf/{slug}/)` finds the current object → 302; else `render_itinerary` (fpdf2) → put → 302. No store (dev/CI) or Blob down → the bytes are streamed inline. Old versions are garbage-collected weekly (`GET /cron/pdf-gc`, api `vercel.json`, bearer `CRON_SECRET`).
+- api `GET /packages/:slug/itinerary.pdf`: look up the live package; pathname `pdf/{slug}/{version}/Tripsmith-{slug}-itinerary.pdf` (the basename is the download filename), where `version` is a 16-hex sha256 of everything the PDF draws (the package detail, site settings and the renderer's source) — so any content edit, or a departure date passing, gives a new key (v1.0.1; it was `updated_at`, which departure and seat edits never moved). Blob `list(prefix=pdf/{slug}/)` finds the current object → 302; else `render_itinerary` (fpdf2) → put → 302. No store (dev/CI) or Blob down → the bytes are streamed inline. Stale versions are garbage-collected daily by `GET /cron/daily` (01:00 IST, api `vercel.json`, bearer `CRON_SECRET`), which also recomputes starting prices; `GET /cron/pdf-gc` stays callable by hand.
 - The same `render_itinerary` is used by the enquiry confirmation email to attach the PDF (R6). Renderer lives in `api/app/services/pdf/itinerary.py` (a small `Document` base so the v2 voucher reuses page chrome); DM Sans TTF (regular / semibold / bold / extrabold) bundled in `api/assets/fonts` and registered with `add_font` — Unicode (₹, en dashes) works only through registered TTFs, never the core fonts. `services/pdf/service.py` (`PdfService` on `app.state.pdf`) owns the cover fetch, the cache and the attachment; the renderer is pure.
 - Target: A4, < 2 MB, < 3 s cold.
 
@@ -107,7 +107,7 @@
 - **No search service**: SQL over 12 rows; the AI tool reuses it.
 - **Static + on-demand revalidation** over SSR: more revalidation plumbing, but ~0 ms pages and free hosting.
 - **Own page-view counter** over an analytics API: crude but free and sufficient for a dashboard.
-- **Blob-cached PDFs** over pure on-demand: avoids re-rendering on every download; a weekly GC cron handles stale versions.
+- **Blob-cached PDFs** over pure on-demand: avoids re-rendering on every download; a daily GC cron handles stale versions.
 
 ## 14. Risks
 | Risk | Mitigation |
@@ -116,5 +116,5 @@
 | Cold start of the Python function (SQLAlchemy + pydantic import, engine creation) | Fluid compute keeps instances warm between requests; engine created lazily in lifespan and reused; no heavy imports at module top (fpdf2, Pillow, pydantic-ai loaded inside the service that needs them); measured cold time target < 3 s |
 | Vercel Hobby function limits (10 s default) | `api/vercel.json` `maxDuration = 30` for the single function; measured cold time target < 3 s |
 | Extra hop web → api on SSR | public pages are static (tags + revalidation), so the hop happens at build/revalidate, not per request; admin pages are owner-only |
-| Blob free-tier storage | 12 packages × 8 images ≈ 30 MB; PDFs GC'd weekly |
+| Blob free-tier storage | 12 packages × 8 images ≈ 30 MB; PDFs GC'd daily |
 | Neon branch creation in CI | Use the Neon GitHub Action; fall back to a shared test DB with per-run schema if quota is hit |

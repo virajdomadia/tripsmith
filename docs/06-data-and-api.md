@@ -238,12 +238,12 @@ erDiagram
 | Migration      | Contents                                                                                                                                                        |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `0001_v1`      | enums (all v1 + ⏩ values), `users` / `sessions` / `verification`, catalog, enquiries, notes, views, `departure_availability` v1 view (raw SQL in the revision) |
-| `0002_v2`      | booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view                              |
-| `0003_v3`      | conversations, messages, departure_alerts, ai_generations; FK `enquiries.conversation_id` becomes enforced                                                      |
-| `0004_v4`      | `mcp_requests`                                                                                                                                                  |
-| `0005+_addons` | one migration per add-on table group, only when built                                                                                                           |
+| `0004_v2`      | booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view                              |
+| `0005_v3`      | conversations, messages, departure_alerts, ai_generations; FK `enquiries.conversation_id` becomes enforced                                                      |
+| `0006_v4`      | `mcp_requests`                                                                                                                                                  |
+| `0007+_addons` | one migration per add-on table group, only when built                                                                                                           |
 
-As built, v1.0.1 added two expand-only revisions, so the v2+ revisions above take the next free numbers (`0004` onward) when built: `0002_first_published_at` (`packages.first_published_at`, `packages.edited_at`, `destinations.first_published_at`, backfilled from live/enquired packages) and `0003_hash_session_tokens` (`sessions.token_hash`, backfilled; `token` made nullable). Both run before the api deploy; prod is at `0003`.
+As built, v1.0.1 added two expand-only revisions, so the v2+ revisions above are numbered from `0004` (the next free number when each is built): `0002_first_published_at` (`packages.first_published_at`, `packages.edited_at`, `destinations.first_published_at`, backfilled from live/enquired packages) and `0003_hash_session_tokens` (`sessions.token_hash`, backfilled; `token` made nullable). Both run before the api deploy; prod is at `0003`.
 
 ---
 
