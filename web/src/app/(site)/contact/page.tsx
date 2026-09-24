@@ -7,15 +7,24 @@ import { PageHead } from '@/components/site/PageHead';
 import { BUSINESS } from '@/lib/business';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
+import { OPEN_GRAPH } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 /** Reads searchParams (the no-JS enquiry round trip re-fills the form), so it renders per request. */
 export const dynamic = 'force-dynamic';
 
+const CONTACT_DESCRIPTION = `Call ${BUSINESS.phoneDisplay}, WhatsApp, or send a message — a person replies within two hours, ${BUSINESS.hours}. ${BUSINESS.address}, ${BUSINESS.city}.`;
+
 export const metadata: Metadata = {
   title: 'Contact',
-  description: `Call ${BUSINESS.phoneDisplay}, WhatsApp, or send a message — a person replies within two hours, ${BUSINESS.hours}. ${BUSINESS.address}, ${BUSINESS.city}.`,
+  description: CONTACT_DESCRIPTION,
   alternates: { canonical: absolute('/contact') },
+  openGraph: {
+    ...OPEN_GRAPH,
+    title: 'Contact Tripsmith',
+    description: CONTACT_DESCRIPTION,
+    url: absolute('/contact'),
+  },
 };
 
 export default async function ContactPage({
