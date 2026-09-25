@@ -44,9 +44,10 @@ WHITE: RGB = (0xFF, 0xFF, 0xFF)
 
 
 class Document(FPDF):
-    def __init__(self, *, title: str, running_title: str) -> None:
+    def __init__(self, *, title: str, running_title: str, kind: str = "Itinerary") -> None:
         super().__init__(orientation="P", unit="mm", format="A4")
         self.running_title = running_title
+        self.kind = kind
         for key, weight in WEIGHTS.items():
             self.add_font(f"DMSans{key}", "", FONTS_DIR / f"DMSans-{weight}.ttf")
         self.set_margins(MARGIN, MARGIN, MARGIN)
@@ -67,7 +68,7 @@ class Document(FPDF):
         self.wordmark(MARGIN, 7.5, size=5.2)
         self.set_xy(MARGIN, 7.5)
         self.font(9, "", MUTE)
-        self.cell(0, 5.2, f"Itinerary · {self.running_title}", align="R")
+        self.cell(0, 5.2, f"{self.kind} · {self.running_title}", align="R")
         self.hairline(14.5)
         self.set_y(MARGIN)
 

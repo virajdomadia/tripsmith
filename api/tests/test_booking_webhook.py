@@ -17,14 +17,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infra.razorpay import verify_webhook_signature
 from app.models import Booking
 from app.models.enums import BookingStatus, CancelReason, PaymentStatus
-from app.services.booking import webhook
+from app.services.booking import after_capture
 from tests.razorpay_fake import FakeRazorpay
 from tests.test_booking_orders import seats_left, seeded
 from tests.test_booking_payments import booking, booking_body, callback, payments, rzp
+from tests.test_email_send import FakeSender
 
 __all__ = ["rzp"]  # the fixture, shared with test_booking_payments
 
 WEBHOOK_SECRET = "fake-webhook-secret"
+SECRET = "session-secret-for-tests"
+OWNER_INBOX = "owner@example.com"
 
 
 def event(kind: str, order_id: str, payment_id: str, amount: int = 100) -> bytes:
@@ -65,6 +68,25 @@ def with_webhook_secret(app: FastAPI) -> None:
     app.state.settings = app.state.settings.model_copy(
         update={"razorpay_webhook_secret": SecretStr(WEBHOOK_SECRET)}
     )
+
+
+def mailing(app: FastAPI) -> FakeSender:
+    """B7: live-mode email settings, a fake sender and a session secret on the running app."""
+    sender = FakeSender()
+    app.state.email_sender = sender
+    app.state.settings = app.state.settings.model_copy(
+        update={
+            "email_from": "Tripsmith <hello@tripsmith.in>",
+            "owner_notify_email": OWNER_INBOX,
+            "site_url": "https://tripsmith.vercel.app",
+            "session_secret": SecretStr(SECRET),
+        }
+    )
+    return sender
+
+
+def roles(sender: FakeSender) -> list[str]:
+    return sorted("owner" if m.to == OWNER_INBOX else "customer" for m in sender.sent)
 
 
 def test_webhook_signature_is_the_raw_body_under_the_webhook_secret() -> None:
@@ -108,13 +130,14 @@ async def test_forged_unsigned_or_unconfigured_never_reaches_the_database(
 
 @pytest.fixture
 def refreshes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Each call of the after-a-new-capture hook (revalidation now; B7 adds its emails there)."""
+    """Each call of the after-a-new-capture hook's first step (revalidation; the emails follow
+    it in the same hook, B7)."""
     calls: list[str] = []
 
     async def fake(db: AsyncSession, package_ids: object, *, after: str) -> None:
         calls.append(after)
 
-    monkeypatch.setattr(webhook, "refresh_quietly", fake)
+    monkeypatch.setattr(after_capture, "refresh_quietly", fake)
     return calls
 
 
@@ -136,6 +159,7 @@ async def test_five_replays_record_one_payment_and_confirm_once(
     refreshes: list[str],
 ) -> None:
     with_webhook_secret(db_app)
+    sender = mailing(db_app)
     _, departure = await seeded(db, seats=4)
     dep_id = departure.id
     order = await hold(db_client, dep_id, 2)
@@ -156,6 +180,8 @@ async def test_five_replays_record_one_payment_and_confirm_once(
     assert confirmed.status == BookingStatus.CONFIRMED
     assert confirmed.paid_paise == confirmed.total_paise  # counted once, not five times
     assert refreshes == [f"webhook payment on {ref}"]  # the confirm hook fired once
+    assert roles(sender) == ["customer", "owner"]  # R16: one confirmation email (+ the owner's)
+    assert len(sender.sent[0].attachments + sender.sent[1].attachments) == 1  # the voucher
     await db.rollback()  # a fresh transaction: `now()` is fixed at a transaction's start
     assert await seats_left(db, dep_id) == 2
 
@@ -163,6 +189,7 @@ async def test_five_replays_record_one_payment_and_confirm_once(
     res = await db_client.post(f"/bookings/{ref}/confirm", json=callback(order_id, "pay_Hook0001"))
     assert res.status_code == 200 and res.json()["status"] == "confirmed"
     assert len(await payments(db, ref)) == 1
+    assert len(sender.sent) == 2
 
 
 @pytest.mark.db
@@ -223,6 +250,7 @@ async def test_a_late_capture_by_webhook_with_no_seats_cancels_for_a_refund(
     refreshes: list[str],
 ) -> None:
     with_webhook_secret(db_app)
+    sender = mailing(db_app)
     _, departure = await seeded(db, seats=2)
     dep_id = departure.id
     first = await hold(db_client, dep_id, 2, n=1)
@@ -249,6 +277,11 @@ async def test_a_late_capture_by_webhook_with_no_seats_cancels_for_a_refund(
     assert (await booking(db, second["bookingRef"])).status == BookingStatus.PENDING
     await db.rollback()
     assert await seats_left(db, dep_id) == 0
+    # R16: both hear about the refund; neither email says "confirmed", and no voucher goes out.
+    assert roles(sender) == ["customer", "owner"]
+    for m in sender.sent:
+        assert "refund" in m.text.lower() and m.attachments == ()
+        assert all("confirmed" not in part.lower() for part in (m.subject, m.html, m.text))
 
 
 @pytest.mark.db

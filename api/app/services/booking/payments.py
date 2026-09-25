@@ -26,7 +26,8 @@ from app.models import Booking, BookingTraveller, Departure, Payment
 from app.models.catalog import departure_availability
 from app.models.enums import BookingStatus, CancelReason, PaymentProvider, PaymentStatus
 from app.schemas.bookings import PaymentCallback, PaymentResult
-from app.services.booking.freshness import refresh_quietly
+from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.settled import Capture, Settled
 
 NOT_FOUND = "We could not find that booking"
 NOT_VERIFIED = "We could not verify that payment — if money left your account, WhatsApp us"
@@ -82,13 +83,14 @@ async def seats_short(db: AsyncSession, booking: Booking, *, hold_live: bool) ->
 
 async def settle_capture(
     db: AsyncSession, booking: Booking, *, hold_live: bool, amount_paise: int
-) -> None:
+) -> Settled:
     """Apply newly captured money to a booking locked by `lock_booking`. The caller has recorded
     the payment row and commits; call once per payment, never on a replay."""
     paid = booking.paid_paise + amount_paise
     values: dict[str, object] = {"paid_paise": paid, "updated_at": func.now()}
     expected = booking.status
     if booking.status != BookingStatus.PENDING:
+        settled = Settled.NOT_PENDING
         values["refund_needed"] = True
         log.error(
             "Payment of %s paise captured on %s booking %s — flagged for a refund",
@@ -97,10 +99,12 @@ async def settle_capture(
             booking.ref,
         )
     elif paid < booking.total_paise:
-        pass  # part-paid (add-on D's split): stays pending
+        settled = Settled.PART_PAID  # add-on D's split: stays pending
     elif await seats_short(db, booking, hold_live=hold_live) == 0:
+        settled = Settled.CONFIRMED
         values["status"] = BookingStatus.CONFIRMED
     else:
+        settled = Settled.SEATS_GONE
         values |= {
             "status": BookingStatus.CANCELLED,
             "cancel_reason": CancelReason.SEATS_GONE,
@@ -116,13 +120,15 @@ async def settle_capture(
         .execution_options(synchronize_session=False)
     )
     await db.refresh(booking)
+    return settled
 
 
 async def capture_razorpay_payment(
     db: AsyncSession, ref: str, *, order_id: str, payment_id: str, raw: dict[str, Any] | None = None
-) -> tuple[Booking, bool]:
+) -> tuple[Booking, Capture | None]:
     """Record a verified Razorpay capture on the booking and apply it. Returns the booking and
-    whether anything changed (False on a replay). The caller verified the signature and commits.
+    what the new capture did — None on a replay, so the after-capture hook (emails included)
+    runs exactly once per payment. The caller verified the signature and commits.
 
     The order must be one of this booking's; the payment fills the order's `created` row, or a
     new row when that one is taken (a failed attempt, or a second capture on the same order).
@@ -145,7 +151,7 @@ async def capture_razorpay_payment(
         raise ApiError("validation", NOT_VERIFIED)
     payment = next((p for p in rows if p.razorpay_payment_id == payment_id), None)
     if payment is not None and payment.status == PaymentStatus.CAPTURED:
-        return booking, False  # already recorded: a replayed callback or webhook
+        return booking, None  # already recorded: a replayed callback or webhook
     # Recorded as failed earlier (B6) and captured after all — a late authorisation — or new.
     payment = payment or next((p for p in rows if p.razorpay_payment_id is None), None)
     if payment is None:
@@ -161,12 +167,18 @@ async def capture_razorpay_payment(
     if raw is not None:
         payment.raw = raw
     await db.flush()
-    await settle_capture(db, booking, hold_live=hold_live, amount_paise=payment.amount_paise)
-    return booking, True
+    settled = await settle_capture(
+        db, booking, hold_live=hold_live, amount_paise=payment.amount_paise
+    )
+    return booking, Capture(settled, payment_id, payment.amount_paise)
 
 
 async def confirm_payment(
-    db: AsyncSession, ref: str, callback: PaymentCallback, razorpay: Razorpay
+    db: AsyncSession,
+    ref: str,
+    callback: PaymentCallback,
+    razorpay: Razorpay,
+    notify: Notify | None = None,
 ) -> PaymentResult:
     """Checkout's success handler posts here. A signature that does not verify is a 400 and a
     log line; a replay is a no-op that answers with where the booking stands."""
@@ -183,7 +195,7 @@ async def confirm_payment(
         )
         raise ApiError("validation", NOT_VERIFIED)
     try:
-        booking, changed = await capture_razorpay_payment(
+        booking, capture = await capture_razorpay_payment(
             db, ref, order_id=callback.razorpay_order_id, payment_id=callback.razorpay_payment_id
         )
         result = PaymentResult(
@@ -194,15 +206,19 @@ async def confirm_payment(
     except BaseException:
         await db.rollback()
         raise
-    if changed:
-        await refresh_quietly(db, {package_id}, after=f"payment on {ref}")
+    if capture:
+        await on_new_capture(
+            db, ref, capture, package_id=package_id, after=f"payment on {ref}", notify=notify
+        )
     return result
 
 
 PROVIDER_DOWN = "We couldn't check your payment just now — try again in a minute, or WhatsApp us"
 
 
-async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> PaymentResult:
+async def sync_payment(
+    db: AsyncSession, ref: str, razorpay: Razorpay, notify: Notify | None = None
+) -> PaymentResult:
     """B5: ask Razorpay whether a still-pending booking was paid, and apply it if so.
 
     Checkout can close without calling its success handler (a tab put to sleep, a popup that
@@ -259,7 +275,7 @@ async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> Paymen
         return result
     order_id, payment_id, raw = found
     try:
-        booking, changed = await capture_razorpay_payment(
+        booking, capture = await capture_razorpay_payment(
             db, ref, order_id=order_id, payment_id=payment_id, raw=raw
         )
         result = PaymentResult(
@@ -270,6 +286,8 @@ async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> Paymen
     except BaseException:
         await db.rollback()
         raise
-    if changed:
-        await refresh_quietly(db, {package_id}, after=f"synced payment on {ref}")
+    if capture:
+        await on_new_capture(
+            db, ref, capture, package_id=package_id, after=f"synced payment on {ref}", notify=notify
+        )
     return result

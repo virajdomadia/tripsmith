@@ -96,6 +96,8 @@ const ORDER = {
   quote: QUOTE,
 };
 
+const VOUCHER = '/bookings/TB-7F3K2Q/voucher.pdf?exp=1790000000&sig=abc123';
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -108,7 +110,12 @@ function api(overrides: Record<string, () => Response> = {}) {
     if (path === '/api/bookings/quote') return json(200, QUOTE);
     if (path === '/api/bookings') return json(201, ORDER);
     if (path.endsWith('/confirm'))
-      return json(200, { bookingRef: ORDER.bookingRef, status: 'confirmed', refundNeeded: false });
+      return json(200, {
+        bookingRef: ORDER.bookingRef,
+        status: 'confirmed',
+        refundNeeded: false,
+        voucherUrl: VOUCHER,
+      });
     if (path.endsWith('/sync'))
       return json(200, { bookingRef: ORDER.bookingRef, status: 'pending', refundNeeded: false });
     throw new Error(`unexpected ${url}`);
@@ -179,6 +186,10 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
       razorpayPaymentId: 'pay_Test0001',
       razorpaySignature: 'a'.repeat(64),
     });
+    // B7: the voucher, through the /api rewrite, straight from the success screen.
+    const voucher = screen.getByRole('link', { name: /Download voucher/ });
+    expect(voucher.getAttribute('href')).toBe(`/api${VOUCHER}`);
+    expect(voucher.hasAttribute('download')).toBe(true);
   });
 
   it('says so plainly when the payment landed after the seats had gone', async () => {
@@ -327,5 +338,12 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await waitFor(() => expect(checkout).toBeDefined());
     checkout!.modal.ondismiss();
     expect(await screen.findByText('You’re going to Goa.')).toBeTruthy();
+    // The order id proves this visitor started the booking — the api's condition for the link.
+    expect(JSON.parse(calls('/api/bookings/TB-7F3K2Q/sync')[0][1].body)).toEqual({
+      orderId: 'order_Test0001',
+    });
+    // No voucherUrl in the answer: no dead button, WhatsApp is still there.
+    expect(screen.queryByRole('link', { name: /Download voucher/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /WhatsApp us about this trip/ })).toBeTruthy();
   });
 });

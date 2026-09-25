@@ -137,7 +137,12 @@ async def test_forged_signature_is_400_and_a_replayed_confirm_applies_once(
     for _ in range(3):  # the success handler, a double click, a retry
         res = await db_client.post(f"/bookings/{ref}/confirm", json=good)
         assert res.status_code == 200, res.text
-        assert res.json() == {"bookingRef": ref, "status": "confirmed", "refundNeeded": False}
+        assert res.json() == {
+            "bookingRef": ref,
+            "status": "confirmed",
+            "refundNeeded": False,
+            "voucherUrl": None,
+        }
 
     [paid] = await payments(db, ref)
     assert (paid.status, paid.razorpay_payment_id) == (PaymentStatus.CAPTURED, "pay_Good0001")
@@ -178,6 +183,7 @@ async def test_late_capture_with_no_seats_left_never_confirms(
         "bookingRef": first["bookingRef"],
         "status": "cancelled",
         "refundNeeded": True,
+        "voucherUrl": None,  # no voucher for a booking that never happened
     }
     late = await booking(db, first["bookingRef"])
     assert late.cancel_reason == CancelReason.SEATS_GONE and late.paid_paise == late.total_paise
@@ -228,7 +234,12 @@ async def test_sync_applies_a_payment_checkout_never_reported_once(
     # Nothing paid yet: still pending, and Razorpay was asked.
     res = await db_client.post(f"/bookings/{ref}/sync")
     assert res.status_code == 200, res.text
-    assert res.json() == {"bookingRef": ref, "status": "pending", "refundNeeded": False}
+    assert res.json() == {
+        "bookingRef": ref,
+        "status": "pending",
+        "refundNeeded": False,
+        "voucherUrl": None,
+    }
     assert rzp.requests[-1].method == "GET"
     assert rzp.requests[-1].url.path == f"/v1/orders/{order_id}/payments"
 
@@ -240,7 +251,12 @@ async def test_sync_applies_a_payment_checkout_never_reported_once(
     for _ in range(2):
         res = await db_client.post(f"/bookings/{ref}/sync")
         assert res.status_code == 200, res.text
-        assert res.json() == {"bookingRef": ref, "status": "confirmed", "refundNeeded": False}
+        assert res.json() == {
+            "bookingRef": ref,
+            "status": "confirmed",
+            "refundNeeded": False,
+            "voucherUrl": None,
+        }
     capture = next(r for r in rzp.requests if r.url.path.endswith("/capture"))
     assert capture.url.path == "/v1/payments/pay_Synced0001/capture"
     assert json.loads(capture.content) == {"amount": held.json()["amountPaise"], "currency": "INR"}

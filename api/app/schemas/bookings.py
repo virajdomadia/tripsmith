@@ -203,3 +203,16 @@ class PaymentResult(ApiModel):
     booking_ref: str
     status: BookingStatus
     refund_needed: bool
+    voucher_url: str | None = Field(
+        default=None,
+        description="Confirmed only, and only for a caller who proved the payment: the voucher "
+        "PDF's signed path on this api, valid 30 minutes",
+        examples=["/bookings/TB-7F3K2Q/voucher.pdf?exp=1790000000&sig=…"],
+    )
+
+
+class SyncRequest(ApiModel):
+    """The booking's Razorpay order id, which only the visitor who started it holds: with it,
+    a confirmed answer carries the voucher link."""
+
+    order_id: str | None = Field(default=None, pattern=r"^order_[A-Za-z0-9]{1,40}$")
