@@ -1,4 +1,4 @@
-"""`POST /bookings/quote` and `POST /bookings` contract (06 C5, Part D).
+"""`POST /bookings/quote`, `POST /bookings` and `POST /bookings/:ref/confirm` (06 C5, Part D).
 
 The client sends who is travelling and in which room — never an amount. Party rules that need no
 database (1–12 travellers, ≥ 1 adult, rooms filled exactly, child ages) are enforced here as a
@@ -12,7 +12,7 @@ from typing import Annotated
 
 from pydantic import Field, field_validator
 
-from app.models.enums import Occupancy
+from app.models.enums import BookingStatus, Occupancy
 from app.schemas import ApiModel
 from app.schemas.enquiries import CONTROL_RE, EMAIL_RE, PHONE_MESSAGE, PHONE_RE, normalise_phone
 from app.schemas.meta import MAX_TRAVELLERS
@@ -178,9 +178,28 @@ class Quote(ApiModel):
 
 
 class BookingOrder(ApiModel):
-    """A held booking. B4 adds the Razorpay `orderId` and `keyId`."""
+    """A held booking and its Razorpay order: everything Checkout.js is opened with."""
 
     booking_ref: str = Field(examples=["TB-7F3K2Q"])
+    order_id: str = Field(examples=["order_RB58wdjHk3F0vd"])
+    key_id: str = Field(description="Razorpay's public key id (test mode)")
     amount_paise: int
     hold_expires_at: dt.datetime
     quote: Quote
+
+
+class PaymentCallback(ApiModel):
+    """What Checkout's success handler receives, posted back as-is to confirm the booking."""
+
+    razorpay_order_id: str = Field(pattern=r"^order_[A-Za-z0-9]{1,40}$")
+    razorpay_payment_id: str = Field(pattern=r"^pay_[A-Za-z0-9]{1,40}$")
+    razorpay_signature: str = Field(pattern=r"^[0-9a-f]{64}$", description="Hex HMAC-SHA256")
+
+
+class PaymentResult(ApiModel):
+    """Where the booking stands once the payment is recorded. A late capture that found no
+    seats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand."""
+
+    booking_ref: str
+    status: BookingStatus
+    refund_needed: bool

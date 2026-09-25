@@ -15,6 +15,7 @@ from app.infra.db import dispose_engine
 from app.infra.email import build_email_sender
 from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
+from app.infra.razorpay import build_razorpay
 from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import (
     BlankQueryParamsMiddleware,
@@ -82,11 +83,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings  # read by infra.db.get_session
     # First: sentry-sdk's ASGI integration must wrap the middleware stack built below, and the
-    # startup checks that follow (rate limiter, email sender, keyed hashing) log at ERROR so
-    # Sentry's logging integration carries them — which it can only do once it is initialised.
+    # startup checks that follow (rate limiter, email sender, Razorpay, keyed hashing) log at
+    # ERROR so Sentry's logging integration carries them — which it can only do once initialised.
     init_sentry(settings)
     app.state.rate_limiter = build_rate_limiter(settings)  # swapped by tests; read by routers
     app.state.email_sender = build_email_sender(settings)  # swapped by tests; read by routers
+    app.state.razorpay = build_razorpay(settings)  # None when unset; swapped by tests
     app.state.store = build_store(settings)  # Vercel Blob or None; read by services/pdf
     app.state.pdf = PdfService(app.state.store, settings)  # swapped by tests; read by routers
 

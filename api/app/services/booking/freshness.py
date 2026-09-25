@@ -6,6 +6,7 @@ helper recomputes `starting_price_paise` and posts the package's revalidate tags
 fire no event — the Book-now panel reads availability uncached for that reason.
 """
 
+import logging
 from collections.abc import Iterable
 
 from sqlalchemy import select, update
@@ -20,6 +21,8 @@ from app.services.catalog.admin_packages import (
     revalidate_tags,
     seats_left_for,
 )
+
+log = logging.getLogger(__name__)
 
 
 async def refresh_packages(db: AsyncSession, package_ids: Iterable[str]) -> None:
@@ -60,3 +63,15 @@ async def refresh_packages(db: AsyncSession, package_ids: Iterable[str]) -> None
         tags += [t for t in revalidate_tags(pkg.slug, pkg.destination.slug) if t not in tags]
     await db.commit()
     await revalidate(tags)
+
+
+async def refresh_quietly(db: AsyncSession, package_ids: Iterable[str], *, after: str) -> None:
+    """`refresh_packages` for a booking event that has already committed: a failure is logged,
+    never raised. A stale "from ₹X" or seat count is better than a 500 that hides the booking's
+    outcome (a retry would release a hold, or re-post a payment). The next booking event or
+    /cron/daily refreshes the page."""
+    try:
+        await refresh_packages(db, package_ids)
+    except Exception:
+        await db.rollback()
+        log.exception("Freshness refresh after %s failed", after)
