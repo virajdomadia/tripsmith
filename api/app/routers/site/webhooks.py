@@ -29,8 +29,10 @@ router = APIRouter(tags=["webhooks"], include_in_schema=False)
 
 async def signed_event(request: Request) -> dict[str, Any]:
     """The verified, parsed event. Runs before the session, so a forged call never opens one."""
-    secret = request.app.state.settings.razorpay_webhook_secret
-    if secret is None:
+    setting = request.app.state.settings.razorpay_webhook_secret
+    # Blank counts as unset: an empty key is one anyone can sign with.
+    secret = setting.get_secret_value() if setting else ""
+    if not secret:
         # ERROR for Sentry: Razorpay keeps retrying, so events are delayed, not lost.
         log.error("RAZORPAY_WEBHOOK_SECRET is unset: the Razorpay webhook cannot verify events")
         raise ApiError(
@@ -38,7 +40,7 @@ async def signed_event(request: Request) -> dict[str, Any]:
         )
     body = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
-    if not signature or not verify_webhook_signature(secret.get_secret_value(), body, signature):
+    if not signature or not verify_webhook_signature(secret, body, signature):
         log.warning("Razorpay webhook signature did not verify (from %s)", client_ip(request))
         raise ApiError("validation", BAD_SIGNATURE)
     try:

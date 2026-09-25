@@ -83,6 +83,12 @@ async def test_forged_unsigned_or_unconfigured_never_reaches_the_database(
     # No secret on this deployment: 503, so Razorpay retries once it is set.
     res = await deliver(client, body)
     assert res.status_code == 503 and res.json()["error"]["code"] == "internal"
+    # Blank (`RAZORPAY_WEBHOOK_SECRET=` as in .env.example) is unset too, never an empty HMAC key.
+    app.state.settings = app.state.settings.model_copy(
+        update={"razorpay_webhook_secret": SecretStr("")}
+    )
+    res = await deliver(client, body, secret="")
+    assert res.status_code == 503
 
     with_webhook_secret(app)
     # (No database here: a request that got past the signature would fail with a 500.)
