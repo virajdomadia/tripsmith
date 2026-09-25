@@ -4899,6 +4899,53 @@
         ]
       }
     },
+    "/bookings/{ref}/sync": {
+      "post": {
+        "description": "Checkout closed without calling back: was the booking paid anyway? (B5)",
+        "operationId": "syncPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Sync",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/destinations": {
       "get": {
         "operationId": "listDestinations",

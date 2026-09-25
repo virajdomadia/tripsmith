@@ -19,20 +19,28 @@ const API_URL = (process.env.API_URL ?? 'http://localhost:8000').replace(/\/$/, 
  */
 const isDev = process.env.NODE_ENV === 'development';
 
+// Razorpay Checkout (B5, docs/04 v2 §5 step 6): the hosts a real test payment needed.
+// checkout.js loads cdn.razorpay.com's risk-detection bundle and reports to lumberjack.
+const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com https://cdn.razorpay.com';
+const RAZORPAY_FRAME = 'https://api.razorpay.com';
+const RAZORPAY_CONNECT = 'https://api.razorpay.com https://lumberjack.razorpay.com';
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
-  // The only iframe on the site is the keyless Google Maps embed on /contact
-  // (components/site/contact/MapEmbed.tsx). `'none'` blanks it. Both hosts are needed: the
-  // `maps.google.com/maps?…&output=embed` URL redirects to www.google.com, and a frame
-  // navigation is checked again at the redirect target.
-  'frame-src https://maps.google.com https://www.google.com',
+  // Two iframes on the site. The keyless Google Maps embed on /contact
+  // (components/site/contact/MapEmbed.tsx) — both hosts, because the
+  // `maps.google.com/maps?…&output=embed` URL redirects to www.google.com and a frame navigation
+  // is checked again at the redirect target. And Razorpay Checkout (B5), which draws its payment
+  // window as a frame from api.razorpay.com. Site-wide, not per page: one policy to verify.
+  `frame-src https://maps.google.com https://www.google.com ${RAZORPAY_FRAME}`,
   "form-action 'self'",
   // `unsafe-eval` is React Refresh; va.vercel-scripts.com is the Analytics debug script, which
   // @vercel/analytics loads only in development (production serves /_vercel/insights from here).
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ''}`,
+  // checkout.razorpay.com: Checkout.js, injected on the Pay click only (lib/razorpay-checkout.ts).
+  `script-src 'self' 'unsafe-inline' ${RAZORPAY_SCRIPT}${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ''}`,
   "style-src 'self' 'unsafe-inline'", // Tailwind + Next inject <style> elements
   // Every photo goes through next/image, so it is served same-origin from /_next/image; the
   // Blob host is listed because it is the upstream that would be fetched directly if any image
@@ -40,9 +48,10 @@ const csp = [
   // in the app creates object URLs today, and the uploader posts its File straight through.
   "img-src 'self' data: https://*.public.blob.vercel-storage.com",
   "font-src 'self'", // next/font self-hosts DM Sans
-  // Sentry's ingest is the only cross-origin call from the browser; Vercel Analytics posts to
-  // /_vercel/insights on this origin. `ws:` is the dev server's HMR socket.
-  `connect-src 'self' https://*.sentry.io${isDev ? ' ws:' : ''}`,
+  // Sentry's ingest and Razorpay (Checkout.js talks to its api from this page) are the only
+  // cross-origin calls from the browser; Vercel Analytics posts to /_vercel/insights on this
+  // origin. `ws:` is the dev server's HMR socket.
+  `connect-src 'self' https://*.sentry.io ${RAZORPAY_CONNECT}${isDev ? ' ws:' : ''}`,
   ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 
@@ -51,7 +60,10 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'X-Frame-Options', value: 'DENY' },
-  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  // `-allow-popups`, not `same-origin` (B5): Razorpay Checkout opens the bank / 3-D Secure page
+  // as a popup from its frame and writes into it; `same-origin` severs that popup from its opener
+  // and it stays blank (seen on a real test payment). Other windows still cannot reach this one.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
   {
     key: 'Permissions-Policy',
     // `interest-cohort` is deliberately absent: FLoC is gone and Chrome logs

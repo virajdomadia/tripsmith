@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { components } from '@/lib/api-types';
+import { BookNowButton } from '@/components/site/booking/BookNow';
 import { WhatsApp } from '@/components/site/home/icons';
 import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
@@ -11,8 +12,19 @@ type PackageDetail = components['schemas']['PackageDetail'];
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-/** Sticky price box (desktop): from-price, next departure, Enquire (F9), PDF (F11), WhatsApp (F12). */
-export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
+/**
+ * Sticky price box (desktop): from-price, next departure, Book now (B5) when a date is on sale,
+ * Enquire (F9), PDF (F11), WhatsApp (F12).
+ */
+export function PriceBox({
+  pkg,
+  url,
+  bookable,
+}: {
+  pkg: PackageDetail;
+  url: string;
+  bookable: boolean;
+}) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   return (
     <div className="sticky top-24 grid gap-3 rounded-card border border-line bg-bg p-5.5 shadow-[0_30px_60px_-40px_rgb(20_32_42/0.35)]">
@@ -38,9 +50,19 @@ export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
           </span>
         </div>
       )}
+      {bookable && (
+        <BookNowButton
+          fallbackHref={enquireHref(pkg.slug)}
+          className="block w-full rounded-btn bg-action px-5 py-3 text-center font-bold text-ink no-underline transition-[background-color,transform] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:bg-action-ink"
+        />
+      )}
       <Link
         href={enquireHref(pkg.slug)}
-        className="block rounded-btn bg-action px-5 py-3 text-center font-bold text-ink no-underline transition-colors hover:bg-action-ink"
+        className={
+          bookable
+            ? 'block rounded-btn border-[1.5px] border-line px-5 py-3 text-center font-bold text-ink no-underline transition-colors hover:border-ink'
+            : 'block rounded-btn bg-action px-5 py-3 text-center font-bold text-ink no-underline transition-colors hover:bg-action-ink'
+        }
       >
         Enquire about this trip
       </Link>
@@ -57,7 +79,9 @@ export function PriceBox({ pkg, url }: { pkg: PackageDetail; url: string }) {
         </a>
       </div>
       <p className="border-t border-line pt-3 text-[13px] leading-relaxed text-mute">
-        A person calls you back within 2 hours, {BUSINESS.hours}. Nothing to pay online.
+        {bookable
+          ? `Book and pay online in test mode, or enquire and a person calls you back within 2 hours, ${BUSINESS.hours}.`
+          : `A person calls you back within 2 hours, ${BUSINESS.hours}. Nothing to pay online.`}
       </p>
       <p className="text-[13px] leading-relaxed text-mute">
         {CANCELLATION_SCHEDULE[0].window}: {cap(CANCELLATION_SCHEDULE[0].refund)}. One free date

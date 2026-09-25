@@ -210,3 +210,47 @@ async def test_razorpay_down_answers_502_and_gives_back_the_replaced_hold(
     assert await seats_left(db, dep_id) == 3
     now = (await db.execute(text("select now()"))).scalar_one()
     assert (await booking(db, first.json()["bookingRef"])).hold_expires_at > now
+
+
+@pytest.mark.db
+async def test_sync_applies_a_payment_checkout_never_reported_once(
+    db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """B5: Checkout closed without its success handler; Razorpay has the payment anyway."""
+    _, departure = await seeded(db, seats=4)
+    held = await db_client.post(
+        "/bookings",
+        json=booking_body(departure.id, 2, email="s@example.test", phone="9000000003"),
+    )
+    assert held.status_code == 201, held.text
+    ref, order_id = held.json()["bookingRef"], held.json()["orderId"]
+
+    # Nothing paid yet: still pending, and Razorpay was asked.
+    res = await db_client.post(f"/bookings/{ref}/sync")
+    assert res.status_code == 200, res.text
+    assert res.json() == {"bookingRef": ref, "status": "pending", "refundNeeded": False}
+    assert rzp.requests[-1].method == "GET"
+    assert rzp.requests[-1].url.path == f"/v1/orders/{order_id}/payments"
+
+    rzp.payments[order_id] = [
+        {"id": "pay_Failed0001", "status": "failed"},
+        {"id": "pay_Synced0001", "status": "captured", "amount": held.json()["amountPaise"]},
+    ]
+    for _ in range(2):
+        res = await db_client.post(f"/bookings/{ref}/sync")
+        assert res.status_code == 200, res.text
+        assert res.json() == {"bookingRef": ref, "status": "confirmed", "refundNeeded": False}
+    [paid] = await payments(db, ref)
+    assert (paid.status, paid.razorpay_payment_id) == (PaymentStatus.CAPTURED, "pay_Synced0001")
+    calls = len(rzp.requests)
+
+    # Confirmed: sync answers from the database, and the late success callback is a no-op.
+    res = await db_client.post(f"/bookings/{ref}/sync")
+    assert res.json()["status"] == "confirmed" and len(rzp.requests) == calls
+    res = await db_client.post(
+        f"/bookings/{ref}/confirm", json=callback(order_id, "pay_Synced0001")
+    )
+    assert res.status_code == 200 and res.json()["status"] == "confirmed"
+    assert len(await payments(db, ref)) == 1
+
+    assert (await db_client.post("/bookings/TB-ZZZZZZ/sync")).status_code == 404

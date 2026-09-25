@@ -189,3 +189,45 @@
     animation: none;
   }
 }
+
+/* Book now (B5): the live-availability dot breathes; at rest under reduced motion. */
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--color-ok-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-ok-soft) 40%, transparent);
+  }
+}
+
+@utility live-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-ok);
+  box-shadow: 0 0 0 3px var(--color-ok-soft);
+  animation: live-pulse 2.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* The success tick draws itself (an SVG path with pathLength="1"). */
+@keyframes tick-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility tick-draw {
+  stroke-dasharray: 1;
+  animation: tick-draw 0.6s 0.15s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
