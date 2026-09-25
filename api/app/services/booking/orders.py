@@ -7,6 +7,7 @@ sees the first's travellers. Holds lapse on their own — nothing here depends o
 """
 
 import datetime as dt
+import logging
 import secrets
 
 from sqlalchemy import func, or_, select, text, update
@@ -25,6 +26,7 @@ from app.schemas.bookings import (
     QuoteRequest,
     UnbookableReason,
 )
+from app.services.analytics import ist_today
 from app.services.booking.freshness import refresh_packages
 from app.services.booking.pricing import build_quote, unbookable_reason
 from app.services.enquiries import REF_ALPHABET
@@ -38,6 +40,9 @@ UNBOOKABLE_MESSAGE = {
     UnbookableReason.TOO_SOON: "This date departs too soon to book online — WhatsApp us",
     UnbookableReason.SOLD_OUT: "Not enough seats left on this date for your party",
 }
+
+
+log = logging.getLogger(__name__)
 
 
 def make_ref() -> str:
@@ -74,6 +79,21 @@ async def _seats_left(db: AsyncSession, departure_id: str) -> int:
     )
 
 
+async def _deal_base(db: AsyncSession, package_id: str, *, now: dt.datetime) -> int:
+    """The cheapest upcoming priced double, seats ignored — what the deal is measured from
+    (see pricing.py: holds must not be able to move it). 0 when nothing is priced."""
+    cheapest = (
+        await db.execute(
+            select(func.min(Departure.price_double_paise)).where(
+                Departure.package_id == package_id,
+                Departure.date >= ist_today(now),
+                Departure.price_double_paise > 0,
+            )
+        )
+    ).scalar_one_or_none()
+    return int(cheapest or 0)
+
+
 async def quote_booking(
     db: AsyncSession, req: QuoteRequest, *, now: dt.datetime | None = None
 ) -> Quote:
@@ -84,7 +104,8 @@ async def quote_booking(
     seats = await _seats_left(db, dep.id)
     if reason := unbookable_reason(dep, seats_left=seats, party=len(req.travellers), now=now):
         raise unbookable(reason)
-    return build_quote(dep, pkg, req.travellers, seats_left=seats, now=now)
+    base = await _deal_base(db, pkg.id, now=now)
+    return build_quote(dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now)
 
 
 async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:
@@ -135,7 +156,14 @@ async def create_booking_order(
         party = len(req.travellers)
         if reason := unbookable_reason(dep, seats_left=seats, party=party, now=now):
             raise unbookable(reason)
-        quote = build_quote(dep, pkg, req.as_quote().travellers, seats_left=seats - party, now=now)
+        quote = build_quote(
+            dep,
+            pkg,
+            req.as_quote().travellers,
+            seats_left=seats - party,
+            deal_base=await _deal_base(db, pkg.id, now=now),
+            now=now,
+        )
 
         booking: Booking | None = None
         for _attempt in range(REF_ATTEMPTS):
@@ -172,7 +200,14 @@ async def create_booking_order(
         await db.rollback()
         raise
 
-    await refresh_packages(db, {pkg.id, *released})
+    try:
+        await refresh_packages(db, {pkg.id, *released})
+    except Exception:
+        # The hold is committed: a stale "from ₹X" or seat count is better than a 500 that
+        # hides the booking ref (a retry would release this very hold). The next booking event
+        # or /cron/daily refreshes the page.
+        await db.rollback()
+        log.exception("Freshness refresh after booking %s failed", booking.ref)
     return BookingOrder(
         booking_ref=booking.ref,
         amount_paise=booking.total_paise,

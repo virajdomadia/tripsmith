@@ -30,7 +30,7 @@ def departure(**overrides: object) -> Departure:
 
 
 def package(**overrides: object) -> Package:
-    fields: dict[str, object] = {"slug": "munnar", "starting_price_paise": 24_999_00}
+    fields: dict[str, object] = {"slug": "munnar"}
     return Package(**(fields | overrides))
 
 
@@ -39,7 +39,9 @@ DEAL = {"deal_price_paise": 21_999_00, "deal_label": "Monsoon deal", "deal_ends_
 
 def quote(occupancies: list[Occupancy], dep: Departure | None = None, /, **pkg: object) -> Quote:
     travellers = [QuoteTraveller(occupancy=o) for o in occupancies]
-    return build_quote(dep or departure(), package(**pkg), travellers, seats_left=12, now=NOW)
+    return build_quote(
+        dep or departure(), package(**pkg), travellers, seats_left=12, deal_base=24_999_00, now=NOW
+    )
 
 
 def lines(q: Quote) -> list[tuple[str, str, int, int]]:
@@ -113,7 +115,7 @@ def test_deal_ends_at_its_instant_not_after() -> None:
     assert expired.deal is None and expired.total_paise == 49_998_00
 
 
-def test_a_deal_not_below_the_starting_price_is_ignored() -> None:
+def test_a_deal_not_below_its_base_price_is_ignored() -> None:
     assert quote([D, D], **(DEAL | {"deal_price_paise": 24_999_00})).deal is None
     assert quote([D, D], **(DEAL | {"deal_price_paise": 0})).deal is None
 

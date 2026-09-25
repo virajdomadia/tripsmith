@@ -6,6 +6,11 @@ Bookable = package live (the caller 404s otherwise), double/triple/child priced 
 request", the v1 rule; the supplement may be 0), the date at least IST today + 2 days, and seats
 for the whole party. The deal is a flat amount off per traveller — starting price − deal price —
 while `now < deal_ends_at`, never more than that traveller's own price.
+
+The "starting price" here is the deal *base*: the cheapest upcoming priced double, seats
+ignored. The cached `starting_price_paise` skips sold-out dates, so it rises while holds sit on
+the cheap date — reading it would let anyone widen the discount by holding seats and walking
+away (the lapse fires no event, so it would stay wide until the daily cron).
 """
 
 import datetime as dt
@@ -42,12 +47,12 @@ def unbookable_reason(
     return None
 
 
-def deal_off(pkg: Package, *, now: dt.datetime) -> int:
+def deal_off(pkg: Package, *, base: int, now: dt.datetime) -> int:
     """The flat discount per traveller while the deal runs; 0 when there is none."""
-    deal, ends, starting = pkg.deal_price_paise, pkg.deal_ends_at, pkg.starting_price_paise
-    if deal is None or ends is None or now >= ends or not 0 < deal < starting:
+    deal, ends = pkg.deal_price_paise, pkg.deal_ends_at
+    if deal is None or ends is None or now >= ends or not 0 < deal < base:
         return 0
-    return starting - deal
+    return base - deal
 
 
 def unit_price(dep: Departure, occupancy: Occupancy) -> int:
@@ -69,6 +74,7 @@ def build_quote(
     travellers: Sequence[QuoteTraveller],
     *,
     seats_left: int,
+    deal_base: int,
     now: dt.datetime,
 ) -> Quote:
     counts = Counter(t.occupancy for t in travellers)
@@ -91,7 +97,7 @@ def build_quote(
             line(QuoteLineKind.SINGLE_SUPPLEMENT, occ, dep.single_supplement_paise)
     subtotal = sum(li.amount_paise for li in lines)
 
-    off = deal_off(pkg, now=now)
+    off = deal_off(pkg, base=deal_base, now=now)
     deal: QuoteDeal | None = None
     if off:
         assert pkg.deal_ends_at is not None  # deal_off is 0 without it

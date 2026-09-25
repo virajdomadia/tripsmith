@@ -179,3 +179,21 @@ async def test_routes_quote_hold_and_explain_refusals(
 
     gone = await db_client.post("/bookings/quote", json={**quote_body, "departureId": "nope"})
     assert gone.status_code == 404
+
+
+async def test_holding_the_cheap_date_cannot_widen_the_deal(db: AsyncSession) -> None:
+    pkg, cheap = await seeded(db, seats=2)
+    pkg.deal_price_paise = 18_000_00  # ₹2,000 off the ₹20,000 cheapest double
+    pkg.deal_ends_at = dt.datetime.now(dt.UTC) + dt.timedelta(days=3)
+    await db.commit()
+    later_id, cheap_id = pkg.departures[1].id, cheap.id
+
+    # Fill the cheap date: the cached starting price jumps to ₹25,000 …
+    await create_booking_order(db, order(cheap_id, 2, email="x@example.test", phone="9000000003"))
+    await db.refresh(pkg)
+    assert pkg.starting_price_paise == 25_000_00
+
+    # … but the deal is still ₹2,000 per traveller, not ₹7,000.
+    held = await create_booking_order(db, order(later_id, 1))
+    assert held.quote.deal is not None and held.quote.deal.per_traveller_paise == 2_000_00
+    assert held.amount_paise == 25_000_00 + 9_000_00 - 2_000_00
