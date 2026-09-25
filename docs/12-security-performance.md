@@ -302,23 +302,36 @@ Both origins are covered because both are reachable: the browser talks to the we
 
 ```
 Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none';
-  frame-ancestors 'none'; frame-src https://maps.google.com; form-action 'self';
-  script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
-  img-src 'self' data: https://*.public.blob.vercel-storage.com;
-  font-src 'self'; connect-src 'self' https://*.sentry.io; upgrade-insecure-requests
+  frame-ancestors 'none';
+  frame-src https://maps.google.com https://www.google.com https://api.razorpay.com;
+  form-action 'self';
+  script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://cdn.razorpay.com;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https://*.public.blob.vercel-storage.com; font-src 'self';
+  connect-src 'self' https://*.sentry.io https://api.razorpay.com https://lumberjack.razorpay.com;
+  upgrade-insecure-requests
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 X-Frame-Options: DENY
-Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin-allow-popups
 Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 ```
 
-Three of those lines are narrower or wider than the obvious default, each for a reason:
+These lines are narrower or wider than the obvious default, each for a reason:
 
 - **`frame-src` names Google rather than `'none'`.** The only iframe on the site is the keyless
   Maps embed on `/contact`; `'none'` blanks it. Both hosts are listed because the embed URL
   redirects `maps.google.com` → `www.google.com` and a frame navigation is checked again at the
   redirect target. Drop the map and this tightens to `'none'`.
+- **Razorpay hosts, site-wide (B5).** Checkout.js is injected on the Pay click only, but the
+  policy is one for every page so there is one thing to verify. A real test payment showed what it
+  needs beyond the documented `checkout.razorpay.com` / `api.razorpay.com`: its risk bundle from
+  `cdn.razorpay.com` and a tracking call to `lumberjack.razorpay.com`. It asks for `eval` once;
+  that stays refused and payments work without it.
+- **`Cross-Origin-Opener-Policy: same-origin-allow-popups`, not `same-origin` (B5).** Checkout
+  opens the bank / 3-D Secure page as a popup from its frame and writes into it; `same-origin`
+  severs that popup from its opener and it stays blank. Other sites' windows still cannot reach
+  this one.
 - **No `blob:` in `img-src`.** Nothing in the app creates an object URL — the admin uploader posts
   its `File` straight to the api — so the grant would have been decoration.
 - **No `interest-cohort` in `Permissions-Policy`.** FLoC is gone and browsers log it as an

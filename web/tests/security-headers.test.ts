@@ -52,11 +52,17 @@ describe('security headers', () => {
     expect(directives['font-src']).toBe("'self'"); // next/font self-hosts DM Sans
     // Sentry's ingest is the only cross-origin request the browser makes; Vercel Analytics posts
     // to /_vercel/insights on this origin.
-    expect(directives['connect-src']).toBe("'self' https://*.sentry.io");
+    // Razorpay Checkout (B5) calls its api and logs to lumberjack from this page.
+    expect(directives['connect-src']).toBe(
+      "'self' https://*.sentry.io https://api.razorpay.com https://lumberjack.razorpay.com",
+    );
     // /contact embeds a keyless Google Maps iframe (components/site/contact/MapEmbed.tsx), so
     // frame-src cannot be 'none'. Both hosts: the embed URL redirects maps.google.com →
     // www.google.com and the redirect target is checked again. Dropping the map tightens this.
-    expect(directives['frame-src']).toBe('https://maps.google.com https://www.google.com');
+    // Razorpay Checkout draws its payment window as a frame from api.razorpay.com (B5).
+    expect(directives['frame-src']).toBe(
+      'https://maps.google.com https://www.google.com https://api.razorpay.com',
+    );
   });
 
   it("keeps 'unsafe-eval' out of the shipped policy", async () => {
@@ -64,7 +70,10 @@ describe('security headers', () => {
     // is on NODE_ENV === 'development' so a test run reads the policy the site actually serves.
     const directives = csp(await headers());
     expect(directives['script-src']).not.toContain("'unsafe-eval'");
-    expect(directives['script-src']).toBe("'self' 'unsafe-inline'");
+    // Remote scripts: only Razorpay Checkout and the risk bundle it loads (B5, on Pay).
+    expect(directives['script-src']).toBe(
+      "'self' 'unsafe-inline' https://checkout.razorpay.com https://cdn.razorpay.com",
+    );
     expect(directives['style-src']).toBe("'self' 'unsafe-inline'");
   });
 
@@ -72,7 +81,8 @@ describe('security headers', () => {
     const all = await headers();
     expect(all['x-content-type-options']).toBe('nosniff');
     expect(all['referrer-policy']).toBe('strict-origin-when-cross-origin');
-    expect(all['cross-origin-opener-policy']).toBe('same-origin');
+    // Not plain `same-origin`: Razorpay Checkout's bank / 3-D Secure popup must keep its opener.
+    expect(all['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
     expect(all['permissions-policy']).toContain('geolocation=()');
     // Removed with FLoC; Chrome logs "Unrecognized feature" for it on every response.
     expect(all['permissions-policy']).not.toContain('interest-cohort');

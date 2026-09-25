@@ -3,7 +3,8 @@
 Starting a booking holds seats, so it is limited per visitor: `booking:{ip}` 5 / 10 min. The
 web reaches it through `POST /api/bookings`, which forwards the visitor's address (the plain
 rewrite would put every visitor in one bucket). A quote has no side effects and goes through
-the rewrite unlimited; so does confirm, which only acts on a payment Razorpay signed.
+the rewrite unlimited; so does confirm, which only acts on a payment Razorpay signed, and sync,
+which asks Razorpay only while the booking is pending.
 
 Without Razorpay keys, starting a booking is a 503 before any seat is held.
 """
@@ -27,7 +28,7 @@ from app.schemas.bookings import (
     QuoteRequest,
 )
 from app.services.booking.orders import create_booking_order, quote_booking
-from app.services.booking.payments import confirm_payment
+from app.services.booking.payments import confirm_payment, sync_payment
 
 BOOKING_LIMIT = 5
 BOOKING_WINDOW_SECONDS = 600
@@ -97,3 +98,15 @@ async def post_confirm(
 ) -> PaymentResult:
     response.headers["Cache-Control"] = "no-store"
     return await confirm_payment(db, ref, payload, rzp)
+
+
+@router.post("/bookings/{ref}/sync", operation_id="syncPayment", response_model_by_alias=True)
+async def post_sync(
+    ref: BookingRef,
+    response: Response,
+    rzp: Annotated[Razorpay, Depends(razorpay)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> PaymentResult:
+    """Checkout closed without calling back: was the booking paid anyway? (B5)"""
+    response.headers["Cache-Control"] = "no-store"
+    return await sync_payment(db, ref, rzp)

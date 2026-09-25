@@ -21,7 +21,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.infra.razorpay import Razorpay
+from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import Booking, BookingTraveller, Departure, Payment
 from app.models.catalog import departure_availability
 from app.models.enums import BookingStatus, CancelReason, PaymentProvider, PaymentStatus
@@ -196,4 +196,79 @@ async def confirm_payment(
         raise
     if changed:
         await refresh_quietly(db, {package_id}, after=f"payment on {ref}")
+    return result
+
+
+PROVIDER_DOWN = "We couldn't check your payment just now — try again in a minute, or WhatsApp us"
+
+
+async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> PaymentResult:
+    """B5: ask Razorpay whether a still-pending booking was paid, and apply it if so.
+
+    Checkout can close without calling its success handler (a tab put to sleep, a popup that
+    lost its opener), and until B6's webhook lands nothing else would tell us. The web calls
+    this whenever Checkout closes without a callback. The order's payments are read with the
+    key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
+    exactly like a signed callback — through
+    `capture_razorpay_payment`, idempotent on the payment id. Only a pending booking makes the
+    outbound call; any other status answers from the database.
+    """
+    booking = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one_or_none()
+    if booking is None:
+        raise ApiError("not_found", NOT_FOUND)
+    result = PaymentResult(
+        booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
+    )
+    if booking.status != BookingStatus.PENDING:
+        return result
+    rows = await db.execute(
+        select(Payment.razorpay_order_id).where(Payment.booking_id == booking.id).distinct()
+    )
+    order_ids = [o for o in rows.scalars().all() if o]
+    await db.rollback()  # no transaction held open across the call to Razorpay
+    found: tuple[str, str, dict[str, Any]] | None = None
+    for order_id in order_ids:
+        try:
+            items = await razorpay.order_payments(order_id)
+        except RazorpayError as exc:
+            log.warning("Payment sync for %s: %s", ref, exc)
+            raise ApiError("internal", PROVIDER_DOWN, status=502) from exc
+        for item in items:
+            pay_id, status = item.get("id"), item.get("status")
+            if not (isinstance(pay_id, str) and pay_id.startswith("pay_")):
+                continue
+            try:
+                # Authorized = the money is taken but not yet captured (the moments before
+                # Razorpay's auto-capture, or an account without it): capture it ourselves,
+                # so a paid visitor is never offered Pay again.
+                if status == "authorized":
+                    amount = item.get("amount")
+                    status = await razorpay.capture_payment(
+                        pay_id, amount_paise=amount if isinstance(amount, int) else 0
+                    )
+            except RazorpayError as exc:
+                log.warning("Capture during sync for %s: %s", ref, exc)
+                raise ApiError("internal", PROVIDER_DOWN, status=502) from exc
+            if status == "captured":
+                found = (order_id, pay_id, item)
+                break
+        if found:
+            break
+    if found is None:
+        return result
+    order_id, payment_id, raw = found
+    try:
+        booking, changed = await capture_razorpay_payment(
+            db, ref, order_id=order_id, payment_id=payment_id, raw=raw
+        )
+        result = PaymentResult(
+            booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
+        )
+        package_id = booking.package_id
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    if changed:
+        await refresh_quietly(db, {package_id}, after=f"synced payment on {ref}")
     return result

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { JsonLd } from '@/components/seo/JsonLd';
+import { BookNowProvider } from '@/components/site/booking/BookNow';
 import { Container } from '@/components/site/Container';
 import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
 import { DeparturesTable } from '@/components/site/package/DeparturesTable';
@@ -24,6 +25,7 @@ import { api } from '@/lib/api';
 import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
 import { whatsappInterest } from '@/lib/business';
 import { duration, inr, isPriced } from '@/lib/format';
+import { offersBooking } from '@/lib/booking';
 import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { pageOpenGraph } from '@/lib/seo/open-graph';
@@ -75,70 +77,86 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
   const pkg = await loadPackage(slug);
   const url = absolute(`/packages/${pkg.slug}`);
   const faq = faqJsonLd(pkg);
+  const bookable = offersBooking(pkg.departures);
 
   return (
-    <Container>
-      <JsonLd data={packageJsonLd(pkg, url)} />
-      <JsonLd
-        // The very trail `PackageHero` renders: Home › destination › this package.
-        data={breadcrumbJsonLd([
-          { name: 'Home', path: '/' },
-          { name: pkg.destination.name, path: `/destinations/${pkg.destination.slug}` },
-          { name: pkg.name, path: `/packages/${pkg.slug}` },
-        ])}
-      />
-      {faq && <JsonLd data={faq} />}
-      <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
-      <ViewBeacon slug={pkg.slug} />
-      <PackageHero pkg={pkg} url={url} />
-      <Gallery images={pkg.images} />
-      <QuickFacts pkg={pkg} />
-      <SectionNav
-        sections={[
-          { id: 'overview', label: 'Overview' },
-          { id: 'itinerary', label: 'Itinerary' },
-          { id: 'inclusions', label: 'Inclusions' },
-          { id: 'hotels', label: 'Hotels' },
-          { id: 'dates', label: 'Dates & prices' },
-          ...(pkg.faq.length ? [{ id: 'faq', label: 'FAQ' }] : []),
-        ]}
-      />
+    <BookNowProvider
+      pkg={{
+        slug: pkg.slug,
+        name: pkg.name,
+        duration: duration(pkg.nights, pkg.days),
+        destination: pkg.destination.name,
+        cover: pkg.cover ? { url: pkg.cover.url, alt: pkg.cover.alt } : null,
+        departures: pkg.departures,
+      }}
+    >
+      <Container>
+        <JsonLd data={packageJsonLd(pkg, url)} />
+        <JsonLd
+          // The very trail `PackageHero` renders: Home › destination › this package.
+          data={breadcrumbJsonLd([
+            { name: 'Home', path: '/' },
+            { name: pkg.destination.name, path: `/destinations/${pkg.destination.slug}` },
+            { name: pkg.name, path: `/packages/${pkg.slug}` },
+          ])}
+        />
+        {faq && <JsonLd data={faq} />}
+        <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
+        <ViewBeacon slug={pkg.slug} />
+        <PackageHero pkg={pkg} url={url} />
+        <Gallery images={pkg.images} />
+        <QuickFacts pkg={pkg} />
+        <SectionNav
+          sections={[
+            { id: 'overview', label: 'Overview' },
+            { id: 'itinerary', label: 'Itinerary' },
+            { id: 'inclusions', label: 'Inclusions' },
+            { id: 'hotels', label: 'Hotels' },
+            { id: 'dates', label: 'Dates & prices' },
+            ...(pkg.faq.length ? [{ id: 'faq', label: 'FAQ' }] : []),
+          ]}
+        />
 
-      {/* No items-start: the aside must stretch to the row height so PriceBox's sticky has room to travel. */}
-      <div className="mt-7 grid gap-12 lg:grid-cols-[1fr_380px]">
-        <div className="min-w-0">
-          <Section id="overview" title={null}>
-            <p className="max-w-[62ch] text-lg leading-relaxed text-ink2">{pkg.summary}</p>
-            <Highlights items={pkg.highlights} />
-          </Section>
-          <Section id="itinerary" title="Day by day" action={<ItineraryPdfLink slug={pkg.slug} />}>
-            <ItineraryMotion>
-              <Itinerary days={pkg.itinerary} />
-            </ItineraryMotion>
-          </Section>
-          <Section id="inclusions" title="What's in the price">
-            <Inclusions inclusions={pkg.inclusions} exclusions={pkg.exclusions} />
-          </Section>
-          <Section id="hotels" title="Where you stay">
-            <Hotels hotels={pkg.hotels} />
-          </Section>
-          <Section id="dates" title="Dates & prices">
-            <DeparturesTable departures={pkg.departures} />
-            <OccupancyPricing departures={pkg.departures} />
-          </Section>
-          {pkg.faq.length > 0 && (
-            <Section id="faq" title="Questions">
-              <Faq items={pkg.faq} />
+        {/* No items-start: the aside must stretch to the row height so PriceBox's sticky has room to travel. */}
+        <div className="mt-7 grid gap-12 lg:grid-cols-[1fr_380px]">
+          <div className="min-w-0">
+            <Section id="overview" title={null}>
+              <p className="max-w-[62ch] text-lg leading-relaxed text-ink2">{pkg.summary}</p>
+              <Highlights items={pkg.highlights} />
             </Section>
-          )}
+            <Section
+              id="itinerary"
+              title="Day by day"
+              action={<ItineraryPdfLink slug={pkg.slug} />}
+            >
+              <ItineraryMotion>
+                <Itinerary days={pkg.itinerary} />
+              </ItineraryMotion>
+            </Section>
+            <Section id="inclusions" title="What's in the price">
+              <Inclusions inclusions={pkg.inclusions} exclusions={pkg.exclusions} />
+            </Section>
+            <Section id="hotels" title="Where you stay">
+              <Hotels hotels={pkg.hotels} />
+            </Section>
+            <Section id="dates" title="Dates & prices">
+              <DeparturesTable departures={pkg.departures} />
+              <OccupancyPricing departures={pkg.departures} />
+            </Section>
+            {pkg.faq.length > 0 && (
+              <Section id="faq" title="Questions">
+                <Faq items={pkg.faq} />
+              </Section>
+            )}
+          </div>
+          <aside className="hidden lg:block">
+            <PriceBox pkg={pkg} url={url} bookable={bookable} />
+          </aside>
         </div>
-        <aside className="hidden lg:block">
-          <PriceBox pkg={pkg} url={url} />
-        </aside>
-      </div>
 
-      <RelatedPackages cards={pkg.related} />
-      <MobileCtaBar pkg={pkg} url={url} />
-    </Container>
+        <RelatedPackages cards={pkg.related} />
+        <MobileCtaBar pkg={pkg} url={url} bookable={bookable} />
+      </Container>
+    </BookNowProvider>
   );
 }
