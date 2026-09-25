@@ -50,3 +50,47 @@ class EmailStatus(StrEnum):
     SENT = "sent"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+# --- v2 booking engine (0004_v2) ---
+
+
+class MessageDirection(StrEnum):
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+
+
+class BookingStatus(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PARTIALLY_PAID = "partially_paid"  # add-on D (split payment)
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+
+class PaymentProvider(StrEnum):
+    RAZORPAY = "razorpay"
+    OFFLINE = "offline"
+
+
+class PaymentStatus(StrEnum):
+    CREATED = "created"
+    CAPTURED = "captured"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+
+class CancellationStatus(StrEnum):
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class CancelReason(StrEnum):
+    """Why a booking is `cancelled` — set in the same UPDATE as the status."""
+
+    HOLD_EXPIRED = "hold_expired"
+    PAYMENT_FAILED = "payment_failed"
+    SEATS_GONE = "seats_gone"
+    CANCELLATION_APPROVED = "cancellation_approved"
+    OWNER_RELEASED = "owner_released"

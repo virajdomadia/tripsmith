@@ -75,7 +75,7 @@ async def test_one_departure_per_package_per_date(db: AsyncSession) -> None:
         await db.commit()
 
 
-async def test_departure_availability_view_reports_seats_total_in_v1(db: AsyncSession) -> None:
+async def test_availability_view_reports_seats_total_with_no_bookings(db: AsyncSession) -> None:
     pkg = package(goa())
     pkg.departures = [
         Departure(

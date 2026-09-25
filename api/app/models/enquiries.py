@@ -1,12 +1,12 @@
 """Enquiries (06 A4). `conversation_id` is a plain ⏩ column until the v3 migration adds the FK."""
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Date, ForeignKey, Index, Integer, SmallInteger, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, SmallInteger, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedMixin, IdMixin, TimestampsMixin, pg_enum
-from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType
+from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, MessageDirection
 
 
 class Enquiry(IdMixin, TimestampsMixin, Base):
@@ -50,6 +50,9 @@ class Enquiry(IdMixin, TimestampsMixin, Base):
     notes: Mapped[list["EnquiryNote"]] = relationship(
         back_populates="enquiry", cascade="all, delete-orphan", order_by="EnquiryNote.created_at"
     )
+    messages: Mapped[list["EnquiryMessage"]] = relationship(
+        back_populates="enquiry", cascade="all, delete-orphan", order_by="EnquiryMessage.sent_at"
+    )
 
 
 class EnquiryNote(IdMixin, CreatedMixin, Base):
@@ -63,3 +66,25 @@ class EnquiryNote(IdMixin, CreatedMixin, Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
 
     enquiry: Mapped[Enquiry] = relationship(back_populates="notes")
+
+
+class EnquiryMessage(IdMixin, Base):
+    """v2 — an email sent from the inbox (R23) or, later, a reply that came back."""
+
+    __tablename__ = "enquiry_messages"
+    __table_args__ = (Index("ix_enquiry_messages_enquiry_id_sent_at", "enquiry_id", "sent_at"),)
+
+    enquiry_id: Mapped[str] = mapped_column(
+        ForeignKey("enquiries.id", ondelete="CASCADE"), nullable=False
+    )
+    direction: Mapped[MessageDirection] = mapped_column(
+        pg_enum(MessageDirection, "message_direction"), nullable=False
+    )
+    subject: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    resend_id: Mapped[str | None] = mapped_column(Text)  # null when the send failed
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    enquiry: Mapped[Enquiry] = relationship(back_populates="messages")

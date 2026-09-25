@@ -219,9 +219,6 @@ async def test_login_route_sets_cookie_and_returns_session_info(
     row = (await db.execute(select(Session))).scalar_one()
     assert row.ip == "1.2.3.4" and row.user_agent == "UA"
     assert row.token_hash == hash_token(res.cookies[COOKIE_NAME])
-    # The legacy raw column is unmapped (0004_v2 drops it) and never written.
-    raw = await db.execute(text("select token from sessions where id = :id"), {"id": row.id})
-    assert raw.scalar_one() is None
 
 
 @pytest.mark.db

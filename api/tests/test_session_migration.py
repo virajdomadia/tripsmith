@@ -51,7 +51,7 @@ def test_upgrade_backfills_hashes_and_keeps_the_old_column(migrated_database_url
                 f"values ('s-old', 'u-mig', '{RAW}', '{expires}')",
             )
         )
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0003")  # 0004 drops `token`: stop where it still exists
         rows = asyncio.run(_sql(url, "select token, token_hash from sessions where id = 's-old'"))
         assert rows == [(RAW, hash_token(RAW))]  # expand: the old column is untouched
 
