@@ -25,6 +25,16 @@ from app.services.pdf.document import (
 )
 
 
+def _clip(d: Document, text: str, w: float) -> str:
+    """`text` cut with an ellipsis to fit `w` mm in the current font — a cell never wraps, so a
+    long name would run over the next column."""
+    if d.get_string_width(text) <= w:
+        return text
+    while text and d.get_string_width(text + "…") > w:
+        text = text[:-1]
+    return text.rstrip() + "…"
+
+
 def voucher_filename(ref: str) -> str:
     return f"Tripsmith-{ref}-voucher.pdf"
 
@@ -132,14 +142,20 @@ class _Voucher:
             for k, ((_, w), value) in enumerate(zip(cols, values, strict=True)):
                 d.set_xy(x, y)
                 d.font(10.5, "B" if k == 1 else "", INK if k == 1 else INK2)
-                d.cell(w, 5.6, value)
+                d.cell(w, 5.6, _clip(d, value, w - 2))
                 x += w
             d.set_y(y + 5.6 + 1.5)
             d.hairline(d.get_y())
         d.gap(1)
         d.font(9.5, "", MUTE)
-        d.cell(0, 6, f"Lead traveller: {f.lead_name} · {f.lead_phone} · {f.lead_email}")
-        d.ln(6)
+        d.multi_cell(
+            0,
+            5,
+            f"Lead traveller: {f.lead_name} · {f.lead_phone} · {f.lead_email}",
+            align="L",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
 
     def hotels(self) -> None:
         d, f = self.doc, self.f
@@ -151,7 +167,7 @@ class _Voucher:
             d.card(MARGIN, y, d.epw, 11, r=R_PANEL)
             d.set_xy(MARGIN + 4, y + 2.6)
             d.font(10.5, "B", INK)
-            d.cell(90, 6, h.name)
+            d.cell(90, 6, _clip(d, h.name, 78))
             for s in range(5):
                 d.star(MARGIN + 100 + s * 4.4, y + 5.6, 1.7, filled=s < h.stars)
             d.set_xy(MARGIN + 126, y + 2.6)

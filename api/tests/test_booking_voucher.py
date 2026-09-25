@@ -5,6 +5,7 @@ confirmed → voucher 200 for its owner, 403 otherwise). The db tests need TEST_
 import datetime as dt
 import io
 import time
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -144,6 +145,19 @@ def test_a_full_party_runs_on_to_a_second_page() -> None:
     )
     pages, text = pdf_text(pdf)
     assert pages == 2 and "Traveller 11" in text and "Page 2 of 2" in text
+
+
+def test_long_names_are_clipped_and_the_lead_line_wraps() -> None:
+    long = replace(
+        facts(travellers=1),
+        travellers=(Traveller("Venkata " * 10, 40, "Single room"),),
+        lead_email="a.very.long.address.for.the.lead.traveller@some-long-company-domain.example",
+    )
+    pages, text = pdf_text(
+        render_voucher(long, site_url="https://x.test", whatsapp_number="919845012345")
+    )
+    assert pages == 1 and "Venkata Venkata" in text and "…" in text
+    assert "some-long-company-domain.example" in text.replace(" ", "")
 
 
 # --- emails ------------------------------------------------------------------------------------
