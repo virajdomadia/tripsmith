@@ -189,14 +189,24 @@ async def test_late_capture_with_no_seats_left_never_confirms(
 
 
 @pytest.mark.db
-async def test_razorpay_down_releases_the_hold_and_answers_502(
+async def test_razorpay_down_answers_502_and_gives_back_the_replaced_hold(
     db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
-    _, departure = await seeded(db, seats=2)
+    _, departure = await seeded(db, seats=4)
+    dep_id = departure.id
+    body = booking_body(dep_id, 1, email="a@example.test", phone="9000000001")
+    first = await db_client.post("/bookings", json=body)
+    assert first.status_code == 201 and await seats_left(db, dep_id) == 3
+
+    # The same visitor tries again for a bigger party while Razorpay is down.
     rzp.down = True
     res = await db_client.post(
-        "/bookings",
-        json=booking_body(departure.id, 2, email="a@example.test", phone="9000000001"),
+        "/bookings", json=booking_body(dep_id, 3, email="a@example.test", phone="9000000001")
     )
     assert res.status_code == 502 and res.json()["error"]["code"] == "internal"
-    assert await seats_left(db, departure.id) == 2  # nobody is blocked by an unpayable hold
+    # The unpayable hold is gone and the first one is back, so Checkout in the other tab still
+    # pays for a held seat. (A fresh transaction: `now()` is fixed at a transaction's start.)
+    await db.rollback()
+    assert await seats_left(db, dep_id) == 3
+    now = (await db.execute(text("select now()"))).scalar_one()
+    assert (await booking(db, first.json()["bookingRef"])).hold_expires_at > now

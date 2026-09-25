@@ -6,13 +6,15 @@ outside the departure's row lock, so two orders for the last seat serialise on i
 sees the first's travellers. Holds lapse on their own — nothing here depends on a cron.
 
 The Razorpay order is created after the hold commits (never a network call under the row lock),
-from the server's amount. If Razorpay is down the hold we just made is released and the visitor
-gets a 502: holding seats nobody can pay for would only block the next visitor.
+from the server's amount. If Razorpay is down the hold we just made is released, any hold it
+replaced is given back, and the visitor gets a 502: holding seats nobody can pay for would only
+block the next visitor.
 """
 
 import datetime as dt
 import logging
 import secrets
+from typing import NamedTuple
 
 from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +27,7 @@ from app.models import Booking, BookingTraveller, Departure, Package, Payment
 from app.models.catalog import departure_availability
 from app.models.enums import BookingStatus, PackageStatus, PaymentProvider, PaymentStatus
 from app.schemas.bookings import (
+    BookingContact,
     BookingOrder,
     BookingRequest,
     Quote,
@@ -33,6 +36,7 @@ from app.schemas.bookings import (
 )
 from app.services.analytics import ist_today
 from app.services.booking.freshness import refresh_quietly
+from app.services.booking.payments import lock_booking, seats_short
 from app.services.booking.pricing import build_quote, unbookable_reason
 from app.services.enquiries import REF_ALPHABET
 
@@ -49,6 +53,12 @@ UNBOOKABLE_MESSAGE = {
 
 
 log = logging.getLogger(__name__)
+
+
+class Released(NamedTuple):
+    ref: str
+    package_id: str
+    hold_expires_at: dt.datetime
 
 
 def make_ref() -> str:
@@ -122,37 +132,71 @@ async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:
         await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
 
 
-async def _release_holds(db: AsyncSession, email: str, phone: str) -> set[str]:
+async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Released]:
     """One active hold per email or phone (R16): end the previous one now.
 
     The booking stays `pending` with its hold lapsed — exactly the state an abandoned checkout
     reaches on its own — so the seats free at once, `/cron/daily` later cancels it as
     `hold_expired`, and a payment that still lands on it goes through B4's late-capture re-check.
-    `now()` is the database clock the view compares against. Returns the packages touched.
+    `now()` is the database clock the view compares against. Returns what was released, with
+    each hold's old expiry, so a Razorpay outage can put it back (`_undo_hold`).
     """
-    rows = await db.execute(
-        update(Booking)
-        .where(
-            Booking.status == BookingStatus.PENDING,
-            Booking.hold_expires_at > func.now(),
-            or_(Booking.contact_email == email, Booking.contact_phone == phone),
+    rows = (
+        await db.execute(
+            select(Booking.id, Booking.ref, Booking.package_id, Booking.hold_expires_at)
+            .where(
+                Booking.status == BookingStatus.PENDING,
+                Booking.hold_expires_at > func.now(),
+                or_(Booking.contact_email == email, Booking.contact_phone == phone),
+            )
+            .with_for_update()
         )
-        .values(hold_expires_at=func.now(), updated_at=func.now())
-        .returning(Booking.package_id)
-        .execution_options(synchronize_session=False)
-    )
-    return {str(pid) for pid in rows.scalars().all()}
+    ).all()
+    if rows:
+        await db.execute(
+            update(Booking)
+            .where(Booking.id.in_([r.id for r in rows]))
+            .values(hold_expires_at=func.now(), updated_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+    return [Released(r.ref, str(r.package_id), r.hold_expires_at) for r in rows]
 
 
-async def _lapse_hold(db: AsyncSession, booking_id: str) -> None:
-    """End a hold now — the state `_release_holds` leaves a replaced hold in."""
-    await db.execute(
-        update(Booking)
-        .where(Booking.id == booking_id, Booking.status == BookingStatus.PENDING)
-        .values(hold_expires_at=func.now(), updated_at=func.now())
-        .execution_options(synchronize_session=False)
-    )
-    await db.commit()
+async def _undo_hold(
+    db: AsyncSession, booking: Booking, released: list[Released], contact: BookingContact
+) -> None:
+    """Razorpay could not open an order: end the hold just made, and give back the holds it
+    replaced — each under its departure lock, only while its old clock still runs and its seats
+    are still free (another visitor may have taken them in the seconds since)."""
+    try:
+        await _lock_contact(db, contact.email, contact.phone)
+        await lock_booking(db, booking.ref)  # departure first, as everywhere else
+        await db.execute(
+            update(Booking)
+            .where(Booking.id == booking.id, Booking.status == BookingStatus.PENDING)
+            .values(hold_expires_at=func.now(), updated_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+        for prev in released:
+            held, live = await lock_booking(db, prev.ref)
+            db_now = (await db.execute(select(func.now()))).scalar_one()
+            if (
+                held.status != BookingStatus.PENDING
+                or live
+                or prev.hold_expires_at <= db_now
+                or await seats_short(db, held, hold_live=False)
+            ):
+                continue
+            await db.execute(
+                update(Booking)
+                .where(Booking.id == held.id, Booking.status == BookingStatus.PENDING)
+                .values(hold_expires_at=prev.hold_expires_at, updated_at=func.now())
+                .execution_options(synchronize_session=False)
+            )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
 
 
 async def create_booking_order(
@@ -218,14 +262,14 @@ async def create_booking_order(
         await db.rollback()
         raise
 
-    touched = {pkg.id, *released}
+    touched = {pkg.id, *(r.package_id for r in released)}
     try:
         order_id = await razorpay.create_order(
             amount_paise=booking.total_paise, receipt=booking.ref
         )
     except RazorpayError:
-        log.exception("Razorpay order for booking %s failed; releasing its hold", booking.ref)
-        await _lapse_hold(db, booking.id)
+        log.exception("Razorpay order for booking %s failed; undoing its hold", booking.ref)
+        await _undo_hold(db, booking, released, contact)
         await refresh_quietly(db, touched, after=f"releasing booking {booking.ref}")
         raise ApiError("internal", PAYMENTS_DOWN, status=502) from None
 
