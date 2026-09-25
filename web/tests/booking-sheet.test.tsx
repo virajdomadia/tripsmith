@@ -244,6 +244,9 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
     // ₹29,998 for two: over the cap.
     expect(await screen.findByText(/this payment will stop at Razorpay/)).toBeTruthy();
+    // …and where a full test payment can finish.
+    const link = screen.getByRole('link', { name: 'Kasol Riverside Weekend' });
+    expect(link.getAttribute('href')).toBe('/packages/kasol-weekend-camp#book');
   });
 
   it('counts the visitor’s own hold as theirs when the seats are re-read', async () => {
