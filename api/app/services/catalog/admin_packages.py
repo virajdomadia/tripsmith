@@ -112,7 +112,7 @@ async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> 
         .scalars()
         .all()
     )
-    seats = await _seats_left_for(db, [d.id for p in packages for d in p.departures])
+    seats = await seats_left_for(db, [d.id for p in packages for d in p.departures])
     tags: list[str] = []
     changed = 0
     for pkg in packages:
@@ -265,10 +265,10 @@ async def load(db: AsyncSession, id: str, *, lock: bool = False) -> Package:
 
 async def _seats_left(db: AsyncSession, pkg: Package) -> dict[str, int]:
     """`seats_left` lives in the departure_availability view — never on the row (06 §A3)."""
-    return await _seats_left_for(db, [d.id for d in pkg.departures if d.id])
+    return await seats_left_for(db, [d.id for d in pkg.departures if d.id])
 
 
-async def _seats_left_for(db: AsyncSession, ids: Sequence[str]) -> dict[str, int]:
+async def seats_left_for(db: AsyncSession, ids: Sequence[str]) -> dict[str, int]:
     if not ids:
         return {}
     rows = await db.execute(

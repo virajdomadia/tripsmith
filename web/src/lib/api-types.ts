@@ -330,6 +330,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Booking */
+        post: operations["createBookingOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Quote */
+        post: operations["quoteBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/destinations": {
         parameters: {
             query?: never;
@@ -818,6 +852,11 @@ export interface components {
             };
             /** Message */
             message: string;
+            /**
+             * Reason
+             * @description A machine-readable cause on some 409s — booking: `on_request`, `too_soon`, `sold_out` (`UnbookableReason`).
+             */
+            reason?: string;
         };
         /** ApiErrorResponse */
         ApiErrorResponse: {
@@ -844,6 +883,53 @@ export interface components {
         Body_uploadPackageImage: {
             /** File */
             file: string;
+        };
+        /** BookingContact */
+        BookingContact: {
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+        };
+        /**
+         * BookingOrder
+         * @description A held booking. B4 adds the Razorpay `orderId` and `keyId`.
+         */
+        BookingOrder: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * Bookingref
+             * @example TB-7F3K2Q
+             */
+            bookingRef: string;
+            /**
+             * Holdexpiresat
+             * Format: date-time
+             */
+            holdExpiresAt: string;
+            quote: components["schemas"]["Quote"];
+        };
+        /**
+         * BookingRequest
+         * @description `createBookingOrder`: the quote input with names and ages, plus the contact.
+         */
+        BookingRequest: {
+            contact: components["schemas"]["BookingContact"];
+            /** Departureid */
+            departureId: string;
+            /** Travellers */
+            travellers: components["schemas"]["BookingTraveller"][];
+        };
+        /** BookingTraveller */
+        BookingTraveller: {
+            /** Age */
+            age: number;
+            /** Name */
+            name: string;
+            occupancy: components["schemas"]["Occupancy"];
         };
         /** Dashboard */
         Dashboard: {
@@ -1462,6 +1548,11 @@ export interface components {
             /** Themes */
             themes: components["schemas"]["ThemeOption"][];
         };
+        /**
+         * Occupancy
+         * @enum {string}
+         */
+        Occupancy: "double" | "triple" | "single" | "child";
         /** PackageCard */
         PackageCard: {
             /** @description From the next upcoming departure with seats; sold-out only when all are full */
@@ -1649,6 +1740,92 @@ export interface components {
             label: string;
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * Quote
+         * @description The server's price for a party on a departure; snapshotted on the booking as-is.
+         */
+        Quote: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            deal: components["schemas"]["QuoteDeal"] | null;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Discountpaise
+             * @description The deal lines' total, as a positive number
+             */
+            discountPaise: number;
+            /** Lines */
+            lines: components["schemas"]["QuoteLine"][];
+            /** Packageslug */
+            packageSlug: string;
+            /** Seatsleft */
+            seatsLeft: number;
+            /**
+             * Subtotalpaise
+             * @description Before the deal
+             */
+            subtotalPaise: number;
+            /** Totalpaise */
+            totalPaise: number;
+        };
+        /** QuoteDeal */
+        QuoteDeal: {
+            /**
+             * Endsat
+             * Format: date-time
+             */
+            endsAt: string;
+            /** Label */
+            label: string | null;
+            /**
+             * Pertravellerpaise
+             * @description Starting price − deal price, before any cap
+             */
+            perTravellerPaise: number;
+        };
+        /** QuoteLine */
+        QuoteLine: {
+            /**
+             * Amountpaise
+             * @description count × unit
+             */
+            amountPaise: number;
+            /**
+             * Count
+             * @example 2
+             */
+            count: number;
+            kind: components["schemas"]["QuoteLineKind"];
+            /** @description Whose line this is (a deal line names its group) */
+            occupancy: components["schemas"]["Occupancy"];
+            /**
+             * Unitpaise
+             * @description Per traveller; negative on a deal line
+             */
+            unitPaise: number;
+        };
+        /**
+         * QuoteLineKind
+         * @enum {string}
+         */
+        QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal";
+        /** QuoteRequest */
+        QuoteRequest: {
+            /** Departureid */
+            departureId: string;
+            /** Travellers */
+            travellers: components["schemas"]["QuoteTraveller"][];
+        };
+        /** QuoteTraveller */
+        QuoteTraveller: {
+            /** Age */
+            age?: number | null;
+            occupancy: components["schemas"]["Occupancy"];
         };
         /** RangeFacet */
         RangeFacet: {
@@ -2672,6 +2849,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionInfo"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createBookingOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOrder"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    quoteBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
                 };
             };
             /** @description Error envelope (06 C0) */

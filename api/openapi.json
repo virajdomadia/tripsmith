@@ -689,6 +689,11 @@
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "reason": {
+            "description": "A machine-readable cause on some 409s — booking: `on_request`, `too_soon`, `sold_out` (`UnbookableReason`).",
+            "title": "Reason",
+            "type": "string"
           }
         },
         "required": [
@@ -763,6 +768,120 @@
           "file"
         ],
         "title": "Body_uploadPackageImage",
+        "type": "object"
+      },
+      "BookingContact": {
+        "properties": {
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "phone",
+          "email"
+        ],
+        "title": "BookingContact",
+        "type": "object"
+      },
+      "BookingOrder": {
+        "description": "A held booking. B4 adds the Razorpay `orderId` and `keyId`.",
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "bookingRef": {
+            "examples": [
+              "TB-7F3K2Q"
+            ],
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "holdExpiresAt": {
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          }
+        },
+        "required": [
+          "bookingRef",
+          "amountPaise",
+          "holdExpiresAt",
+          "quote"
+        ],
+        "title": "BookingOrder",
+        "type": "object"
+      },
+      "BookingRequest": {
+        "description": "`createBookingOrder`: the quote input with names and ages, plus the contact.",
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/BookingContact"
+          },
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/BookingTraveller"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departureId",
+          "travellers",
+          "contact"
+        ],
+        "title": "BookingRequest",
+        "type": "object"
+      },
+      "BookingTraveller": {
+        "properties": {
+          "age": {
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Age",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          }
+        },
+        "required": [
+          "name",
+          "age",
+          "occupancy"
+        ],
+        "title": "BookingTraveller",
         "type": "object"
       },
       "Dashboard": {
@@ -2155,6 +2274,16 @@
         "title": "Meta",
         "type": "object"
       },
+      "Occupancy": {
+        "enum": [
+          "double",
+          "triple",
+          "single",
+          "child"
+        ],
+        "title": "Occupancy",
+        "type": "string"
+      },
       "PackageCard": {
         "properties": {
           "badge": {
@@ -2641,6 +2770,203 @@
           "detail"
         ],
         "title": "PublishRule",
+        "type": "object"
+      },
+      "Quote": {
+        "description": "The server's price for a party on a departure; snapshotted on the booking as-is.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteDeal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "discountPaise": {
+            "description": "The deal lines' total, as a positive number",
+            "title": "Discountpaise",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "subtotalPaise": {
+            "description": "Before the deal",
+            "title": "Subtotalpaise",
+            "type": "integer"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "packageSlug",
+          "date",
+          "seatsLeft",
+          "lines",
+          "deal",
+          "subtotalPaise",
+          "discountPaise",
+          "totalPaise"
+        ],
+        "title": "Quote",
+        "type": "object"
+      },
+      "QuoteDeal": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "title": "Endsat",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "perTravellerPaise": {
+            "description": "Starting price − deal price, before any cap",
+            "title": "Pertravellerpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "endsAt",
+          "perTravellerPaise"
+        ],
+        "title": "QuoteDeal",
+        "type": "object"
+      },
+      "QuoteLine": {
+        "properties": {
+          "amountPaise": {
+            "description": "count × unit",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "count": {
+            "examples": [
+              2
+            ],
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/QuoteLineKind"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy",
+            "description": "Whose line this is (a deal line names its group)"
+          },
+          "unitPaise": {
+            "description": "Per traveller; negative on a deal line",
+            "title": "Unitpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "occupancy",
+          "count",
+          "unitPaise",
+          "amountPaise"
+        ],
+        "title": "QuoteLine",
+        "type": "object"
+      },
+      "QuoteLineKind": {
+        "enum": [
+          "double",
+          "triple",
+          "single",
+          "single_supplement",
+          "child",
+          "deal"
+        ],
+        "title": "QuoteLineKind",
+        "type": "string"
+      },
+      "QuoteRequest": {
+        "properties": {
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteTraveller"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departureId",
+          "travellers"
+        ],
+        "title": "QuoteRequest",
+        "type": "object"
+      },
+      "QuoteTraveller": {
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          }
+        },
+        "required": [
+          "occupancy"
+        ],
+        "title": "QuoteTraveller",
         "type": "object"
       },
       "RangeFacet": {
@@ -4356,6 +4682,88 @@
         "summary": "Get Session Route",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/bookings": {
+      "post": {
+        "operationId": "createBookingOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Booking",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/bookings/quote": {
+      "post": {
+        "operationId": "quoteBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Quote",
+        "tags": [
+          "public"
         ]
       }
     },
