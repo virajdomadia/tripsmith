@@ -125,6 +125,9 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const refresh = useCallback(async () => {
     setAvailability((a) => ({ ...a, status: 'loading' }));
     setToday(istToday());
+    // Stamped when asked, not when answered: a read in flight when a hold is made may not
+    // include it, so only a read *started* after the hold gets the visitor's seats added back.
+    const askedAt = Date.now();
     try {
       const res = await fetch(`/api/packages/${encodeURIComponent(pkg.slug)}/departures?fresh=1`, {
         cache: 'no-store',
@@ -132,15 +135,16 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       if (res.status === 404) {
         setDepartures([]);
         setBanner(MESSAGES.gone);
-        setAvailability({ status: 'error' });
+        setAvailability((a) => ({ ...a, status: 'error' }));
         return;
       }
       if (!res.ok) throw await readError(res);
       const body = (await res.json()) as { items: Departure[] };
       setDepartures(body.items);
-      setAvailability({ status: 'live', at: Date.now() });
+      setAvailability({ status: 'live', at: askedAt });
     } catch {
-      setAvailability({ status: 'error' });
+      // The list on screen is still the last good read; keep its stamp with it.
+      setAvailability((a) => ({ ...a, status: 'error' }));
     }
   }, [pkg.slug]);
 

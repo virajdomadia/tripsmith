@@ -284,6 +284,36 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     expect(calls('/api/bookings/quote')).toHaveLength(quotes);
   });
 
+  it('keeps the visitor’s hold theirs when a later seat read fails', async () => {
+    api({
+      '/api/packages/north-goa-beaches/departures': () =>
+        json(200, { items: [{ ...DEP, seatsLeft: 2 }, DEC] }),
+    });
+    const user = userEvent.setup();
+    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: 'Pay' }));
+    await waitFor(() => expect(checkout).toBeDefined());
+    checkout!.modal.ondismiss();
+    await screen.findByRole('button', { name: 'Pay again' });
+
+    // Reopened: a read after the hold (0 left to others), then a read that fails.
+    api({
+      '/api/packages/north-goa-beaches/departures': () =>
+        json(200, { items: [{ ...DEP, seatsLeft: 0 }, DEC] }),
+    });
+    rerender(<BookingSheet pkg={PKG} open={false} onOpenChange={() => {}} />);
+    rerender(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await screen.findByText('Live availability · checked just now');
+    api({ '/api/packages/north-goa-beaches/departures': () => json(500, {}) });
+    rerender(<BookingSheet pkg={PKG} open={false} onOpenChange={() => {}} />);
+    rerender(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await screen.findByText(/Couldn’t check live seats/);
+    expect(screen.queryByText(/is no longer available/)).toBeNull();
+    const again = screen.getByRole('button', { name: 'Pay again' }) as HTMLButtonElement;
+    expect(again.disabled).toBe(false);
+  });
+
   it('confirms from the sync when Razorpay took the money but never called back', async () => {
     api({
       '/api/bookings/TB-7F3K2Q/sync': () =>
