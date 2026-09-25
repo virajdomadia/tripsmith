@@ -23,6 +23,7 @@ EXPECTED_ENV_KEYS = {
     "SENTRY_DSN",
     "RAZORPAY_KEY_ID",
     "RAZORPAY_KEY_SECRET",
+    "RAZORPAY_WEBHOOK_SECRET",
     "CRON_SECRET",
     "WEB_URL",
     "REVALIDATE_SECRET",
@@ -47,7 +48,7 @@ def test_python_is_3_12() -> None:
     assert sys.version_info[:2] == (3, 12)
 
 
-def test_env_example_has_the_19_documented_keys() -> None:
+def test_env_example_has_the_20_documented_keys() -> None:
     keys = parse_env_example(API_ROOT / ".env.example")
-    assert len(keys) == 19
+    assert len(keys) == 20
     assert set(keys) == EXPECTED_ENV_KEYS

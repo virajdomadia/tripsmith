@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # The key id is public — Checkout.js is opened with it — so only the secret is a SecretStr.
     razorpay_key_id: str | None = None
     razorpay_key_secret: SecretStr | None = None
+    # Signs `POST /webhooks/razorpay` (B6); set only where the webhook is registered (production).
+    razorpay_webhook_secret: SecretStr | None = None
 
     # --- Cron ---
     cron_secret: SecretStr | None = None
