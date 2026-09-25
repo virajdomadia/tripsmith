@@ -20,6 +20,7 @@ from app.config import Settings
 log = logging.getLogger(__name__)
 
 ORDERS_URL = "https://api.razorpay.com/v1/orders"
+PAYMENTS_URL = "https://api.razorpay.com/v1/payments"
 CURRENCY = "INR"
 
 
@@ -75,6 +76,24 @@ class Razorpay:
             raise RazorpayError(f"Razorpay {res.status_code}: {res.text[:300]}")
         items = res.json().get("items")
         return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+
+    async def capture_payment(self, payment_id: str, *, amount_paise: int) -> str:
+        """Capture an `authorized` payment; returns the status Razorpay reports afterwards. An
+        account set to auto-capture may beat us to it — then the capture call is refused, and
+        the payment's own status (`captured`) is what we return."""
+        try:
+            res = await self._client.post(
+                f"{PAYMENTS_URL}/{payment_id}/capture",
+                json={"amount": amount_paise, "currency": CURRENCY},
+            )
+            if res.status_code // 100 != 2:
+                res = await self._client.get(f"{PAYMENTS_URL}/{payment_id}")
+        except httpx.HTTPError as exc:
+            raise RazorpayError(f"Razorpay unreachable: {exc}") from exc
+        if res.status_code // 100 != 2:
+            raise RazorpayError(f"Razorpay {res.status_code}: {res.text[:300]}")
+        status = res.json().get("status")
+        return status if isinstance(status, str) else ""
 
     def verify_payment_signature(self, *, order_id: str, payment_id: str, signature: str) -> bool:
         """Checkout's success handler signs `order_id|payment_id` with the key secret."""

@@ -25,9 +25,16 @@ class FakeRazorpay(Razorpay):
         self.requests.append(request)
         if self.down:
             return httpx.Response(502, text="Bad Gateway")
-        if request.method == "GET":  # /v1/orders/{id}/payments
-            order_id = request.url.path.split("/")[3]
-            return httpx.Response(200, json={"items": self.payments.get(order_id, [])})
+        parts = request.url.path.split("/")  # ["", "v1", "orders" | "payments", id, ...]
+        if parts[2] == "orders" and request.method == "GET":  # /v1/orders/{id}/payments
+            return httpx.Response(200, json={"items": self.payments.get(parts[3], [])})
+        if parts[2] == "payments":  # /v1/payments/{id}/capture
+            for items in self.payments.values():
+                for item in items:
+                    if item["id"] == parts[3]:
+                        item["status"] = "captured"
+                        return httpx.Response(200, json=item)
+            return httpx.Response(404, json={"error": {"description": "no such payment"}})
         body = json.loads(request.content)
         order_id = f"order_Fake{len(self.requests):010d}"
         return httpx.Response(200, json={"id": order_id, "status": "created", **body})

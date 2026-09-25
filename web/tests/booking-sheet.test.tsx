@@ -120,6 +120,11 @@ const calls = (path: string) =>
 
 async function fillAndPay(user: ReturnType<typeof userEvent.setup>) {
   render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+  await fillIn(user);
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Pay' }));
+}
+
+async function fillIn(user: ReturnType<typeof userEvent.setup>) {
   const sheet = await screen.findByRole('dialog');
   await within(sheet).findByText('Live availability · checked just now');
   await waitFor(() => expect(calls('/api/bookings/quote')).toHaveLength(1));
@@ -129,7 +134,6 @@ async function fillAndPay(user: ReturnType<typeof userEvent.setup>) {
   await user.type(within(sheet).getByLabelText('Traveller 2 age'), '36');
   await user.type(within(sheet).getByLabelText('Mobile'), '98450 12345');
   await user.type(within(sheet).getByLabelText('Email'), 'ananya@example.com');
-  await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
 }
 
 // userEvent types every character; under a full parallel run that outgrows the 5 s default.
@@ -233,6 +237,34 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await waitFor(() => expect(checkout).not.toBe(first));
     expect(calls('/api/bookings')).toHaveLength(1); // same hold, no second booking
     expect(checkout!.order_id).toBe('order_Test0001');
+  });
+
+  it('counts the visitor’s own hold as theirs when the seats are re-read', async () => {
+    api();
+    const user = userEvent.setup();
+    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: 'Pay' }));
+    await waitFor(() => expect(checkout).toBeDefined());
+    checkout!.modal.ondismiss();
+    await screen.findByRole('button', { name: 'Pay again' });
+
+    // Closed and reopened: the api now counts our 2 held seats as gone — every seat left.
+    api({
+      '/api/packages/north-goa-beaches/departures': () =>
+        json(200, { items: [{ ...DEP, seatsLeft: 0 }, DEC] }),
+    });
+    rerender(<BookingSheet pkg={PKG} open={false} onOpenChange={() => {}} />);
+    rerender(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await screen.findByText('Live availability · checked just now');
+    expect(screen.queryByText(/is no longer available/)).toBeNull();
+    const again = await screen.findByRole('button', { name: 'Pay again' });
+    expect((again as HTMLButtonElement).disabled).toBe(false);
+    const quotes = calls('/api/bookings/quote').length;
+    await user.click(again);
+    await waitFor(() => expect(checkout!.order_id).toBe('order_Test0001'));
+    expect(calls('/api/bookings')).toHaveLength(1);
+    expect(calls('/api/bookings/quote')).toHaveLength(quotes);
   });
 
   it('confirms from the sync when Razorpay took the money but never called back', async () => {

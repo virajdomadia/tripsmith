@@ -234,12 +234,16 @@ async def test_sync_applies_a_payment_checkout_never_reported_once(
 
     rzp.payments[order_id] = [
         {"id": "pay_Failed0001", "status": "failed"},
-        {"id": "pay_Synced0001", "status": "captured", "amount": held.json()["amountPaise"]},
+        # Paid a moment ago: authorized, not yet captured — sync captures it itself.
+        {"id": "pay_Synced0001", "status": "authorized", "amount": held.json()["amountPaise"]},
     ]
     for _ in range(2):
         res = await db_client.post(f"/bookings/{ref}/sync")
         assert res.status_code == 200, res.text
         assert res.json() == {"bookingRef": ref, "status": "confirmed", "refundNeeded": False}
+    capture = next(r for r in rzp.requests if r.url.path.endswith("/capture"))
+    assert capture.url.path == "/v1/payments/pay_Synced0001/capture"
+    assert json.loads(capture.content) == {"amount": held.json()["amountPaise"], "currency": "INR"}
     [paid] = await payments(db, ref)
     assert (paid.status, paid.razorpay_payment_id) == (PaymentStatus.CAPTURED, "pay_Synced0001")
     calls = len(rzp.requests)

@@ -208,7 +208,8 @@ async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> Paymen
     Checkout can close without calling its success handler (a tab put to sleep, a popup that
     lost its opener), and until B6's webhook lands nothing else would tell us. The web calls
     this whenever Checkout closes without a callback. The order's payments are read with the
-    key secret, so a `captured` one is applied exactly like a signed callback — through
+    key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
+    exactly like a signed callback — through
     `capture_razorpay_payment`, idempotent on the payment id. Only a pending booking makes the
     outbound call; any other status answers from the database.
     """
@@ -233,11 +234,24 @@ async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> Paymen
             log.warning("Payment sync for %s: %s", ref, exc)
             raise ApiError("internal", PROVIDER_DOWN, status=502) from exc
         for item in items:
-            pay_id = item.get("id")
-            if item.get("status") == "captured" and isinstance(pay_id, str):
-                if pay_id.startswith("pay_"):
-                    found = (order_id, pay_id, item)
-                    break
+            pay_id, status = item.get("id"), item.get("status")
+            if not (isinstance(pay_id, str) and pay_id.startswith("pay_")):
+                continue
+            try:
+                # Authorized = the money is taken but not yet captured (the moments before
+                # Razorpay's auto-capture, or an account without it): capture it ourselves,
+                # so a paid visitor is never offered Pay again.
+                if status == "authorized":
+                    amount = item.get("amount")
+                    status = await razorpay.capture_payment(
+                        pay_id, amount_paise=amount if isinstance(amount, int) else 0
+                    )
+            except RazorpayError as exc:
+                log.warning("Capture during sync for %s: %s", ref, exc)
+                raise ApiError("internal", PROVIDER_DOWN, status=502) from exc
+            if status == "captured":
+                found = (order_id, pay_id, item)
+                break
         if found:
             break
     if found is None:

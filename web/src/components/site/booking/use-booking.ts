@@ -76,7 +76,7 @@ async function readError(res: Response): Promise<ApiRequestError> {
 }
 
 export function useBooking(pkg: BookingPackage, open: boolean) {
-  const [departures, setDepartures] = useState<Departure[]>(pkg.departures);
+  const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
   const [departureId, setDepartureId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Rooms>({ double: 1, triple: 0, single: 0, children: 0 });
@@ -91,6 +91,27 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [focusRequest, setFocusRequest] = useState(0);
   const [today, setToday] = useState(() => istToday());
 
+  /**
+   * The visitor's own live hold. The api's `seatsLeft` already subtracts it, so without adding
+   * it back their own date would look short (or sold out) after they close Checkout — and they
+   * could not press Pay again on seats they are holding. The quote is the order's own.
+   */
+  const [held, setHeld] = useState<{
+    departureId: string;
+    seats: number;
+    expiresAt: string;
+    quoteKey: string;
+    quote: Quote;
+  } | null>(null);
+  const departures = useMemo(
+    () =>
+      held && holdSecondsLeft(held.expiresAt) > 0
+        ? liveDepartures.map((d) =>
+            d.id === held.departureId ? { ...d, seatsLeft: d.seatsLeft + held.seats } : d,
+          )
+        : liveDepartures,
+    [liveDepartures, held],
+  );
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
   const departure = departures.find((d) => d.id === departureId) ?? null;
@@ -148,6 +169,12 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       setQuote({ status: 'idle' });
       return;
     }
+    const quoteKey = JSON.stringify({ departureId, travellers: quoteTravellers(rooms) });
+    if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt) > 0) {
+      // Asking again would count the visitor's own hold against them: use the order's quote.
+      setQuote({ status: 'ok', quote: held.quote });
+      return;
+    }
     const ctrl = new AbortController();
     setQuote((q) => ({ status: 'loading', last: q.status === 'ok' ? q.quote : undefined }));
     const timer = setTimeout(async () => {
@@ -179,7 +206,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [departureId, rooms, reason, refresh]);
+  }, [departureId, rooms, reason, refresh, held]);
 
   /* ---- the form ---- */
   const setTraveller = (key: string, patch: Partial<TravellerInput>) => {
@@ -209,6 +236,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   /* ---- Pay ---- */
   const unbookable = (message: string, date?: string) => {
     lastOrder.current = null;
+    setHeld(null);
     setGone(date ? formatDate(date) : null);
     setBanner(date ? null : message);
     setDepartureId(null);
@@ -235,6 +263,16 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     if (res.status === 201) {
       const order = (await res.json()) as BookingOrder;
       lastOrder.current = { key, order };
+      setHeld({
+        departureId: body.departureId,
+        seats: body.travellers.length,
+        expiresAt: order.holdExpiresAt,
+        quoteKey: JSON.stringify({
+          departureId: body.departureId,
+          travellers: body.travellers.map((t) => ({ occupancy: t.occupancy })),
+        }),
+        quote: order.quote,
+      });
       return order;
     }
     const err = await readError(res);
@@ -272,6 +310,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       if (!res.ok) throw await readError(res);
       const result = (await res.json()) as PaymentResult;
       lastOrder.current = null;
+      setHeld(null);
       setPhase({ kind: 'done', order, result });
     } catch {
       setPhase({ kind: 'unconfirmed', order, payment });
@@ -296,6 +335,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
         const result = (await res.json()) as PaymentResult;
         if (result.status !== 'pending') {
           lastOrder.current = null;
+          setHeld(null);
           setPhase({ kind: 'done', order, result });
           return;
         }
@@ -397,6 +437,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   /** Back to the form after a finished (or refunded) booking: a fresh start, same people. */
   const startOver = () => {
     lastOrder.current = null;
+    setHeld(null);
     setPhase({ kind: 'choose' });
     setBanner(null);
     void refresh();
