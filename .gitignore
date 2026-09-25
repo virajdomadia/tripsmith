@@ -30,3 +30,6 @@ Thumbs.db
 
 # impeccable per-session cache (absolute paths, noise in every diff; config.json stays tracked)
 web/.impeccable/hook.cache.json
+
+# razorpay key export (secret)
+rzp-key.csv
