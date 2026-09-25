@@ -14,7 +14,13 @@ import {
   SheetDescription,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { adultsIn, formErrors, holdSecondsLeft, TEST_MODE_MAX_PAISE } from '@/lib/booking';
+import {
+  adultsIn,
+  formErrors,
+  holdSecondsLeft,
+  TEST_MODE_MAX_PAISE,
+  TEST_MODE_TRIPS,
+} from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { formatDate, inr } from '@/lib/format';
 import { AnimatedPrice } from './AnimatedPrice';
@@ -214,7 +220,15 @@ export function BookingSheet({
               {total !== undefined && total > TEST_MODE_MAX_PAISE && (
                 <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
                   Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this
-                  payment will stop at Razorpay. Everything up to that point is live.
+                  payment will stop at Razorpay. For a full test payment, try{' '}
+                  {TEST_MODE_TRIPS.filter((t) => t.slug !== pkg.slug).map((t, i, all) => (
+                    <span key={t.slug}>
+                      <a href={`/packages/${t.slug}#book`} className="underline">
+                        {t.name}
+                      </a>
+                      {i < all.length - 1 ? ' or ' : '.'}
+                    </span>
+                  ))}
                 </p>
               )}
               <div className="flex items-center justify-between gap-3">

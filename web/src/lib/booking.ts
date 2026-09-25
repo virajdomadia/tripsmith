@@ -33,6 +33,12 @@ export const HOLD_SECONDS = 600;
  * sheet says so before Pay rather than letting Razorpay's error be the first word on it.
  */
 export const TEST_MODE_MAX_PAISE = 15_000_00;
+/** The two trips priced under that cap for two travellers (api/content/packages), named in
+ * the notice so a tester knows where a full test payment can finish. */
+export const TEST_MODE_TRIPS = [
+  { slug: 'old-goa-weekend', name: 'Old Goa & Dudhsagar Weekend' },
+  { slug: 'kasol-weekend-camp', name: 'Kasol Riverside Weekend' },
+] as const;
 
 export type Rooms = { double: number; triple: number; single: number; children: number };
 export type RoomKind = keyof Rooms;

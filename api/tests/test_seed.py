@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 from argon2 import PasswordHasher
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -174,3 +175,28 @@ async def test_cli_without_blob_token_explains_instead_of_crashing(
     code = await cli.main(["--database-url", "postgresql+asyncpg://x@127.0.0.1:1/none"])
     assert code == 2
     assert "BLOB_READ_WRITE_TOKEN" in capsys.readouterr().err
+
+
+async def test_seed_only_writes_the_named_package_and_nothing_else(db: AsyncSession) -> None:
+    """`--only`: add a trip to production without resetting what the owner edited there."""
+    content = fixture_content()
+    await seed(db, content, RecordingStore(), owner_settings())
+    first, second = content.packages
+    # The owner edits the other package, and removes the testimonials, in the admin.
+    other = (await db.execute(select(Package).where(Package.slug == second.slug))).scalar_one()
+    other.name = "Renamed by the owner"
+    await db.execute(sa_delete(models.Testimonial))
+    await db.execute(sa_delete(Package).where(Package.slug == first.slug))
+    await db.commit()
+
+    result = await seed(db, content, RecordingStore(), make_settings(), only={first.slug})
+
+    assert result.counts["packages"] == 1
+    assert (await db.execute(select(Package.slug).where(Package.slug == first.slug))).scalar()
+    db.expire_all()
+    assert (
+        await db.execute(select(Package.name).where(Package.slug == second.slug))
+    ).scalar_one() == "Renamed by the owner"
+    assert await count(db, models.Testimonial) == 0
+    with pytest.raises(SystemExit):
+        await seed(db, content, RecordingStore(), make_settings(), only={"no-such-trip"})

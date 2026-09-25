@@ -3,6 +3,11 @@ row is upserted by its natural key (slug / date / file), children are replaced i
 
     uv run python scripts/seed.py --database-url postgresql+asyncpg://…          # Blob photos
     uv run python scripts/seed.py --local --database-url postgresql+asyncpg://…  # file URLs
+    uv run python scripts/seed.py --only old-goa-weekend --database-url …        # just one
+
+`--only SLUG` (repeatable) writes just those packages: their destinations must already exist and
+are read, not rewritten, and the owner, testimonials and every other package are left alone — so
+a new trip can be added to production without resetting what the owner has edited there.
 
 The target is required: --database-url, or SEED_DATABASE_URL in the environment. There is no
 fallback to DATABASE_URL, because api/.env.local holds production there (same rule as
@@ -225,9 +230,12 @@ async def seed(
     settings: Settings,
     *,
     today: dt.date | None = None,
+    only: set[str] | None = None,
 ) -> SeedResult:
     today = today or ist_today()
     result = SeedResult()
+    if only:
+        return await _seed_only(db, content, store, only, today, result)
     await _seed_owner(db, settings, result)
     destinations = {d.slug: await _seed_destination(db, d, store) for d in content.destinations}
     packages = {
@@ -246,6 +254,37 @@ async def seed(
     return result
 
 
+async def _seed_only(
+    db: AsyncSession,
+    content: Content,
+    store: Store,
+    only: set[str],
+    today: dt.date,
+    result: SeedResult,
+) -> SeedResult:
+    chosen = [p for p in content.packages if p.slug in only]
+    if missing := only - {p.slug for p in chosen}:
+        raise SystemExit(f"No such package in api/content: {', '.join(sorted(missing))}")
+    destinations: dict[str, Destination] = {}
+    for slug in {p.destination for p in chosen}:
+        row = (
+            await db.execute(select(Destination).where(Destination.slug == slug))
+        ).scalar_one_or_none()
+        if row is None:
+            raise SystemExit(f"Destination {slug} is not in this database — run a full seed")
+        destinations[slug] = row
+    for p in chosen:
+        await _seed_package(db, p, destinations, store, today)
+    await db.commit()
+    result.counts.update(
+        packages=len(chosen),
+        itinerary_days=sum(p.days for p in chosen),
+        departures=sum(len(p.departures) for p in chosen),
+        images=sum(len(p.photos) for p in chosen),
+    )
+    return result
+
+
 async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -256,6 +295,12 @@ async def main(argv: list[str] | None = None) -> int:
         "--local-base-url",
         default="http://localhost:8000/seed-photos",
         help="URL prefix for --local photo URLs",
+    )
+    parser.add_argument(
+        "--only",
+        action="append",
+        metavar="SLUG",
+        help="seed just this package (repeatable); leaves everything else untouched",
     )
     args = parser.parse_args(argv)
 
@@ -278,7 +323,9 @@ async def main(argv: list[str] | None = None) -> int:
     engine = make_engine(url)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-            result = await seed(db, content, store, settings)
+            result = await seed(
+                db, content, store, settings, only=set(args.only) if args.only else None
+            )
     finally:
         await engine.dispose()
     for key, value in result.counts.items():
