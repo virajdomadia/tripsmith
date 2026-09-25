@@ -206,7 +206,8 @@ async def sync_payment(db: AsyncSession, ref: str, razorpay: Razorpay) -> Paymen
     """B5: ask Razorpay whether a still-pending booking was paid, and apply it if so.
 
     Checkout can close without calling its success handler (a tab put to sleep, a popup that
-    lost its opener), and until B6's webhook lands nothing else would tell us. The web calls
+    lost its opener). B6's webhook tells us too, but seconds later and only on production, so
+    the visitor would otherwise watch a pending booking they have paid for. The web calls
     this whenever Checkout closes without a callback. The order's payments are read with the
     key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
     exactly like a signed callback — through

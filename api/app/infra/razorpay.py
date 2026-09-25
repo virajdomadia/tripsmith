@@ -1,5 +1,6 @@
 """Razorpay over its REST API (04 v2 §5): create an order, verify a Checkout payment signature,
-list an order's payments (B5's sync, when Checkout closes without calling back).
+list an order's payments (B5's sync, when Checkout closes without calling back), verify a
+webhook's signature (B6).
 
 The official `razorpay` SDK is synchronous (requests); creating an order is one POST, so it goes
 through httpx like infra/email.py. Test mode forever. When the keys are unset (dev, CI)
@@ -102,6 +103,13 @@ class Razorpay:
         ).hexdigest()
         # Bytes: the signature is visitor input, and compare_digest refuses non-ASCII str.
         return hmac.compare_digest(expected.encode(), signature.encode())
+
+
+def verify_webhook_signature(secret: str, body: bytes, signature: str) -> bool:
+    """Razorpay signs a webhook's raw body with the webhook secret (not the key secret):
+    `X-Razorpay-Signature` = hex HMAC-SHA256. Checked before the body is parsed."""
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected.encode(), signature.encode())
 
 
 def build_razorpay(settings: Settings) -> Razorpay | None:

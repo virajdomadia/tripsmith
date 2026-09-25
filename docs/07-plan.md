@@ -115,7 +115,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 ### Milestone 2.1 — Webhooks & confirmation (≈ 2.25 h)
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| B6 | **Webhook** `POST /webhooks/razorpay`: raw body, signature, `payment.captured` / `payment.failed`, idempotent upsert on payment id, always 200 after recording; registered on production only (`tripsmith-api.vercel.app`) | 1 h | 5× replay → 1 payment, 1 email |
+| B6 | **Webhook** `POST /webhooks/razorpay`: raw body, signature, `payment.captured` / `payment.failed`, idempotent upsert on payment id, always 200 after recording; registered on production only (`tripsmith-api.vercel.app`) | 1 h | 5× replay → 1 payment, 1 email (decided 2026-09-25: B6 sends no email and asserts the after-capture hook fires once; B7 hangs both emails on that hook and adds the email assertion to the same test) |
 | B7 | **Voucher + emails:** `render_voucher` on the `Document` base, rendered on demand (never stored); `/account/bookings/[ref]/voucher.pdf` handler + 30-min signed link; customer email with voucher + owner new-booking email (demo-mode redirect); WhatsApp link | 1.25 h | api journey test: order → signed webhook → confirmed → voucher 200 for its owner, 403 otherwise |
 
 ### Milestone 2.2 — Accounts & desk (≈ 4 h)
