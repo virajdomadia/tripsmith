@@ -14,9 +14,9 @@ import {
   SheetDescription,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { adultsIn, formErrors, holdSecondsLeft } from '@/lib/booking';
+import { adultsIn, formErrors, holdSecondsLeft, TEST_MODE_MAX_PAISE } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
-import { formatDate } from '@/lib/format';
+import { formatDate, inr } from '@/lib/format';
 import { AnimatedPrice } from './AnimatedPrice';
 import { BookingDone } from './BookingDone';
 import { ContactFields } from './ContactFields';
@@ -197,7 +197,9 @@ export function BookingSheet({
                   <span>
                     <b>Demo site.</b> Payments run in Razorpay test mode — no real money moves. Use
                     a Razorpay test card or UPI ID <b>success@razorpay</b>. Bookings are visible to
-                    anyone using the public demo login, so use made-up details.{' '}
+                    anyone using the public demo login, so use made-up details. Razorpay’s test mode
+                    takes payments up to {inr(TEST_MODE_MAX_PAISE)}, so a bigger booking stops at
+                    Razorpay’s window; every step before it is live.{' '}
                     <Link href="/privacy#demo" className="whitespace-nowrap text-primary-ink">
                       Privacy
                     </Link>
@@ -209,6 +211,12 @@ export function BookingSheet({
 
           {!finished && (
             <footer className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+              {total !== undefined && total > TEST_MODE_MAX_PAISE && (
+                <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
+                  Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this
+                  payment will stop at Razorpay. Everything up to that point is live.
+                </p>
+              )}
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 leading-tight">
                   <span className="block truncate text-[12.5px] text-mute">

@@ -239,6 +239,13 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     expect(checkout!.order_id).toBe('order_Test0001');
   });
 
+  it('warns before Pay that test mode stops at ₹15,000', async () => {
+    api();
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    // ₹29,998 for two: over the cap.
+    expect(await screen.findByText(/this payment will stop at Razorpay/)).toBeTruthy();
+  });
+
   it('counts the visitor’s own hold as theirs when the seats are re-read', async () => {
     api();
     const user = userEvent.setup();
@@ -248,6 +255,10 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await waitFor(() => expect(checkout).toBeDefined());
     checkout!.modal.ondismiss();
     await screen.findByRole('button', { name: 'Pay again' });
+    // The read from before the hold is shown as it was — not topped up with our own seats.
+    expect(screen.getByRole('button', { name: /Fri 20 Nov 2099/ }).textContent).toContain(
+      '16 seats left',
+    );
 
     // Closed and reopened: the api now counts our 2 held seats as gone — every seat left.
     api({
@@ -258,6 +269,12 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     rerender(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
     await screen.findByText('Live availability · checked just now');
     expect(screen.queryByText(/is no longer available/)).toBeNull();
+    // Read after the hold: 0 left to others, our 2 added back.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Fri 20 Nov 2099/ }).textContent).toContain(
+        '2 seats left',
+      ),
+    );
     const again = await screen.findByRole('button', { name: 'Pay again' });
     expect((again as HTMLButtonElement).disabled).toBe(false);
     const quotes = calls('/api/bookings/quote').length;
