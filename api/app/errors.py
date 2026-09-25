@@ -57,11 +57,13 @@ class ApiError(Exception):
         *,
         field_errors: dict[str, str] | None = None,
         reason: str | None = None,
+        status: int | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
-        self.status = STATUS_FOR_CODE[code]
+        # A code's own status unless told otherwise: an upstream outage is `internal` on a 502.
+        self.status = status or STATUS_FOR_CODE[code]
         self.field_errors = field_errors
         self.reason = reason
 
@@ -113,6 +115,7 @@ async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     return envelope(
         exc.code,
         exc.message,
+        status=exc.status,
         field_errors=exc.field_errors,
         reason=exc.reason,
         headers=headers,

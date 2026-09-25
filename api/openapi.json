@@ -797,7 +797,7 @@
         "type": "object"
       },
       "BookingOrder": {
-        "description": "A held booking. B4 adds the Razorpay `orderId` and `keyId`.",
+        "description": "A held booking and its Razorpay order: everything Checkout.js is opened with.",
         "properties": {
           "amountPaise": {
             "title": "Amountpaise",
@@ -815,12 +815,26 @@
             "title": "Holdexpiresat",
             "type": "string"
           },
+          "keyId": {
+            "description": "Razorpay's public key id (test mode)",
+            "title": "Keyid",
+            "type": "string"
+          },
+          "orderId": {
+            "examples": [
+              "order_RB58wdjHk3F0vd"
+            ],
+            "title": "Orderid",
+            "type": "string"
+          },
           "quote": {
             "$ref": "#/components/schemas/Quote"
           }
         },
         "required": [
           "bookingRef",
+          "orderId",
+          "keyId",
           "amountPaise",
           "holdExpiresAt",
           "quote"
@@ -857,6 +871,17 @@
         ],
         "title": "BookingRequest",
         "type": "object"
+      },
+      "BookingStatus": {
+        "enum": [
+          "pending",
+          "confirmed",
+          "partially_paid",
+          "cancelled",
+          "completed"
+        ],
+        "title": "BookingStatus",
+        "type": "string"
       },
       "BookingTraveller": {
         "properties": {
@@ -2735,6 +2760,57 @@
           "status"
         ],
         "title": "PackageStatusInput",
+        "type": "object"
+      },
+      "PaymentCallback": {
+        "description": "What Checkout's success handler receives, posted back as-is to confirm the booking.",
+        "properties": {
+          "razorpayOrderId": {
+            "pattern": "^order_[A-Za-z0-9]{1,40}$",
+            "title": "Razorpayorderid",
+            "type": "string"
+          },
+          "razorpayPaymentId": {
+            "pattern": "^pay_[A-Za-z0-9]{1,40}$",
+            "title": "Razorpaypaymentid",
+            "type": "string"
+          },
+          "razorpaySignature": {
+            "description": "Hex HMAC-SHA256",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Razorpaysignature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "razorpayOrderId",
+          "razorpayPaymentId",
+          "razorpaySignature"
+        ],
+        "title": "PaymentCallback",
+        "type": "object"
+      },
+      "PaymentResult": {
+        "description": "Where the booking stands once the payment is recorded. A late capture that found no\nseats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.",
+        "properties": {
+          "bookingRef": {
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "refundNeeded": {
+            "title": "Refundneeded",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          }
+        },
+        "required": [
+          "bookingRef",
+          "status",
+          "refundNeeded"
+        ],
+        "title": "PaymentResult",
         "type": "object"
       },
       "PublishRule": {
@@ -4762,6 +4838,62 @@
           }
         },
         "summary": "Post Quote",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/bookings/{ref}/confirm": {
+      "post": {
+        "operationId": "confirmPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCallback"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Confirm",
         "tags": [
           "public"
         ]

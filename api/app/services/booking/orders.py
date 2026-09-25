@@ -4,6 +4,10 @@ A hold is a `pending` booking whose `hold_expires_at` is in the future; the
 `departure_availability` view subtracts its travellers until then. Seats are never checked
 outside the departure's row lock, so two orders for the last seat serialise on it and the second
 sees the first's travellers. Holds lapse on their own — nothing here depends on a cron.
+
+The Razorpay order is created after the hold commits (never a network call under the row lock),
+from the server's amount. If Razorpay is down the hold we just made is released and the visitor
+gets a 502: holding seats nobody can pay for would only block the next visitor.
 """
 
 import datetime as dt
@@ -16,9 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.db import constraint_name
-from app.models import Booking, BookingTraveller, Departure, Package
+from app.infra.razorpay import Razorpay, RazorpayError
+from app.models import Booking, BookingTraveller, Departure, Package, Payment
 from app.models.catalog import departure_availability
-from app.models.enums import BookingStatus, PackageStatus
+from app.models.enums import BookingStatus, PackageStatus, PaymentProvider, PaymentStatus
 from app.schemas.bookings import (
     BookingOrder,
     BookingRequest,
@@ -27,7 +32,7 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.services.analytics import ist_today
-from app.services.booking.freshness import refresh_packages
+from app.services.booking.freshness import refresh_quietly
 from app.services.booking.pricing import build_quote, unbookable_reason
 from app.services.enquiries import REF_ALPHABET
 
@@ -35,6 +40,7 @@ HOLD = dt.timedelta(minutes=10)
 REF_CONSTRAINT = "uq_bookings_ref"
 REF_ATTEMPTS = 5
 GONE = "That trip is no longer available"
+PAYMENTS_DOWN = "Payments are not reachable right now — try again in a minute, or WhatsApp us"
 UNBOOKABLE_MESSAGE = {
     UnbookableReason.ON_REQUEST: "This date is priced on request — enquire and we'll quote it",
     UnbookableReason.TOO_SOON: "This date departs too soon to book online — WhatsApp us",
@@ -138,13 +144,25 @@ async def _release_holds(db: AsyncSession, email: str, phone: str) -> set[str]:
     return {str(pid) for pid in rows.scalars().all()}
 
 
-async def create_booking_order(
-    db: AsyncSession, req: BookingRequest, *, now: dt.datetime | None = None
-) -> BookingOrder:
-    """Hold seats for the party: one transaction, the departure row locked throughout.
+async def _lapse_hold(db: AsyncSession, booking_id: str) -> None:
+    """End a hold now — the state `_release_holds` leaves a replaced hold in."""
+    await db.execute(
+        update(Booking)
+        .where(Booking.id == booking_id, Booking.status == BookingStatus.PENDING)
+        .values(hold_expires_at=func.now(), updated_at=func.now())
+        .execution_options(synchronize_session=False)
+    )
+    await db.commit()
 
-    A failed check rolls back, so a previous hold survives a party that no longer fits. The
-    Razorpay order is B4's: it will be created from the returned amount after the commit.
+
+async def create_booking_order(
+    db: AsyncSession, req: BookingRequest, razorpay: Razorpay, *, now: dt.datetime | None = None
+) -> BookingOrder:
+    """Hold seats for the party, then open a Razorpay order for the held amount.
+
+    The hold is one transaction with the departure row locked throughout; a failed check rolls
+    back, so a previous hold survives a party that no longer fits. The order's `payments` row
+    (`created`) is what `confirm_payment` later matches the Checkout callback against.
     """
     now = now or dt.datetime.now(dt.UTC)
     contact = req.contact
@@ -200,16 +218,32 @@ async def create_booking_order(
         await db.rollback()
         raise
 
+    touched = {pkg.id, *released}
     try:
-        await refresh_packages(db, {pkg.id, *released})
-    except Exception:
-        # The hold is committed: a stale "from ₹X" or seat count is better than a 500 that
-        # hides the booking ref (a retry would release this very hold). The next booking event
-        # or /cron/daily refreshes the page.
-        await db.rollback()
-        log.exception("Freshness refresh after booking %s failed", booking.ref)
+        order_id = await razorpay.create_order(
+            amount_paise=booking.total_paise, receipt=booking.ref
+        )
+    except RazorpayError:
+        log.exception("Razorpay order for booking %s failed; releasing its hold", booking.ref)
+        await _lapse_hold(db, booking.id)
+        await refresh_quietly(db, touched, after=f"releasing booking {booking.ref}")
+        raise ApiError("internal", PAYMENTS_DOWN, status=502) from None
+
+    db.add(
+        Payment(
+            booking_id=booking.id,
+            provider=PaymentProvider.RAZORPAY,
+            razorpay_order_id=order_id,
+            amount_paise=booking.total_paise,
+            status=PaymentStatus.CREATED,
+        )
+    )
+    await db.commit()
+    await refresh_quietly(db, touched, after=f"booking {booking.ref}")
     return BookingOrder(
         booking_ref=booking.ref,
+        order_id=order_id,
+        key_id=razorpay.key_id,
         amount_paise=booking.total_paise,
         hold_expires_at=booking.hold_expires_at,
         quote=quote,

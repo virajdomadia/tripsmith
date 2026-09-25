@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # --- Errors (Sentry; empty = off) ---
     sentry_dsn: str | None = None
 
+    # --- Payments (Razorpay, test mode; unset = online booking answers 503) ---
+    # The key id is public — Checkout.js is opened with it — so only the secret is a SecretStr.
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: SecretStr | None = None
+
     # --- Cron ---
     cron_secret: SecretStr | None = None
 

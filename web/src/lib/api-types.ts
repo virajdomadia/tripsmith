@@ -364,6 +364,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bookings/{ref}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Confirm */
+        post: operations["confirmPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/destinations": {
         parameters: {
             query?: never;
@@ -895,7 +912,7 @@ export interface components {
         };
         /**
          * BookingOrder
-         * @description A held booking. B4 adds the Razorpay `orderId` and `keyId`.
+         * @description A held booking and its Razorpay order: everything Checkout.js is opened with.
          */
         BookingOrder: {
             /** Amountpaise */
@@ -910,6 +927,16 @@ export interface components {
              * Format: date-time
              */
             holdExpiresAt: string;
+            /**
+             * Keyid
+             * @description Razorpay's public key id (test mode)
+             */
+            keyId: string;
+            /**
+             * Orderid
+             * @example order_RB58wdjHk3F0vd
+             */
+            orderId: string;
             quote: components["schemas"]["Quote"];
         };
         /**
@@ -923,6 +950,11 @@ export interface components {
             /** Travellers */
             travellers: components["schemas"]["BookingTraveller"][];
         };
+        /**
+         * BookingStatus
+         * @enum {string}
+         */
+        BookingStatus: "pending" | "confirmed" | "partially_paid" | "cancelled" | "completed";
         /** BookingTraveller */
         BookingTraveller: {
             /** Age */
@@ -1723,6 +1755,33 @@ export interface components {
         /** PackageStatusInput */
         PackageStatusInput: {
             status: components["schemas"]["PackageStatus"];
+        };
+        /**
+         * PaymentCallback
+         * @description What Checkout's success handler receives, posted back as-is to confirm the booking.
+         */
+        PaymentCallback: {
+            /** Razorpayorderid */
+            razorpayOrderId: string;
+            /** Razorpaypaymentid */
+            razorpayPaymentId: string;
+            /**
+             * Razorpaysignature
+             * @description Hex HMAC-SHA256
+             */
+            razorpaySignature: string;
+        };
+        /**
+         * PaymentResult
+         * @description Where the booking stands once the payment is recorded. A late capture that found no
+         *     seats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.
+         */
+        PaymentResult: {
+            /** Bookingref */
+            bookingRef: string;
+            /** Refundneeded */
+            refundNeeded: boolean;
+            status: components["schemas"]["BookingStatus"];
         };
         /**
          * PublishRule
@@ -2915,6 +2974,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Quote"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    confirmPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCallback"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResult"];
                 };
             };
             /** @description Error envelope (06 C0) */

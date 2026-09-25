@@ -17,6 +17,7 @@ from app.models.enums import BookingStatus, Occupancy, PackageStatus
 from app.schemas.bookings import BookingOrder, BookingRequest
 from app.services.analytics import ist_today
 from app.services.booking.orders import create_booking_order
+from tests.razorpay_fake import FakeRazorpay
 from tests.test_db import goa, package
 from tests.test_enquiries import CountingLimiter
 
@@ -82,7 +83,7 @@ async def test_last_seat_goes_to_exactly_one_of_two_simultaneous_orders(
         async with factory() as session:
             try:
                 return await create_booking_order(
-                    session, order(last.id, 1, email=email, phone=phone)
+                    session, order(last.id, 1, email=email, phone=phone), FakeRazorpay()
                 )
             except ApiError as exc:
                 return exc
@@ -106,23 +107,23 @@ async def test_last_seat_goes_to_exactly_one_of_two_simultaneous_orders(
 async def test_one_live_hold_per_email_or_phone(db: AsyncSession) -> None:
     _, departure = await seeded(db, seats=4)
     dep_id = departure.id  # the service's rollback below expires the test's objects too
-    first = await create_booking_order(db, order(dep_id, 2))
+    first = await create_booking_order(db, order(dep_id, 2), FakeRazorpay())
     assert await seats_left(db, dep_id) == 2
 
     # Same email, new phone, a bigger party: the first hold is released in the same
     # transaction, so its seats count towards this one.
-    second = await create_booking_order(db, order(dep_id, 3, phone="9000000009"))
+    second = await create_booking_order(db, order(dep_id, 3, phone="9000000009"), FakeRazorpay())
     assert await seats_left(db, dep_id) == 1
 
     # A party that no longer fits rolls back — the live hold is not lost to a failed attempt.
     with pytest.raises(ApiError) as too_big:
-        await create_booking_order(db, order(dep_id, 5, email="other@example.test"))
+        await create_booking_order(db, order(dep_id, 5, email="other@example.test"), FakeRazorpay())
     assert too_big.value.reason == "sold_out"
     assert await seats_left(db, dep_id) == 1
 
     # Same phone, new email: releases the second hold too.
     third = await create_booking_order(
-        db, order(dep_id, 4, email="other@example.test", phone="9000000009")
+        db, order(dep_id, 4, email="other@example.test", phone="9000000009"), FakeRazorpay()
     )
     assert await seats_left(db, dep_id) == 0
 
@@ -146,6 +147,7 @@ async def test_routes_quote_hold_and_explain_refusals(
     _, departure = await seeded(db, seats=2)
     limiter = CountingLimiter(limit=5)
     db_app.state.rate_limiter = limiter
+    db_app.state.razorpay = FakeRazorpay()
     travellers = [{"name": "A B", "age": 30, "occupancy": "double"}] * 2
     quote_body = {"departureId": departure.id, "travellers": [{"occupancy": "double"}] * 2}
 
@@ -189,11 +191,13 @@ async def test_holding_the_cheap_date_cannot_widen_the_deal(db: AsyncSession) ->
     later_id, cheap_id = pkg.departures[1].id, cheap.id
 
     # Fill the cheap date: the cached starting price jumps to ₹25,000 …
-    await create_booking_order(db, order(cheap_id, 2, email="x@example.test", phone="9000000003"))
+    await create_booking_order(
+        db, order(cheap_id, 2, email="x@example.test", phone="9000000003"), FakeRazorpay()
+    )
     await db.refresh(pkg)
     assert pkg.starting_price_paise == 25_000_00
 
     # … but the deal is still ₹2,000 per traveller, not ₹7,000.
-    held = await create_booking_order(db, order(later_id, 1))
+    held = await create_booking_order(db, order(later_id, 1), FakeRazorpay())
     assert held.quote.deal is not None and held.quote.deal.per_traveller_paise == 2_000_00
     assert held.amount_paise == 25_000_00 + 9_000_00 - 2_000_00
