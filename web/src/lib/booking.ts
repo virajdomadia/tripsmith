@@ -27,6 +27,12 @@ export const NAME_MAX = 80;
 export const LEAD_DAYS = 2;
 /** Razorpay Checkout closes itself after this many seconds — the length of the seat hold. */
 export const HOLD_SECONDS = 600;
+/**
+ * Razorpay's test mode refuses a single payment above ₹15,000 ("Amount exceeds maximum amount
+ * allowed"). Tripsmith stays in test mode for good and its trips cost more than that, so the
+ * sheet says so before Pay rather than letting Razorpay's error be the first word on it.
+ */
+export const TEST_MODE_MAX_PAISE = 15_000_00;
 
 export type Rooms = { double: number; triple: number; single: number; children: number };
 export type RoomKind = keyof Rooms;
