@@ -31,7 +31,17 @@ from app.routers.admin import enquiries as admin_enquiries
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
 from app.routers.cron import daily, pdf_gc
-from app.routers.site import bookings, catalog, enquiries, health, meta, pdf, views, webhooks
+from app.routers.site import (
+    bookings,
+    catalog,
+    enquiries,
+    health,
+    meta,
+    pdf,
+    views,
+    vouchers,
+    webhooks,
+)
 from app.services.pdf.service import PdfService
 
 log = logging.getLogger(__name__)
@@ -115,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(pdf.router)
     app.include_router(enquiries.router)
     app.include_router(bookings.router)
+    app.include_router(vouchers.router)
     app.include_router(webhooks.router)
     app.include_router(views.router)
     app.include_router(pdf_gc.router)

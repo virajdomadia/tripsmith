@@ -59,6 +59,7 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 
 ### 6. Confirmation
 - `render_voucher` on the `services/pdf` `Document` base (booking ref, travellers, departure, hotels, inclusions, contact), **rendered on demand, never stored** — no Blob, no cache key to go stale, no private objects. Served by `GET /account/bookings/:ref/voucher.pdf` (booking owner or admin) through a web handler, and by `GET /bookings/:ref/voucher.pdf?exp=&sig=` (HMAC over ref + expiry with `SESSION_SECRET`, 30 minutes) from the success screen.
+  *B7 (2026-09-26):* the signed link is handed out only to a caller who proved the payment — `/confirm` (Razorpay's signature) or `/sync` with the booking's order id (`voucherUrl` on `PaymentResult`); the ref alone never gets it, since the voucher carries names, ages and a phone number. The account route answers the owner in B7; B8 adds the customer the booking belongs to and the web `/account/bookings/[ref]/voucher.pdf` handler with My bookings. All booking emails hang on one `on_new_capture` hook (services/booking/after_capture.py) that runs only for a new capture, never a replay.
 - Email via Resend with the voucher attached, owner new-booking email, WhatsApp deep link with the booking ref. **Demo mode:** while `EMAIL_FROM` is `@resend.dev`, customer emails are redirected to `OWNER_NOTIFY_EMAIL` (the v1 `is_test_mode` rule in `services/email/send.py`).
 
 ### 7. Customer accounts

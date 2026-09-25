@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set title = "Booking " ~ b.ref ~ " confirmed" %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">You’re going to {{ b.destination }}, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> is confirmed and paid. Keep the reference — quote it whenever you talk to us.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Trip</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;"><a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">{{ b.package_name }}</a> · {{ duration }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Departs</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ departs }} · {{ b.departure_city }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Returns</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ returns }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;vertical-align:top;">Travellers</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Paid</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ paid }}</td></tr>
+</table>
+{% if voucher_attached %}
+<p style="margin:0 0 16px;">Your voucher is attached as a PDF — show it, printed or on your phone, at check-in.</p>
+{% else %}
+<p style="margin:0 0 16px;">We couldn’t attach your voucher this time — WhatsApp us the reference and we’ll send it straight over.</p>
+{% endif %}
+<p style="margin:0 0 18px;color:#5e6b76;">We’ll WhatsApp you a week before you leave with pickup times and your hotel contacts. {{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ whatsapp_url }}" style="display:inline-block;background:#25d366;color:#14202a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">WhatsApp us about this trip</a>
+</p>
+{% endblock %}

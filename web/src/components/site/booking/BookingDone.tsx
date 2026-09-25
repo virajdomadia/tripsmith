@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert } from 'lucide-react';
+import { CircleAlert, FileDown } from 'lucide-react';
 import { WhatsApp } from '@/components/site/home/icons';
 import type { BookingOrder, PaymentResult } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
@@ -22,7 +22,7 @@ const WA_BTN =
   'inline-flex items-center justify-center gap-2 rounded-btn bg-wa px-4 py-3 font-bold text-white no-underline transition-[filter] hover:brightness-110';
 
 /**
- * The end of the sheet (B0 success, trimmed to B5: the voucher and emails arrive in B7). Three
+ * The end of the sheet (B0 success; B7 adds the voucher, a 30-minute signed link). Three
  * honest outcomes — confirmed; paid too late for the last seats (cancelled + refund, R16); and
  * paid but not yet confirmed by us — each with the reference to quote on WhatsApp.
  */
@@ -98,14 +98,30 @@ export function BookingDone({
           <Fact k="Travellers" v={travellers} />
           <Fact k="Lead" v={lead} />
         </dl>
-        <a
-          href={wa}
-          target="_blank"
-          rel="noopener"
-          className={`${WA_BTN} animate-rise [animation-delay:240ms]`}
-        >
-          <WhatsApp className="size-4.5" /> WhatsApp us about this trip
-        </a>
+        <div className="grid gap-2 animate-rise [animation-delay:240ms] sm:grid-cols-2">
+          {result.voucherUrl && (
+            <a
+              href={`/api${result.voucherUrl}`}
+              download
+              className="inline-flex items-center justify-center gap-2 rounded-btn bg-primary px-4 py-3 font-bold text-white no-underline transition-colors hover:bg-primary-ink"
+            >
+              <FileDown className="size-4.5" aria-hidden /> Download voucher (PDF)
+            </a>
+          )}
+          <a
+            href={wa}
+            target="_blank"
+            rel="noopener"
+            className={`${WA_BTN} ${result.voucherUrl ? '' : 'sm:col-span-2'}`}
+          >
+            <WhatsApp className="size-4.5" /> WhatsApp us about this trip
+          </a>
+        </div>
+        {result.voucherUrl && (
+          <p className="-mt-2 text-[13px] text-mute">
+            The download link works for 30 minutes; the voucher is in your confirmation email too.
+          </p>
+        )}
         <p className="rounded-btn bg-primary-soft px-3 py-2.5 text-[13px] leading-relaxed text-primary-ink">
           <b>Demo site.</b> This was a Razorpay test payment — no money moved, and no trip is
           booked.

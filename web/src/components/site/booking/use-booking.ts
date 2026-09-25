@@ -331,12 +331,16 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
    * Checkout closed without a success callback — dismissed, or gone quietly (a popup that lost
    * its opener, a tab put to sleep). Before offering Pay again, ask the api whether Razorpay
    * took the money anyway (`syncPayment`); B6's webhook is the backstop if even this fails.
+   * The order id proves this visitor started the booking, so a confirmed answer carries the
+   * voucher link (B7).
    */
   async function afterClose(order: BookingOrder, failure?: string) {
     setPhase({ kind: 'checking', order });
     try {
       const res = await fetch(`/api/bookings/${encodeURIComponent(order.bookingRef)}/sync`, {
         method: 'POST',
+        headers: json,
+        body: JSON.stringify({ orderId: order.orderId }),
       });
       if (res.ok) {
         const result = (await res.json()) as PaymentResult;

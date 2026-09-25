@@ -2803,6 +2803,21 @@
           },
           "status": {
             "$ref": "#/components/schemas/BookingStatus"
+          },
+          "voucherUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Confirmed only, and only for a caller who proved the payment: the voucher PDF's signed path on this api, valid 30 minutes",
+            "examples": [
+              "/bookings/TB-7F3K2Q/voucher.pdf?exp=1790000000&sig=…"
+            ],
+            "title": "Voucherurl"
           }
         },
         "required": [
@@ -3252,6 +3267,25 @@
         "title": "StatusCounts",
         "type": "object"
       },
+      "SyncRequest": {
+        "description": "The booking's Razorpay order id, which only the visitor who started it holds: with it,\na confirmed answer carries the voucher link.",
+        "properties": {
+          "orderId": {
+            "anyOf": [
+              {
+                "pattern": "^order_[A-Za-z0-9]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderid"
+          }
+        },
+        "title": "SyncRequest",
+        "type": "object"
+      },
       "TestimonialOut": {
         "properties": {
           "city": {
@@ -3452,6 +3486,54 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/account/bookings/{ref}/voucher.pdf": {
+      "get": {
+        "operationId": "getAccountVoucherPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The voucher PDF"
+          },
+          "403": {
+            "description": "Signature missing, wrong or expired / not this booking's account"
+          },
+          "404": {
+            "description": "Unknown booking, or not confirmed"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Account Voucher",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/admin/dashboard": {
       "get": {
         "description": "Never cached: the owner refreshes this page to see the enquiry that just landed.",
@@ -4901,7 +4983,7 @@
     },
     "/bookings/{ref}/sync": {
       "post": {
-        "description": "Checkout closed without calling back: was the booking paid anyway? (B5)",
+        "description": "Checkout closed without calling back: was the booking paid anyway? (B5) The ref alone\nanswers the status; the voucher link needs the booking's order id too (B7).",
         "operationId": "syncPayment",
         "parameters": [
           {
@@ -4918,6 +5000,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SyncRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -4941,6 +5040,75 @@
           }
         },
         "summary": "Post Sync",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/bookings/{ref}/voucher.pdf": {
+      "get": {
+        "operationId": "getVoucherPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Exp",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "title": "Sig",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The voucher PDF"
+          },
+          "403": {
+            "description": "Signature missing, wrong or expired / not this booking's account"
+          },
+          "404": {
+            "description": "Unknown booking, or not confirmed"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Signed Voucher",
         "tags": [
           "public"
         ]

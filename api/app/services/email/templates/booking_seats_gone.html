@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% set title = "About your payment for " ~ b.ref %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">We couldn’t hold your seat, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">Your payment for <b>{{ b.package_name }}</b> on {{ departs }} reached us after your 10-minute hold had ended, and the last seats had gone by then. Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> is not going ahead.</p>
+<p style="margin:0 0 16px;"><b>Your {{ refund }} will be refunded within 5–7 days</b> to the way you paid — nothing for you to do.</p>
+<p style="margin:0 0 18px;color:#5e6b76;">Want another date? <a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">See the open departures</a>, or WhatsApp us and we’ll find you one. {{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ whatsapp_url }}" style="display:inline-block;background:#25d366;color:#14202a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">WhatsApp us</a>
+</p>
+{% endblock %}

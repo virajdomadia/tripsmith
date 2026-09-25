@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/account/bookings/{ref}/voucher.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account Voucher */
+        get: operations["getAccountVoucherPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dashboard": {
         parameters: {
             query?: never;
@@ -392,9 +409,27 @@ export interface paths {
         put?: never;
         /**
          * Post Sync
-         * @description Checkout closed without calling back: was the booking paid anyway? (B5)
+         * @description Checkout closed without calling back: was the booking paid anyway? (B5) The ref alone
+         *     answers the status; the voucher link needs the booking's order id too (B7).
          */
         post: operations["syncPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{ref}/voucher.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Signed Voucher */
+        get: operations["getVoucherPdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1802,6 +1837,12 @@ export interface components {
             /** Refundneeded */
             refundNeeded: boolean;
             status: components["schemas"]["BookingStatus"];
+            /**
+             * Voucherurl
+             * @description Confirmed only, and only for a caller who proved the payment: the voucher PDF's signed path on this api, valid 30 minutes
+             * @example /bookings/TB-7F3K2Q/voucher.pdf?exp=1790000000&sig=…
+             */
+            voucherUrl?: string | null;
         };
         /**
          * PublishRule
@@ -2007,6 +2048,15 @@ export interface components {
             /** New */
             new: number;
         };
+        /**
+         * SyncRequest
+         * @description The booking's Razorpay order id, which only the visitor who started it holds: with it,
+         *     a confirmed answer carries the voucher link.
+         */
+        SyncRequest: {
+            /** Orderid */
+            orderId?: string | null;
+        };
         /** TestimonialOut */
         TestimonialOut: {
             /** City */
@@ -2091,6 +2141,51 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAccountVoucherPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The voucher PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Signature missing, wrong or expired / not this booking's account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or not confirmed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getDashboard: {
         parameters: {
             query?: never;
@@ -3051,7 +3146,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3061,6 +3160,54 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PaymentResult"];
                 };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getVoucherPdf: {
+        parameters: {
+            query?: {
+                exp?: number;
+                sig?: string;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The voucher PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Signature missing, wrong or expired / not this booking's account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or not confirmed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error envelope (06 C0) */
             default: {

@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Booking, Payment
 from app.models.enums import PaymentProvider, PaymentStatus
-from app.services.booking.freshness import refresh_quietly
+from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.payments import capture_razorpay_payment, lock_booking
 
 Outcome = Literal["captured", "replayed", "failed", "ignored"]
@@ -44,7 +44,9 @@ def _payment_entity(event: dict[str, Any]) -> tuple[str, str] | None:
     return order_id, payment_id
 
 
-async def handle_razorpay_event(db: AsyncSession, event: dict[str, Any]) -> Outcome:
+async def handle_razorpay_event(
+    db: AsyncSession, event: dict[str, Any], notify: Notify | None = None
+) -> Outcome:
     kind = event.get("event")
     if kind not in ("payment.captured", "payment.failed"):
         return "ignored"
@@ -73,7 +75,7 @@ async def handle_razorpay_event(db: AsyncSession, event: dict[str, Any]) -> Outc
             )
             await db.commit()
             return "failed"
-        booking, changed = await capture_razorpay_payment(
+        booking, capture = await capture_razorpay_payment(
             db, ref, order_id=order_id, payment_id=payment_id, raw=event
         )
         package_id = booking.package_id
@@ -81,9 +83,11 @@ async def handle_razorpay_event(db: AsyncSession, event: dict[str, Any]) -> Outc
     except BaseException:
         await db.rollback()
         raise
-    if not changed:
+    if capture is None:
         return "replayed"
-    await refresh_quietly(db, {package_id}, after=f"webhook payment on {ref}")
+    await on_new_capture(
+        db, ref, capture, package_id=package_id, after=f"webhook payment on {ref}", notify=notify
+    )
     return "captured"
 
 

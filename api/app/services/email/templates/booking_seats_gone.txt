@@ -1,0 +1,13 @@
+We couldn’t hold your seat, {{ b.first_name }}.
+
+Your payment for {{ b.package_name }} on {{ departs }} reached us after your 10-minute hold had ended, and the last seats had gone by then. Booking {{ b.ref }} is not going ahead.
+
+Your {{ refund }} will be refunded within 5–7 days to the way you paid — nothing for you to do.
+
+Want another date? See the open departures: {{ package_url }}
+Or WhatsApp us and we’ll find you one. {{ demo_note }}
+
+WhatsApp us: {{ whatsapp_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

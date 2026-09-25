@@ -1,0 +1,24 @@
+You’re going to {{ b.destination }}, {{ b.first_name }}.
+
+Booking {{ b.ref }} is confirmed and paid. Keep the reference — quote it whenever you talk to us.
+
+Trip:        {{ b.package_name }} · {{ duration }}
+             {{ package_url }}
+Departs:     {{ departs }} · {{ b.departure_city }}
+Returns:     {{ returns }}
+Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop.last %}, {% endif %}{% endfor %}
+
+Paid:        {{ paid }}
+
+{% if voucher_attached %}
+Your voucher is attached as a PDF — show it, printed or on your phone, at check-in.
+{% else %}
+We couldn’t attach your voucher this time — WhatsApp us the reference and we’ll send it straight over.
+{% endif %}
+
+We’ll WhatsApp you a week before you leave with pickup times and your hotel contacts. {{ demo_note }}
+
+WhatsApp us about this trip: {{ whatsapp_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

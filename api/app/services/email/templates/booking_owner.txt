@@ -1,0 +1,21 @@
+{{ heading }}
+Booked {{ booked_at }}
+{% if refund %}
+
+REFUND {{ refund }} by hand in the Razorpay dashboard — payment {{ payment_id }}.
+{{ refund_why }}
+{% endif %}
+
+Trip:        {{ b.package_name }} · {{ duration }}
+             {{ package_url }}
+Departs:     {{ departs }}
+Lead:        {{ b.lead_name }} · {{ b.lead_phone }} · {{ b.lead_email }}
+Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
+
+Total:       {{ total }}
+Paid:        {{ paid }}
+Payment:     {{ payment_id }}
+
+Reply to this email to write to {{ b.first_name }} directly.
+
+{{ business.legal_name }} · {{ business.phone_display }} · {{ site_url }}

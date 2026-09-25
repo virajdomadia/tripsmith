@@ -18,6 +18,7 @@ from app.errors import ApiError
 from app.infra.client_ip import client_ip
 from app.infra.db import get_session
 from app.infra.razorpay import verify_webhook_signature
+from app.services.booking.after_capture import Notify
 from app.services.booking.webhook import handle_razorpay_event
 
 BAD_SIGNATURE = "Webhook signature missing or wrong"
@@ -56,6 +57,10 @@ async def signed_event(request: Request) -> dict[str, Any]:
 @router.post("/webhooks/razorpay")
 async def post_razorpay_webhook(
     event: Annotated[dict[str, Any], Depends(signed_event)],
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, str]:
-    return {"status": await handle_razorpay_event(db, event)}
+    state = request.app.state
+    return {
+        "status": await handle_razorpay_event(db, event, Notify(state.email_sender, state.settings))
+    }
