@@ -108,16 +108,15 @@ Indexes: `(destination_id, status)`, `(status, featured)`, GIN on `themes`.
 ```sql
 -- v1
 select d.id as departure_id, d.seats_total as seats_left from departures d;
--- v2 (replaces)
+-- v2 (0004_v2, create or replace — same columns and types; clamped at 0)
 select d.id as departure_id,
-       d.seats_total
-       - coalesce(sum(case when b.status in ('confirmed','partially_paid','completed')
-                             or (b.status = 'pending' and b.hold_expires_at > now())
-                           then t.cnt else 0 end), 0) as seats_left
-from departures d
-left join bookings b on b.departure_id = d.id
-left join (select booking_id, count(*) cnt from booking_travellers group by booking_id) t on t.booking_id = b.id
-group by d.id, d.seats_total;
+       greatest(d.seats_total - (
+         select count(*) from bookings b join booking_travellers t on t.booking_id = b.id
+         where b.departure_id = d.id
+           and (b.status in ('confirmed','partially_paid','completed')
+                or (b.status = 'pending' and b.hold_expires_at > now()))
+       ), 0)::smallint as seats_left
+from departures d;
 ```
 
 In v1 the admin can additionally set `seats_total` down to simulate "filling fast" for the demo.

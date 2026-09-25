@@ -7,6 +7,13 @@ the test harness rely on every model being registered on `Base.metadata`.
 from app.models.analytics import PackageView
 from app.models.auth import Session, User, Verification
 from app.models.base import Base, new_id
+from app.models.bookings import (
+    Booking,
+    BookingCancellation,
+    BookingTraveller,
+    Payment,
+    Review,
+)
 from app.models.catalog import (
     Departure,
     Destination,
@@ -15,18 +22,24 @@ from app.models.catalog import (
     PackageImage,
     Testimonial,
 )
-from app.models.enquiries import Enquiry, EnquiryNote
+from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
 
 __all__ = [
     "Base",
+    "Booking",
+    "BookingCancellation",
+    "BookingTraveller",
     "Departure",
     "Destination",
     "Enquiry",
+    "EnquiryMessage",
     "EnquiryNote",
     "ItineraryDay",
     "Package",
     "PackageImage",
     "PackageView",
+    "Payment",
+    "Review",
     "Session",
     "Testimonial",
     "User",
