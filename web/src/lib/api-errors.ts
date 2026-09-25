@@ -23,6 +23,7 @@ export const apiErrorResponseSchema = z.object({
     ]),
     message: z.string(),
     fieldErrors: z.record(z.string(), z.string()).optional(),
+    reason: z.string().optional(), // some 409s: a booking's `on_request` / `too_soon` / `sold_out`
   }),
 }) satisfies z.ZodType<ApiErrorResponse>; // drifts from the contract → typecheck fails
 

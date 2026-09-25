@@ -48,6 +48,7 @@ class ApiError(Exception):
     message: str
     status: int
     field_errors: dict[str, str] | None
+    reason: str | None
 
     def __init__(
         self,
@@ -55,12 +56,14 @@ class ApiError(Exception):
         message: str,
         *,
         field_errors: dict[str, str] | None = None,
+        reason: str | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status = STATUS_FOR_CODE[code]
         self.field_errors = field_errors
+        self.reason = reason
 
 
 def envelope(
@@ -69,11 +72,14 @@ def envelope(
     *,
     status: int | None = None,
     field_errors: dict[str, str] | None = None,
+    reason: str | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     error: dict[str, object] = {"code": code, "message": message}
     if field_errors is not None:
         error["fieldErrors"] = field_errors
+    if reason is not None:
+        error["reason"] = reason
     # An error response is never cacheable (04 §Auth / 06 C0); merge with any caller headers
     # (Retry-After, X-Request-Id, …) so every envelope — success or not — carries it.
     # `security_headers()` because an unhandled 500 is rendered outside the middleware stack (H4).
@@ -104,7 +110,13 @@ async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
     retry_after = getattr(exc, "retry_after", None)
     headers = {"Retry-After": str(retry_after)} if retry_after else None
-    return envelope(exc.code, exc.message, field_errors=exc.field_errors, headers=headers)
+    return envelope(
+        exc.code,
+        exc.message,
+        field_errors=exc.field_errors,
+        reason=exc.reason,
+        headers=headers,
+    )
 
 
 async def _validation_error(_: Request, exc: Exception) -> JSONResponse:

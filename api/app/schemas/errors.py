@@ -31,6 +31,11 @@ class ApiErrorBody(ApiModel):
     field_errors: dict[str, str] | SkipJsonSchema[None] = Field(
         default=None, description="Present only for `validation`; keyed by dotted field path."
     )
+    reason: str | SkipJsonSchema[None] = Field(
+        default=None,
+        description="A machine-readable cause on some 409s — booking: `on_request`, `too_soon`,"
+        " `sold_out` (`UnbookableReason`).",
+    )
 
 
 class ApiErrorResponse(ApiModel):

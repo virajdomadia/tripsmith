@@ -298,6 +298,7 @@ package = define_package(
         | 'internal';
       message: string;
       fieldErrors?: Record<string, string>;
+      reason?: string; // v2: a booking 409's `on_request` | `too_soon` | `sold_out`
     };
   };
   ```
