@@ -16,6 +16,7 @@ from app.schemas.catalog import (
     PackageList,
     SearchParams,
 )
+from app.schemas.reviews import MAX_PAGE, PublicReviewPage
 from app.services.catalog.home import get_home_data
 from app.services.catalog.reads import (
     get_departures_for_month,
@@ -24,6 +25,7 @@ from app.services.catalog.reads import (
     list_destinations,
 )
 from app.services.catalog.search import search_packages
+from app.services.reviews import public_reviews_for_slug
 
 router = APIRouter(tags=["public"])
 
@@ -63,6 +65,21 @@ async def get_departures_route(
     if items is None:
         raise ApiError("not_found", "Package not found")
     return DepartureList(items=items)
+
+
+@router.get("/packages/{slug}/reviews", operation_id="listPackageReviews")
+async def get_reviews_route(
+    slug: str,
+    db: Session,
+    response: Response,
+    page: Annotated[int, Query(ge=1, le=MAX_PAGE, description="1-based; six a page")] = 1,
+) -> PublicReviewPage:
+    """R21: published reviews only, newest first. Page 1 also rides on `GET /packages/{slug}`."""
+    response.headers["Cache-Control"] = PUBLIC_CACHE_CONTROL
+    found = await public_reviews_for_slug(db, slug, page=page)
+    if found is None:
+        raise ApiError("not_found", "Package not found")
+    return found
 
 
 @router.get("/destinations", operation_id="listDestinations")

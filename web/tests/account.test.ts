@@ -181,6 +181,8 @@ describe('My trips rows', () => {
     hasVoucher: true,
     coverUrl: null,
     cancellation: null,
+    reviewRating: null,
+    canReview: false,
     ...over,
   });
 
@@ -226,6 +228,8 @@ describe('My trips tabs, countdown and tier', () => {
     hasVoucher: true,
     coverUrl: null,
     cancellation: null,
+    reviewRating: null,
+    canReview: false,
     ...over,
   });
 

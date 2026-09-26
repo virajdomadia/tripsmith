@@ -7,6 +7,7 @@ from app.schemas.catalog import PackageCard
 from app.services.catalog.availability import Availability
 from app.services.catalog.deals import deal_for
 from app.services.catalog.pricing import badge_for
+from app.services.reviews import rating_out
 
 
 def package_card(
@@ -26,4 +27,5 @@ def package_card(
         highlights=list(p.highlights),
         badge=badge_for(availability) if availability else None,
         deal=deal_for(p, deal_base, now),
+        rating=rating_out(p.rating_avg, p.rating_count),
     )

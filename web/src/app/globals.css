@@ -20,6 +20,12 @@
   --color-primary-soft: #e8eeff;
   --color-action: #f2a93b; /* marigold: the one primary action, stamps (dark text on it) */
   --color-action-ink: #d98f1f;
+  /*
+   * B13 (R21): every star — hotel rows, reviews, ratings. Marigold stars were 2.00:1 on white
+   * (the H3 item docs/17 carried into v2); this darker amber is 5.02:1, and the number is always
+   * printed beside the stars. On a dark photo the stars keep the bright marigold instead.
+   */
+  --color-star: #b45309;
   --color-ok: #1f7a4d; /* guaranteed */
   --color-ok-soft: #e3f0ea;
   --color-warn: #b0501c; /* filling fast — darkened in H3: #b5541e on `--color-warn-soft` was 4.44:1 */

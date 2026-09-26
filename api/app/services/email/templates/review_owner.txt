@@ -1,0 +1,18 @@
+{{ heading }}
+
+{{ stars }} {{ rating }}/5
+
+{{ text }}
+
+It stays off the package page until you publish it.
+Moderate reviews: {{ moderate_url }}
+
+Trip:       {{ b.package_name }} · {{ duration }}
+            {{ package_url }}
+Travelled:  {{ departs }}
+Booking:    {{ b.ref }}
+From:       {{ b.lead_name }} · {{ b.lead_email }}
+
+Reply to this email to write to {{ b.first_name }} directly.
+
+{{ business.legal_name }} · {{ business.phone_display }} · {{ site_url }}

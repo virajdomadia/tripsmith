@@ -1,4 +1,13 @@
-import { Eye, Inbox, LayoutGrid, LogOut, MapPin, Package, Ticket } from 'lucide-react';
+import {
+  Eye,
+  Inbox,
+  LayoutGrid,
+  LogOut,
+  MapPin,
+  MessageSquareQuote,
+  Package,
+  Ticket,
+} from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/site/BrandMark';
 import type { SessionInfo } from '@/lib/auth/session';
@@ -10,6 +19,7 @@ export const NAV = [
   { href: '/admin/destinations', label: 'Destinations', icon: MapPin },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
+  { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },
 ] as const;
 
 const initials = (name: string) =>
@@ -22,12 +32,13 @@ const initials = (name: string) =>
 
 /** Mockup `.adm .sb`: ink background, cobalt active item, marigold count, owner card, sign out. */
 export function Sidebar({ session }: { session: SessionInfo }) {
-  const { user, newEnquiries, bookingsAttention } = session;
+  const { user, newEnquiries, bookingsAttention, reviewsPending } = session;
   // Owner-only counts from `GET /auth/session`: new enquiries, and bookings with a refund to
-  // record or a cancellation to answer (B10).
+  // record or a cancellation to answer (B10), and reviews waiting for a decision (B13).
   const counts: Record<string, number | undefined> = {
     '/admin/enquiries': newEnquiries ?? undefined,
     '/admin/bookings': bookingsAttention ?? undefined,
+    '/admin/reviews': reviewsPending ?? undefined,
   };
   return (
     <aside className="focus-ring-light flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">

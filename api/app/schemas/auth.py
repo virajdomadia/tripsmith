@@ -43,6 +43,9 @@ class SessionInfo(ApiModel):
         description="Bookings with a refund to record or a cancellation to answer (B10); "
         "owner sessions only",
     )
+    reviews_pending: int | None = Field(
+        default=None, ge=0, description="Reviews waiting to be published or hidden (B13); owner"
+    )
 
 
 class OtpRequest(ApiModel):

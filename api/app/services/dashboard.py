@@ -33,6 +33,7 @@ from app.schemas.dashboard import (
 from app.services.admin_enquiries import ist_day_start, status_counts
 from app.services.analytics import ist_today
 from app.services.catalog.pricing import badge_for
+from app.services.reviews import count_pending
 
 
 def week_start(day: dt.date) -> dt.date:
@@ -222,4 +223,5 @@ async def get_dashboard(db: AsyncSession, *, today: dt.date | None = None) -> Da
         top_by_views=await _top_by_views(db, month_start, day),
         upcoming_departures=await _upcoming(db, day),
         upcoming_departures_total=await _upcoming_total(db, day),
+        reviews_pending=await count_pending(db),
     )

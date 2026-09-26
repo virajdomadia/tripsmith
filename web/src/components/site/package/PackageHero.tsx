@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { Photo } from '@/components/site/Photo';
+import { Stars } from '@/components/site/Stars';
 import type { components } from '@/lib/api-types';
 import { duration } from '@/lib/format';
+import { reviewsCount } from '@/lib/reviews';
 import { ShareButtons } from './ShareButtons';
 
 type PackageDetail = components['schemas']['PackageDetail'];
@@ -42,6 +44,15 @@ export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
               <span>{duration(pkg.nights, pkg.days)}</span>
               <span>{pkg.departureCity}</span>
               <span className="capitalize">{pkg.themes.join(' · ')}</span>
+              {pkg.rating && (
+                <a
+                  href="#reviews"
+                  className="inline-flex items-center gap-1.5 text-white no-underline hover:underline"
+                >
+                  <Stars value={pkg.rating.avg} onDark number={pkg.rating.avg.toFixed(1)} />
+                  <span>· {reviewsCount(pkg.rating.count)}</span>
+                </a>
+              )}
             </div>
           </div>
           <ShareButtons

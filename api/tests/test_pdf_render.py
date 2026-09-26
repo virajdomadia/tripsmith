@@ -188,8 +188,9 @@ def test_inner_pages_match_the_page_sections() -> None:
     for item in pkg.inclusions + pkg.exclusions:
         assert item in text
     assert "Where you stay" in text
-    assert "Sea Breeze Resort Calangute · 2 nights" in text
-    assert "Morjim Beach House Morjim · 4 nights" in text
+    # B13: the star count is printed beside the drawn stars.
+    assert re.search(r"Sea Breeze Resort \d-star Calangute · 2 nights", text)
+    assert re.search(r"Morjim Beach House \d-star Morjim · 4 nights", text)
     assert "DEPARTURE PER PERSON SEATS STATUS" in text
     assert "Fri 6 Nov 2026 ₹18,499 9 left Guaranteed departure" in text
     assert "Fri 13 Nov 2026 ₹18,999 — Sold out" in text

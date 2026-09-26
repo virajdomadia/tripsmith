@@ -8,6 +8,11 @@
             "title": "Bookedat",
             "type": "string"
           },
+          "canReview": {
+            "description": "Completed and not reviewed yet (B13)",
+            "title": "Canreview",
+            "type": "boolean"
+          },
           "cancellation": {
             "anyOf": [
               {
@@ -67,6 +72,18 @@
             "title": "Ref",
             "type": "string"
           },
+          "reviewRating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stars of the customer's review, if any",
+            "title": "Reviewrating"
+          },
           "status": {
             "$ref": "#/components/schemas/BookingStatus"
           },
@@ -91,7 +108,9 @@
           "destination",
           "departs",
           "travellers",
-          "hasVoucher"
+          "hasVoucher",
+          "reviewRating",
+          "canReview"
         ],
         "title": "AccountBooking",
         "type": "object"
@@ -107,6 +126,11 @@
           "canRequestCancellation": {
             "description": "Confirmed (or part paid), not yet departed, no request made",
             "title": "Canrequestcancellation",
+            "type": "boolean"
+          },
+          "canReview": {
+            "description": "Completed and not reviewed yet",
+            "title": "Canreview",
             "type": "boolean"
           },
           "cancellation": {
@@ -205,6 +229,17 @@
             "title": "Returns",
             "type": "string"
           },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountReview"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer's review of this trip (B13)"
+          },
           "status": {
             "$ref": "#/components/schemas/BookingStatus"
           },
@@ -249,7 +284,9 @@
           "leadPhone",
           "leadEmail",
           "hasVoucher",
-          "canRequestCancellation"
+          "canRequestCancellation",
+          "review",
+          "canReview"
         ],
         "title": "AccountBookingDetail",
         "type": "object"
@@ -381,6 +418,35 @@
         "title": "AccountPayment",
         "type": "object"
       },
+      "AccountReview": {
+        "description": "The customer's own review, as their booking page shows it.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rating",
+          "text",
+          "state",
+          "createdAt"
+        ],
+        "title": "AccountReview",
+        "type": "object"
+      },
       "AccountTraveller": {
         "properties": {
           "age": {
@@ -505,6 +571,17 @@
             "title": "Returns",
             "type": "string"
           },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminReview"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer's review of the trip (B13)"
+          },
           "seatsShort": {
             "description": "Seats the party is missing right now; mark paid refuses while > 0",
             "title": "Seatsshort",
@@ -559,7 +636,8 @@
           "hasVoucher",
           "canMarkPaid",
           "canRelease",
-          "seatsShort"
+          "seatsShort",
+          "review"
         ],
         "title": "AdminBooking",
         "type": "object"
@@ -1521,6 +1599,129 @@
         "title": "AdminPayment",
         "type": "object"
       },
+      "AdminReview": {
+        "properties": {
+          "bookingRef": {
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "moderatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moderatedat"
+          },
+          "name": {
+            "description": "The booking's lead name, in full",
+            "title": "Name",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "travelled": {
+            "format": "date",
+            "title": "Travelled",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rating",
+          "text",
+          "state",
+          "name",
+          "email",
+          "bookingRef",
+          "packageName",
+          "packageSlug",
+          "travelled",
+          "createdAt",
+          "moderatedAt"
+        ],
+        "title": "AdminReview",
+        "type": "object"
+      },
+      "AdminReviewList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/ReviewCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pageSize": {
+            "title": "Pagesize",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReviewState"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 1.0,
+            "title": "Totalpages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "counts",
+          "state",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
+        ],
+        "title": "AdminReviewList",
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {
@@ -2088,6 +2289,11 @@
             "description": "Null when nothing is waiting",
             "title": "Oldestnewat"
           },
+          "reviewsPending": {
+            "description": "Reviews waiting to be published or hidden (B13)",
+            "title": "Reviewspending",
+            "type": "integer"
+          },
           "today": {
             "description": "The IST business day every window below is measured from",
             "format": "date",
@@ -2160,7 +2366,8 @@
           "topByEnquiries",
           "topByViews",
           "upcomingDepartures",
-          "upcomingDeparturesTotal"
+          "upcomingDeparturesTotal",
+          "reviewsPending"
         ],
         "title": "Dashboard",
         "type": "object"
@@ -3925,6 +4132,17 @@
             "title": "Nights",
             "type": "integer"
           },
+          "rating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Published reviews only; null when none (B13)"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
@@ -3952,7 +4170,8 @@
           "coverUrl",
           "highlights",
           "badge",
-          "deal"
+          "deal",
+          "rating"
         ],
         "title": "PackageCard",
         "type": "object"
@@ -4086,12 +4305,31 @@
             "title": "Nights",
             "type": "integer"
           },
+          "rating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Published reviews only, never testimonials; null when none (B13)"
+          },
           "related": {
             "description": "Up to 3: same destination, then shared theme",
             "items": {
               "$ref": "#/components/schemas/PackageCard"
             },
             "title": "Related",
+            "type": "array"
+          },
+          "reviews": {
+            "description": "The first page of published reviews, newest first; the rest via `/packages/{slug}/reviews`",
+            "items": {
+              "$ref": "#/components/schemas/PublicReview"
+            },
+            "title": "Reviews",
             "type": "array"
           },
           "slug": {
@@ -4141,6 +4379,8 @@
           "cover",
           "departures",
           "related",
+          "rating",
+          "reviews",
           "updatedAt"
         ],
         "title": "PackageDetail",
@@ -4467,6 +4707,81 @@
         "title": "PaymentStatus",
         "type": "string"
       },
+      "PublicReview": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "First name + last initial, e.g. 'Asha B.'",
+            "title": "Name",
+            "type": "string"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "travelled": {
+            "description": "The departure date; the page shows its month",
+            "format": "date",
+            "title": "Travelled",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rating",
+          "text",
+          "name",
+          "travelled",
+          "createdAt"
+        ],
+        "title": "PublicReview",
+        "type": "object"
+      },
+      "PublicReviewPage": {
+        "description": "`GET /packages/{slug}/reviews?page=N`: newest first, six a page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicReview"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 1.0,
+            "title": "Totalpages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "total",
+          "totalPages"
+        ],
+        "title": "PublicReviewPage",
+        "type": "object"
+      },
       "PublishRule": {
         "description": "One live-publish precondition, evaluated by the api so the UI never re-derives it.",
         "properties": {
@@ -4717,6 +5032,27 @@
         "title": "RangeFacet",
         "type": "object"
       },
+      "RatingOut": {
+        "description": "The cached aggregate (`packages.rating_avg / rating_count`): published reviews only.",
+        "properties": {
+          "avg": {
+            "description": "One decimal, 1.0–5.0",
+            "title": "Avg",
+            "type": "number"
+          },
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "avg",
+          "count"
+        ],
+        "title": "RatingOut",
+        "type": "object"
+      },
       "RefundMadeInput": {
         "properties": {
           "note": {
@@ -4815,6 +5151,63 @@
         "title": "ResolveCancellationInput",
         "type": "object"
       },
+      "ReviewCounts": {
+        "properties": {
+          "hidden": {
+            "title": "Hidden",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "published": {
+            "title": "Published",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "published",
+          "hidden"
+        ],
+        "title": "ReviewCounts",
+        "type": "object"
+      },
+      "ReviewInput": {
+        "description": "`POST /account/bookings/{ref}/review`. Final once sent: no edit, no delete (B13).",
+        "properties": {
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          },
+          "text": {
+            "description": "Plain text; line breaks kept",
+            "maxLength": 1000,
+            "minLength": 20,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rating",
+          "text"
+        ],
+        "title": "ReviewInput",
+        "type": "object"
+      },
+      "ReviewState": {
+        "description": "Derived from `approved` + `moderated_at` (see `models.Review`).",
+        "enum": [
+          "pending",
+          "published",
+          "hidden"
+        ],
+        "title": "ReviewState",
+        "type": "string"
+      },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
         "properties": {
@@ -4894,6 +5287,19 @@
             ],
             "description": "Enquiries still in status `new`; owner sessions only",
             "title": "Newenquiries"
+          },
+          "reviewsPending": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reviews waiting to be published or hidden (B13); owner",
+            "title": "Reviewspending"
           },
           "user": {
             "$ref": "#/components/schemas/SessionUser"
@@ -5361,6 +5767,63 @@
           }
         },
         "summary": "Post Cancellation",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/review": {
+      "post": {
+        "description": "B13: one review per completed booking, final once sent, hidden until the owner\npublishes it. The owner is emailed; a lost email never undoes the review.",
+        "operationId": "submitReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Review",
         "tags": [
           "account"
         ]
@@ -7364,6 +7827,148 @@
         ]
       }
     },
+    "/admin/reviews": {
+      "get": {
+        "operationId": "listAdminReviews",
+        "parameters": [
+          {
+            "description": "The tab",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ReviewState",
+              "default": "pending",
+              "description": "The tab"
+            }
+          },
+          {
+            "description": "1-based",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReviewList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/reviews/{id}/hide": {
+      "post": {
+        "operationId": "hideReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Hide Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/reviews/{id}/publish": {
+      "post": {
+        "operationId": "publishReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Publish Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "operationId": "login",
@@ -8315,6 +8920,63 @@
           }
         },
         "summary": "Get Itinerary Pdf",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/packages/{slug}/reviews": {
+      "get": {
+        "description": "R21: published reviews only, newest first. Page 1 also rides on `GET /packages/{slug}`.",
+        "operationId": "listPackageReviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "1-based; six a page",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based; six a page",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicReviewPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Reviews Route",
         "tags": [
           "public"
         ]

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CancelPanel } from '@/components/site/account/CancelPanel';
+import { ReviewPanel } from '@/components/site/account/ReviewPanel';
 import { PILL } from '@/components/site/account/TripRow';
 import { Container } from '@/components/site/Container';
 import { WhatsApp } from '@/components/site/home/icons';
@@ -26,7 +27,7 @@ const REF = /^TB-[A-Z0-9]{6}$/;
 /**
  * One booking on My trips (R18, R19): the trip, when, who, what was paid for what, the voucher,
  * and the cancellation block — the policy tier that applies today, and the request form while
- * a request can still be made.
+ * a request can still be made. A completed trip leads with its review (R21, B13).
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -90,6 +91,12 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="grid gap-6">
+          <ReviewPanel
+            bookingRef={b.ref}
+            packageName={b.packageName}
+            review={b.review ?? null}
+            canReview={b.canReview}
+          />
           <section className="rounded-card border border-line p-5" aria-labelledby="when">
             <h2 id="when" className="text-[18px]">
               When

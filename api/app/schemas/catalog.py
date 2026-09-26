@@ -9,6 +9,7 @@ from pydantic import Field, ValidationInfo, field_validator
 from app.models.enums import PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.meta import Badge
+from app.schemas.reviews import PublicReview, RatingOut
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
@@ -101,6 +102,7 @@ class PackageCard(ApiModel):
         description="From the next upcoming departure with seats; sold-out only when all are full"
     )
     deal: DealOut | None = Field(description="Null when no deal is running")
+    rating: RatingOut | None = Field(description="Published reviews only; null when none (B13)")
 
 
 class FacetOption(ApiModel):
@@ -214,6 +216,13 @@ class PackageDetail(ApiModel):
     cover: ImageOut | None
     departures: list[DepartureOut] = Field(description="Upcoming only, soonest first")
     related: list[PackageCard] = Field(description="Up to 3: same destination, then shared theme")
+    rating: RatingOut | None = Field(
+        description="Published reviews only, never testimonials; null when none (B13)"
+    )
+    reviews: list[PublicReview] = Field(
+        description="The first page of published reviews, newest first; the rest via "
+        "`/packages/{slug}/reviews`"
+    )
     updated_at: dt.datetime
 
 

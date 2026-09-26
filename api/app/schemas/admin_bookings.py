@@ -18,6 +18,7 @@ from app.schemas.account import AccountCancellation, AccountTraveller
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
+from app.schemas.reviews import AdminReview
 
 NOTE_MAX = 80
 
@@ -206,6 +207,7 @@ class AdminBooking(ApiModel):
     seats_short: int = Field(
         description="Seats the party is missing right now; mark paid refuses while > 0"
     )
+    review: AdminReview | None = Field(description="The customer's review of the trip (B13)")
 
 
 def short_note(v: object) -> str | None:

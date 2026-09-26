@@ -81,6 +81,7 @@ from app.services.booking.voucher import (
 )
 from app.services.email.render import IST
 from app.services.format import inr
+from app.services.reviews import review_for_booking
 
 log = logging.getLogger(__name__)
 
@@ -600,6 +601,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         can_mark_paid=payable,
         can_release=b.status == BookingStatus.PENDING,
         seats_short=short,
+        review=await review_for_booking(db, b.id),
     )
 
 

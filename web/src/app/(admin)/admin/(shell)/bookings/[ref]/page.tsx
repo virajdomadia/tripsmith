@@ -7,11 +7,13 @@ import { ResolveCancellation } from '@/components/admin/bookings/ResolveCancella
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { CancelRequested, RefundFlag, StateBadge } from '@/components/admin/bookings/StateBadge';
 import { Timeline } from '@/components/admin/bookings/Timeline';
+import { Stars } from '@/components/site/Stars';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { buttonVariants } from '@/components/ui/button';
 import { voucherHref } from '@/lib/account';
 import { DESK_PATH, type AdminBooking } from '@/lib/admin/booking-filters';
+import { reviewsHref } from '@/lib/admin/reviews';
 import { api, ApiRequestError } from '@/lib/api';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -20,6 +22,7 @@ export const metadata = { title: 'Booking' };
 
 const REF = /^TB-[A-Z0-9]{6}$/;
 const PROVIDER = { razorpay: 'Razorpay', offline: 'Offline' } as const;
+const REVIEW_STATE = { pending: 'Waiting', published: 'Published', hidden: 'Hidden' } as const;
 
 /** One booking on the desk (R22): who, what, the money, and what the owner can do about it. */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
@@ -202,6 +205,20 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               ) : (
                 <Resolved c={b.cancellation} />
               )}
+            </section>
+          )}
+
+          {b.review && (
+            <section className={panel}>
+              <h2 className={heading}>Review</h2>
+              <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                <Stars value={b.review.rating} className="text-[15px]" />
+                <span className="font-bold text-mute">{REVIEW_STATE[b.review.state]}</span>
+              </div>
+              <p className="text-sm break-words whitespace-pre-line">“{b.review.text}”</p>
+              <Link href={reviewsHref(b.review.state)} className="text-sm font-bold text-primary">
+                {b.review.state === 'pending' ? 'Publish or hide it' : 'Open in Reviews'}
+              </Link>
             </section>
           )}
 

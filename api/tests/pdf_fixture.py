@@ -108,5 +108,7 @@ def package(
             for i in range(departures)
         ],
         related=[],
+        rating=None,
+        reviews=[],
         updated_at=UPDATED_AT,
     )

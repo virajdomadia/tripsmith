@@ -70,3 +70,4 @@ class Dashboard(ApiModel):
         description=f"At most {MAX_DEPARTURES}; `upcomingDeparturesTotal` is the real count"
     )
     upcoming_departures_total: int = Field(description="Departures in the whole window")
+    reviews_pending: int = Field(description="Reviews waiting to be published or hidden (B13)")

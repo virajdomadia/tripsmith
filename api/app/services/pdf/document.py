@@ -40,6 +40,7 @@ BG2: RGB = (0xF3, 0xF6, 0xFC)
 PRIMARY: RGB = (0x1B, 0x4F, 0xD8)
 PRIMARY_SOFT: RGB = (0xE8, 0xEE, 0xFF)
 ACTION: RGB = (0xF2, 0xA9, 0x3B)
+STAR: RGB = (0xB4, 0x53, 0x09)  # --color-star (B13): 5.02:1 on white; marigold was 2.00:1
 OK: RGB = (0x1F, 0x7A, 0x4D)
 OK_SOFT: RGB = (0xE3, 0xF0, 0xEA)
 WARN: RGB = (0xB5, 0x54, 0x1E)
@@ -156,14 +157,14 @@ class Document(FPDF):
         self.set_line_width(0.25)
 
     def star(self, cx: float, cy: float, r: float, *, filled: bool) -> None:
-        """Marigold ★ (filled) / ☆ (outline) as the hotel cards show them."""
+        """★ (filled) / ☆ (outline) in the site's star amber; callers print the number beside."""
         pts = []
         for i in range(10):
             radius = r if i % 2 == 0 else r * 0.45
             angle = -math.pi / 2 + i * math.pi / 5
             pts.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
-        self.set_fill_color(*ACTION)
-        self.set_draw_color(*ACTION)
+        self.set_fill_color(*STAR)
+        self.set_draw_color(*STAR)
         self.set_line_width(0.3)
         self.polygon(pts, style="F" if filled else "D")
         self.set_line_width(0.25)

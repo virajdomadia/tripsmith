@@ -17,6 +17,7 @@ import { PackageHero } from '@/components/site/package/PackageHero';
 import { PriceBox } from '@/components/site/package/PriceBox';
 import { QuickFacts } from '@/components/site/package/QuickFacts';
 import { RelatedPackages } from '@/components/site/package/RelatedPackages';
+import { Reviews } from '@/components/site/package/Reviews';
 import { Section } from '@/components/site/package/Section';
 import { SectionNav } from '@/components/site/package/SectionNav';
 import { ViewBeacon } from '@/components/site/package/ViewBeacon';
@@ -114,6 +115,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             { id: 'inclusions', label: 'Inclusions' },
             { id: 'hotels', label: 'Hotels' },
             { id: 'dates', label: 'Dates & prices' },
+            ...(pkg.rating ? [{ id: 'reviews', label: 'Reviews' }] : []),
             ...(pkg.faq.length ? [{ id: 'faq', label: 'FAQ' }] : []),
           ]}
         />
@@ -144,6 +146,11 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
               <DeparturesTable departures={pkg.departures} deal={pkg.deal} />
               <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
             </Section>
+            {pkg.rating && (
+              <Section id="reviews" title="What travellers say">
+                <Reviews slug={pkg.slug} rating={pkg.rating} reviews={pkg.reviews} />
+              </Section>
+            )}
             {pkg.faq.length > 0 && (
               <Section id="faq" title="Questions">
                 <Faq items={pkg.faq} />

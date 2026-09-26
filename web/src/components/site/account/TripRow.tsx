@@ -1,4 +1,4 @@
-import { FileDown, MapPinned } from 'lucide-react';
+import { FileDown, MapPinned, Star } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -10,6 +10,7 @@ import {
   travellersLabel,
   voucherHref,
 } from '@/lib/account';
+import { Stars } from '@/components/site/Stars';
 import { formatDate, inr } from '@/lib/format';
 
 export const PILL: Record<Tone, string> = {
@@ -100,6 +101,20 @@ export function TripRow({
               {inr(paid ? b.paidPaise : b.totalPaise)}
             </b>
           </p>
+        )}
+        {b.canReview ? (
+          <Link
+            href={`${detailHref(b.ref)}#review-title`}
+            className="relative z-10 inline-flex items-center justify-center gap-2 rounded-btn bg-primary px-3.5 py-2 text-sm font-bold text-white no-underline transition-colors hover:bg-primary-ink"
+          >
+            <Star className="size-4" aria-hidden /> Write a review
+          </Link>
+        ) : (
+          b.reviewRating != null && (
+            <p className="text-[13px] font-semibold text-mute">
+              Reviewed · <Stars value={b.reviewRating} className="text-[13px] text-ink" />
+            </p>
+          )
         )}
         {b.hasVoucher && (
           <a
