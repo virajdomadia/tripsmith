@@ -174,9 +174,10 @@ async def test_a_coupon_lowers_the_order_to_the_paisa_and_counts_on_capture(
     rows = (await db_client.get("/admin/bookings", headers=owner)).json()["items"]
     assert rows[0]["couponCode"] == "SAVE10"
 
-    # The same email again: refused, before Pay (quote with the email) and at the hold.
+    # The same email again: refused at the hold, which is rate-limited. The unlimited quote does
+    # not answer it, or it would say which addresses have a paid booking (B14 security pass).
     again = quote_body(dep_id, "SAVE10", email="C1@example.test")
-    assert refusal(await db_client.post("/bookings/quote", json=again)) == "coupon_used_by_email"
+    assert (await db_client.post("/bookings/quote", json=again)).status_code == 200
     res = await db_client.post("/bookings", json=hold_body(dep_id, "SAVE10", 1))
     assert refusal(res) == "coupon_used_by_email"
     # Another email may still use it.

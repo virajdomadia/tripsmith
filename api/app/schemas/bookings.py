@@ -101,8 +101,9 @@ class QuoteRequest(ApiModel):
     email: str | None = Field(
         default=None,
         max_length=120,
-        description="The contact email once typed, so 'already used by this email' shows before "
-        "Pay; a malformed one is ignored",
+        description="The contact email once typed, so the visitor's own live hold does not count "
+        "against a code's use limit; a malformed one is ignored. 'Already used by this email' is "
+        "answered when Pay starts the hold, not here",
     )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)

@@ -4,8 +4,10 @@ voucher (B7) — public (06 C5).
 Starting a booking holds seats, so it is limited per visitor: `booking:{ip}` 5 / 10 min. The
 web reaches it through `POST /api/bookings`, which forwards the visitor's address (the plain
 rewrite would put every visitor in one bucket). A quote has no side effects and goes through
-the rewrite unlimited; so does confirm, which only acts on a payment Razorpay signed, and sync,
-which asks Razorpay only while the booking is pending.
+the rewrite unlimited (it never answers "already used by this email": that waits for the limited
+hold), and so does confirm, which only acts on a payment Razorpay signed. Sync asks Razorpay
+while the booking is pending, so it is limited per booking (`sync:{ref}` 20 / 10 min) — the key
+needs no visitor address, so the rewrite is fine.
 
 Without Razorpay keys, starting a booking is a 503 before any seat is held.
 
@@ -39,6 +41,8 @@ from app.services.booking.voucher import HAS_VOUCHER, booking_has_order, voucher
 
 BOOKING_LIMIT = 5
 BOOKING_WINDOW_SECONDS = 600
+SYNC_LIMIT = 20  # the sheet syncs once per closed Checkout; a pending hold lives 10 minutes
+SYNC_WINDOW_SECONDS = 600
 PAYMENTS_OFF = "Online booking is switched off right now — send an enquiry or WhatsApp us"
 BookingRef = Annotated[str, Path(pattern=r"^TB-[A-Z0-9]{6}$", examples=["TB-7F3K2Q"])]
 
@@ -62,6 +66,16 @@ async def booking_rate_limit(request: Request) -> None:
             result.retry_after,
             "Too many booking attempts from this connection — try again in a few minutes, "
             "or WhatsApp us",
+        )
+
+
+async def sync_rate_limit(request: Request, ref: BookingRef) -> None:
+    """Each sync of a pending booking is a Razorpay API call under the merchant key."""
+    limiter: RateLimiter = request.app.state.rate_limiter
+    result = await limiter.hit(f"sync:{ref}", limit=SYNC_LIMIT, window_seconds=SYNC_WINDOW_SECONDS)
+    if not result.allowed:
+        raise RateLimited(
+            result.retry_after, "Too many checks on this booking — try again in a few minutes"
         )
 
 
@@ -121,7 +135,12 @@ async def post_confirm(
     return with_voucher(request, result)  # the signature verified: this caller paid
 
 
-@router.post("/bookings/{ref}/sync", operation_id="syncPayment", response_model_by_alias=True)
+@router.post(
+    "/bookings/{ref}/sync",
+    operation_id="syncPayment",
+    response_model_by_alias=True,
+    dependencies=[Depends(sync_rate_limit)],
+)
 async def post_sync(
     ref: BookingRef,
     request: Request,

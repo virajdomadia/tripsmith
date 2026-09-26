@@ -227,7 +227,8 @@ export function lineLabel(line: QuoteLine, dealLabel?: string | null): string {
 /** A coupon refusal (B15, R26): shown under the code field, never as an unbookable date. */
 export const isCouponRefusal = (reason: string | undefined) => !!reason?.startsWith('coupon_');
 
-/** What the quote may carry for the "already used by this email" check: a valid address only. */
+/** The email a coupon quote carries, so the visitor's own live hold is not counted against the
+ * code's use limit: a valid address only. "Already used by this email" is answered at Pay. */
 export function quoteEmail(email: string): string | null {
   const e = email.trim().toLowerCase();
   return EMAIL_RE.test(e) ? e : null;

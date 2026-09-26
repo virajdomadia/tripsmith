@@ -3410,7 +3410,7 @@ export interface components {
             departureId: string;
             /**
              * Email
-             * @description The contact email once typed, so 'already used by this email' shows before Pay; a malformed one is ignored
+             * @description The contact email once typed, so the visitor's own live hold does not count against a code's use limit; a malformed one is ignored. 'Already used by this email' is answered when Pay starts the hold, not here
              */
             email?: string | null;
             /** Travellers */

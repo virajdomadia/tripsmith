@@ -61,6 +61,25 @@ async def test_no_keys_is_a_clear_503(client: AsyncClient) -> None:
     assert "switched off" in res.json()["error"]["message"]
 
 
+async def test_the_sixth_booking_start_and_the_21st_sync_are_429(
+    app: FastAPI, client: AsyncClient
+) -> None:
+    """R25: 5 starts / 10 min / visitor; sync (a Razorpay call each) 20 / 10 min / booking. Both
+    limits run before anything else, so no keys and no body still count (B14)."""
+    app.state.rate_limiter = CountingLimiter(limit=5)
+    starts = [
+        (await client.post("/bookings", json={}, headers={"X-Forwarded-For": "7.7.7.7"}))
+        for _ in range(6)
+    ]
+    assert [r.status_code for r in starts] == [503] * 5 + [429]
+    assert starts[-1].json()["error"]["code"] == "rate_limited"
+
+    app.state.rate_limiter = CountingLimiter(limit=20)
+    syncs = [(await client.post("/bookings/TB-AAAAAA/sync")).status_code for _ in range(21)]
+    assert syncs == [503] * 20 + [429]
+    assert (await client.post("/bookings/TB-BBBBBB/sync")).status_code == 503  # its own bucket
+
+
 # --- db ----------------------------------------------------------------------------------------
 
 
