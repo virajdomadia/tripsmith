@@ -185,8 +185,10 @@ export function orderBody(
   slots: Slot[],
   travellers: Record<string, TravellerInput>,
   contact: Contact,
+  couponCode: string | null = null,
 ): components['schemas']['BookingRequest'] {
   return {
+    ...(couponCode ? { couponCode } : {}),
     departureId,
     travellers: slots.map((s) => ({
       name: travellers[s.key].name.trim(),
@@ -220,6 +222,15 @@ export function lineLabel(line: QuoteLine, dealLabel?: string | null): string {
     default:
       return OCCUPANCY_LABEL[line.occupancy];
   }
+}
+
+/** A coupon refusal (B15, R26): shown under the code field, never as an unbookable date. */
+export const isCouponRefusal = (reason: string | undefined) => !!reason?.startsWith('coupon_');
+
+/** What the quote may carry for the "already used by this email" check: a valid address only. */
+export function quoteEmail(email: string): string | null {
+  const e = email.trim().toLowerCase();
+  return EMAIL_RE.test(e) ? e : null;
 }
 
 /** Whole seconds left on a hold, clamped to Checkout's 600 s ceiling; 0 once it has lapsed. */

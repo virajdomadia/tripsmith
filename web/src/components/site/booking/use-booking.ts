@@ -8,11 +8,13 @@ import {
   type Departure,
   formErrors,
   holdSecondsLeft,
+  isCouponRefusal,
   istToday,
   orderBody,
   partySize,
   type PaymentResult,
   type Quote,
+  quoteEmail,
   quoteTravellers,
   type Rooms,
   slotsFor,
@@ -53,6 +55,18 @@ type QuoteState =
   | { status: 'ok'; quote: Quote }
   | { status: 'error'; message: string };
 
+/**
+ * "Have a code?" (B15). `applied` is the code the quote is asked with; a refusal clears it and
+ * shows the server's reason under the field, and the quote is asked again without it.
+ */
+export type CouponState = {
+  open: boolean;
+  draft: string;
+  applied: string | null;
+  error: string | null;
+};
+const NO_COUPON: CouponState = { open: false, draft: '', applied: null, error: null };
+
 type Availability = { status: 'stale' | 'loading' | 'live' | 'error'; at?: number };
 
 const json = { 'Content-Type': 'application/json' };
@@ -84,6 +98,9 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [contact, setContact] = useState<Contact>({ name: '', phone: '', email: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [quote, setQuote] = useState<QuoteState>({ status: 'idle' });
+  const [coupon, setCoupon] = useState<CouponState>(NO_COUPON);
+  // Sent with a code only, so typing an email never re-asks a quote that has none.
+  const couponEmail = coupon.applied ? quoteEmail(contact.email) : null;
   const [phase, setPhase] = useState<Phase>({ kind: 'choose' });
   const [banner, setBanner] = useState<string | null>(null);
   /** The departure that sold out under the visitor, named in the "no longer available" box. */
@@ -175,7 +192,12 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       setQuote({ status: 'idle' });
       return;
     }
-    const quoteKey = JSON.stringify({ departureId, travellers: quoteTravellers(rooms) });
+    const couponCode = coupon.applied;
+    const quoteKey = JSON.stringify({
+      departureId,
+      travellers: quoteTravellers(rooms),
+      couponCode,
+    });
     if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt) > 0) {
       // Asking again would count the visitor's own hold against them: use the order's quote.
       setQuote({ status: 'ok', quote: held.quote });
@@ -188,7 +210,12 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
         const res = await fetch('/api/bookings/quote', {
           method: 'POST',
           headers: json,
-          body: JSON.stringify({ departureId, travellers: quoteTravellers(rooms) }),
+          body: JSON.stringify({
+            departureId,
+            travellers: quoteTravellers(rooms),
+            ...(couponCode ? { couponCode } : {}),
+            ...(couponCode && couponEmail ? { email: couponEmail } : {}),
+          }),
           signal: ctrl.signal,
         });
         if (res.ok) {
@@ -196,6 +223,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
           return;
         }
         const err = await readError(res);
+        if (res.status === 409 && isCouponRefusal(err.body.reason)) {
+          // The code, not the trip: drop it (the effect re-asks without it) and say why.
+          setCoupon((c) => ({ ...c, open: true, applied: null, error: err.body.message }));
+          return;
+        }
         if (res.status === 409 || res.status === 404) {
           // Sold (or pulled) since the list loaded: re-read the list; the picker explains.
           setQuote({ status: 'idle' });
@@ -212,7 +244,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [departureId, rooms, reason, refresh, held]);
+  }, [departureId, rooms, reason, refresh, held, coupon.applied, couponEmail]);
 
   /* ---- the form ---- */
   const setTraveller = (key: string, patch: Partial<TravellerInput>) => {
@@ -223,6 +255,13 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setContact((c) => ({ ...c, ...patch }));
     setErrors({});
   };
+  const openCoupon = () => setCoupon((c) => ({ ...c, open: true }));
+  const setCouponDraft = (draft: string) => setCoupon((c) => ({ ...c, draft, error: null }));
+  const applyCoupon = () => {
+    const code = coupon.draft.trim().toUpperCase();
+    setCoupon((c) => ({ ...c, draft: code, applied: code || null, error: null }));
+  };
+  const removeCoupon = () => setCoupon({ ...NO_COUPON, open: true });
   const chooseDeparture = (id: string) => {
     setDepartureId(id);
     setGone(null);
@@ -251,7 +290,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   };
 
   async function startOrder(): Promise<BookingOrder | null> {
-    const body = orderBody(departureId!, slots, travellers, contact);
+    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied);
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
     if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt) > REUSE_MIN_SECONDS)
@@ -277,6 +316,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
         quoteKey: JSON.stringify({
           departureId: body.departureId,
           travellers: body.travellers.map((t) => ({ occupancy: t.occupancy })),
+          couponCode: body.couponCode ?? null,
         }),
         quote: order.quote,
       });
@@ -293,6 +333,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
           ? null
           : (Object.values(err.body.fieldErrors)[0] ?? err.body.message),
       );
+    } else if (res.status === 409 && isCouponRefusal(err.body.reason)) {
+      setCoupon((c) => ({ ...c, open: true, applied: null, error: err.body.message }));
+      setPhase({ kind: 'choose' });
+      return null;
     } else if (res.status === 409) unbookable(err.body.message, departure?.date);
     else if (res.status === 404) unbookable(MESSAGES.gone);
     else if (res.status === 429) setBanner(MESSAGES.rate_limited);
@@ -449,6 +493,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const startOver = () => {
     lastOrder.current = null;
     setHeld(null);
+    setCoupon(NO_COUPON); // one use per email: the code was just used
     setPhase({ kind: 'choose' });
     setBanner(null);
     void refresh();
@@ -473,6 +518,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     errors,
     focusRequest,
     quote,
+    coupon,
+    openCoupon,
+    setCouponDraft,
+    applyCoupon,
+    removeCoupon,
     phase,
     busy,
     canPay,
