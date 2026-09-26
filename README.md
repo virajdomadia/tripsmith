@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, and — from v3 — have an AI concierge plan the itinerary and start the booking for you.
 
-> **Status: v2** (2026-09-26): the booking engine is live on top of the v1 agency website. Visitors can pick a date, build a party and pay by Razorpay with live seats, deals and coupons, then get a PDF voucher and manage the trip (cancel, review) from an email-code account. The owner runs bookings, refunds, cancellations, deals, coupons and reviews from the admin. Payments are in **Razorpay test mode** (use a test card) and emails are in **demo mode** (sign-in codes show on screen). The honest account of v1 and v2 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v3**, an AI concierge. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
+> **Status: v2** (2026-09-26): the booking engine is live on top of the v1 agency website. Visitors can pick a date, build a party and pay by Razorpay with live seats, deals and coupons, then get a PDF voucher and manage the trip (cancel, review) from an email-code account. The owner runs bookings, refunds, cancellations, deals, coupons and reviews from the admin. Payments are in **Razorpay test mode** (use a test card) and emails are in **demo mode** (sign-in codes show on screen). The honest account of v1 and v2 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2.5 Strengthen**, which brings deposits, a waitlist, date changes, add-ons, real refunds with GST invoices, a trip pack, a departure calendar, reports and counter booking ([requirements](docs/03-requirements-v2-5.md)). **v3**, an AI concierge, comes after it. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
 >
 > **Live:** [tripsmith.vercel.app](https://tripsmith.vercel.app) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
 
@@ -124,6 +124,6 @@ Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both
 
 The 17-step [project lifecycle](../PROCESS.md) — steps 1–7 are done for all four versions, and v1 and v2 have each closed steps 8–17 (v2 re-entered at step 3 with a re-validation).
 
-**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) → **v4** "Tripsmith anywhere" (an MCP server, so the catalog and the booking flow are usable from any AI client).
+**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking) → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) → **v4** "Tripsmith anywhere" (an MCP server, so the catalog and the booking flow are usable from any AI client).
 
 Each later version re-enters the lifecycle at step 3 with a short re-validation before any code.
