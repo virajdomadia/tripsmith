@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import type { BookingPackage } from './use-booking';
 
 /*
@@ -46,11 +46,14 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Set once the visitor opens the sheet: a late `#book` auto-open must not reopen one they closed.
+  const touched = useRef(false);
 
   useEffect(() => {
     setHydrated(true);
     if (window.location.hash !== '#book') return;
     return afterLoad(() => {
+      if (touched.current) return;
       setMounted(true);
       setOpen(true);
     });
@@ -60,6 +63,7 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
     hydrated,
     prefetch: () => void loadSheet(),
     open: () => {
+      touched.current = true;
       setMounted(true);
       setOpen(true);
     },
