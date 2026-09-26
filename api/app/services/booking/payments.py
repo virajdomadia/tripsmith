@@ -33,6 +33,8 @@ from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.settled import Capture, Settled
 
 NOT_FOUND = "We could not find that booking"
+# A payment in either state has been applied once; neither is ever applied or failed again.
+SETTLED_PAYMENT = (PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)
 NOT_VERIFIED = "We could not verify that payment — if money left your account, WhatsApp us"
 
 log = logging.getLogger(__name__)
@@ -163,8 +165,10 @@ async def capture_razorpay_payment(
         log.warning("Order %s is not booking %s's — refusing the capture", order_id, ref)
         raise ApiError("validation", NOT_VERIFIED)
     payment = next((p for p in rows if p.razorpay_payment_id == payment_id), None)
-    if payment is not None and payment.status == PaymentStatus.CAPTURED:
-        return booking, None  # already recorded: a replayed callback or webhook
+    if payment is not None and payment.status in SETTLED_PAYMENT:
+        # Already recorded: a replayed callback or webhook — including after the owner recorded
+        # its refund (B10), which a late Razorpay retry must not undo.
+        return booking, None
     # Recorded as failed earlier (B6) and captured after all — a late authorisation — or new.
     payment = payment or next((p for p in rows if p.razorpay_payment_id is None), None)
     if payment is None:

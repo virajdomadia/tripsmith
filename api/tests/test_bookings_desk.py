@@ -301,6 +301,14 @@ async def test_refund_made_clears_the_flag_and_the_badge(
     kinds = [e["kind"] for e in b["timeline"]]
     assert kinds.index("captured") < kinds.index("refunded")
     assert (await db_client.get("/auth/session", headers=owner)).json()["bookingsAttention"] == 0
+    # Razorpay retries the capture (or Checkout posts again): the refund must stand.
+    res = await db_client.post(
+        f"/bookings/{ref}/confirm", json=callback(str(first["orderId"]), "pay_Late0B10")
+    )
+    assert res.status_code == 200 and res.json()["refundNeeded"] is False
+    [p] = await payments(db, ref)
+    assert p.status.value == "refunded"
+    assert (await booking(db, ref)).paid_paise == 0
     again = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
     assert again.status_code == 409
 
