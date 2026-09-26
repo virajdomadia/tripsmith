@@ -22,6 +22,7 @@ from sqlalchemy import ColumnElement, Select, and_, case, exists, func, or_, sel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.business import refund_tier, suggested_refund_paise
 from app.errors import ApiError
 from app.models import (
     Booking,
@@ -39,9 +40,10 @@ from app.models.enums import (
     PaymentProvider,
     PaymentStatus,
 )
-from app.schemas.account import AccountCancellation, AccountTraveller
+from app.schemas.account import AccountTraveller
 from app.schemas.admin_bookings import (
     AdminBooking,
+    AdminCancellation,
     AdminPayment,
     BookingCounts,
     BookingFilters,
@@ -58,6 +60,7 @@ from app.schemas.admin_bookings import (
 from app.schemas.admin_enquiries import PAGE_SIZE
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import normalise_phone
+from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
 from app.services.analytics import ist_today
 from app.services.booking.after_capture import Notify, on_new_capture
@@ -429,11 +432,12 @@ def timeline(
             )
         if p.status == PaymentStatus.REFUNDED:
             note = refund.get("note")
+            back = inr((_refunded_paise(p) or 0) // 100)  # B11: may be part of the payment
             events.append(
                 TimelineEvent(
                     at=_at(refund.get("at"), p.updated_at),
                     kind="refunded",
-                    text=f"Refund of {amount} recorded by the owner"
+                    text=f"Refund of {back} recorded by the owner"
                     + (f" · {note}" if isinstance(note, str) and note else ""),
                 )
             )
@@ -445,6 +449,15 @@ def timeline(
                 text=f"Customer asked to cancel: “{cancellation.reason}”",
             )
         )
+        if cancellation.resolved_at is not None:
+            if cancellation.status == CancellationStatus.APPROVED:
+                refund = cancellation.refund_paise or 0
+                text = "Cancellation approved — seats freed · " + (
+                    f"refund {inr(refund // 100)} agreed" if refund else "no refund"
+                )
+            else:
+                text = "Cancellation request rejected — the booking stands"
+            events.append(TimelineEvent(at=cancellation.resolved_at, kind="resolved", text=text))
     if b.status == BookingStatus.CANCELLED:
         if b.cancel_reason in (CancelReason.HOLD_EXPIRED, None):
             events.append(
@@ -453,13 +466,16 @@ def timeline(
                 )
             )
         reason = b.cancel_reason
-        events.append(
-            TimelineEvent(
-                at=b.updated_at,
-                kind="cancelled",
-                text=CANCEL_TEXT.get(reason, "Cancelled") if reason else "Cancelled",
+        # An approved request is already the "resolved" event, dated when it was decided —
+        # `updated_at` moves again when the refund is recorded.
+        if reason != CancelReason.CANCELLATION_APPROVED:
+            events.append(
+                TimelineEvent(
+                    at=b.updated_at,
+                    kind="cancelled",
+                    text=CANCEL_TEXT.get(reason, "Cancelled") if reason else "Cancelled",
+                )
             )
-        )
     elif b.status == BookingStatus.PENDING and not live:
         events.append(
             TimelineEvent(at=b.hold_expires_at, kind="lapsed", text="Hold lapsed — seats released")
@@ -498,8 +514,39 @@ def _payment_out(p: Payment) -> AdminPayment:
         payment_id=p.razorpay_payment_id,
         reference=offline_reference(p) if p.provider == PaymentProvider.OFFLINE else None,
         via=payment_via(p),
+        refunded_paise=_refunded_paise(p),
         created_at=p.created_at,
         updated_at=p.updated_at,
+    )
+
+
+def _refunded_paise(p: Payment) -> int | None:
+    """B10 refunds gave back whole payments and did not store an amount; B11's may be part."""
+    if p.status != PaymentStatus.REFUNDED:
+        return None
+    back = _refund_info(p).get("amountPaise")
+    return back if isinstance(back, int) else p.amount_paise
+
+
+def _admin_cancellation(
+    asked: BookingCancellation, b: Booking, departs: dt.date
+) -> AdminCancellation:
+    # IST day of the request → departure, as B9's acknowledgement counted it.
+    days_out = max((departs - asked.created_at.astimezone(IST).date()).days, 0)
+    return AdminCancellation(
+        id=asked.id,
+        status=asked.status,
+        reason=asked.reason,
+        requested_at=asked.created_at,
+        refund_note=asked.refund_note,
+        refund_paise=asked.refund_paise,
+        resolved_at=asked.resolved_at,
+        days_out=days_out,
+        tier=refund_tier(days_out),
+        suggested_refund_paise=suggested_refund_paise(
+            days_out, paid_paise=b.paid_paise, total_paise=b.total_paise
+        ),
+        can_approve=asked.status == CancellationStatus.REQUESTED and b.status in CANCELLABLE,
     )
 
 
@@ -542,17 +589,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         lead_email=b.contact_email,
         payments=[_payment_out(p) for p in b.payments],
         timeline=timeline(b, seats.date, asked, live=live),
-        cancellation=(
-            AccountCancellation(
-                status=asked.status,
-                reason=asked.reason,
-                requested_at=asked.created_at,
-                refund_note=asked.refund_note,
-                resolved_at=asked.resolved_at,
-            )
-            if asked
-            else None
-        ),
+        cancellation=_admin_cancellation(asked, b, seats.date) if asked else None,
         has_voucher=b.status in HAS_VOUCHER,
         can_mark_paid=payable,
         can_release=b.status == BookingStatus.PENDING,
@@ -647,10 +684,12 @@ async def release_hold(db: AsyncSession, ref: str) -> AdminBooking:
 
 
 async def record_refund(db: AsyncSession, ref: str, note: str | None) -> AdminBooking:
-    """'Refund made': the owner refunded by hand in the Razorpay dashboard. A cancelled booking
-    gives back everything captured; a live one only what it holds beyond its total (a second
-    payment), newest first. Those payments become `refunded`, `paid_paise` drops by as much, and
-    `refund_needed` clears. No email and no Razorpay call."""
+    """'Refund made': the owner refunded by hand in the Razorpay dashboard. A cancellation the
+    owner approved gives back the refund agreed then (B11 — a policy tier may keep part); any
+    other cancelled booking everything captured; a live one only what it holds beyond its total
+    (a second payment). Payments are taken newest first and become `refunded` — the last one
+    possibly only in part, its `raw.refund.amountPaise` saying how much — `paid_paise` drops by
+    the amount given back, and `refund_needed` clears. No email and no Razorpay call."""
     try:
         booking, _ = await lock_booking(db, ref)
         if not booking.refund_needed:
@@ -667,26 +706,55 @@ async def record_refund(db: AsyncSession, ref: str, note: str | None) -> AdminBo
                 )
             ).scalars()
         )
-        owed = (
-            booking.paid_paise
-            if booking.status == BookingStatus.CANCELLED
-            else booking.paid_paise - booking.total_paise
-        )
+        approval = (
+            await db.execute(
+                select(BookingCancellation.refund_paise, BookingCancellation.resolved_at).where(
+                    BookingCancellation.booking_id == booking.id,
+                    BookingCancellation.status == CancellationStatus.APPROVED,
+                )
+            )
+        ).one_or_none()
+        if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and approval is not None:
+            # The refund agreed on approval, until it is recorded once; plus, in full, any money
+            # captured after the approval (no seat stands behind it). Newest first, so a late
+            # payment is given back before the agreed part comes out of the older ones.
+            agreed, approved_at = approval
+            before = [p for p in captured if p.created_at <= approved_at]
+            late = sum(p.amount_paise for p in captured if p.created_at > approved_at)
+            agreed_done = (
+                await db.execute(
+                    select(func.count())
+                    .select_from(Payment)
+                    .where(
+                        Payment.booking_id == booking.id,
+                        Payment.status == PaymentStatus.REFUNDED,
+                        Payment.created_at <= approved_at,
+                    )
+                )
+            ).scalar_one() > 0
+            held = sum(p.amount_paise for p in before)
+            owed = late + (0 if agreed_done else min(agreed or 0, held))
+        elif booking.status == BookingStatus.CANCELLED:
+            owed = booking.paid_paise
+        else:
+            owed = booking.paid_paise - booking.total_paise
         now = dt.datetime.now(dt.UTC)
         refunded = 0
         for p in captured:
             if refunded >= owed:
                 break
+            back = min(p.amount_paise, owed - refunded)
             p.raw = {
                 **(p.raw or {}),
                 "refund": {
                     "at": now.isoformat(),
                     "note": note,
                     "capturedAt": p.updated_at.isoformat(),
+                    "amountPaise": back,
                 },
             }
             p.status = PaymentStatus.REFUNDED
-            refunded += p.amount_paise
+            refunded += back
         await db.execute(
             update(Booking)
             .where(Booking.id == booking.id)

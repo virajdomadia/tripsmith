@@ -1,0 +1,9 @@
+{{ body }}
+{% if package_name %}
+
+The {{ package_name }} itinerary is attached as a PDF.
+{% endif %}
+
+— {{ business.name }}
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

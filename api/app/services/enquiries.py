@@ -202,7 +202,7 @@ async def submit_enquiry(
         # when a package is on the enquiry; `attachment_for` never raises, but a slow render or
         # Blob upload could otherwise block the request past Vercel's function budget).
         attachment = None
-        detail = await _package_for_pdf(db, facts.slug) if pdf and facts else None
+        detail = await package_for_pdf(db, facts.slug) if pdf and facts else None
         if pdf and facts and detail:
             try:
                 attachment = await asyncio.wait_for(
@@ -233,7 +233,7 @@ async def submit_enquiry(
     )
 
 
-async def _package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
+async def package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
     """The package page the PDF draws, read in its own short transaction and ended before the
     render, Blob and Resend (each can take seconds). Never raises: the lead is already saved,
     and a failed read only costs the attachment."""

@@ -210,6 +210,7 @@ def _cancellation_out(row: BookingCancellation) -> AccountCancellation:
         reason=row.reason,
         requested_at=row.created_at,
         refund_note=row.refund_note,
+        refund_paise=row.refund_paise,
         resolved_at=row.resolved_at,
     )
 

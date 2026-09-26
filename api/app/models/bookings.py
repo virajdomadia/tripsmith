@@ -133,7 +133,8 @@ class BookingCancellation(IdMixin, CreatedMixin, Base):
         nullable=False,
         server_default=CancellationStatus.REQUESTED.value,
     )
-    refund_note: Mapped[str | None] = mapped_column(Text)
+    refund_note: Mapped[str | None] = mapped_column(Text)  # the owner's note to the customer
+    refund_paise: Mapped[int | None] = mapped_column(Integer)  # agreed on approval (B11)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     booking: Mapped[Booking] = relationship(back_populates="cancellation")

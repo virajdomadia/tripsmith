@@ -182,6 +182,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cancellations/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Route
+         * @description Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject
+         *     (the booking stands). The customer is emailed either way. 409 `resolved` when already
+         *     answered, `not_active` when approving a booking that no longer holds its seats.
+         */
+        post: operations["resolveCancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dashboard": {
         parameters: {
             query?: never;
@@ -330,6 +352,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/enquiries/{id}/messages/{message_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Route
+         * @description Sends a failed reply again, as written. 409 `sent` when it already went.
+         */
+        post: operations["resendEnquiryReply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/enquiries/{id}/notes": {
         parameters: {
             query?: never;
@@ -344,6 +386,27 @@ export interface paths {
          * @description 201 with the whole enquiry, not just the note: the client renders the fresh timeline.
          */
         post: operations["addEnquiryNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/enquiries/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply Route
+         * @description Emails the enquirer and logs the try in the thread. 201 even when the send failed: the
+         *     reply is recorded, marked not sent with the reason, and can be sent again.
+         */
+        post: operations["replyToEnquiry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -986,6 +1049,11 @@ export interface components {
             /** Refundnote */
             refundNote?: string | null;
             /**
+             * Refundpaise
+             * @description Agreed on approval
+             */
+            refundPaise?: number | null;
+            /**
              * Requestedat
              * Format: date-time
              */
@@ -1039,7 +1107,7 @@ export interface components {
              */
             canRelease: boolean;
             cancelReason: components["schemas"]["CancelReason"] | null;
-            cancellation: components["schemas"]["AccountCancellation"] | null;
+            cancellation: components["schemas"]["AdminCancellation"] | null;
             /**
              * Departs
              * Format: date
@@ -1097,6 +1165,52 @@ export interface components {
              * @description In the order they were entered
              */
             travellers: components["schemas"]["AccountTraveller"][];
+        };
+        /**
+         * AdminCancellation
+         * @description The request as the owner decides it (B11): the policy tier is read at the day the
+         *     customer asked, and the refund it implies is only a suggestion — the owner can change it.
+         */
+        AdminCancellation: {
+            /**
+             * Canapprove
+             * @description Requested, and the booking still holds its seats
+             */
+            canApprove: boolean;
+            /**
+             * Daysout
+             * @description Days before departure when the customer asked
+             */
+            daysOut: number;
+            /** Id */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Refundnote */
+            refundNote?: string | null;
+            /**
+             * Refundpaise
+             * @description Agreed on approval
+             */
+            refundPaise?: number | null;
+            /**
+             * Requestedat
+             * Format: date-time
+             */
+            requestedAt: string;
+            /** Resolvedat */
+            resolvedAt?: string | null;
+            status: components["schemas"]["CancellationStatus"];
+            /**
+             * Suggestedrefundpaise
+             * @description The tier applied to what was paid
+             */
+            suggestedRefundPaise: number;
+            /**
+             * Tier
+             * @description What the policy refunds at `days_out`
+             */
+            tier: string;
         };
         /**
          * AdminDeparture
@@ -1211,6 +1325,11 @@ export interface components {
             id: string;
             /** Message */
             message: string | null;
+            /**
+             * Messages
+             * @description Replies sent from the inbox, in order
+             */
+            messages: components["schemas"]["EnquiryMessageOut"][];
             /** Name */
             name: string;
             /** Notes */
@@ -1401,6 +1520,11 @@ export interface components {
              * @description What the owner typed when marking it paid
              */
             reference: string | null;
+            /**
+             * Refundedpaise
+             * @description How much of it was given back, once refunded
+             */
+            refundedPaise?: number | null;
             status: components["schemas"]["PaymentStatus"];
             /**
              * Updatedat
@@ -2012,6 +2136,31 @@ export interface components {
             /** Totalpages */
             totalPages: number;
         };
+        /**
+         * EnquiryMessageOut
+         * @description One reply in the thread (R23). `sent` is false when Resend refused it or was unreachable;
+         *     `error` then says why, and the owner can send it again.
+         */
+        EnquiryMessageOut: {
+            /** @description The package whose itinerary PDF went with it */
+            attachment: components["schemas"]["PackageRef"] | null;
+            /** Body */
+            body: string;
+            /** Error */
+            error: string | null;
+            /** Id */
+            id: string;
+            /** Sent */
+            sent: boolean;
+            /**
+             * Sentat
+             * Format: date-time
+             * @description When it went, or when the failed try was made
+             */
+            sentAt: string;
+            /** Subject */
+            subject: string;
+        };
         /** EnquiryNoteInput */
         EnquiryNoteInput: {
             /** Body */
@@ -2047,6 +2196,21 @@ export interface components {
             /** Startingpricepaise */
             startingPricePaise: number;
             status: components["schemas"]["PackageStatus"];
+        };
+        /**
+         * EnquiryReplyInput
+         * @description `POST /admin/enquiries/{id}/reply` (R23): plain text, sent to the enquiry's email.
+         */
+        EnquiryReplyInput: {
+            /** Body */
+            body: string;
+            /**
+             * Packageslug
+             * @description Attach this live package's itinerary PDF
+             */
+            packageSlug?: string | null;
+            /** Subject */
+            subject: string;
         };
         /**
          * EnquiryRow
@@ -2746,6 +2910,26 @@ export interface components {
             status: components["schemas"]["EnquiryStatus"];
         };
         /**
+         * ResolveCancellationInput
+         * @description `POST /admin/cancellations/{id}/resolve` (R19, B11). The note goes to the customer — in
+         *     the email and on their booking page — so it is required either way. `refundPaise` is required
+         *     to approve (0 when the policy refunds nothing) and must be left out to reject.
+         */
+        ResolveCancellationInput: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Note */
+            note: string;
+            /**
+             * Refundpaise
+             * @description Approve only; at most what was paid
+             */
+            refundPaise?: number | null;
+        };
+        /**
          * SearchFacets
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
          */
@@ -2875,7 +3059,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "booked" | "order" | "captured" | "failed" | "refunded" | "offline" | "lapsed" | "cancelled" | "completed" | "cancellation";
+            kind: "booked" | "order" | "captured" | "failed" | "refunded" | "offline" | "lapsed" | "cancelled" | "completed" | "cancellation" | "resolved";
             /** Text */
             text: string;
         };
@@ -3292,6 +3476,41 @@ export interface operations {
             };
         };
     };
+    resolveCancellation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveCancellationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getDashboard: {
         parameters: {
             query?: never;
@@ -3655,6 +3874,38 @@ export interface operations {
             };
         };
     };
+    resendEnquiryReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     addEnquiryNote: {
         parameters: {
             query?: never;
@@ -3667,6 +3918,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EnquiryNoteInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    replyToEnquiry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnquiryReplyInput"];
             };
         };
         responses: {

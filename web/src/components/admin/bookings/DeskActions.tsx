@@ -33,9 +33,18 @@ type Action = 'mark-paid' | 'release' | 'refund-made';
 export function DeskActions({ booking }: { booking: AdminBooking }) {
   const { ref, canMarkPaid, canRelease, refundNeeded } = booking;
   if (!canMarkPaid && !canRelease && !refundNeeded) {
-    return <p className="text-sm text-mute">Nothing to do here.</p>;
+    return (
+      <p className="text-sm text-mute">
+        {booking.cancellation?.status === 'requested'
+          ? 'Answer the cancellation request below.'
+          : 'Nothing to do here.'}
+      </p>
+    );
   }
   const owed = booking.totalPaise - booking.paidPaise;
+  // B11: an approved cancellation gives back what was agreed then, not everything paid.
+  const agreed =
+    booking.cancelReason === 'cancellation_approved' ? booking.cancellation?.refundPaise : null;
   return (
     <div className="grid gap-2">
       {canMarkPaid && (
@@ -86,10 +95,16 @@ export function DeskActions({ booking }: { booking: AdminBooking }) {
           fieldHint="Razorpay refund id…"
           trigger="Refund made"
           variant="outline"
-          title={`Record the refund on ${ref}`}
+          title={
+            agreed ? `Record the ${inr(agreed)} refund on ${ref}` : `Record the refund on ${ref}`
+          }
           confirm="Record refund"
           done="Refund recorded"
-          description="Refund the money by hand in the Razorpay dashboard first. This only records it here: the payment is marked refunded and the red flag clears. No email is sent."
+          description={
+            agreed
+              ? `Refund ${inr(agreed)} — the amount agreed when you approved the cancellation — by hand in the Razorpay dashboard first. This only records it here: the paid amount drops by ${inr(agreed)} and the red flag clears. No email is sent.`
+              : 'Refund the money by hand in the Razorpay dashboard first. This only records it here: the payment is marked refunded and the red flag clears. No email is sent.'
+          }
         />
       )}
     </div>

@@ -11,7 +11,7 @@ import {
   istDay,
   refundTierIndex,
 } from '@/lib/account';
-import { formatDate } from '@/lib/format';
+import { formatDate, inr } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 
 const MIN = 10;
@@ -113,6 +113,18 @@ function Asked({ c }: { c: AccountCancellation }) {
       <b className="text-ink">
         {approved ? 'Cancelled at your request.' : 'We couldn’t cancel this booking.'}
       </b>
+      {approved && c.refundPaise != null && (
+        <p>
+          {c.refundPaise > 0 ? (
+            <>
+              Refund: <b className="num text-ink">{inr(c.refundPaise)}</b> — to the way you paid,
+              usually within 5–7 working days.
+            </>
+          ) : (
+            'No refund under the policy at this stage.'
+          )}
+        </p>
+      )}
       {c.refundNote && <p className="whitespace-pre-line">{c.refundNote}</p>}
       {c.resolvedAt && (
         <p className="text-[13px] text-mute">Decided {formatDate(istDay(c.resolvedAt))}</p>
