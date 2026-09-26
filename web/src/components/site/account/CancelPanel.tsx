@@ -128,7 +128,8 @@ function AskForm({ bookingRef }: { bookingRef: string }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const length = reason.trim().length;
+  // Code points, as the api counts them — `.length` counts an emoji as two.
+  const length = [...reason.trim()].length;
 
   if (!open)
     return (

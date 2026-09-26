@@ -109,6 +109,9 @@ export type SignInError = { message: string; reason?: string | null; retryAfter?
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: SignInError };
 
+/** The api's envelope message for a schema 400 (api/app/errors.py). */
+const GENERIC_400 = 'Request validation failed';
+
 async function postJson<T>(path: string, body: unknown): Promise<Result<T>> {
   let res: Response;
   try {
@@ -121,13 +124,21 @@ async function postJson<T>(path: string, body: unknown): Promise<Result<T>> {
     return { ok: false, error: { message: 'Could not reach the server — check your connection' } };
   }
   const json = (await res.json().catch(() => undefined)) as
-    { error?: { message?: string; reason?: string | null } } | undefined;
+    | { error?: { message?: string; reason?: string | null; fieldErrors?: Record<string, string> } }
+    | undefined;
   if (res.ok) return { ok: true, data: json as T };
   const retry = Number(res.headers.get('retry-after'));
   return {
     ok: false,
     error: {
-      message: json?.error?.message ?? 'Something went wrong — try again',
+      // A schema 400's useful words are in its field errors ("Write the reason without special
+      // characters"); a handled error ("That code isn't right — 4 tries left") says it on top.
+      message:
+        (json?.error?.message === GENERIC_400
+          ? Object.values(json?.error?.fieldErrors ?? {})[0]
+          : undefined) ??
+        json?.error?.message ??
+        'Something went wrong — try again',
       reason: json?.error?.reason,
       retryAfter: Number.isFinite(retry) && retry > 0 ? retry : undefined,
     },
