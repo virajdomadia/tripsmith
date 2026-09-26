@@ -177,7 +177,9 @@ describe('package page reviews', () => {
 
     await user.click(screen.getByRole('button', { name: /Show more reviews/ }));
     expect(await screen.findByText(/Review 7 —/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith('/api/packages/manali-kasol-tosh/reviews?page=2');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/packages/manali-kasol-tosh/reviews?page=2&fresh=1',
+    );
     expect(screen.queryByRole('button', { name: /Show more reviews/ })).toBeNull();
   });
 

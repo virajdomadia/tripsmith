@@ -6,7 +6,9 @@ import { ReviewCard } from './ReviewCard';
 
 /**
  * "Show more reviews": page 1 came with the package; each click reads the next six from
- * `GET /packages/{slug}/reviews` through the `/api` rewrite (a cached public read).
+ * `GET /packages/{slug}/reviews` through the `/api` rewrite. `fresh=1` skips the api's edge cache
+ * (60 s + 300 s stale), which moderation does not revalidate — a hidden review must not linger on
+ * page 2 after it has left page 1. Clicks are rare and the query is one indexed page.
  */
 export function MoreReviews({ slug, total }: { slug: string; total: number }) {
   const [items, setItems] = useState<PublicReview[]>([]);
@@ -20,7 +22,9 @@ export function MoreReviews({ slug, total }: { slug: string; total: number }) {
     setBusy(true);
     setError(false);
     try {
-      const res = await fetch(`/api/packages/${encodeURIComponent(slug)}/reviews?page=${page + 1}`);
+      const res = await fetch(
+        `/api/packages/${encodeURIComponent(slug)}/reviews?page=${page + 1}&fresh=1`,
+      );
       if (!res.ok) throw new Error(String(res.status));
       const next = (await res.json()) as PublicReviewPage;
       setItems((have) => [...have, ...next.items.filter((r) => !have.some((h) => h.id === r.id))]);
