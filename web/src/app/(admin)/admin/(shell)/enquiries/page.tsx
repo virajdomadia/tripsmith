@@ -5,7 +5,13 @@ import { InboxFilters } from '@/components/admin/enquiries/InboxFilters';
 import { Pager } from '@/components/admin/enquiries/Pager';
 import { buttonVariants } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
-import { clampPageHref, csvHref, parseFilters, toQuery } from '@/lib/admin/enquiry-filters';
+import {
+  clampPageHref,
+  csvHref,
+  filterHref,
+  parseFilters,
+  toQuery,
+} from '@/lib/admin/enquiry-filters';
 import { api } from '@/lib/api';
 
 export const metadata = { title: 'Enquiries' };
@@ -52,7 +58,7 @@ export default async function EnquiriesPage({
       />
       <EnquiriesTable items={inbox.items} />
       <Pager
-        filters={filters}
+        href={(page) => filterHref(filters, { page })}
         page={inbox.page}
         totalPages={inbox.totalPages}
         total={inbox.total}

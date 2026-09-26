@@ -1,4 +1,4 @@
-import { Eye, Inbox, LayoutGrid, LogOut, MapPin, Package } from 'lucide-react';
+import { Eye, Inbox, LayoutGrid, LogOut, MapPin, Package, Ticket } from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/site/BrandMark';
 import type { SessionInfo } from '@/lib/auth/session';
@@ -8,6 +8,7 @@ export const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutGrid, exact: true },
   { href: '/admin/packages', label: 'Packages', icon: Package },
   { href: '/admin/destinations', label: 'Destinations', icon: MapPin },
+  { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
 ] as const;
 
@@ -21,7 +22,13 @@ const initials = (name: string) =>
 
 /** Mockup `.adm .sb`: ink background, cobalt active item, marigold count, owner card, sign out. */
 export function Sidebar({ session }: { session: SessionInfo }) {
-  const { user, newEnquiries } = session;
+  const { user, newEnquiries, bookingsAttention } = session;
+  // Owner-only counts from `GET /auth/session`: new enquiries, and bookings with a refund to
+  // record or a cancellation to answer (B10).
+  const counts: Record<string, number | undefined> = {
+    '/admin/enquiries': newEnquiries ?? undefined,
+    '/admin/bookings': bookingsAttention ?? undefined,
+  };
   return (
     <aside className="focus-ring-light flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
       <Link
@@ -37,7 +44,7 @@ export function Sidebar({ session }: { session: SessionInfo }) {
             key={href}
             href={href}
             exact={'exact' in rest ? rest.exact : false}
-            count={href === '/admin/enquiries' ? (newEnquiries ?? undefined) : undefined}
+            count={counts[href]}
           >
             <Icon className="size-4" aria-hidden />
             {label}
