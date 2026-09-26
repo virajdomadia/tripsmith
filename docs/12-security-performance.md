@@ -2,7 +2,7 @@
 
 **Lifecycle step:** 12 of 17 · **Milestone:** 1.4 Harden · **Started:** 2026-09-23 (H2 performance)
 
-Two rows live here: **H2 Performance** first, then **H4 Security**.
+Three rows live here: **H2 Performance**, **H4 Security**, and the v2 close **B14** (security + one PageSpeed Insights run).
 
 ---
 
@@ -396,7 +396,7 @@ Revisit if v2 adds user-generated content, where the calculus flips.
 - **Blob objects are not deleted with their rows.** Deleting a package or a photo leaves the
   object at its URL, unreferenced but readable by anyone holding it. Deliberate at portfolio scale
   (v2 add-on).
-- **Sessions are never pruned.** Expired rows are deleted when they are next presented, so a
+- ~~**Sessions are never pruned.**~~ Closed in v2 (B8): `/cron/daily` deletes expired sessions. Expired rows are deleted when they are next presented, so a
   session that is never used again sits in the table until its row is touched. It cannot
   authenticate — `find_session` checks `expires_at` — so this is table hygiene, not access.
 - **The PDF URL absorbs random query strings one invocation at a time** (v1.0.1). `?anything` is
@@ -460,3 +460,102 @@ than passing quietly).
   caught in review because the page was not in the first verification set — the reason the set is
   now every page rather than three of them.
 - HSTS confirmed on production for both origins before deciding not to duplicate it.
+
+---
+
+## B14 — v2 close: security + performance
+
+**Method.** I read the v2 surface (B1–B15: quote and hold, Razorpay orders, confirm and sync, the
+webhook, vouchers, customer accounts, My trips, cancellations, the bookings desk, refunds, enquiry
+replies, deals, reviews, coupons) against the R25 checklist below. Then I re-checked the headers
+in a headless browser against **every page of the production deployment**. The v1 items above
+were not re-audited. Two low-severity findings were fixed in their own PR (#78) before this
+write-up. A third is recorded as a precondition. The one PageSpeed Insights run missed the bar at 84, so #79 fixed it before sign-off.
+
+### The checklist (R25)
+
+|                                 | Verdict                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Raw-body webhook verification   | **Clean**                         | `routers/site/webhooks.py` reads the body as bytes and checks `X-Razorpay-Signature` (HMAC-SHA256 under `RAZORPAY_WEBHOOK_SECRET`, `compare_digest`). It does this before parsing JSON and before a database session exists. No secret → 503. Unknown orders → 200, ignored. A replay on a settled payment id records nothing and sends nothing (`test_booking_webhook.py`: 5 replays → 1 payment, 1 email).                                                                                                                                                                        |
+| No amounts from the client      | **Clean**                         | No request schema carries an amount. The quote, the hold, the order and the coupon line are computed on the server. The Razorpay order is built from the server quote. An amount in the body is ignored (`test_booking_orders.py`). Capture applies the payment row's own amount, not the event's. Mark-paid takes a reference only, and a refund is capped at what was paid.                                                                                                                                                                                                       |
+| Customer routes check ownership | **Clean**                         | `services/account.owned_by`: the booking is mine if its `user_id` is mine, or if it is unattached and its `contact_email` is my verified email. My trips, the booking page, cancellation requests, reviews and the account voucher all use it. The signed voucher link is an HMAC over `voucher:{ref}:{exp}` under `SESSION_SECRET`: the ref is bound and the expiry checked. The link is issued only after a signed confirm, or a sync that carries the booking's order id. The journey test checks voucher 200 for the owner and 403 for anyone else (`test_booking_voucher.py`). |
+| Admin routes                    | **Clean**                         | Every admin router, including v2's bookings, coupons, reviews, enquiry replies and the manifest, declares `require_owner` at router level. A customer session gets 403 from the api and a 303 to `/account` from the web.                                                                                                                                                                                                                                                                                                                                                           |
+| Rate limits                     | **Clean after #78**               | Booking starts: `booking:{ip}` 5 / 10 min. Code requests: 5 / 15 min per email and 20 / 15 min per IP. 5 tries per code. The try counter is in the database, so it still holds if Upstash fails open. All three limits reach the api through web route handlers that forward the visitor's address. **#78 added** `sync:{ref}` 20 / 10 min, plus the 429 tests for booking starts and sync.                                                                                                                                                                                         |
+| CSP allows Razorpay, every page | **Clean, verified on production** | 57 URLs on `tripsmith.vercel.app`, loaded in headless Chromium with a `securitypolicyviolation` listener: the sitemap's 28 pages, a package page with the Book-now sheet open (`#book`), `/account/sign-in`, `/enquiry/thanks`, the 404 page, 24 admin screens signed in as the demo owner, and My trips plus two booking pages signed in as the demo traveller. **Zero violations.** The only report is zod's `new Function("")` probe. The policy refuses it by design and zod falls back without it.                                                                             |
+| Input validation and escaping   | **Clean**                         | Coupon, review, cancellation, refund and reply bodies are pydantic models with length, enum and control-character checks. Email templates autoescape. Review text is rendered by React. The only `dangerouslySetInnerHTML` is JSON-LD, which escapes `<`; that now includes the review data in `AggregateRating`.                                                                                                                                                                                                                                                                   |
+| Sign-in codes and sessions      | **Clean**                         | Codes are 6 digits from `secrets`, stored as an HMAC under `SESSION_SECRET`, and live 10 minutes. Only the newest code per email works. The customer session cookie is HttpOnly, SameSite=Lax and Secure. Sign-out deletes the session row. Owner addresses cannot use the code flow.                                                                                                                                                                                                                                                                                               |
+| Secrets                         | **Clean**                         | `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` are `SecretStr` and masked out of Sentry events. The key id is public by design. No new `NEXT_PUBLIC_*` secret.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+### Fixed in #78
+
+- **The quote told anyone whether an address had a paid booking.** `POST /bookings/quote` has no
+  rate limit and answered `coupon_used_by_email`. So a public code (WELCOME10) plus any address
+  worked as an enumeration oracle. "Already used by this email" is now answered only when Pay
+  starts the hold, which is rate-limited. The sheet already showed that refusal there. The quote
+  keeps the email for one job only: leaving the visitor's own live hold out of the use count.
+- **Sync had no limit.** Each sync of a pending booking is a Razorpay API call under the merchant
+  key, so looping sync on your own hold could use up the account's API quota. It is now limited
+  to 20 per 10 min per booking.
+
+### Accepted risks added in v2
+
+- **Razorpay auto-capture must stay on.** `/confirm` treats a signed Checkout callback as
+  captured. Razorpay's signature proves authorisation, not capture. With auto-capture on (the
+  account default, and what every production test payment did), the two happen together. If
+  auto-capture is ever switched off, a booking would confirm on an authorised payment that
+  Razorpay later auto-refunds. The webhook's `payment.captured` stays the source of truth, and
+  sync already captures an `authorized` payment.
+- **Demo mode lets anyone sign in as any customer email.** While `EMAIL_FROM` is `@resend.dev`,
+  the sign-in code is shown on screen, because Resend's test sender can only reach the owner. So
+  anyone can open any customer's trips and request a cancellation. This is the same trade as the
+  public owner login. The demo notices at checkout and sign-in say so, and the risk goes away
+  once a verified sending domain is set.
+- **One email can use a coupon twice** by paying two orders (a released hold's order and a new
+  one). This is documented in `services/booking/coupons.py`. It costs one extra discount.
+- **A narrower coupon oracle remains in the quote.** When a limited coupon's last use is held, a
+  quote carrying the holder's email gets a price, while any other address is told
+  `coupon_used_up`. This needs a coupon at its exact limit and lasts one 10-minute hold. Closing
+  it would make the holder's own re-quote refuse their code.
+- **Holding with someone else's email or phone releases their live hold.** R15 allows one live
+  hold per email and per phone. A late payment on the released hold still confirms if seats are
+  free.
+- **Live holds reserve coupon uses**, so someone rotating addresses can tie up a limited coupon
+  10 minutes at a time.
+- **Bookings made before migration 0006 list travellers in id order**, not the order entered.
+- The v1.0.1 residuals above still stand: a new random query string on the PDF URL costs one
+  cheap invocation, the thanks page carries the first name in `?name=`, and the enquiry draft
+  cookie is `Path=/`.
+
+### Performance: one PageSpeed Insights run (R25)
+
+The run was on [pagespeed.web.dev](https://pagespeed.web.dev/), mobile (emulated Moto G Power, Slow 4G, Lighthouse 13), on production,
+against `/packages/kasol-weekend-camp#book`. `#book` opens the Book-now sheet on arrival, and
+the report's final frame shows it open. There was no local Lighthouse run, for the reasons in H2. Both runs were
+done by hand by Viraj. The first missed the bar, so the fix came before sign-off.
+
+|                                     | Performance | FCP   | LCP   | TBT    | CLS | Speed Index |
+| ----------------------------------- | ----------- | ----- | ----- | ------ | --- | ----------- |
+| 2026-09-26 23:41 IST, before #79    | 84          | 0.9 s | 4.2 s | 30 ms  | 0   | 4.3 s       |
+| **2026-09-27 00:09 IST, after #79** | **94**      | 1.2 s | 3.0 s | 100 ms | 0   | 2.4 s       |
+
+Accessibility 100, Best Practices 96, SEO 100 on both runs.
+
+**What was wrong.** The LCP element was the package's hero photo, not the sheet. Lighthouse's
+breakdown put 77 % of LCP in _render delay_: the photo itself arrived in about 1 s (TTFB 0.6 s,
+load 0.3 s). `#book` opened the sheet on hydration, and that fetched its five lazy chunks
+(~135 kB, 112 kB of it unused at load) inside the LCP window. Lighthouse's simulation charges
+everything requested before the LCP to the LCP. Same-host Lighthouse runs, compared only by their
+LCP phases and never reported as scores, agreed: the plain page's LCP was ~0.85 s shorter than
+`#book`'s, twice in a row.
+
+**The fix (#79).** `afterLoad()` opens the sheet from `#book` after `load` plus an idle
+callback (1.5 s cap), so the hero paints before the sheet's code competes for the connection.
+A `touched` ref stops a late auto-open from reopening a sheet the visitor already closed. Real
+visitors benefit too: on a slow phone the photo now arrives before the booking code, not
+alongside it.
+
+**Left as it is.** TBT rose from 30 to 100 ms. The sheet's hydration now lands after `load`, where
+TBT counts it, instead of before FCP. That is well inside the budget. PSI still lists "improve
+image delivery" (it suggests stronger compression on the hero). Re-encoding the photo as AVIF
+was measured: at comparable quality it was no smaller for this photo, so the image path is
+unchanged. The ~14 kB of legacy polyfills are Next's own, as in H2.
