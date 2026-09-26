@@ -65,8 +65,9 @@ export function TripRow({ booking: b, index }: { booking: AccountBooking; index:
         </p>
         {b.hasVoucher && (
           <a
+            // No `download`: a failure redirects to sign-in or My trips, which must render as a
+            // page; a good answer is already `Content-Disposition: attachment`.
             href={voucherHref(b.ref)}
-            download
             className="inline-flex items-center justify-center gap-2 rounded-btn bg-primary px-4 py-2.5 text-sm font-bold text-white no-underline transition-colors hover:bg-primary-ink"
           >
             <FileDown className="size-4" aria-hidden /> Voucher (PDF)
