@@ -100,7 +100,11 @@ async def check(
     lock: bool,
 ) -> Coupon:
     """The coupon when `code` may be used on `quote` (built without it), else a 409 with the
-    reason. `lock` at hold time only: the row lock is what makes the last use go to one hold."""
+    reason. `lock` at hold time only: the row lock is what makes the last use go to one hold.
+
+    "Already used by this email" is checked at hold time only (`lock`), which is rate-limited: the
+    quote is not, and answering it there would tell anyone whether an address has a paid booking.
+    The quote still uses `email` to leave the visitor's own live hold out of the use count."""
     coupon = await load(db, code, lock=lock)
     if coupon is None or not coupon.active:
         raise refused(CouponReason.UNKNOWN)
@@ -124,7 +128,7 @@ async def check(
         taken = await uses_of(db, code) + await live_holds_of(db, code, except_email=email)
         if taken >= coupon.use_limit:
             raise refused(CouponReason.USED_UP)
-    if email:
+    if email and lock:
         used = (
             await db.execute(
                 select(func.count())
