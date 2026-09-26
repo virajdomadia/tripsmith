@@ -19,7 +19,12 @@ export function isSameOriginPost(request: Request): boolean {
   return site === null || site === 'same-origin' || site === 'none';
 }
 
-export type AuthPath = '/auth/login' | '/auth/logout' | '/auth/otp/request' | '/auth/otp/verify';
+export type AuthPath =
+  | '/auth/login'
+  | '/auth/logout'
+  | '/auth/otp/request'
+  | '/auth/otp/verify'
+  | `/account/bookings/${string}/cancellation`;
 
 export async function forwardAuth(
   path: AuthPath,

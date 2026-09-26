@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Container } from '@/components/site/Container';
 import { TripRow } from '@/components/site/account/TripRow';
+import { groupTrips, type Tab, TABS } from '@/lib/account';
 import { api, ApiRequestError } from '@/lib/api';
-import { ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
+import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -20,10 +21,16 @@ const VOUCHER_NOTICE: Record<string, string> = {
   unavailable: 'We couldn’t fetch the voucher just now — try again in a moment.',
 };
 
+const EMPTY: Record<Tab, string> = {
+  upcoming: 'No trips coming up.',
+  past: 'No past trips yet.',
+  cancelled: 'Nothing cancelled.',
+};
+
 /**
- * My trips (R18). B8: who is signed in, sign out, and every booking made with this email —
- * attached when they verified it, or made since while signed out. B9 adds the grouping,
- * a detail page and cancellation requests.
+ * My trips (R18, B0 mockup "My trips"): who is signed in, sign out, and every booking made with
+ * this email in three tabs — plain links (`?tab=`), so they work without JavaScript. With no
+ * tab asked for, the first one that has something in it opens.
  */
 export default async function AccountPage({ searchParams }: { searchParams: Promise<Search> }) {
   let trips;
@@ -36,10 +43,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const voucher = typeof sp.voucher === 'string' ? VOUCHER_NOTICE[sp.voucher] : undefined;
   const first = trips.name.split(' ')[0];
+  const groups = groupTrips(trips.bookings, trips.today);
+  const asked = TABS.find((t) => t.id === sp.tab)?.id;
+  const tab: Tab = asked ?? TABS.find((t) => groups[t.id].length > 0)?.id ?? 'upcoming';
+  const rows = groups[tab];
 
   return (
-    <Container className="max-w-[860px] pt-8 pb-16 sm:pt-12">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
+    <Container className="max-w-[900px] pt-8 pb-16 sm:pt-12">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="label-caps text-mute">My trips</p>
           <h1 className="mt-1 text-[clamp(30px,4vw,42px)]">Hello, {first}.</h1>
@@ -82,11 +93,42 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </Link>
         </section>
       ) : (
-        <ol className="mt-8 grid gap-4" aria-label="Your bookings, newest first">
-          {trips.bookings.map((b, i) => (
-            <TripRow key={b.ref} booking={b} index={i} />
-          ))}
-        </ol>
+        <>
+          <nav
+            aria-label="Trips by status"
+            className="mt-8 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]"
+          >
+            {TABS.map((t) => {
+              const on = t.id === tab;
+              return (
+                <Link
+                  key={t.id}
+                  href={`${ACCOUNT_PATH}?tab=${t.id}`}
+                  aria-current={on ? 'page' : undefined}
+                  scroll={false}
+                  className={`-mb-px border-b-[2.5px] px-3.5 py-2.5 text-[15px] font-bold whitespace-nowrap no-underline transition-colors ${
+                    on ? 'border-primary text-ink' : 'border-transparent text-mute hover:text-ink'
+                  }`}
+                >
+                  {t.label}{' '}
+                  <span className="num font-semibold text-mute">· {groups[t.id].length}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          {rows.length === 0 ? (
+            <p className="mt-8 text-ink2">{EMPTY[tab]}</p>
+          ) : (
+            <ol
+              className="mt-6 grid gap-4"
+              aria-label={`${TABS.find((t) => t.id === tab)?.label} trips`}
+            >
+              {rows.map((b, i) => (
+                <TripRow key={b.ref} booking={b} today={trips.today} index={i} />
+              ))}
+            </ol>
+          )}
+        </>
       )}
 
       <p className="mt-10 rounded-btn border border-line bg-bg2 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink2">

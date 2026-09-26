@@ -145,6 +145,19 @@ async def send_booking_emails(
         log.exception("Could not render booking emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
+    await deliver(sender, settings, labelled, ref=facts.ref, what="booking")
+
+
+async def deliver(
+    sender: EmailSender,
+    settings: Settings,
+    labelled: list[tuple[str, EmailMessage]],
+    *,
+    ref: str,
+    what: str,
+) -> None:
+    """Send `(role, message)` pairs: in demo mode the customer's copy is redirected to the
+    owner's inbox; a failed send is logged by role (never the address) and reported."""
     if is_test_mode(settings.email_from):
         redirected = []
         for role, m in labelled:
@@ -162,5 +175,5 @@ async def send_booking_emails(
     for (role, _), result in zip(labelled, results, strict=True):
         if isinstance(result, BaseException):
             # The role, never the address.
-            log.error("%s booking email failed for %s: %s", role, facts.ref, result)
+            log.error("%s %s email failed for %s: %s", role, what, ref, result)
             sentry_sdk.capture_exception(result)

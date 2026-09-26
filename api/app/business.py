@@ -21,3 +21,17 @@ def whatsapp_href(number: str, text: str | None = None) -> str:
     """`https://wa.me/<number>[?text=…]` — same encoding as the web's `whatsappHref`."""
     base = f"https://wa.me/{number}"
     return f"{base}?text={quote(text, safe='')}" if text else base
+
+
+# The cancellation schedule (mirror of CANCELLATION_SCHEDULE in web/src/lib/policies.ts —
+# change both): (fewest days before departure the tier starts at, what it refunds).
+CANCELLATION_TIERS: tuple[tuple[int, str], ...] = (
+    (30, "full refund, minus any non-refundable flight or train tickets we bought for you"),
+    (15, "50% of the package price is retained"),
+    (0, "no refund"),
+)
+
+
+def refund_tier(days_out: int) -> str:
+    """What the policy refunds for a cancellation asked `days_out` days before departure."""
+    return next(text for start, text in CANCELLATION_TIERS if max(days_out, 0) >= start)

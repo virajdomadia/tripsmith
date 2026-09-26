@@ -21,6 +21,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Booking */
+        get: operations["getMyBooking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/bookings/{ref}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Cancellation
+         * @description Records the request (the booking stays confirmed until the owner decides, B11), then
+         *     emails the owner the request and the customer an acknowledgement. A lost email never
+         *     undoes the request.
+         */
+        post: operations["requestCancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/voucher.pdf": {
         parameters: {
             query?: never;
@@ -688,6 +727,13 @@ export interface components {
              * Format: date-time
              */
             bookedAt: string;
+            /** @description Set once the customer has asked to cancel (B9) */
+            cancellation?: components["schemas"]["CancellationStatus"] | null;
+            /**
+             * Coverurl
+             * @description The package's cover photo
+             */
+            coverUrl?: string | null;
             /**
              * Departs
              * Format: date
@@ -720,6 +766,82 @@ export interface components {
             /** Travellers */
             travellers: number;
         };
+        /**
+         * AccountBookingDetail
+         * @description `GET /account/bookings/{ref}`: everything the customer's booking page shows.
+         */
+        AccountBookingDetail: {
+            /**
+             * Bookedat
+             * Format: date-time
+             */
+            bookedAt: string;
+            /**
+             * Canrequestcancellation
+             * @description Confirmed (or part paid), not yet departed, no request made
+             */
+            canRequestCancellation: boolean;
+            cancellation?: components["schemas"]["AccountCancellation"] | null;
+            /** Coverurl */
+            coverUrl?: string | null;
+            /** Days */
+            days: number;
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /** Departurecity */
+            departureCity: string;
+            /** Destination */
+            destination: string;
+            /** Hasvoucher */
+            hasVoucher: boolean;
+            /**
+             * Holdexpiresat
+             * Format: date-time
+             */
+            holdExpiresAt: string;
+            /** Leademail */
+            leadEmail: string;
+            /** Leadname */
+            leadName: string;
+            /** Leadphone */
+            leadPhone: string;
+            /** Nights */
+            nights: number;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Paidpaise */
+            paidPaise: number;
+            /**
+             * Payments
+             * @description Captured payments, oldest first
+             */
+            payments: components["schemas"]["AccountPayment"][];
+            /** @description The price as it was when the booking was made */
+            quote: components["schemas"]["Quote"];
+            /** Ref */
+            ref: string;
+            /**
+             * Returns
+             * Format: date
+             */
+            returns: string;
+            status: components["schemas"]["BookingStatus"];
+            /**
+             * Today
+             * Format: date
+             * @description The business day (IST), for the countdown and the tier
+             */
+            today: string;
+            /** Totalpaise */
+            totalPaise: number;
+            /** Travellers */
+            travellers: components["schemas"]["AccountTraveller"][];
+        };
         /** AccountBookings */
         AccountBookings: {
             /** Bookings */
@@ -728,6 +850,51 @@ export interface components {
             email: string;
             /** Name */
             name: string;
+            /**
+             * Today
+             * Format: date
+             * @description The business day (IST) the list was read on
+             */
+            today: string;
+        };
+        /** AccountCancellation */
+        AccountCancellation: {
+            /** Reason */
+            reason: string;
+            /** Refundnote */
+            refundNote?: string | null;
+            /**
+             * Requestedat
+             * Format: date-time
+             */
+            requestedAt: string;
+            /** Resolvedat */
+            resolvedAt?: string | null;
+            status: components["schemas"]["CancellationStatus"];
+        };
+        /** AccountPayment */
+        AccountPayment: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * Paidat
+             * Format: date-time
+             */
+            paidAt: string;
+            provider: components["schemas"]["PaymentProvider"];
+            /**
+             * Reference
+             * @description Razorpay's payment id; none for an offline one
+             */
+            reference: string | null;
+        };
+        /** AccountTraveller */
+        AccountTraveller: {
+            /** Age */
+            age: number;
+            /** Name */
+            name: string;
+            occupancy: components["schemas"]["Occupancy"];
         };
         /**
          * AdminDeparture
@@ -1117,6 +1284,16 @@ export interface components {
             name: string;
             occupancy: components["schemas"]["Occupancy"];
         };
+        /** CancellationRequest */
+        CancellationRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * CancellationStatus
+         * @enum {string}
+         */
+        CancellationStatus: "requested" | "approved" | "rejected";
         /** Dashboard */
         Dashboard: {
             /**
@@ -1958,6 +2135,11 @@ export interface components {
             razorpaySignature: string;
         };
         /**
+         * PaymentProvider
+         * @enum {string}
+         */
+        PaymentProvider: "razorpay" | "offline";
+        /**
          * PaymentResult
          * @description Where the booking stands once the payment is recorded. A late capture that found no
          *     seats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.
@@ -2288,6 +2470,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountBookings"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getMyBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountBookingDetail"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    requestCancellation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancellationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCancellation"];
                 };
             };
             /** @description Error envelope (06 C0) */
