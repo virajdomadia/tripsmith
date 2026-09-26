@@ -1,0 +1,14 @@
+We have your request, {{ b.first_name }}.
+
+You asked us to cancel {{ b.package_name }} on {{ departs }} (booking {{ b.ref }}). Nothing is cancelled yet — a person reads every request and replies within a day, 10 am – 8 pm.
+
+Asked {{ days_out }} day{{ '' if days_out == 1 else 's' }} before departure, our policy says: {{ tier }}. We confirm the exact amount in our reply.
+Cancellation & refunds policy: {{ policy_url }}
+
+Changed your mind, or rather move the date? WhatsApp us before we reply — one free date change is allowed up to 30 days out. {{ demo_note }}
+
+WhatsApp us: {{ whatsapp_url }}
+See it in My trips: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

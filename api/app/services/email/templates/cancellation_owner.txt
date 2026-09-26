@@ -1,0 +1,20 @@
+{{ heading }}
+Requested {{ requested_at }}
+
+Departs in {{ days_out }} day{{ '' if days_out == 1 else 's' }} — the policy tier today: {{ tier }}.
+Approve or reject it from the bookings desk, with a refund note.
+
+Their reason:
+{{ reason }}
+
+Trip:        {{ b.package_name }} · {{ duration }}
+             {{ package_url }}
+Departs:     {{ departs }}
+Lead:        {{ b.lead_name }} · {{ b.lead_phone }} · {{ b.lead_email }}
+Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
+
+Paid:        {{ paid }} of {{ total }}
+
+Reply to this email to write to {{ b.first_name }} directly.
+
+{{ business.legal_name }} · {{ business.phone_display }} · {{ site_url }}

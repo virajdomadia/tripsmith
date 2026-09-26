@@ -8,6 +8,29 @@
             "title": "Bookedat",
             "type": "string"
           },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancellationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once the customer has asked to cancel (B9)"
+          },
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's cover photo",
+            "title": "Coverurl"
+          },
           "departs": {
             "format": "date",
             "title": "Departs",
@@ -73,6 +96,164 @@
         "title": "AccountBooking",
         "type": "object"
       },
+      "AccountBookingDetail": {
+        "description": "`GET /account/bookings/{ref}`: everything the customer's booking page shows.",
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "title": "Bookedat",
+            "type": "string"
+          },
+          "canRequestCancellation": {
+            "description": "Confirmed (or part paid), not yet departed, no request made",
+            "title": "Canrequestcancellation",
+            "type": "boolean"
+          },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountCancellation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "hasVoucher": {
+            "title": "Hasvoucher",
+            "type": "boolean"
+          },
+          "holdExpiresAt": {
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "leadEmail": {
+            "title": "Leademail",
+            "type": "string"
+          },
+          "leadName": {
+            "title": "Leadname",
+            "type": "string"
+          },
+          "leadPhone": {
+            "title": "Leadphone",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "payments": {
+            "description": "Captured payments, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/AccountPayment"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote",
+            "description": "The price as it was when the booking was made"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "returns": {
+            "format": "date",
+            "title": "Returns",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "today": {
+            "description": "The business day (IST), for the countdown and the tier",
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/AccountTraveller"
+            },
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "holdExpiresAt",
+          "bookedAt",
+          "today",
+          "packageName",
+          "packageSlug",
+          "destination",
+          "nights",
+          "days",
+          "departureCity",
+          "departs",
+          "returns",
+          "travellers",
+          "quote",
+          "totalPaise",
+          "paidPaise",
+          "payments",
+          "leadName",
+          "leadPhone",
+          "leadEmail",
+          "hasVoucher",
+          "canRequestCancellation"
+        ],
+        "title": "AccountBookingDetail",
+        "type": "object"
+      },
       "AccountBookings": {
         "properties": {
           "bookings": {
@@ -89,14 +270,125 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "today": {
+            "description": "The business day (IST) the list was read on",
+            "format": "date",
+            "title": "Today",
+            "type": "string"
           }
         },
         "required": [
           "name",
           "email",
+          "today",
           "bookings"
         ],
         "title": "AccountBookings",
+        "type": "object"
+      },
+      "AccountCancellation": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "refundNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundnote"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CancellationStatus"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "requestedAt"
+        ],
+        "title": "AccountCancellation",
+        "type": "object"
+      },
+      "AccountPayment": {
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "paidAt": {
+            "format": "date-time",
+            "title": "Paidat",
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PaymentProvider"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Razorpay's payment id; none for an offline one",
+            "title": "Reference"
+          }
+        },
+        "required": [
+          "provider",
+          "reference",
+          "amountPaise",
+          "paidAt"
+        ],
+        "title": "AccountPayment",
+        "type": "object"
+      },
+      "AccountTraveller": {
+        "properties": {
+          "age": {
+            "title": "Age",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          }
+        },
+        "required": [
+          "name",
+          "age",
+          "occupancy"
+        ],
+        "title": "AccountTraveller",
         "type": "object"
       },
       "AdminDeparture": {
@@ -1006,6 +1298,30 @@
         ],
         "title": "BookingTraveller",
         "type": "object"
+      },
+      "CancellationRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CancellationRequest",
+        "type": "object"
+      },
+      "CancellationStatus": {
+        "enum": [
+          "requested",
+          "approved",
+          "rejected"
+        ],
+        "title": "CancellationStatus",
+        "type": "string"
       },
       "Dashboard": {
         "properties": {
@@ -2954,6 +3270,14 @@
         "title": "PaymentCallback",
         "type": "object"
       },
+      "PaymentProvider": {
+        "enum": [
+          "razorpay",
+          "offline"
+        ],
+        "title": "PaymentProvider",
+        "type": "string"
+      },
       "PaymentResult": {
         "description": "Where the booking stands once the payment is recorded. A late capture that found no\nseats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.",
         "properties": {
@@ -3676,6 +4000,109 @@
           }
         },
         "summary": "Get My Bookings",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}": {
+      "get": {
+        "operationId": "getMyBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountBookingDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get My Booking",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/cancellation": {
+      "post": {
+        "description": "Records the request (the booking stays confirmed until the owner decides, B11), then\nemails the owner the request and the customer an acknowledgement. A lost email never\nundoes the request.",
+        "operationId": "requestCancellation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancellationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCancellation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Cancellation",
         "tags": [
           "account"
         ]

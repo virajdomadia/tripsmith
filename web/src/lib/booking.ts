@@ -203,7 +203,7 @@ export function orderBody(
 
 /* ------------------------------------------------------------ breakdown */
 
-const OCCUPANCY_LABEL: Record<Occupancy, string> = {
+export const OCCUPANCY_LABEL: Record<Occupancy, string> = {
   double: 'Double sharing',
   triple: 'Triple sharing',
   single: 'Single room',
