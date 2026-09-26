@@ -3,6 +3,9 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReplyPanel } from '@/components/admin/enquiries/ReplyPanel';
+import type { components } from '@/lib/api-types';
+
+type Message = components['schemas']['EnquiryMessageOut'];
 
 const refresh = vi.fn();
 const adminRequest = vi.fn();
@@ -19,7 +22,7 @@ const packages = [
   { slug: 'kasol-trek', name: 'Kasol Trek' },
   { slug: 'north-goa-beaches', name: 'North Goa Beaches' },
 ];
-const sent = {
+const sent: Message = {
   id: 'm1',
   subject: 'Tripsmith · your enquiry TS-ABC123',
   body: 'Hi Priya,\n\nThe dates work.',
@@ -28,9 +31,15 @@ const sent = {
   error: null,
   attachment: { slug: 'north-goa-beaches', name: 'North Goa Beaches' },
 };
-const failed = { ...sent, id: 'm2', sent: false, error: 'Resend refused it', attachment: null };
+const failed: Message = {
+  ...sent,
+  id: 'm2',
+  sent: false,
+  error: 'Resend refused it',
+  attachment: null,
+};
 
-function panel(messages = [] as (typeof sent)[]) {
+function panel(messages: Message[] = []) {
   return render(
     <ReplyPanel
       id="enq_1"

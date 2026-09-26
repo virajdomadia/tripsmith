@@ -706,16 +706,34 @@ async def record_refund(db: AsyncSession, ref: str, note: str | None) -> AdminBo
                 )
             ).scalars()
         )
-        agreed = (
+        approval = (
             await db.execute(
-                select(BookingCancellation.refund_paise).where(
+                select(BookingCancellation.refund_paise, BookingCancellation.resolved_at).where(
                     BookingCancellation.booking_id == booking.id,
                     BookingCancellation.status == CancellationStatus.APPROVED,
                 )
             )
-        ).scalar_one_or_none()
-        if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
-            owed = min(agreed, booking.paid_paise)
+        ).one_or_none()
+        if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and approval is not None:
+            # The refund agreed on approval, until it is recorded once; plus, in full, any money
+            # captured after the approval (no seat stands behind it). Newest first, so a late
+            # payment is given back before the agreed part comes out of the older ones.
+            agreed, approved_at = approval
+            before = [p for p in captured if p.created_at <= approved_at]
+            late = sum(p.amount_paise for p in captured if p.created_at > approved_at)
+            agreed_done = (
+                await db.execute(
+                    select(func.count())
+                    .select_from(Payment)
+                    .where(
+                        Payment.booking_id == booking.id,
+                        Payment.status == PaymentStatus.REFUNDED,
+                        Payment.created_at <= approved_at,
+                    )
+                )
+            ).scalar_one() > 0
+            held = sum(p.amount_paise for p in before)
+            owed = late + (0 if agreed_done else min(agreed or 0, held))
         elif booking.status == BookingStatus.CANCELLED:
             owed = booking.paid_paise
         else:

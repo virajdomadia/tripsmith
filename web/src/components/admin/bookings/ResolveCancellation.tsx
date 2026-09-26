@@ -81,14 +81,14 @@ function ResolveDialog({
   const pathname = usePathname();
   const id = useId();
   const approve = decision === 'approve';
-  const suggested = String(Math.round(c.suggestedRefundPaise / 100));
+  // Whole rupees, rounded down: a pre-filled refund must never exceed what was paid.
+  const suggested = String(Math.floor(c.suggestedRefundPaise / 100));
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [rupees, setRupees] = useState(suggested);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
-  const paid = Math.floor(paidPaise / 100);
   const length = [...note.trim()].length;
 
   function check(): Record<string, string> {
@@ -98,7 +98,7 @@ function ResolveDialog({
       const n = Number(rupees);
       if (rupees.trim() === '' || !Number.isInteger(n) || n < 0)
         found.refundPaise = 'Whole rupees, ₹0 if nothing is refunded';
-      else if (n > paid) found.refundPaise = `At most ${inr(paidPaise)} — what was paid`;
+      else if (n * 100 > paidPaise) found.refundPaise = `At most ${inr(paidPaise)} — what was paid`;
     }
     return found;
   }

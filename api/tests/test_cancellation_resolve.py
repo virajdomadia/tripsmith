@@ -17,8 +17,8 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.business import suggested_refund_paise
-from app.models import Booking, Departure, User
-from app.models.enums import BookingStatus, UserRole
+from app.models import Booking, Departure, Payment, User
+from app.models.enums import BookingStatus, PaymentProvider, PaymentStatus, UserRole
 from app.schemas.admin_bookings import ResolveCancellationInput
 from app.services.analytics import ist_today
 from app.services.auth.sessions import open_session
@@ -333,3 +333,43 @@ def test_0007_adds_only_nullable_columns_old_inserts_still_work(
                 "truncate table bookings, enquiries, departures, packages, destinations cascade",
             )
         )
+
+
+@pytest.mark.db
+async def test_money_arriving_after_approval_is_refunded_in_full_not_the_agreed_amount_again(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    _, ref, owner, id = await asked(db, db_app, db_client, days_out=20)
+    b = await booking(db, ref)
+    paid, total = b.paid_paise, b.total_paise
+    half = paid - total // 2
+    await resolve(db_client, id, owner, decision="approve", note=NOTE, refundPaise=half)
+    done = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    assert done.json()["paidPaise"] == total // 2
+
+    # A second capture lands on the cancelled booking (settle_capture's not-pending path).
+    booking_id = b.id
+    await db.rollback()  # a fresh transaction: now() must be later than the approval
+    late = 5_000_00
+    db.add(
+        Payment(
+            booking_id=booking_id,
+            provider=PaymentProvider.RAZORPAY,
+            razorpay_order_id="order_Late0B11",
+            razorpay_payment_id="pay_Late0B11",
+            amount_paise=late,
+            status=PaymentStatus.CAPTURED,
+        )
+    )
+    await db.execute(
+        update(Booking)
+        .where(Booking.id == booking_id)
+        .values(paid_paise=Booking.paid_paise + late, refund_needed=True)
+    )
+    await db.commit()
+    again = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    assert again.status_code == 200, again.text
+    out = again.json()
+    assert (out["paidPaise"], out["refundNeeded"]) == (total // 2, False)
+    late_row = next(p for p in out["payments"] if p["paymentId"] == "pay_Late0B11")
+    assert (late_row["status"], late_row["refundedPaise"]) == ("refunded", late)

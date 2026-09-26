@@ -203,3 +203,26 @@ async def test_reply_routes_are_owner_only(db: AsyncSession, db_client: AsyncCli
     assert res.status_code == 401
     owner = await owner_cookie(db)
     assert (await reply(db_client, "missing", owner)).status_code == 404
+
+
+@pytest.mark.db
+async def test_send_again_goes_without_a_pdf_that_can_no_longer_be_made(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    id = await enquiry(db, db_app, db_client)
+    owner = await owner_cookie(db)
+    mailing(db_app, FakeSender(fail_for=frozenset({VISITOR})))
+    with_pdf(db_app, FakeBlobStore())
+    out = (await reply(db_client, id, owner, packageSlug="north-goa-beaches")).json()
+    [m] = out["messages"]
+    assert m["sent"] is False and m["attachment"]["slug"] == "north-goa-beaches"
+    await db.execute(
+        update(Package).where(Package.slug == "north-goa-beaches").values(status="draft")
+    )
+    await db.commit()
+    sender = mailing(db_app, FakeSender())
+    res = await db_client.post(f"/admin/enquiries/{id}/messages/{m['id']}/resend", headers=owner)
+    assert res.status_code == 200, res.text
+    [again] = res.json()["messages"]
+    assert (again["sent"], again["attachment"]) == (True, None)
+    assert sender.sent[0].attachments == ()

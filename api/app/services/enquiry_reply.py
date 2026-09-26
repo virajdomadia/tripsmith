@@ -205,7 +205,7 @@ async def resend_reply(
     already went. The row keeps its id; `sent_at` becomes this try's time."""
     found = (
         await db.execute(
-            select(EnquiryMessage, Package.slug, Package.name)
+            select(EnquiryMessage, Package.slug, Package.name, Package.status)
             .outerjoin(Package, Package.id == EnquiryMessage.package_id)
             .where(EnquiryMessage.id == message_id, EnquiryMessage.enquiry_id == id)
         )
@@ -213,14 +213,16 @@ async def resend_reply(
     if found is None:
         await db.rollback()
         raise ApiError("not_found", "Reply not found")
-    msg, slug, name = found
+    msg, slug, name, package_status = found
     if msg.resend_id is not None:
         await db.rollback()
         raise ApiError("conflict", "This reply was already sent", reason="sent")
     enquiry = await load_enquiry(db, id)
     to, enquiry_ref, subject, body = enquiry.email, enquiry.ref, msg.subject, msg.body
-    # The package was deleted since (the FK set it null): send without it rather than never.
-    package = (slug, name) if slug and name else None
+    # The package was deleted or taken off sale since: send without it rather than never (its
+    # PDF can no longer be made, and the owner has no way to change a saved reply).
+    live = slug and name and package_status == PackageStatus.LIVE
+    package = (slug, name) if live else None
     await db.rollback()
     resend_id, error = await _deliver(
         db,
@@ -243,6 +245,8 @@ async def resend_reply(
     ).scalar_one()
     if msg.resend_id is None:  # a second click that got here first keeps its result
         msg.resend_id, msg.error = resend_id, error
+        if package is None:
+            msg.package_id = None  # the thread must not show a PDF that did not go
         msg.sent_at = func.now()
         if resend_id is not None:
             await _contacted(db, id)
