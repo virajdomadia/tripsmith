@@ -7,8 +7,11 @@ with a guarded single-row UPDATE (§2). The hold decides what the money buys:
 - lapsed (Checkout's 10 minutes ran out, or a newer hold replaced it) → re-check the seats now:
   enough → `confirmed`; not enough → `cancelled` (`seats_gone`) with `refund_needed`, never
   confirmed (03-requirements-v2, "Late capture");
-- the booking is no longer pending (cancelled, or confirmed by an earlier payment) → the payment
-  is kept and flagged `refund_needed`: money with no seat behind it goes back by hand.
+- cancelled by `/cron/daily` as `hold_expired` (B10) → the same as a lapsed hold: the sweep only
+  tidies abandoned checkouts, so a payment that lands after it still gets its seats if they are
+  free;
+- the booking is otherwise no longer pending (cancelled, or confirmed by an earlier payment) →
+  the payment is kept and flagged `refund_needed`: money with no seat behind it goes back by hand.
 
 Recording is idempotent on `razorpay_payment_id` (unique), so the Checkout callback, the webhook
 and any replay of either apply a payment once. Refunds are made in the Razorpay dashboard.
@@ -81,6 +84,16 @@ async def seats_short(db: AsyncSession, booking: Booking, *, hold_live: bool) ->
     return max(0, int(party) - int(left))
 
 
+def awaiting_payment(booking: Booking) -> bool:
+    """Pending, or swept as `hold_expired` — a lapsed checkout either way, which money can
+    still confirm if the seats are free (B10: the sweep must not turn a late payment into a
+    refund). Every other cancellation is final."""
+    return booking.status == BookingStatus.PENDING or (
+        booking.status == BookingStatus.CANCELLED
+        and booking.cancel_reason == CancelReason.HOLD_EXPIRED
+    )
+
+
 async def settle_capture(
     db: AsyncSession, booking: Booking, *, hold_live: bool, amount_paise: int
 ) -> Settled:
@@ -89,7 +102,7 @@ async def settle_capture(
     paid = booking.paid_paise + amount_paise
     values: dict[str, object] = {"paid_paise": paid, "updated_at": func.now()}
     expected = booking.status
-    if booking.status != BookingStatus.PENDING:
+    if not awaiting_payment(booking):
         settled = Settled.NOT_PENDING
         values["refund_needed"] = True
         log.error(
@@ -102,7 +115,7 @@ async def settle_capture(
         settled = Settled.PART_PAID  # add-on D's split: stays pending
     elif await seats_short(db, booking, hold_live=hold_live) == 0:
         settled = Settled.CONFIRMED
-        values["status"] = BookingStatus.CONFIRMED
+        values |= {"status": BookingStatus.CONFIRMED, "cancel_reason": None}
     else:
         settled = Settled.SEATS_GONE
         values |= {
@@ -227,8 +240,9 @@ async def sync_payment(
     this whenever Checkout closes without a callback. The order's payments are read with the
     key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
     exactly like a signed callback — through
-    `capture_razorpay_payment`, idempotent on the payment id. Only a pending booking makes the
-    outbound call; any other status answers from the database.
+    `capture_razorpay_payment`, idempotent on the payment id. Only a booking still awaiting
+    payment (pending, or swept as `hold_expired`) makes the outbound call; any other status
+    answers from the database.
     """
     booking = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one_or_none()
     if booking is None:
@@ -236,7 +250,7 @@ async def sync_payment(
     result = PaymentResult(
         booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
     )
-    if booking.status != BookingStatus.PENDING:
+    if not awaiting_payment(booking):
         return result
     rows = await db.execute(
         select(Payment.razorpay_order_id).where(Payment.booking_id == booking.id).distinct()

@@ -25,6 +25,7 @@ from app.middleware import (
     SecurityHeadersMiddleware,
 )
 from app.routers import auth
+from app.routers.admin import bookings as admin_bookings
 from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
@@ -117,6 +118,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(meta.router)
     app.include_router(auth.router)
+    app.include_router(admin_bookings.router)
     app.include_router(admin_dashboard.router)
     app.include_router(admin_destinations.router)
     app.include_router(admin_enquiries.router)

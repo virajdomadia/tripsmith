@@ -16,3 +16,7 @@ class DailyReport(ApiModel):
     pdf: GcReport
     sessions_pruned: int = Field(default=0, description="Expired sessions deleted (B8)")
     codes_pruned: int = Field(default=0, description="Sign-in codes expired over a day (B8)")
+    holds_expired: int = Field(
+        default=0, description="Pending bookings lapsed over an hour, cancelled (B10)"
+    )
+    bookings_completed: int = Field(default=0, description="Departed confirmed bookings (B10)")

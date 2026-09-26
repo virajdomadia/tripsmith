@@ -233,9 +233,14 @@ class _Voucher:
     def small_print(self) -> None:
         d, f = self.doc, self.f
         ids = ", ".join(f.payment_ids) or "—"
+        how = (
+            "marked paid offline by the owner"
+            if f.paid_offline
+            else "paid with a Razorpay test payment"
+        )
         d.para(
             f"Show this voucher, printed or on your phone, at check-in. Payment {ids}. "
-            "Demo site: paid with a Razorpay test payment — no money moved, and no trip is booked.",
+            f"Demo site: {how} — no money moved, and no trip is booked.",
             size=8.5,
             color=MUTE,
             line=4.4,

@@ -423,7 +423,9 @@ async def csv_records(db: AsyncSession, filters: EnquiryFilters) -> list[list[st
     return [csv_record(e, name) for e, _slug, name in rows.all()]
 
 
-def csv_lines(records: Sequence[Sequence[str]]) -> Iterator[str]:
+def csv_lines(
+    records: Sequence[Sequence[str]], headers: Sequence[str] = CSV_HEADERS
+) -> Iterator[str]:
     """Header + rows, quoted, CRLF, BOM first.
 
     The BOM is not decoration: without it Excel on a Windows machine in India reads the file in
@@ -432,7 +434,7 @@ def csv_lines(records: Sequence[Sequence[str]]) -> Iterator[str]:
     buffer = io.StringIO()
     writer = csv.writer(buffer, quoting=csv.QUOTE_ALL, lineterminator="\r\n")
     yield "﻿"
-    for record in (CSV_HEADERS, *records):
+    for record in (headers, *records):
         writer.writerow(record)
         yield buffer.getvalue()
         buffer.seek(0)

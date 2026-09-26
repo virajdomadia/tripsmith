@@ -6,7 +6,9 @@
   your ₹X will be refunded", the owner gets the refund to make — neither says "confirmed";
 - money on a booking that was no longer pending → the owner gets the refund to make; the
   customer also hears "we couldn't hold your seat" when the booking was cancelled (a second
-  payment on a confirmed booking is the owner's to sort out by hand).
+  payment on a confirmed booking is the owner's to sort out by hand);
+- marked paid offline on the desk (B10) → the customer's confirmation only, its demo note
+  saying so; the owner did it and gets no email about it.
 
 Demo mode is the enquiry emails' rule (send.py): while `EMAIL_FROM` is @resend.dev, the
 customer's copy goes to `OWNER_NOTIFY_EMAIL` with a `[Test → …]` subject. Never raises — the
@@ -32,6 +34,9 @@ from app.services.format import duration, inr, long_date
 log = logging.getLogger(__name__)
 
 DEMO_NOTE = "Demo site: this was a Razorpay test payment — no money moved, and no trip is booked."
+OFFLINE_DEMO_NOTE = (
+    "Demo site: the owner marked this booking paid offline — no money moved, and no trip is booked."
+)
 REFUND_WHY = {  # never the word "confirmed": R16 — a seats-gone booking must not read as one
     Settled.SEATS_GONE: "Paid after the hold lapsed, and the last seats had gone — the booking "
     "is cancelled (seats gone).",
@@ -79,6 +84,8 @@ def render_booking_emails(
     """`(role, message)` pairs for this capture — `customer` and/or `owner`; none for a part
     payment. The customer's address is the booking's, before the demo-mode redirect."""
     vars = _vars(facts, settings)
+    if capture.offline:
+        vars["demo_note"] = OFFLINE_DEMO_NOTE
     settled = capture.settled
     out: list[tuple[str, EmailMessage]] = []
     if settled == Settled.PART_PAID:
@@ -108,7 +115,8 @@ def render_booking_emails(
             )
         )
 
-    if settings.owner_notify_email:
+    # B10: an offline payment is the owner's own act on the desk — no "New booking" email.
+    if settings.owner_notify_email and not capture.offline:
         refund = None if settled == Settled.CONFIRMED else inr(capture.amount_paise // 100)
         heading = (
             f"New booking {facts.ref} — {facts.lead_name} · {facts.package_name}"

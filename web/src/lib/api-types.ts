@@ -77,6 +77,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminBookings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Route */
+        get: operations["exportBookingsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getAdminBooking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Paid Route
+         * @description 409 `seats_short` with the shortfall when the party no longer fits; nothing recorded.
+         */
+        post: operations["markBookingPaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/refund-made": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund Route */
+        post: operations["recordBookingRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release Route */
+        post: operations["releaseBookingHold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dashboard": {
         parameters: {
             query?: never;
@@ -89,6 +194,23 @@ export interface paths {
          * @description Never cached: the owner refreshes this page to see the enquiry that just landed.
          */
         get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/departures/{id}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Manifest Route */
+        get: operations["getDepartureManifest"];
         put?: never;
         post?: never;
         delete?: never;
@@ -897,6 +1019,86 @@ export interface components {
             occupancy: components["schemas"]["Occupancy"];
         };
         /**
+         * AdminBooking
+         * @description `GET /admin/bookings/{ref}` and every desk action's answer.
+         */
+        AdminBooking: {
+            /**
+             * Bookedat
+             * Format: date-time
+             */
+            bookedAt: string;
+            /**
+             * Canmarkpaid
+             * @description Pending, or swept as hold_expired
+             */
+            canMarkPaid: boolean;
+            /**
+             * Canrelease
+             * @description Pending
+             */
+            canRelease: boolean;
+            cancelReason: components["schemas"]["CancelReason"] | null;
+            cancellation: components["schemas"]["AccountCancellation"] | null;
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            departure: components["schemas"]["DepartureSeats"];
+            /** Hasvoucher */
+            hasVoucher: boolean;
+            /**
+             * Holdexpiresat
+             * Format: date-time
+             */
+            holdExpiresAt: string;
+            /** Holdlive */
+            holdLive: boolean;
+            /** Leademail */
+            leadEmail: string;
+            /** Leadname */
+            leadName: string;
+            /** Leadphone */
+            leadPhone: string;
+            package: components["schemas"]["BookingPackage"];
+            /** Paidpaise */
+            paidPaise: number;
+            /**
+             * Payments
+             * @description Every attempt, oldest first
+             */
+            payments: components["schemas"]["AdminPayment"][];
+            quote: components["schemas"]["Quote"];
+            /** Ref */
+            ref: string;
+            /** Refundneeded */
+            refundNeeded: boolean;
+            /**
+             * Returns
+             * Format: date
+             */
+            returns: string;
+            /**
+             * Seatsshort
+             * @description Seats the party is missing right now; mark paid refuses while > 0
+             */
+            seatsShort: number;
+            status: components["schemas"]["BookingStatus"];
+            /**
+             * Timeline
+             * @description Derived from the booking and its payments, oldest first
+             */
+            timeline: components["schemas"]["TimelineEvent"][];
+            /** Totalpaise */
+            totalPaise: number;
+            /**
+             * Travellers
+             * @description In the order they were entered
+             */
+            travellers: components["schemas"]["AccountTraveller"][];
+        };
+        /**
          * AdminDeparture
          * @description Every departure the owner has, past ones included; `seats_left` is read-only.
          */
@@ -1178,6 +1380,39 @@ export interface components {
              */
             updatedAt: string;
         };
+        /** AdminPayment */
+        AdminPayment: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+            /** Orderid */
+            orderId: string | null;
+            /** Paymentid */
+            paymentId: string | null;
+            provider: components["schemas"]["PaymentProvider"];
+            /**
+             * Reference
+             * @description What the owner typed when marking it paid
+             */
+            reference: string | null;
+            status: components["schemas"]["PaymentStatus"];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /**
+             * Via
+             * @description How the capture reached us; null while the order is still open
+             */
+            via: ("checkout" | "sync" | "webhook" | "desk") | null;
+        };
         /** ApiErrorBody */
         ApiErrorBody: {
             code: components["schemas"]["ErrorCode"];
@@ -1232,6 +1467,51 @@ export interface components {
             phone: string;
         };
         /**
+         * BookingCounts
+         * @description Every tab counted with the other filters applied — status and flag each leave
+         *     themselves out, so a tab's number is what clicking it would show.
+         */
+        BookingCounts: {
+            /** All */
+            all: number;
+            /**
+             * Cancellation
+             * @description Cancellation requested, not yet answered
+             */
+            cancellation: number;
+            /** Cancelled */
+            cancelled: number;
+            /** Completed */
+            completed: number;
+            /** Confirmed */
+            confirmed: number;
+            /** Pending */
+            pending: number;
+            /**
+             * Refund
+             * @description Refund needed
+             */
+            refund: number;
+        };
+        /** BookingList */
+        BookingList: {
+            counts: components["schemas"]["BookingCounts"];
+            /** Departures */
+            departures: components["schemas"]["DepartureOption"][];
+            /** Items */
+            items: components["schemas"]["BookingRow"][];
+            /** Page */
+            page: number;
+            /** Pagesize */
+            pageSize: number;
+            /** @description Set when the list is filtered to one departure */
+            seats?: components["schemas"]["DepartureSeats"] | null;
+            /** Total */
+            total: number;
+            /** Totalpages */
+            totalPages: number;
+        };
+        /**
          * BookingOrder
          * @description A held booking and its Razorpay order: everything Checkout.js is opened with.
          */
@@ -1260,6 +1540,21 @@ export interface components {
             orderId: string;
             quote: components["schemas"]["Quote"];
         };
+        /** BookingPackage */
+        BookingPackage: {
+            /** Days */
+            days: number;
+            /** Departurecity */
+            departureCity: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Slug */
+            slug: string;
+        };
         /**
          * BookingRequest
          * @description `createBookingOrder`: the quote input with names and ages, plus the contact.
@@ -1270,6 +1565,50 @@ export interface components {
             departureId: string;
             /** Travellers */
             travellers: components["schemas"]["BookingTraveller"][];
+        };
+        /** BookingRow */
+        BookingRow: {
+            /**
+             * Bookedat
+             * Format: date-time
+             */
+            bookedAt: string;
+            cancelReason: components["schemas"]["CancelReason"] | null;
+            cancellation: components["schemas"]["CancellationStatus"] | null;
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Holdexpiresat
+             * Format: date-time
+             */
+            holdExpiresAt: string;
+            /**
+             * Holdlive
+             * @description Pending and still inside its hold (database clock)
+             */
+            holdLive: boolean;
+            /** Leadname */
+            leadName: string;
+            /** Leadphone */
+            leadPhone: string;
+            /** Packagename */
+            packageName: string;
+            /** Paidpaise */
+            paidPaise: number;
+            /** Ref */
+            ref: string;
+            /** Refundneeded */
+            refundNeeded: boolean;
+            status: components["schemas"]["BookingStatus"];
+            /** Totalpaise */
+            totalPaise: number;
+            /** Travellers */
+            travellers: number;
         };
         /**
          * BookingStatus
@@ -1284,6 +1623,12 @@ export interface components {
             name: string;
             occupancy: components["schemas"]["Occupancy"];
         };
+        /**
+         * CancelReason
+         * @description Why a booking is `cancelled` — set in the same UPDATE as the status.
+         * @enum {string}
+         */
+        CancelReason: "hold_expired" | "payment_failed" | "seats_gone" | "cancellation_approved" | "owner_released";
         /** CancellationRequest */
         CancellationRequest: {
             /** Reason */
@@ -1411,6 +1756,21 @@ export interface components {
              */
             items: components["schemas"]["DepartureOut"][];
         };
+        /**
+         * DepartureOption
+         * @description A departure the desk's filter offers: every one that has at least one booking.
+         */
+        DepartureOption: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /** Packagename */
+            packageName: string;
+        };
         /** DepartureOut */
         DepartureOut: {
             badge: components["schemas"]["Badge"] | null;
@@ -1444,6 +1804,39 @@ export interface components {
             seatsTotal: number;
             /** Singlesupplementpaise */
             singleSupplementPaise: number;
+        };
+        /**
+         * DepartureSeats
+         * @description One departure's seats. `seatsLeft` is the `departure_availability` view itself; `booked`
+         *     and `held` are counted the way the view counts them, so total − booked − held = left
+         *     (until a lowered `seatsTotal` makes the view clamp at 0).
+         */
+        DepartureSeats: {
+            /**
+             * Booked
+             * @description Travellers on confirmed, part-paid and completed bookings
+             */
+            booked: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Held
+             * @description Travellers on pending bookings whose hold is still live
+             */
+            held: number;
+            /** Packageid */
+            packageId: string;
+            /** Packagename */
+            packageName: string;
+            /** Seatsleft */
+            seatsLeft: number;
+            /** Seatstotal */
+            seatsTotal: number;
         };
         /** DestinationCard */
         DestinationCard: {
@@ -1892,6 +2285,60 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * Manifest
+         * @description `GET /admin/departures/{id}/manifest`: who travels, grouped by booking.
+         */
+        Manifest: {
+            /**
+             * Bookings
+             * @description Confirmed, part-paid and completed bookings, oldest first
+             */
+            bookings: components["schemas"]["ManifestBooking"][];
+            /** Days */
+            days: number;
+            /** Departurecity */
+            departureCity: string;
+            /**
+             * Generatedat
+             * Format: date-time
+             */
+            generatedAt: string;
+            /** Nights */
+            nights: number;
+            /** Packageslug */
+            packageSlug: string;
+            /**
+             * Returns
+             * Format: date
+             */
+            returns: string;
+            seats: components["schemas"]["DepartureSeats"];
+            /** Travellers */
+            travellers: number;
+        };
+        /** ManifestBooking */
+        ManifestBooking: {
+            /** Cancellationrequested */
+            cancellationRequested: boolean;
+            /** Leadname */
+            leadName: string;
+            /** Leadphone */
+            leadPhone: string;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["BookingStatus"];
+            /** Travellers */
+            travellers: components["schemas"]["AccountTraveller"][];
+        };
+        /** MarkPaidInput */
+        MarkPaidInput: {
+            /**
+             * Reference
+             * @description Optional: bank UTR, 'cash at office'…
+             */
+            reference?: string | null;
+        };
         /** Meals */
         Meals: {
             /** Breakfast */
@@ -2158,6 +2605,11 @@ export interface components {
             voucherUrl?: string | null;
         };
         /**
+         * PaymentStatus
+         * @enum {string}
+         */
+        PaymentStatus: "created" | "captured" | "failed" | "refunded";
+        /**
          * PublishRule
          * @description One live-publish precondition, evaluated by the api so the UI never re-derives it.
          */
@@ -2267,6 +2719,14 @@ export interface components {
             /** Min */
             min: number;
         };
+        /** RefundMadeInput */
+        RefundMadeInput: {
+            /**
+             * Note
+             * @description Optional
+             */
+            note?: string | null;
+        };
         /**
          * RelatedEnquiry
          * @description A7's "other enquiries · same phone" panel.
@@ -2317,6 +2777,11 @@ export interface components {
          *     data, so it is null for any other role (R18).
          */
         SessionInfo: {
+            /**
+             * Bookingsattention
+             * @description Bookings with a refund to record or a cancellation to answer (B10); owner sessions only
+             */
+            bookingsAttention?: number | null;
             /**
              * Expiresat
              * Format: date-time
@@ -2398,6 +2863,21 @@ export interface components {
             /** Label */
             label: string;
             value: components["schemas"]["Theme"];
+        };
+        /** TimelineEvent */
+        TimelineEvent: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "booked" | "order" | "captured" | "failed" | "refunded" | "offline" | "lapsed" | "cancelled" | "completed" | "cancellation";
+            /** Text */
+            text: string;
         };
         /** UpcomingDeparture */
         UpcomingDeparture: {
@@ -2594,6 +3074,224 @@ export interface operations {
             };
         };
     };
+    listAdminBookings: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["BookingStatus"] | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet */
+                flag?: ("refund" | "cancellation") | null;
+                packageId?: string | null;
+                departureId?: string | null;
+                /** @description Departing on or after this day */
+                from?: string | null;
+                /** @description Departing on or before this day */
+                to?: string | null;
+                /** @description Ref, lead name, phone or email */
+                q?: string | null;
+                /** @description 1-based; ignored by the CSV */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    exportBookingsCsv: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["BookingStatus"] | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet */
+                flag?: ("refund" | "cancellation") | null;
+                packageId?: string | null;
+                departureId?: string | null;
+                /** @description Departing on or after this day */
+                from?: string | null;
+                /** @description Departing on or before this day */
+                to?: string | null;
+                /** @description Ref, lead name, phone or email */
+                q?: string | null;
+                /** @description 1-based; ignored by the CSV */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The filtered desk as CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getAdminBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    markBookingPaid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkPaidInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    recordBookingRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundMadeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    releaseBookingHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getDashboard: {
         parameters: {
             query?: never;
@@ -2610,6 +3308,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getDepartureManifest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Manifest"];
                 };
             };
             /** @description Error envelope (06 C0) */

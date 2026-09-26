@@ -72,7 +72,9 @@ class Booking(IdMixin, TimestampsMixin, Base):
     split: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # add-on D
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
-        back_populates="booking", cascade="all, delete-orphan", order_by="BookingTraveller.id"
+        back_populates="booking",
+        cascade="all, delete-orphan",
+        order_by="[BookingTraveller.position, BookingTraveller.id]",
     )
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="booking", order_by="Payment.created_at"
@@ -90,6 +92,8 @@ class BookingTraveller(IdMixin, Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     age: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     occupancy: Mapped[Occupancy] = mapped_column(pg_enum(Occupancy, "occupancy"), nullable=False)
+    # 0006: the traveller's place in the booking form, 0 first (ids are random cuid2s).
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
 
     booking: Mapped[Booking] = relationship(back_populates="travellers")
 

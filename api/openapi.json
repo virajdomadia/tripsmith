@@ -391,6 +391,167 @@
         "title": "AccountTraveller",
         "type": "object"
       },
+      "AdminBooking": {
+        "description": "`GET /admin/bookings/{ref}` and every desk action's answer.",
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "title": "Bookedat",
+            "type": "string"
+          },
+          "canMarkPaid": {
+            "description": "Pending, or swept as hold_expired",
+            "title": "Canmarkpaid",
+            "type": "boolean"
+          },
+          "canRelease": {
+            "description": "Pending",
+            "title": "Canrelease",
+            "type": "boolean"
+          },
+          "cancelReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancelReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountCancellation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/DepartureSeats"
+          },
+          "hasVoucher": {
+            "title": "Hasvoucher",
+            "type": "boolean"
+          },
+          "holdExpiresAt": {
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "holdLive": {
+            "title": "Holdlive",
+            "type": "boolean"
+          },
+          "leadEmail": {
+            "title": "Leademail",
+            "type": "string"
+          },
+          "leadName": {
+            "title": "Leadname",
+            "type": "string"
+          },
+          "leadPhone": {
+            "title": "Leadphone",
+            "type": "string"
+          },
+          "package": {
+            "$ref": "#/components/schemas/BookingPackage"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "payments": {
+            "description": "Every attempt, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/AdminPayment"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "refundNeeded": {
+            "title": "Refundneeded",
+            "type": "boolean"
+          },
+          "returns": {
+            "format": "date",
+            "title": "Returns",
+            "type": "string"
+          },
+          "seatsShort": {
+            "description": "Seats the party is missing right now; mark paid refuses while > 0",
+            "title": "Seatsshort",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "timeline": {
+            "description": "Derived from the booking and its payments, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "description": "In the order they were entered",
+            "items": {
+              "$ref": "#/components/schemas/AccountTraveller"
+            },
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "cancelReason",
+          "refundNeeded",
+          "holdExpiresAt",
+          "holdLive",
+          "bookedAt",
+          "package",
+          "departure",
+          "departs",
+          "returns",
+          "travellers",
+          "quote",
+          "totalPaise",
+          "paidPaise",
+          "leadName",
+          "leadPhone",
+          "leadEmail",
+          "payments",
+          "timeline",
+          "cancellation",
+          "hasVoucher",
+          "canMarkPaid",
+          "canRelease",
+          "seatsShort"
+        ],
+        "title": "AdminBooking",
+        "type": "object"
+      },
       "AdminDeparture": {
         "description": "Every departure the owner has, past ones included; `seats_left` is read-only.",
         "properties": {
@@ -1063,6 +1224,100 @@
         "title": "AdminPackageRow",
         "type": "object"
       },
+      "AdminPayment": {
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "orderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderid"
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentid"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PaymentProvider"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the owner typed when marking it paid",
+            "title": "Reference"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentStatus"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "enum": [
+                  "checkout",
+                  "sync",
+                  "webhook",
+                  "desk"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the capture reached us; null while the order is still open",
+            "title": "Via"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "status",
+          "amountPaise",
+          "orderId",
+          "paymentId",
+          "reference",
+          "via",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "AdminPayment",
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {
@@ -1186,6 +1441,112 @@
         "title": "BookingContact",
         "type": "object"
       },
+      "BookingCounts": {
+        "description": "Every tab counted with the other filters applied — status and flag each leave\nthemselves out, so a tab's number is what clicking it would show.",
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "cancellation": {
+            "description": "Cancellation requested, not yet answered",
+            "title": "Cancellation",
+            "type": "integer"
+          },
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "refund": {
+            "description": "Refund needed",
+            "title": "Refund",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "confirmed",
+          "completed",
+          "cancelled",
+          "all",
+          "refund",
+          "cancellation"
+        ],
+        "title": "BookingCounts",
+        "type": "object"
+      },
+      "BookingList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/BookingCounts"
+          },
+          "departures": {
+            "items": {
+              "$ref": "#/components/schemas/DepartureOption"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BookingRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pageSize": {
+            "title": "Pagesize",
+            "type": "integer"
+          },
+          "seats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartureSeats"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the list is filtered to one departure"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 1.0,
+            "title": "Totalpages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages",
+          "counts",
+          "departures"
+        ],
+        "title": "BookingList",
+        "type": "object"
+      },
       "BookingOrder": {
         "description": "A held booking and its Razorpay order: everything Checkout.js is opened with.",
         "properties": {
@@ -1232,6 +1593,44 @@
         "title": "BookingOrder",
         "type": "object"
       },
+      "BookingPackage": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "nights",
+          "days",
+          "departureCity"
+        ],
+        "title": "BookingPackage",
+        "type": "object"
+      },
       "BookingRequest": {
         "description": "`createBookingOrder`: the quote input with names and ages, plus the contact.",
         "properties": {
@@ -1260,6 +1659,109 @@
           "contact"
         ],
         "title": "BookingRequest",
+        "type": "object"
+      },
+      "BookingRow": {
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "title": "Bookedat",
+            "type": "string"
+          },
+          "cancelReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancelReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancellationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "holdExpiresAt": {
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "holdLive": {
+            "description": "Pending and still inside its hold (database clock)",
+            "title": "Holdlive",
+            "type": "boolean"
+          },
+          "leadName": {
+            "title": "Leadname",
+            "type": "string"
+          },
+          "leadPhone": {
+            "title": "Leadphone",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "refundNeeded": {
+            "title": "Refundneeded",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "cancelReason",
+          "holdExpiresAt",
+          "holdLive",
+          "refundNeeded",
+          "cancellation",
+          "packageName",
+          "departureId",
+          "departs",
+          "travellers",
+          "leadName",
+          "leadPhone",
+          "totalPaise",
+          "paidPaise",
+          "bookedAt"
+        ],
+        "title": "BookingRow",
         "type": "object"
       },
       "BookingStatus": {
@@ -1298,6 +1800,18 @@
         ],
         "title": "BookingTraveller",
         "type": "object"
+      },
+      "CancelReason": {
+        "description": "Why a booking is `cancelled` — set in the same UPDATE as the status.",
+        "enum": [
+          "hold_expired",
+          "payment_failed",
+          "seats_gone",
+          "cancellation_approved",
+          "owner_released"
+        ],
+        "title": "CancelReason",
+        "type": "string"
       },
       "CancellationRequest": {
         "properties": {
@@ -1531,6 +2045,31 @@
         "title": "DepartureList",
         "type": "object"
       },
+      "DepartureOption": {
+        "description": "A departure the desk's filter offers: every one that has at least one booking.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "packageName",
+          "date"
+        ],
+        "title": "DepartureOption",
+        "type": "object"
+      },
       "DepartureOut": {
         "properties": {
           "badge": {
@@ -1597,6 +2136,58 @@
           "badge"
         ],
         "title": "DepartureOut",
+        "type": "object"
+      },
+      "DepartureSeats": {
+        "description": "One departure's seats. `seatsLeft` is the `departure_availability` view itself; `booked`\nand `held` are counted the way the view counts them, so total − booked − held = left\n(until a lowered `seatsTotal` makes the view clamp at 0).",
+        "properties": {
+          "booked": {
+            "description": "Travellers on confirmed, part-paid and completed bookings",
+            "title": "Booked",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "held": {
+            "description": "Travellers on pending bookings whose hold is still live",
+            "title": "Held",
+            "type": "integer"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "packageId",
+          "packageName",
+          "date",
+          "seatsTotal",
+          "booked",
+          "held",
+          "seatsLeft"
+        ],
+        "title": "DepartureSeats",
         "type": "object"
       },
       "DestinationCard": {
@@ -2654,6 +3245,124 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "Manifest": {
+        "description": "`GET /admin/departures/{id}/manifest`: who travels, grouped by booking.",
+        "properties": {
+          "bookings": {
+            "description": "Confirmed, part-paid and completed bookings, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/ManifestBooking"
+            },
+            "title": "Bookings",
+            "type": "array"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "returns": {
+            "format": "date",
+            "title": "Returns",
+            "type": "string"
+          },
+          "seats": {
+            "$ref": "#/components/schemas/DepartureSeats"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seats",
+          "packageSlug",
+          "nights",
+          "days",
+          "departureCity",
+          "returns",
+          "bookings",
+          "travellers",
+          "generatedAt"
+        ],
+        "title": "Manifest",
+        "type": "object"
+      },
+      "ManifestBooking": {
+        "properties": {
+          "cancellationRequested": {
+            "title": "Cancellationrequested",
+            "type": "boolean"
+          },
+          "leadName": {
+            "title": "Leadname",
+            "type": "string"
+          },
+          "leadPhone": {
+            "title": "Leadphone",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/AccountTraveller"
+            },
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "leadName",
+          "leadPhone",
+          "cancellationRequested",
+          "travellers"
+        ],
+        "title": "ManifestBooking",
+        "type": "object"
+      },
+      "MarkPaidInput": {
+        "properties": {
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional: bank UTR, 'cash at office'…",
+            "title": "Reference"
+          }
+        },
+        "title": "MarkPaidInput",
+        "type": "object"
+      },
       "Meals": {
         "properties": {
           "breakfast": {
@@ -3316,6 +4025,16 @@
         "title": "PaymentResult",
         "type": "object"
       },
+      "PaymentStatus": {
+        "enum": [
+          "created",
+          "captured",
+          "failed",
+          "refunded"
+        ],
+        "title": "PaymentStatus",
+        "type": "string"
+      },
       "PublishRule": {
         "description": "One live-publish precondition, evaluated by the api so the UI never re-derives it.",
         "properties": {
@@ -3566,6 +4285,25 @@
         "title": "RangeFacet",
         "type": "object"
       },
+      "RefundMadeInput": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional",
+            "title": "Note"
+          }
+        },
+        "title": "RefundMadeInput",
+        "type": "object"
+      },
       "RelatedEnquiry": {
         "description": "A7's \"other enquiries · same phone\" panel.",
         "properties": {
@@ -3656,6 +4394,19 @@
       "SessionInfo": {
         "description": "What `GET /auth/session` (and `POST /auth/login`) returns. `user.role` is what the web\n`/admin` gate checks; `newEnquiries` feeds the admin sidebar badge (F16) and is owner-only\ndata, so it is null for any other role (R18).",
         "properties": {
+          "bookingsAttention": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bookings with a refund to record or a cancellation to answer (B10); owner sessions only",
+            "title": "Bookingsattention"
+          },
           "expiresAt": {
             "format": "date-time",
             "title": "Expiresat",
@@ -3856,6 +4607,42 @@
           "label"
         ],
         "title": "ThemeOption",
+        "type": "object"
+      },
+      "TimelineEvent": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "booked",
+              "order",
+              "captured",
+              "failed",
+              "refunded",
+              "offline",
+              "lapsed",
+              "cancelled",
+              "completed",
+              "cancellation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "text"
+        ],
+        "title": "TimelineEvent",
         "type": "object"
       },
       "UpcomingDeparture": {
@@ -4156,6 +4943,543 @@
         ]
       }
     },
+    "/admin/bookings": {
+      "get": {
+        "operationId": "listAdminBookings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BookingStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+            "in": "query",
+            "name": "flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "refund",
+                    "cancellation"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+              "title": "Flag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "packageId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Packageid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "departureId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Departureid"
+            }
+          },
+          {
+            "description": "Departing on or after this day",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Departing on or after this day",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Departing on or before this day",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Departing on or before this day",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Ref, lead name, phone or email",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ref, lead name, phone or email",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "1-based; ignored by the CSV",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based; ignored by the CSV",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings.csv": {
+      "get": {
+        "operationId": "exportBookingsCsv",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BookingStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+            "in": "query",
+            "name": "flag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "refund",
+                    "cancellation"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+              "title": "Flag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "packageId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Packageid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "departureId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Departureid"
+            }
+          },
+          {
+            "description": "Departing on or after this day",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Departing on or after this day",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Departing on or before this day",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Departing on or before this day",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Ref, lead name, phone or email",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ref, lead name, phone or email",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "1-based; ignored by the CSV",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based; ignored by the CSV",
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "The filtered desk as CSV"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Export Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}": {
+      "get": {
+        "operationId": "getAdminBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/mark-paid": {
+      "post": {
+        "description": "409 `seats_short` with the shortfall when the party no longer fits; nothing recorded.",
+        "operationId": "markBookingPaid",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPaidInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Mark Paid Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/refund-made": {
+      "post": {
+        "operationId": "recordBookingRefund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundMadeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Refund Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/release": {
+      "post": {
+        "operationId": "releaseBookingHold",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Release Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/dashboard": {
       "get": {
         "description": "Never cached: the owner refreshes this page to see the enquiry that just landed.",
@@ -4183,6 +5507,48 @@
           }
         },
         "summary": "Dashboard Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/departures/{id}/manifest": {
+      "get": {
+        "operationId": "getDepartureManifest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Manifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Manifest Route",
         "tags": [
           "admin"
         ]

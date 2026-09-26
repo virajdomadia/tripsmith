@@ -241,8 +241,8 @@ async def create_booking_order(
                 quote=quote.model_dump(mode="json", by_alias=True),
                 total_paise=quote.total_paise,
                 travellers=[
-                    BookingTraveller(name=t.name, age=t.age, occupancy=t.occupancy)
-                    for t in req.travellers
+                    BookingTraveller(name=t.name, age=t.age, occupancy=t.occupancy, position=i)
+                    for i, t in enumerate(req.travellers)
                 ],
             )
             try:
