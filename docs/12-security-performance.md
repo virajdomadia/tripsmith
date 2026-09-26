@@ -396,9 +396,9 @@ Revisit if v2 adds user-generated content, where the calculus flips.
 - **Blob objects are not deleted with their rows.** Deleting a package or a photo leaves the
   object at its URL, unreferenced but readable by anyone holding it. Deliberate at portfolio scale
   (v2 add-on).
-- ~~**Sessions are never pruned.**~~ Closed in v2 (B8): `/cron/daily` deletes expired sessions. Expired rows are deleted when they are next presented, so a
-  session that is never used again sits in the table until its row is touched. It cannot
-  authenticate — `find_session` checks `expires_at` — so this is table hygiene, not access.
+- ~~**Sessions are never pruned.**~~ Closed in v2 (B8): `/cron/daily` now deletes expired
+  sessions. In v1, an expired row was deleted only when next presented; it could never
+  authenticate (`find_session` checks `expires_at`), so this was table hygiene, not access.
 - **The PDF URL absorbs random query strings one invocation at a time** (v1.0.1). `?anything` is
   a 308 to the bare URL, edge-cached for a day, so a repeated variant never reaches the function;
   each _new_ variant still costs one cheap invocation (no DB, no Blob, no limiter).

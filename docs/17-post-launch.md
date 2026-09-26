@@ -1,6 +1,6 @@
 # Tripsmith — Post-launch review (v1, v2)
 
-**Lifecycle step:** 17 of 17 · **Milestone:** 1.4 Harden · **Written:** 2026-09-24 · **Covers:** v1, the agency website, and the v1.0.1 hardening pass
+**Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine
 
 v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the honest version of what it took, what held up, what did not, and what v2 inherits. **v2 (the booking engine) has its own section at the end: [v2 — Booking engine](#v2--booking-engine).**
 
@@ -104,7 +104,7 @@ The three things worth telling someone about this build, in order:
 
 # v2 — Booking engine
 
-**Milestones:** 2.0 Checkout · 2.1 Webhooks & confirmation · 2.2 Accounts & desk · 2.3 Deals, reviews, coupons, close · **Written:** 2026-09-26 (B14)
+**Milestones:** 2.0 Checkout · 2.1 Webhooks & confirmation · 2.2 Accounts & desk · 2.3 Deals, reviews, coupons, close · **Written:** 2026-09-27 (B14)
 
 v2 turned the enquiry site into a shop: a visitor can pick a date, build a party, pay by Razorpay, get a voucher, sign in to see the trip, cancel it or review it. The owner can run all of that from the admin. Payments are in **Razorpay test mode** and emails are in **demo mode**. Both are deliberate for a portfolio piece, and both are explained on the site where a visitor meets them.
 
