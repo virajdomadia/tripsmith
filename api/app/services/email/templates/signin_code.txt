@@ -1,0 +1,8 @@
+Your Tripsmith sign-in code: {{ code }}
+
+Enter it on {{ site_url }} to open My trips. It works once, for 10 minutes.
+
+Didn't ask for it? Ignore this email — nobody can sign in without the code.
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

@@ -1,6 +1,104 @@
 {
   "components": {
     "schemas": {
+      "AccountBooking": {
+        "properties": {
+          "bookedAt": {
+            "format": "date-time",
+            "title": "Bookedat",
+            "type": "string"
+          },
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "hasVoucher": {
+            "description": "Confirmed or completed: the voucher PDF is ready",
+            "title": "Hasvoucher",
+            "type": "boolean"
+          },
+          "holdExpiresAt": {
+            "description": "A pending booking holds its seats until then; after it, the checkout lapsed",
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "holdExpiresAt",
+          "totalPaise",
+          "paidPaise",
+          "bookedAt",
+          "packageName",
+          "packageSlug",
+          "destination",
+          "departs",
+          "travellers",
+          "hasVoucher"
+        ],
+        "title": "AccountBooking",
+        "type": "object"
+      },
+      "AccountBookings": {
+        "properties": {
+          "bookings": {
+            "items": {
+              "$ref": "#/components/schemas/AccountBooking"
+            },
+            "title": "Bookings",
+            "type": "array"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "bookings"
+        ],
+        "title": "AccountBookings",
+        "type": "object"
+      },
       "AdminDeparture": {
         "description": "Every departure the owner has, past ones included; `seats_left` is read-only.",
         "properties": {
@@ -2309,6 +2407,72 @@
         "title": "Occupancy",
         "type": "string"
       },
+      "OtpRequest": {
+        "properties": {
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "OtpRequest",
+        "type": "object"
+      },
+      "OtpSent": {
+        "description": "`POST /auth/otp/request`. `demoCode` is set only in demo mode (EMAIL_FROM still on\nResend's test domain, which can deliver nowhere but the owner's inbox): the sign-in screen\nprints it, labelled, instead of emailing it.",
+        "properties": {
+          "demoCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Democode"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "expiresAt"
+        ],
+        "title": "OtpSent",
+        "type": "object"
+      },
+      "OtpVerify": {
+        "properties": {
+          "code": {
+            "description": "The 6 digits, no spaces",
+            "pattern": "^\\d{6}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "OtpVerify",
+        "type": "object"
+      },
       "PackageCard": {
         "properties": {
           "badge": {
@@ -3486,6 +3650,37 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/account/bookings": {
+      "get": {
+        "operationId": "listMyBookings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountBookings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get My Bookings",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/account/bookings/{ref}/voucher.pdf": {
       "get": {
         "operationId": "getAccountVoucherPdf",
@@ -4807,6 +5002,88 @@
           }
         },
         "summary": "Post Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/otp/request": {
+      "post": {
+        "operationId": "requestSignInCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OtpSent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Otp Request",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/otp/verify": {
+      "post": {
+        "operationId": "verifySignInCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpVerify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Otp Verify",
         "tags": [
           "auth"
         ]

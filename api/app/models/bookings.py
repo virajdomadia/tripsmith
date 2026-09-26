@@ -38,6 +38,7 @@ class Booking(IdMixin, TimestampsMixin, Base):
         Index("ix_bookings_departure_id_status", "departure_id", "status"),
         Index("ix_bookings_user_id_created_at", "user_id", "created_at"),
         Index("ix_bookings_status_hold_expires_at", "status", "hold_expires_at"),
+        Index("ix_bookings_contact_email", "contact_email"),  # 0005: My trips by email
     )
 
     ref: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # TB-XXXXXX
@@ -47,7 +48,8 @@ class Booking(IdMixin, TimestampsMixin, Base):
     departure_id: Mapped[str] = mapped_column(
         ForeignKey("departures.id", ondelete="RESTRICT"), nullable=False
     )
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))  # attached at checkout
+    # Set when the customer verifies this email (B8); ownership rule in services/account.py.
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     status: Mapped[BookingStatus] = mapped_column(
         pg_enum(BookingStatus, "booking_status"),
         nullable=False,

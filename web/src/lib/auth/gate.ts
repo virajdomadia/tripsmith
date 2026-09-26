@@ -7,8 +7,10 @@ import { SESSION_COOKIE } from './cookie';
 
 export const ADMIN_HOME = '/admin';
 export const LOGIN_PATH = '/admin/login';
-/** Where a signed-in customer lands instead of `/admin` (R18). Built in B8 — 404s until then. */
+/** My trips: where a signed-in customer lands instead of `/admin` (R18). */
 export const ACCOUNT_PATH = '/account';
+/** The customer's email-code sign-in (B8). */
+export const ACCOUNT_SIGN_IN = '/account/sign-in';
 
 export type LoginError = 'credentials' | 'rate_limited' | 'unavailable';
 
