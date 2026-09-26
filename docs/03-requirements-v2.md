@@ -96,6 +96,13 @@ While `EMAIL_FROM` is the Resend test sender (`@resend.dev` — no verified doma
 - Enquiry status moves are constrained: `new → contacted | converted | closed`, `contacted → converted | closed`, `converted → closed`, `closed → contacted` (reopen); nothing returns to `new`. Illegal moves are not offered and the api answers 409.
 - The inbox understands all six enquiry types (`callback`, `group`, `chat-handoff` get labels); the public form still submits only the v1 three.
 
+### R26. Coupon codes (added 2026-09-26, row B15)
+- The owner creates codes on an admin Coupons page: flat ₹ off or % off (with an optional ₹ cap), valid from/to, an optional minimum booking amount, a total-use limit, one use per email, all packages or chosen ones, and an on/off switch; the page shows how often each was used.
+- The customer types a code in the Book-now sheet; the server validates it and the quote gains a "Coupon −₹X" line. The Razorpay order is built from that server quote only — no amount from the client.
+- A use counts when the payment is captured, not when a hold is placed, so an abandoned checkout uses nothing. The booking keeps the code; the voucher, the emails and the booking desk show it.
+- A refused code says why: unknown, not started, expired, used up, not for this trip, below the minimum, already used by this email.
+- Open until B15 starts: whether a coupon stacks with a running deal, flat / % / both, and whether one use per email is enough or sign-in is required.
+
 ---
 
 ## Platform requirements
@@ -107,7 +114,7 @@ While `EMAIL_FROM` is the Resend test sender (`@resend.dev` — no verified doma
 - Performance: public-page budgets unchanged; one **PageSpeed Insights** run (not a local Lighthouse) on a package page with Book now open, target ≥ 85, recorded in docs/12.
 
 ## Explicitly out of scope for v2
-Refund API · partial payments (unless add-on D is picked up) · multi-currency · dynamic pricing · coupons · invoices/GST · agent commissions · seat maps · review photos · automatic enquiry → booking linking.
+Refund API · partial payments (unless add-on D is picked up) · multi-currency · dynamic pricing · invoices/GST · agent commissions · seat maps · review photos · automatic enquiry → booking linking.
 
 ## Add-ons that attach to v2 (optional, considered only after v4)
 - **D. Split payment for groups** (~8 h) — see design §D; requirements: one pay link per traveller, booking confirms when fully paid or the leader covers the rest, 48 h hold, daily reminders.
@@ -117,7 +124,7 @@ Refund API · partial payments (unless add-on D is picked up) · multi-currency 
 - **Review photos** (~1 h).
 
 ## Budget
-≈ 17 h across milestones 2.0–2.3, rows B0–B14 (see [07-plan.md](07-plan.md)). Raised from 15 h at re-validation: the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip.
+≈ 20.5 h across milestones 2.0–2.3, rows B0–B15 (see [07-plan.md](07-plan.md)). Raised from 15 h at re-validation: the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip; then +3.5 h for B15 coupon codes (R26, 2026-09-26).
 
 ---
 
