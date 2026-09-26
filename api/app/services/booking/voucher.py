@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +108,8 @@ class BookingFacts:
     payment_ids: tuple[str, ...]  # captured, oldest first; `offline_label` for an offline one
     booked_at: dt.datetime
     paid_offline: bool = False  # B10: at least one payment was marked paid on the desk
+    coupon_code: str | None = None  # B15
+    coupon_off_paise: int = 0  # from the booking's quote snapshot
 
     @property
     def first_name(self) -> str:
@@ -180,7 +183,15 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         payment_ids=tuple(label for p in paid if (label := payment_label(p))),
         booked_at=booking.created_at,
         paid_offline=any(p.provider == PaymentProvider.OFFLINE for p in paid),
+        coupon_code=booking.coupon_code,
+        coupon_off_paise=coupon_off_of(booking.quote),
     )
+
+
+def coupon_off_of(quote: dict[str, Any]) -> int:
+    """The coupon's discount in a quote snapshot; 0 before B15 or without one."""
+    coupon = quote.get("coupon")
+    return int(coupon.get("offPaise", 0)) if isinstance(coupon, dict) else 0
 
 
 def offline_reference(payment: Payment) -> str | None:

@@ -290,6 +290,7 @@ def _row(b: Booking, pkg: str, departs: dt.date, party: int, live: bool, asked: 
         lead_phone=b.contact_phone,
         total_paise=b.total_paise,
         paid_paise=b.paid_paise,
+        coupon_code=b.coupon_code,
         booked_at=b.created_at,
     )
 
@@ -849,6 +850,7 @@ CSV_HEADERS = (
     "Total (₹)",
     "Paid (₹)",
     "Payments",
+    "Coupon",
 )
 STATUS_LABELS = {
     BookingStatus.PENDING: "Pending",
@@ -896,6 +898,7 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         str(b.total_paise // 100),
         str(b.paid_paise // 100),
         payments,
+        b.coupon_code or "",
     ]
     return [csv_safe(field) for field in fields]
 

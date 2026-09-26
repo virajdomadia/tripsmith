@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,6 +40,12 @@ class Booking(IdMixin, TimestampsMixin, Base):
         Index("ix_bookings_user_id_created_at", "user_id", "created_at"),
         Index("ix_bookings_status_hold_expires_at", "status", "hold_expires_at"),
         Index("ix_bookings_contact_email", "contact_email"),  # 0005: My trips by email
+        Index(  # 0009: a coupon's uses, and its uses by one email
+            "ix_bookings_coupon_code",
+            "coupon_code",
+            "contact_email",
+            postgresql_where=text("coupon_code IS NOT NULL"),
+        ),
     )
 
     ref: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # TB-XXXXXX
@@ -69,6 +76,8 @@ class Booking(IdMixin, TimestampsMixin, Base):
     refund_needed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )  # late capture with no seats left
+    # 0009 (B15): the coupon the booking was quoted with, upper case; the discount is in `quote`.
+    coupon_code: Mapped[str | None] = mapped_column(Text)
     split: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # add-on D
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(

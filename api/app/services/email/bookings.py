@@ -56,6 +56,11 @@ def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
         "returns": long_date(facts.returns),
         "paid": inr(facts.paid_paise // 100),
         "total": inr(facts.total_paise // 100),
+        "coupon": (
+            f"{facts.coupon_code} (−{inr(facts.coupon_off_paise // 100)})"
+            if facts.coupon_code
+            else None
+        ),
         "booked_at": _ist(facts.booked_at),
         "demo_note": DEMO_NOTE,
         "whatsapp_url": whatsapp_href(

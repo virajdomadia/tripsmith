@@ -10,7 +10,7 @@ from collections import Counter
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.models.enums import BookingStatus, Occupancy
 from app.schemas import ApiModel
@@ -30,6 +30,25 @@ class UnbookableReason(StrEnum):
     ON_REQUEST = "on_request"  # a price is 0: "On request — enquire"
     TOO_SOON = "too_soon"  # before IST today + 2 days
     SOLD_OUT = "sold_out"  # not enough seats for the whole party
+
+
+class CouponReason(StrEnum):
+    """Why a code was refused (R26) — the 409's `reason`; the sheet shows it under the field."""
+
+    UNKNOWN = "coupon_unknown"  # no such code, or paused
+    NOT_STARTED = "coupon_not_started"
+    EXPIRED = "coupon_expired"
+    USED_UP = "coupon_used_up"  # captured uses + other live holds reached the limit
+    NOT_FOR_TRIP = "coupon_not_for_trip"
+    BELOW_MINIMUM = "coupon_below_minimum"  # measured after the deal
+    USED_BY_EMAIL = "coupon_used_by_email"
+
+
+def normalise_code(v: object) -> object:
+    """Codes are case-insensitive: trimmed and upper-cased on the way in; blank = none."""
+    if not isinstance(v, str):
+        return v
+    return v.strip().upper() or None
 
 
 class QuoteTraveller(ApiModel):
@@ -76,6 +95,23 @@ def party_errors(travellers: list[QuoteTraveller] | list[BookingTraveller]) -> s
 class QuoteRequest(ApiModel):
     departure_id: str = Field(min_length=1, max_length=40)
     travellers: list[QuoteTraveller] = Field(min_length=1, max_length=MAX_TRAVELLERS)
+    coupon_code: str | None = Field(
+        default=None, max_length=40, description="Case-insensitive; refused with its reason"
+    )
+    email: str | None = Field(
+        default=None,
+        max_length=120,
+        description="The contact email once typed, so 'already used by this email' shows before "
+        "Pay; a malformed one is ignored",
+    )
+
+    _code = field_validator("coupon_code", mode="before")(normalise_code)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _email(cls, v: object) -> object:
+        s = v.strip().lower() if isinstance(v, str) else None
+        return s if s and EMAIL_RE.match(s) else None
 
     @field_validator("travellers")
     @classmethod
@@ -125,6 +161,9 @@ class BookingRequest(ApiModel):
     departure_id: str = Field(min_length=1, max_length=40)
     travellers: list[BookingTraveller] = Field(min_length=1, max_length=MAX_TRAVELLERS)
     contact: BookingContact
+    coupon_code: str | None = Field(default=None, max_length=40, description="As on the quote")
+
+    _code = field_validator("coupon_code", mode="before")(normalise_code)
 
     @field_validator("travellers")
     @classmethod
@@ -137,6 +176,8 @@ class BookingRequest(ApiModel):
         return QuoteRequest(
             departure_id=self.departure_id,
             travellers=[QuoteTraveller(occupancy=t.occupancy, age=t.age) for t in self.travellers],
+            coupon_code=self.coupon_code,
+            email=self.contact.email,
         )
 
 
@@ -163,6 +204,11 @@ class QuoteDeal(ApiModel):
     per_traveller_paise: int = Field(description="Starting price − deal price, before any cap")
 
 
+class QuoteCoupon(ApiModel):
+    code: str = Field(examples=["WELCOME10"])
+    off_paise: int = Field(description="Off the whole booking, after the deal; whole rupees")
+
+
 class Quote(ApiModel):
     """The server's price for a party on a departure; snapshotted on the booking as-is."""
 
@@ -172,9 +218,20 @@ class Quote(ApiModel):
     seats_left: int
     lines: list[QuoteLine]
     deal: QuoteDeal | None
-    subtotal_paise: int = Field(description="Before the deal")
-    discount_paise: int = Field(description="The deal lines' total, as a positive number")
+    coupon: QuoteCoupon | None
+    subtotal_paise: int = Field(description="Before the deal and the coupon")
+    discount_paise: int = Field(
+        description="The deal lines' total plus the coupon, as a positive number"
+    )
     total_paise: int
+
+    @model_validator(mode="before")
+    @classmethod
+    def _pre_coupon_snapshot(cls, data: object) -> object:
+        """Bookings snapshotted before B15 have no `coupon` key; the field stays required."""
+        if isinstance(data, dict) and "coupon" not in data:
+            return {**data, "coupon": None}
+        return data
 
 
 class BookingOrder(ApiModel):

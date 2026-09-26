@@ -115,6 +115,7 @@ class BookingRow(ApiModel):
     lead_phone: str
     total_paise: int
     paid_paise: int
+    coupon_code: str | None = Field(description="B15: the coupon the booking was quoted with")
     booked_at: dt.datetime
 
 

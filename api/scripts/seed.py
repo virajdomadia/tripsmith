@@ -18,6 +18,14 @@ It needs both packages in `DEMO_TRIPS` to be live. Re-running it resets the unre
 review a visitor wrote there is deleted) and recomputes both packages' ratings. A full seed
 never runs it.
 
+`--demo-coupon` (B15) writes only the demo coupon `WELCOME10` — 10 % off, capped at ₹1,000, all
+packages, from today for a year, limit 1,000, one use per email:
+
+    uv run python scripts/seed.py --demo-coupon --database-url …
+
+Re-running it restores those terms (and switches it back on) but never touches its uses, which
+are counted from bookings. A full seed never runs it.
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -50,6 +58,7 @@ from app.infra.storage import BlobStore, LocalStore, StorageNotConfigured, Store
 from app.models import (  # noqa: E402
     Booking,
     BookingTraveller,
+    Coupon,
     Departure,
     Destination,
     ItineraryDay,
@@ -59,9 +68,11 @@ from app.models import (  # noqa: E402
     Review,
     Testimonial,
     User,
+    coupon_packages,
 )
 from app.models.enums import (  # noqa: E402
     BookingStatus,
+    CouponKind,
     Occupancy,
     PackageStatus,
     PaymentProvider,
@@ -69,9 +80,11 @@ from app.models.enums import (  # noqa: E402
     UserRole,
 )
 from app.schemas.bookings import QuoteTraveller  # noqa: E402
+from app.services.admin_coupons import start_of_ist_day  # noqa: E402
 from app.services.analytics import ist_today  # noqa: E402
 from app.services.auth.passwords import hash_password  # noqa: E402
 from app.services.booking.pricing import build_quote  # noqa: E402
+from app.services.catalog.deals import end_of_ist_day  # noqa: E402
 from app.services.catalog.pricing import starting_price  # noqa: E402
 from app.services.reviews import recompute_rating  # noqa: E402
 from content import Content, load_content  # noqa: E402
@@ -407,6 +420,36 @@ async def seed_demo_traveller(
     return result
 
 
+DEMO_COUPON = "WELCOME10"
+
+
+async def seed_demo_coupon(db: AsyncSession, *, today: dt.date | None = None) -> SeedResult:
+    """The demo coupon (B15), upserted by its code; its uses (bookings) are left alone."""
+    today = today or ist_today()
+    coupon = (
+        await db.execute(select(Coupon).where(Coupon.code == DEMO_COUPON))
+    ).scalar_one_or_none()
+    if coupon is None:
+        coupon = Coupon(code=DEMO_COUPON)
+        db.add(coupon)
+    coupon.kind = CouponKind.PERCENT
+    coupon.amount_paise = None
+    coupon.percent = 10
+    coupon.cap_paise = 1_000_00
+    coupon.min_paise = None
+    coupon.starts_at = start_of_ist_day(today)
+    coupon.ends_at = end_of_ist_day(today + dt.timedelta(days=365))
+    coupon.use_limit = 1_000
+    coupon.all_packages = True
+    coupon.active = True
+    await db.flush()
+    await db.execute(delete(coupon_packages).where(coupon_packages.c.coupon_id == coupon.id))
+    await db.commit()
+    result = SeedResult()
+    result.counts.update(demo_coupons=1)
+    return result
+
+
 async def _demo_booking(
     db: AsyncSession,
     pkg: Package,
@@ -517,6 +560,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="seed just the demo traveller, their two past trips and one review (B13)",
     )
     parser.add_argument(
+        "--demo-coupon",
+        action="store_true",
+        help=f"seed just the demo coupon {DEMO_COUPON} (B15)",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -545,6 +593,8 @@ async def main(argv: list[str] | None = None) -> int:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
             if args.demo_traveller:
                 result = await seed_demo_traveller(db)
+            elif args.demo_coupon:
+                result = await seed_demo_coupon(db)
             else:
                 result = await seed(
                     db, content, store, settings, only=set(args.only) if args.only else None

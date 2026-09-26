@@ -11,16 +11,22 @@ The "starting price" here is the deal *base*: the cheapest upcoming priced doubl
 ignored. The cached `starting_price_paise` skips sold-out dates, so it rises while holds sit on
 the cheap date — reading it would let anyone widen the discount by holding seats and walking
 away (the lapse fires no event, so it would stay wide until the daily cron).
+
+A coupon (B15) comes after the deal and is taken off the whole booking once: a flat ₹ amount,
+or a % of the total after the deal, capped, rounded down to the rupee. It never takes the total
+below ₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
+`services/booking/coupons.py`; `apply_coupon` only does the sum.
 """
 
 import datetime as dt
 from collections import Counter
 from collections.abc import Sequence
 
-from app.models import Departure, Package
-from app.models.enums import Occupancy
+from app.models import Coupon, Departure, Package
+from app.models.enums import CouponKind, Occupancy
 from app.schemas.bookings import (
     Quote,
+    QuoteCoupon,
     QuoteDeal,
     QuoteLine,
     QuoteLineKind,
@@ -30,6 +36,8 @@ from app.schemas.bookings import (
 from app.services.analytics import ist_today
 
 MIN_DAYS_AHEAD = 2
+MIN_TOTAL_PAISE = 100  # Razorpay's smallest order, ₹1
+RUPEE = 100
 # Line order on the breakdown; the deal lines follow in the same occupancy order.
 ORDER = (Occupancy.DOUBLE, Occupancy.TRIPLE, Occupancy.SINGLE, Occupancy.CHILD)
 
@@ -53,6 +61,28 @@ def deal_off(pkg: Package, *, base: int, now: dt.datetime) -> int:
     if deal is None or ends is None or now >= ends or not 0 < deal < base:
         return 0
     return base - deal
+
+
+def coupon_off(coupon: Coupon, amount_paise: int) -> int:
+    """What the coupon takes off `amount_paise` (the total after the deal), in whole rupees."""
+    if coupon.kind == CouponKind.FLAT:
+        off = coupon.amount_paise or 0
+    else:
+        off = amount_paise * (coupon.percent or 0) // 100
+        if coupon.cap_paise:
+            off = min(off, coupon.cap_paise)
+    return max(0, min(off, amount_paise - MIN_TOTAL_PAISE)) // RUPEE * RUPEE
+
+
+def apply_coupon(quote: Quote, coupon: Coupon) -> Quote:
+    off = coupon_off(coupon, quote.total_paise)
+    return quote.model_copy(
+        update={
+            "coupon": QuoteCoupon(code=coupon.code, off_paise=off),
+            "discount_paise": quote.discount_paise + off,
+            "total_paise": quote.total_paise - off,
+        }
+    )
 
 
 def unit_price(dep: Departure, occupancy: Occupancy) -> int:
@@ -114,6 +144,7 @@ def build_quote(
         seats_left=seats_left,
         lines=lines,
         deal=deal,
+        coupon=None,
         subtotal_paise=subtotal,
         discount_paise=discount,
         total_paise=subtotal - discount,

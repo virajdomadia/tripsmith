@@ -26,6 +26,7 @@ from app.middleware import (
 )
 from app.routers import auth
 from app.routers.admin import bookings as admin_bookings
+from app.routers.admin import coupons as admin_coupons
 from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
@@ -126,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_packages.router)
     app.include_router(admin_package_images.router)
     app.include_router(admin_reviews.router)
+    app.include_router(admin_coupons.router)
     app.include_router(catalog.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)

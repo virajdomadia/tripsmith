@@ -123,6 +123,11 @@ class _Voucher:
             d.font(11.5, "XB", INK)
             d.cell(cw - 8, 6, value)
         d.set_y(top + h)
+        if f.coupon_code:  # B15: under the strip, like a receipt's discount line
+            d.set_xy(MARGIN, top + h + 2)
+            d.font(9, "", MUTE)
+            d.cell(0, 5, f"Coupon {f.coupon_code} · {inr(f.coupon_off_paise // 100)} off the total")
+            d.set_y(top + h + 7)
 
     def travellers(self) -> None:
         d, f = self.doc, self.f

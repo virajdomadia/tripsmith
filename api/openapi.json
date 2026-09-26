@@ -730,6 +730,169 @@
         "title": "AdminCancellation",
         "type": "object"
       },
+      "AdminCoupon": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "allPackages": {
+            "title": "Allpackages",
+            "type": "boolean"
+          },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise"
+          },
+          "capPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cappaise"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "endsOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endson"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CouponKind"
+          },
+          "liveHolds": {
+            "description": "Checkouts holding the code right now",
+            "title": "Liveholds",
+            "type": "integer"
+          },
+          "locked": {
+            "description": "In use (a use or a live hold): code, kind and amount can no longer change, and it cannot be deleted",
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "minPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minpaise"
+          },
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/CouponPackage"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "startsOn": {
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CouponState"
+          },
+          "useLimit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uselimit"
+          },
+          "uses": {
+            "description": "Bookings with the code and money captured",
+            "title": "Uses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "kind",
+          "amountPaise",
+          "percent",
+          "capPaise",
+          "minPaise",
+          "startsOn",
+          "endsOn",
+          "useLimit",
+          "allPackages",
+          "packages",
+          "active",
+          "state",
+          "uses",
+          "liveHolds",
+          "locked",
+          "createdAt"
+        ],
+        "title": "AdminCoupon",
+        "type": "object"
+      },
+      "AdminCouponList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminCoupon"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminCouponList",
+        "type": "object"
+      },
       "AdminDeparture": {
         "description": "Every departure the owner has, past ones included; `seats_left` is read-only.",
         "properties": {
@@ -2041,6 +2204,19 @@
           "contact": {
             "$ref": "#/components/schemas/BookingContact"
           },
+          "couponCode": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As on the quote",
+            "title": "Couponcode"
+          },
           "departureId": {
             "maxLength": 40,
             "minLength": 1,
@@ -2091,6 +2267,18 @@
                 "type": "null"
               }
             ]
+          },
+          "couponCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "B15: the coupon the booking was quoted with",
+            "title": "Couponcode"
           },
           "departs": {
             "format": "date",
@@ -2163,6 +2351,7 @@
           "leadPhone",
           "totalPaise",
           "paidPaise",
+          "couponCode",
           "bookedAt"
         ],
         "title": "BookingRow",
@@ -2239,6 +2428,184 @@
           "rejected"
         ],
         "title": "CancellationStatus",
+        "type": "string"
+      },
+      "CouponActive": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "CouponActive",
+        "type": "object"
+      },
+      "CouponInput": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "allPackages": {
+            "default": true,
+            "title": "Allpackages",
+            "type": "boolean"
+          },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Flat only: ₹ off the booking",
+            "title": "Amountpaise"
+          },
+          "capPaise": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percent only, optional",
+            "title": "Cappaise"
+          },
+          "code": {
+            "description": "Stored upper case; unique; locked once the coupon is in use",
+            "title": "Code",
+            "type": "string"
+          },
+          "endsOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last IST day it works; none = no end",
+            "title": "Endson"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CouponKind"
+          },
+          "minPaise": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional; the total after the deal",
+            "title": "Minpaise"
+          },
+          "packageIds": {
+            "description": "When not all packages",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Packageids",
+            "type": "array"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Percent only",
+            "title": "Percent"
+          },
+          "startsOn": {
+            "description": "First IST day it works",
+            "format": "date",
+            "title": "Startson",
+            "type": "string"
+          },
+          "useLimit": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Captured uses; none = no limit",
+            "title": "Uselimit"
+          }
+        },
+        "required": [
+          "code",
+          "kind",
+          "startsOn"
+        ],
+        "title": "CouponInput",
+        "type": "object"
+      },
+      "CouponKind": {
+        "enum": [
+          "flat",
+          "percent"
+        ],
+        "title": "CouponKind",
+        "type": "string"
+      },
+      "CouponPackage": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CouponPackage",
+        "type": "object"
+      },
+      "CouponState": {
+        "description": "What the list's badge says, in the order it is decided.",
+        "enum": [
+          "paused",
+          "scheduled",
+          "expired",
+          "used_up",
+          "active"
+        ],
+        "title": "CouponState",
         "type": "string"
       },
       "Dashboard": {
@@ -4820,6 +5187,16 @@
       "Quote": {
         "description": "The server's price for a party on a departure; snapshotted on the booking as-is.",
         "properties": {
+          "coupon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteCoupon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "date": {
             "format": "date",
             "title": "Date",
@@ -4840,7 +5217,7 @@
             "type": "string"
           },
           "discountPaise": {
-            "description": "The deal lines' total, as a positive number",
+            "description": "The deal lines' total plus the coupon, as a positive number",
             "title": "Discountpaise",
             "type": "integer"
           },
@@ -4860,7 +5237,7 @@
             "type": "integer"
           },
           "subtotalPaise": {
-            "description": "Before the deal",
+            "description": "Before the deal and the coupon",
             "title": "Subtotalpaise",
             "type": "integer"
           },
@@ -4876,11 +5253,34 @@
           "seatsLeft",
           "lines",
           "deal",
+          "coupon",
           "subtotalPaise",
           "discountPaise",
           "totalPaise"
         ],
         "title": "Quote",
+        "type": "object"
+      },
+      "QuoteCoupon": {
+        "properties": {
+          "code": {
+            "examples": [
+              "WELCOME10"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "offPaise": {
+            "description": "Off the whole booking, after the deal; whole rupees",
+            "title": "Offpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "offPaise"
+        ],
+        "title": "QuoteCoupon",
         "type": "object"
       },
       "QuoteDeal": {
@@ -4966,11 +5366,37 @@
       },
       "QuoteRequest": {
         "properties": {
+          "couponCode": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Case-insensitive; refused with its reason",
+            "title": "Couponcode"
+          },
           "departureId": {
             "maxLength": 40,
             "minLength": 1,
             "title": "Departureid",
             "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contact email once typed, so 'already used by this email' shows before Pay; a malformed one is ignored",
+            "title": "Email"
           },
           "travellers": {
             "items": {
@@ -6462,6 +6888,253 @@
           }
         },
         "summary": "Resolve Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/coupons": {
+      "get": {
+        "operationId": "listCoupons",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCouponList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createCoupon",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CouponInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoupon"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/coupons/{id}": {
+      "delete": {
+        "operationId": "deleteCoupon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Delete Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "getCoupon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoupon"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "updateCoupon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CouponInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoupon"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/coupons/{id}/active": {
+      "post": {
+        "operationId": "setCouponActive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CouponActive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoupon"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Active Route",
         "tags": [
           "admin"
         ]

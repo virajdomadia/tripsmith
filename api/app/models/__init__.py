@@ -22,6 +22,7 @@ from app.models.catalog import (
     PackageImage,
     Testimonial,
 )
+from app.models.coupons import Coupon, coupon_packages
 from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "Booking",
     "BookingCancellation",
     "BookingTraveller",
+    "Coupon",
     "Departure",
     "Destination",
     "Enquiry",
@@ -44,5 +46,6 @@ __all__ = [
     "Testimonial",
     "User",
     "Verification",
+    "coupon_packages",
     "new_id",
 ]

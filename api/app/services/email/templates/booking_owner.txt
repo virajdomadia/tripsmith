@@ -14,7 +14,8 @@ Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }})
 
 Total:       {{ total }}
 Paid:        {{ paid }}
-Payment:     {{ payment_id }}
+{% if coupon %}Coupon:      {{ coupon }}
+{% endif %}Payment:     {{ payment_id }}
 
 Reply to this email to write to {{ b.first_name }} directly.
 
