@@ -23,6 +23,7 @@ import { ViewBeacon } from '@/components/site/package/ViewBeacon';
 import { WhatsAppPageMessage } from '@/components/site/whatsapp/WhatsAppContext';
 import { api } from '@/lib/api';
 import { loadPackage, REVALIDATE_SECONDS } from '@/lib/catalog';
+import { shownPrice } from '@/lib/deal';
 import { whatsappInterest } from '@/lib/business';
 import { duration, inr, isPriced } from '@/lib/format';
 import { offersBooking } from '@/lib/booking';
@@ -56,7 +57,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const p = await loadPackage(slug);
   // Every departure on request: no "from ₹0".
-  const from = isPriced(p.startingPricePaise) ? ` from ${inr(p.startingPricePaise)}` : '';
+  const from = isPriced(shownPrice(p)) ? ` from ${inr(shownPrice(p))}` : '';
   const title = `${p.name} — ${duration(p.nights, p.days)} ${p.destination.name} package${from}`;
   return {
     title,
@@ -140,8 +141,8 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
               <Hotels hotels={pkg.hotels} />
             </Section>
             <Section id="dates" title="Dates & prices">
-              <DeparturesTable departures={pkg.departures} />
-              <OccupancyPricing departures={pkg.departures} />
+              <DeparturesTable departures={pkg.departures} deal={pkg.deal} />
+              <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
             </Section>
             {pkg.faq.length > 0 && (
               <Section id="faq" title="Questions">

@@ -1,4 +1,5 @@
 import { loadPackage } from '@/lib/catalog';
+import { shownPrice } from '@/lib/deal';
 import { duration, inr, isPriced } from '@/lib/format';
 import { OG_CONTENT_TYPE, OG_SIZE, ogCard } from '@/lib/og/card';
 import { SITE_URL } from '@/lib/seo/site-url';
@@ -15,7 +16,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     cover: p.cover?.url,
     name: p.name,
     line: `${duration(p.nights, p.days)} · ${p.destination.name} · ${p.departureCity}`,
-    price: isPriced(p.startingPricePaise) ? `From ${inr(p.startingPricePaise)}` : null,
+    price: isPriced(shownPrice(p)) ? `From ${inr(shownPrice(p))}` : null,
     site: new URL(SITE_URL).host,
   });
 }

@@ -64,6 +64,7 @@ def package(
         or "Easy days between Calangute and Morjim — beach mornings, a spice farm, a heritage "
         "walk and one sunset cruise, with the hotel a minute from the sand.",
         destination=DestinationRef(slug="goa", name="Goa"),
+        deal=None,
         themes=["beach", "family"],  # type: ignore[arg-type]
         nights=days - 1,
         days=days,

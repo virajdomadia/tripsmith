@@ -884,6 +884,9 @@ async def as_payload(db: AsyncSession, id: str, **overrides: object) -> PackageI
             }
             for d in out.departures
         ],
+        "dealPricePaise": out.deal_price_paise,
+        "dealLabel": out.deal_label,
+        "dealEndsOn": out.deal_ends_on.isoformat() if out.deal_ends_on else None,
         "expectedEditedAt": out.edited_at.isoformat(),
     }
     fields.update(overrides)

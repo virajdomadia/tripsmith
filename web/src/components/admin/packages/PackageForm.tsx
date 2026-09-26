@@ -23,6 +23,7 @@ import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { BasicsPanel } from './BasicsPanel';
 import { DeletePackage } from './DeletePackage';
+import { DealPanel } from './DealPanel';
 import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
 import { GalleryUploader } from './GalleryUploader';
@@ -59,6 +60,9 @@ const FIELDS = new Set<string>([
   'featured',
   'itinerary',
   'departures',
+  'dealPricePaise',
+  'dealLabel',
+  'dealEndsOn',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures']);
@@ -103,6 +107,9 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
       priceChildPaise: d.priceChildPaise,
       singleSupplementPaise: d.singleSupplementPaise,
     })),
+    dealPricePaise: pkg.dealPricePaise ?? '',
+    dealLabel: pkg.dealLabel ?? '',
+    dealEndsOn: pkg.dealEndsOn ?? '',
   };
 }
 
@@ -277,6 +284,10 @@ export function PackageForm(props: Props) {
 
           <section className={panel}>
             <DeparturesEditor />
+          </section>
+
+          <section className={panel}>
+            <DealPanel saved={pkg} />
           </section>
 
           <section className={panel}>

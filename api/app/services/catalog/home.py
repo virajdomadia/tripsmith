@@ -9,23 +9,42 @@ from sqlalchemy.orm import selectinload
 from app.models import Departure, Package, Testimonial
 from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
-from app.schemas.catalog import HomeData, HomeStats, TestimonialOut
+from app.schemas.catalog import HomeData, HomeStats, PackageCard, TestimonialOut
 from app.services.analytics import ist_today
+from app.services.catalog import deals
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import list_destinations
 
 HOME_LIMIT = 6  # tiles and cards on the home page (07-plan F6)
+DEALS_LIMIT = 4  # the Deals strip (03 R20)
 
 
-async def _featured_first(db: AsyncSession) -> list[Package]:
-    price = func.nullif(Package.starting_price_paise, 0)  # 0 = no upcoming date, not "cheapest"
+async def _featured_first(db: AsyncSession, now: dt.datetime, today: dt.date) -> list[Package]:
+    # 0 = no upcoming date, not "cheapest"; a running deal's price is the one the card shows.
+    price = func.nullif(deals.shown_price(now, today), 0)
     rows = await db.execute(
         select(Package)
         .where(Package.status == PackageStatus.LIVE)
         .options(selectinload(Package.destination), selectinload(Package.cover_image))
         .order_by(Package.featured.desc(), nulls_last(price.asc()), Package.name)
         .limit(HOME_LIMIT)
+    )
+    return list(rows.scalars().all())
+
+
+async def _deal_candidates(db: AsyncSession, now: dt.datetime) -> list[Package]:
+    """Live packages with a deal still dated ahead, ending soonest first. Whether each one
+    actually runs (below its base, something bookable) is `deals.deal_for`'s call."""
+    rows = await db.execute(
+        select(Package)
+        .where(
+            Package.status == PackageStatus.LIVE,
+            Package.deal_price_paise.is_not(None),
+            Package.deal_ends_at > now,
+        )
+        .options(selectinload(Package.destination), selectinload(Package.cover_image))
+        .order_by(Package.deal_ends_at, Package.name)
     )
     return list(rows.scalars().all())
 
@@ -72,15 +91,26 @@ async def _stats(db: AsyncSession, today: dt.date, destinations: int) -> HomeSta
     return HomeStats(destinations=destinations, packages=packages, departures=departures)
 
 
-async def get_home_data(db: AsyncSession, *, today: dt.date | None = None) -> HomeData:
-    """Destinations (display order), featured-first package cards, testimonials, live counts."""
-    today = today or ist_today()
-    destinations = await list_destinations(db)
-    packages = await _featured_first(db)
+async def get_home_data(
+    db: AsyncSession, *, today: dt.date | None = None, now: dt.datetime | None = None
+) -> HomeData:
+    """Destinations (display order), featured-first package cards, running deals, testimonials,
+    live counts."""
+    now = now or dt.datetime.now(dt.UTC)
+    today = today or ist_today(now)
+    destinations = await list_destinations(db, now=now)
+    packages = await _featured_first(db, now, today)
     upcoming = await next_departures(db, today)
+    base = await deals.bases(db, today)
+
+    def card(p: Package) -> PackageCard:
+        return package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+
+    running = [c for c in map(card, await _deal_candidates(db, now)) if c.deal]
     return HomeData(
         destinations=destinations[:HOME_LIMIT],
-        packages=[package_card(p, upcoming.get(p.id)) for p in packages],
+        packages=[card(p) for p in packages],
+        deals=running[:DEALS_LIMIT],
         testimonials=await _testimonials(db),
         stats=await _stats(db, today, len(destinations)),
     )

@@ -20,3 +20,6 @@ class DailyReport(ApiModel):
         default=0, description="Pending bookings lapsed over an hour, cancelled (B10)"
     )
     bookings_completed: int = Field(default=0, description="Departed confirmed bookings (B10)")
+    deals_ended: int = Field(
+        default=0, description="Live packages whose deal ended in the last 48 h, revalidated (B12)"
+    )

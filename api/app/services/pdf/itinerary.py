@@ -100,9 +100,10 @@ _RENDERER = _renderer_hash()
 
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:
     """16 hex chars over everything `render_itinerary` draws: the package page as served today
-    (`related` and `updated_at` are not drawn), the two settings it prints, the business block
-    and the renderer. Any change → a new pathname; nothing else → the same one."""
-    drawn = pkg.model_dump(mode="json", exclude={"related", "updated_at"})
+    (`related`, `updated_at` and the B12 `deal` are not drawn), the two settings it prints,
+    the business block and the renderer. Any change → a new pathname; nothing else → the same
+    one."""
+    drawn = pkg.model_dump(mode="json", exclude={"related", "updated_at", "deal"})
     payload = [drawn, site_url, whatsapp_number, BUSINESS, _RENDERER]
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]

@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { components } from '@/lib/api-types';
 import { inr } from '@/lib/format';
+import { dealNotice, NOTICE_TONE } from './DealPanel';
 import { DuplicatePackage } from './DuplicatePackage';
 
 type AdminPackageRow = components['schemas']['AdminPackageRow'];
@@ -23,6 +24,25 @@ type Tab = 'all' | 'live' | 'draft';
 
 /** A dash reads better than a zero for "nothing here yet" (mockup A3). */
 const orDash = (n: number, render: (n: number) => string = String) => (n ? render(n) : '—');
+
+/** B12: the deal under the price — running, ended, or switched off by a departure change. */
+function DealNote({ row }: { row: AdminPackageRow }) {
+  const notice = dealNotice(row);
+  if (!notice) return null;
+  const text =
+    row.dealState === 'active' && row.dealPricePaise != null
+      ? `Deal ${inr(row.dealPricePaise)}`
+      : row.dealState === 'ended'
+        ? 'Deal ended'
+        : notice.text;
+  return (
+    <span
+      className={`mt-1 block w-fit max-w-[280px] rounded-md px-2 py-0.5 text-xs font-semibold whitespace-normal ${NOTICE_TONE[notice.tone]}`}
+    >
+      {text}
+    </span>
+  );
+}
 
 /**
  * Mockup A3. Filtering is client-side on purpose: the catalogue is a dozen packages, so a
@@ -115,7 +135,10 @@ export function PackagesTable({ items }: { items: AdminPackageRow[] }) {
                         <Image src={p.coverUrl} alt="" fill sizes="56px" className="object-cover" />
                       )}
                     </span>
-                    {p.name}
+                    <span>
+                      {p.name}
+                      <DealNote row={p} />
+                    </span>
                   </span>
                 </TableCell>
                 <TableCell className="text-ink2">{p.destination.name}</TableCell>

@@ -1,4 +1,5 @@
 import type { components } from '@/lib/api-types';
+import { afterDeal } from '@/lib/deal';
 import { isPriced } from '@/lib/format';
 
 type PackageDetail = components['schemas']['PackageDetail'];
@@ -35,7 +36,10 @@ export function packageJsonLd(p: PackageDetail, url: string): Record<string, unk
       '@type': 'Offer',
       name: `Departure ${d.date}`,
       url,
-      price: String(Math.round(d.priceDoublePaise / 100)),
+      // B12: a running deal takes its flat amount off every date, as the page and the quote do,
+      // and the offer lapses with it (`priceValidUntil` = the deal's last IST day).
+      price: String(Math.round(afterDeal(d.priceDoublePaise, p.deal) / 100)),
+      ...(p.deal ? { priceValidUntil: p.deal.endsOn } : {}),
       priceCurrency: 'INR',
       availability: d.seatsLeft > 0 ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
     }));
