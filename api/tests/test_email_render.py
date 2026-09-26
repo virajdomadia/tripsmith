@@ -211,3 +211,7 @@ def test_email_whatsapp_buttons_use_the_sites_aa_green() -> None:
     templates = Path(__file__).resolve().parents[1] / "app/services/email/templates"
     html = [p.read_text(encoding="utf-8") for p in templates.glob("*.html")]
     assert html and not any("25d366" in t.lower() for t in html)
+    # White text on it (4.9:1): dark text on the darker green would fail AA instead.
+    buttons = [t for t in html if "#17823f" in t]
+    assert len(buttons) >= 5
+    assert all("background:#17823f;color:#ffffff" in t for t in buttons)
