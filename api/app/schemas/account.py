@@ -56,6 +56,7 @@ class AccountCancellation(ApiModel):
     reason: str
     requested_at: dt.datetime
     refund_note: str | None = None
+    refund_paise: int | None = Field(default=None, description="Agreed on approval")
     resolved_at: dt.datetime | None = None
 
 

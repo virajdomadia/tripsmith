@@ -1,0 +1,27 @@
+{% if approved %}
+Your booking is cancelled, {{ b.first_name }}.
+
+As you asked, we have cancelled {{ b.package_name }} on {{ departs }} (booking {{ b.ref }}). Your seats are released.
+
+{% if refund %}
+We are refunding {{ refund }} to the way you paid — it usually lands within 5–7 working days, nothing for you to do.
+{% else %}
+Under our cancellation policy there is no refund at this stage.
+{% endif %}
+{% else %}
+We couldn’t cancel this booking, {{ b.first_name }}.
+
+About your request to cancel {{ b.package_name }} on {{ departs }} (booking {{ b.ref }}): your booking stands, and your seats are still yours.
+{% endif %}
+
+From us:
+{{ note }}
+
+Questions? WhatsApp us — a person replies, 10 am – 8 pm. {{ demo_note }}
+Cancellation & refunds policy: {{ policy_url }}
+
+WhatsApp us: {{ whatsapp_url }}
+See it in My trips: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

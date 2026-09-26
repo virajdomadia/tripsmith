@@ -25,8 +25,11 @@ BookingFlag = Literal["refund", "cancellation"]
 PaymentVia = Literal["checkout", "sync", "webhook", "desk"]
 TimelineKind = Literal[
     "booked", "order", "captured", "failed", "refunded", "offline", "lapsed", "cancelled",
-    "completed", "cancellation",
+    "completed", "cancellation", "resolved",
 ]  # fmt: skip
+Decision = Literal["approve", "reject"]
+RESOLVE_NOTE_MIN = 5
+RESOLVE_NOTE_MAX = 500
 
 
 class BookingFilters(ApiModel):
@@ -138,6 +141,9 @@ class AdminPayment(ApiModel):
     via: PaymentVia | None = Field(
         description="How the capture reached us; null while the order is still open"
     )
+    refunded_paise: int | None = Field(
+        default=None, description="How much of it was given back, once refunded"
+    )
     created_at: dt.datetime
     updated_at: dt.datetime
 
@@ -155,6 +161,17 @@ class BookingPackage(ApiModel):
     nights: int
     days: int
     departure_city: str
+
+
+class AdminCancellation(AccountCancellation):
+    """The request as the owner decides it (B11): the policy tier is read at the day the
+    customer asked, and the refund it implies is only a suggestion — the owner can change it."""
+
+    id: str
+    days_out: int = Field(description="Days before departure when the customer asked")
+    tier: str = Field(description="What the policy refunds at `days_out`")
+    suggested_refund_paise: int = Field(description="The tier applied to what was paid")
+    can_approve: bool = Field(description="Requested, and the booking still holds its seats")
 
 
 class AdminBooking(ApiModel):
@@ -182,7 +199,7 @@ class AdminBooking(ApiModel):
     timeline: list[TimelineEvent] = Field(
         description="Derived from the booking and its payments, oldest first"
     )
-    cancellation: AccountCancellation | None
+    cancellation: AdminCancellation | None
     has_voucher: bool
     can_mark_paid: bool = Field(description="Pending, or swept as hold_expired")
     can_release: bool = Field(description="Pending")
@@ -221,6 +238,41 @@ class RefundMadeInput(ApiModel):
     @classmethod
     def _note(cls, v: object) -> str | None:
         return short_note(v)
+
+
+class ResolveCancellationInput(ApiModel):
+    """`POST /admin/cancellations/{id}/resolve` (R19, B11). The note goes to the customer — in
+    the email and on their booking page — so it is required either way. `refundPaise` is required
+    to approve (0 when the policy refunds nothing) and must be left out to reject."""
+
+    decision: Decision
+    note: str = Field(min_length=RESOLVE_NOTE_MIN, max_length=RESOLVE_NOTE_MAX)
+    refund_paise: int | None = Field(
+        default=None, ge=0, validate_default=True, description="Approve only; at most what was paid"
+    )
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("note")
+    @classmethod
+    def _plain(cls, v: str) -> str:
+        if CONTROL_RE.search(v.replace("\n", " ").replace("\r", " ").replace("\t", " ")):
+            raise ValueError("Write the note without special characters")
+        return v
+
+    @field_validator("refund_paise")
+    @classmethod
+    def _refund_goes_with_approve(cls, v: int | None, info: ValidationInfo) -> int | None:
+        # `validate_default` on the field: a missing refund on approve must still fail here.
+        decision = info.data.get("decision")
+        if decision == "approve" and v is None:
+            raise ValueError("Enter the refund — ₹0 if the policy refunds nothing")
+        if decision == "reject" and v is not None:
+            raise ValueError("A rejected request refunds nothing")
+        return v
 
 
 class ManifestBooking(ApiModel):

@@ -6,12 +6,14 @@ import { PageHead } from '@/components/admin/PageHead';
 import { EnquiryFacts } from '@/components/admin/enquiries/EnquiryFacts';
 import { istFullDate } from '@/components/admin/enquiries/ist-date';
 import { NotesPanel } from '@/components/admin/enquiries/NotesPanel';
+import { ReplyPanel } from '@/components/admin/enquiries/ReplyPanel';
 import { RelatedEnquiries } from '@/components/admin/enquiries/RelatedEnquiries';
 import { StatusPicker } from '@/components/admin/enquiries/StatusPicker';
 import { buttonVariants } from '@/components/ui/button';
 import { typeHeadline } from '@/lib/admin/enquiry-filters';
 import { emailSubject, mailtoHref, replyMessage, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { api, ApiRequestError } from '@/lib/api';
+import { BUSINESS } from '@/lib/business';
 import { getSession } from '@/lib/auth/session';
 import { duration, inr } from '@/lib/format';
 import { itineraryPdfHref } from '@/lib/pdf';
@@ -30,6 +32,12 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
     if (e instanceof ApiRequestError && e.status === 404) notFound();
     throw e;
   }
+  // The reply's attachment choices: any live package (R23, B11).
+  const { items } = await api('/admin/packages', { auth: true });
+  const live = items
+    .filter((p) => p.status === 'live')
+    .map((p) => ({ slug: p.slug, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const reply = replyMessage(enquiry);
   const panel = 'grid gap-3 rounded-card border border-line bg-bg p-4';
   const heading = 'text-sm font-extrabold';
@@ -81,6 +89,21 @@ export default async function EnquiryPage({ params }: { params: Promise<{ id: st
           <section className={panel}>
             <h2 className={heading}>Enquiry</h2>
             <EnquiryFacts enquiry={enquiry} />
+          </section>
+          <section className={panel}>
+            <h2 className={heading}>
+              Replies{' '}
+              <span className="font-semibold text-mute">· by email, from {BUSINESS.name}</span>
+            </h2>
+            <ReplyPanel
+              id={enquiry.id}
+              email={enquiry.email}
+              messages={enquiry.messages}
+              subject={emailSubject(enquiry)}
+              body={`${reply}\n\n`}
+              packages={live}
+              packageSlug={enquiry.package?.slug ?? null}
+            />
           </section>
           <section className={panel}>
             <h2 className={heading}>

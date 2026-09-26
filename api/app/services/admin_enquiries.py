@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
-from app.models import Enquiry, EnquiryNote, Package, PackageImage
+from app.models import Enquiry, EnquiryMessage, EnquiryNote, Package, PackageImage
 from app.models.enums import EmailStatus, EnquiryStatus
 from app.models.enums import EnquiryType as OrmEnquiryType
 from app.schemas.admin_enquiries import (
@@ -31,6 +31,7 @@ from app.schemas.admin_enquiries import (
     Device,
     EnquiryFilters,
     EnquiryList,
+    EnquiryMessageOut,
     EnquiryNoteOut,
     EnquiryPackage,
     EnquiryRow,
@@ -243,6 +244,29 @@ async def _related(db: AsyncSession, row: Enquiry) -> list[RelatedEnquiry]:
     ]
 
 
+async def _messages(db: AsyncSession, enquiry_id: str) -> list[EnquiryMessageOut]:
+    """R23's thread, oldest first; a failed try sits where it was made until it is sent again."""
+    rows = await db.execute(
+        select(EnquiryMessage, Package.slug, Package.name)
+        .outerjoin(Package, Package.id == EnquiryMessage.package_id)
+        .where(EnquiryMessage.enquiry_id == enquiry_id)
+        .order_by(EnquiryMessage.sent_at, EnquiryMessage.id)
+        .execution_options(populate_existing=True)
+    )
+    return [
+        EnquiryMessageOut(
+            id=m.id,
+            subject=m.subject,
+            body=m.body,
+            sent_at=m.sent_at,
+            sent=m.resend_id is not None,
+            error=m.error,
+            attachment=PackageRef(slug=slug, name=name) if slug and name else None,
+        )
+        for m, slug, name in rows.all()
+    ]
+
+
 async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
     return AdminEnquiry(
         id=row.id,
@@ -268,6 +292,7 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
         # The relationship is ordered by `created_at` on the model — oldest first, as a
         # timeline reads.
         notes=[EnquiryNoteOut(id=n.id, body=n.body, created_at=n.created_at) for n in row.notes],
+        messages=await _messages(db, row.id),
         related=await _related(db, row),
     )
 

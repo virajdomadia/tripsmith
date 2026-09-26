@@ -14,6 +14,7 @@ const DOT: Record<Event['kind'], string> = {
   cancelled: 'bg-bad',
   completed: 'bg-ink',
   cancellation: 'bg-warn',
+  resolved: 'bg-ink',
 };
 
 /** R22's payment timeline, oldest first — derived by the api from the booking and its payment

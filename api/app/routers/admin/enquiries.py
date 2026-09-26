@@ -1,4 +1,5 @@
-"""`/admin/enquiries*` (06 §C-REST): the owner's inbox — list, detail, status, notes, CSV.
+"""`/admin/enquiries*` (06 §C-REST): the owner's inbox — list, detail, status, notes, CSV, and
+replies by email (R23, B11).
 
 Mounted under a plain `/admin` prefix rather than `/admin/enquiries`, because the export lives
 at `/admin/enquiries.csv`, a sibling of the collection and not a child of it. `.csv` is declared
@@ -8,7 +9,7 @@ parameter never matches across a `/`.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +20,11 @@ from app.schemas.admin_enquiries import (
     EnquiryFilters,
     EnquiryList,
     EnquiryNoteInput,
+    EnquiryReplyInput,
     EnquiryStatusInput,
 )
 from app.services import admin_enquiries as svc
+from app.services import enquiry_reply
 from app.services.auth.deps import require_owner
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -83,3 +86,37 @@ async def add_note_route(
     """201 with the whole enquiry, not just the note: the client renders the fresh timeline."""
     response.headers.update(NO_STORE)
     return await svc.add_note(db, id, payload.body)
+
+
+@router.post(
+    "/enquiries/{id}/reply",
+    operation_id="replyToEnquiry",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+)
+async def reply_route(
+    id: str, payload: EnquiryReplyInput, request: Request, response: Response, db: Db
+) -> AdminEnquiry:
+    """Emails the enquirer and logs the try in the thread. 201 even when the send failed: the
+    reply is recorded, marked not sent with the reason, and can be sent again."""
+    response.headers.update(NO_STORE)
+    state = request.app.state
+    return await enquiry_reply.send_reply(
+        db, id, payload, sender=state.email_sender, settings=state.settings, pdf=state.pdf
+    )
+
+
+@router.post(
+    "/enquiries/{id}/messages/{message_id}/resend",
+    operation_id="resendEnquiryReply",
+    response_model_by_alias=True,
+)
+async def resend_route(
+    id: str, message_id: str, request: Request, response: Response, db: Db
+) -> AdminEnquiry:
+    """Sends a failed reply again, as written. 409 `sent` when it already went."""
+    response.headers.update(NO_STORE)
+    state = request.app.state
+    return await enquiry_reply.resend_reply(
+        db, id, message_id, sender=state.email_sender, settings=state.settings, pdf=state.pdf
+    )

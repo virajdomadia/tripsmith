@@ -304,6 +304,18 @@
             ],
             "title": "Refundnote"
           },
+          "refundPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agreed on approval",
+            "title": "Refundpaise"
+          },
           "requestedAt": {
             "format": "date-time",
             "title": "Requestedat",
@@ -422,7 +434,7 @@
           "cancellation": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AccountCancellation"
+                "$ref": "#/components/schemas/AdminCancellation"
               },
               {
                 "type": "null"
@@ -550,6 +562,94 @@
           "seatsShort"
         ],
         "title": "AdminBooking",
+        "type": "object"
+      },
+      "AdminCancellation": {
+        "description": "The request as the owner decides it (B11): the policy tier is read at the day the\ncustomer asked, and the refund it implies is only a suggestion — the owner can change it.",
+        "properties": {
+          "canApprove": {
+            "description": "Requested, and the booking still holds its seats",
+            "title": "Canapprove",
+            "type": "boolean"
+          },
+          "daysOut": {
+            "description": "Days before departure when the customer asked",
+            "title": "Daysout",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "refundNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundnote"
+          },
+          "refundPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agreed on approval",
+            "title": "Refundpaise"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolvedat"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CancellationStatus"
+          },
+          "suggestedRefundPaise": {
+            "description": "The tier applied to what was paid",
+            "title": "Suggestedrefundpaise",
+            "type": "integer"
+          },
+          "tier": {
+            "description": "What the policy refunds at `days_out`",
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "requestedAt",
+          "id",
+          "daysOut",
+          "tier",
+          "suggestedRefundPaise",
+          "canApprove"
+        ],
+        "title": "AdminCancellation",
         "type": "object"
       },
       "AdminDeparture": {
@@ -776,6 +876,14 @@
             ],
             "title": "Message"
           },
+          "messages": {
+            "description": "Replies sent from the inbox, in order",
+            "items": {
+              "$ref": "#/components/schemas/EnquiryMessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -881,6 +989,7 @@
           "createdAt",
           "updatedAt",
           "notes",
+          "messages",
           "related"
         ],
         "title": "AdminEnquiry",
@@ -1275,6 +1384,18 @@
             ],
             "description": "What the owner typed when marking it paid",
             "title": "Reference"
+          },
+          "refundedPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How much of it was given back, once refunded",
+            "title": "Refundedpaise"
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
@@ -2615,6 +2736,66 @@
         "title": "EnquiryList",
         "type": "object"
       },
+      "EnquiryMessageOut": {
+        "description": "One reply in the thread (R23). `sent` is false when Resend refused it or was unreachable;\n`error` then says why, and the owner can send it again.",
+        "properties": {
+          "attachment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackageRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package whose itinerary PDF went with it"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "boolean"
+          },
+          "sentAt": {
+            "description": "When it went, or when the failed try was made",
+            "format": "date-time",
+            "title": "Sentat",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "body",
+          "sentAt",
+          "sent",
+          "error",
+          "attachment"
+        ],
+        "title": "EnquiryMessageOut",
+        "type": "object"
+      },
       "EnquiryNoteInput": {
         "properties": {
           "body": {
@@ -2702,6 +2883,42 @@
           "status"
         ],
         "title": "EnquiryPackage",
+        "type": "object"
+      },
+      "EnquiryReplyInput": {
+        "description": "`POST /admin/enquiries/{id}/reply` (R23): plain text, sent to the enquiry's email.",
+        "properties": {
+          "body": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "packageSlug": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Attach this live package's itinerary PDF",
+            "title": "Packageslug"
+          },
+          "subject": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "body"
+        ],
+        "title": "EnquiryReplyInput",
         "type": "object"
       },
       "EnquiryRow": {
@@ -4345,6 +4562,44 @@
         "title": "RelatedEnquiry",
         "type": "object"
       },
+      "ResolveCancellationInput": {
+        "description": "`POST /admin/cancellations/{id}/resolve` (R19, B11). The note goes to the customer — in\nthe email and on their booking page — so it is required either way. `refundPaise` is required\nto approve (0 when the policy refunds nothing) and must be left out to reject.",
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 5,
+            "title": "Note",
+            "type": "string"
+          },
+          "refundPaise": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Approve only; at most what was paid",
+            "title": "Refundpaise"
+          }
+        },
+        "required": [
+          "decision",
+          "note"
+        ],
+        "title": "ResolveCancellationInput",
+        "type": "object"
+      },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
         "properties": {
@@ -4627,7 +4882,8 @@
               "lapsed",
               "cancelled",
               "completed",
-              "cancellation"
+              "cancellation",
+              "resolved"
             ],
             "title": "Kind",
             "type": "string"
@@ -5480,6 +5736,59 @@
         ]
       }
     },
+    "/admin/cancellations/{id}/resolve": {
+      "post": {
+        "description": "Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject\n(the booking stands). The customer is emailed either way. 409 `resolved` when already\nanswered, `not_active` when approving a booking that no longer holds its seats.",
+        "operationId": "resolveCancellation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveCancellationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Resolve Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/dashboard": {
       "get": {
         "description": "Never cached: the owner refreshes this page to see the enquiry that just landed.",
@@ -6136,6 +6445,58 @@
         ]
       }
     },
+    "/admin/enquiries/{id}/messages/{message_id}/resend": {
+      "post": {
+        "description": "Sends a failed reply again, as written. 409 `sent` when it already went.",
+        "operationId": "resendEnquiryReply",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Resend Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/enquiries/{id}/notes": {
       "post": {
         "description": "201 with the whole enquiry, not just the note: the client renders the fresh timeline.",
@@ -6184,6 +6545,59 @@
           }
         },
         "summary": "Add Note Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}/reply": {
+      "post": {
+        "description": "Emails the enquirer and logs the try in the thread. 201 even when the send failed: the\nreply is recorded, marked not sent with the reason, and can be sent again.",
+        "operationId": "replyToEnquiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnquiryReplyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Reply Route",
         "tags": [
           "admin"
         ]

@@ -35,3 +35,13 @@ CANCELLATION_TIERS: tuple[tuple[int, str], ...] = (
 def refund_tier(days_out: int) -> str:
     """What the policy refunds for a cancellation asked `days_out` days before departure."""
     return next(text for start, text in CANCELLATION_TIERS if max(days_out, 0) >= start)
+
+
+def suggested_refund_paise(days_out: int, *, paid_paise: int, total_paise: int) -> int:
+    """The tier applied to the money actually paid (B11) — only a starting point for the owner:
+    the top tier can still keep non-refundable tickets, which the site knows nothing about."""
+    if days_out >= 30:
+        return paid_paise
+    if days_out >= 15:
+        return max(paid_paise - total_paise // 2, 0)
+    return 0

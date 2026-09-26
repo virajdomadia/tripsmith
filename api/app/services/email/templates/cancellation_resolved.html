@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% set title = ("Booking cancelled — " if approved else "About your cancellation request — ") ~ b.ref %}
+{% block body %}
+{% if approved %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Your booking is cancelled, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">As you asked, we have cancelled <b>{{ b.package_name }}</b> on {{ departs }} (booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:2px 8px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span>). Your seats are released.</p>
+{% if refund %}
+<p style="margin:0 0 16px;padding:12px 14px;background:#eef8f1;border-radius:12px;">We are refunding <b>{{ refund }}</b> to the way you paid — it usually lands within 5–7 working days, nothing for you to do.</p>
+{% else %}
+<p style="margin:0 0 16px;">Under our cancellation policy there is no refund at this stage.</p>
+{% endif %}
+{% else %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">We couldn’t cancel this booking, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">About your request to cancel <b>{{ b.package_name }}</b> on {{ departs }} (booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:2px 8px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span>): your booking stands, and your seats are still yours.</p>
+{% endif %}
+<p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#5e6b76;text-transform:uppercase;letter-spacing:0.06em;">From us</p>
+<p style="margin:0 0 18px;padding-left:12px;border-left:3px solid #e3e8ec;white-space:pre-line;">{{ note }}</p>
+<p style="margin:0 0 18px;color:#5e6b76;">Questions? WhatsApp us — a person replies, 10 am – 8 pm. {{ demo_note }} <a href="{{ policy_url }}" style="color:#1b4fd8;font-weight:700;">Cancellation &amp; refunds policy</a></p>
+<p style="margin:0 0 8px;">
+<a href="{{ whatsapp_url }}" style="display:inline-block;background:#25d366;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">WhatsApp us</a>
+<a href="{{ trip_url }}" style="display:inline-block;margin-left:8px;color:#1b4fd8;font-weight:700;padding:12px 4px;">See it in My trips</a>
+</p>
+{% endblock %}

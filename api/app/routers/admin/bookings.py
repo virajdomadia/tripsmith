@@ -3,7 +3,7 @@
 Same shape as the enquiry inbox (routers/admin/enquiries.py): a plain `/admin` prefix so the
 export can sit at `/admin/bookings.csv`, beside the collection. There is no free status change
 (`PATCH …/status` was dropped from 06 on 2026-09-26): every move goes through a guarded path —
-mark paid, release, record a refund, or the daily sweep.
+mark paid, release, record a refund, answer a cancellation request (B11), or the daily sweep.
 """
 
 from typing import Annotated
@@ -21,9 +21,10 @@ from app.schemas.admin_bookings import (
     Manifest,
     MarkPaidInput,
     RefundMadeInput,
+    ResolveCancellationInput,
 )
 from app.services.auth.deps import require_owner
-from app.services.booking import desk
+from app.services.booking import desk, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -90,6 +91,22 @@ async def refund_route(
 ) -> AdminBooking:
     response.headers.update(NO_STORE)
     return await desk.record_refund(db, ref, payload.note)
+
+
+@router.post(
+    "/cancellations/{id}/resolve",
+    operation_id="resolveCancellation",
+    response_model_by_alias=True,
+)
+async def resolve_route(
+    id: str, payload: ResolveCancellationInput, request: Request, response: Response, db: Db
+) -> AdminBooking:
+    """Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject
+    (the booking stands). The customer is emailed either way. 409 `resolved` when already
+    answered, `not_active` when approving a booking that no longer holds its seats."""
+    response.headers.update(NO_STORE)
+    notify = Notify(request.app.state.email_sender, request.app.state.settings)
+    return await resolve.resolve_cancellation(db, id, payload, notify)
 
 
 @router.get(

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { DeskActions } from '@/components/admin/bookings/DeskActions';
+import { ResolveCancellation } from '@/components/admin/bookings/ResolveCancellation';
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { CancelRequested, RefundFlag, StateBadge } from '@/components/admin/bookings/StateBadge';
 import { Timeline } from '@/components/admin/bookings/Timeline';
@@ -10,7 +11,7 @@ import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { buttonVariants } from '@/components/ui/button';
 import { voucherHref } from '@/lib/account';
-import { DESK_PATH } from '@/lib/admin/booking-filters';
+import { DESK_PATH, type AdminBooking } from '@/lib/admin/booking-filters';
 import { api, ApiRequestError } from '@/lib/api';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -133,6 +134,9 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   <li key={p.id} className="flex flex-wrap justify-between gap-x-3">
                     <span>
                       {PROVIDER[p.provider]} · {p.status}
+                      {p.refundedPaise != null && p.refundedPaise !== p.amountPaise && (
+                        <span> · {inr(p.refundedPaise)} back</span>
+                      )}
                       {p.paymentId && <span className="num"> · {p.paymentId}</span>}
                       {p.reference && <span> · {p.reference}</span>}
                       {!p.paymentId && p.orderId && (
@@ -182,12 +186,22 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
           {b.cancellation && (
             <section className={panel}>
               <h2 className={heading}>Cancellation request</h2>
-              <p className="text-sm break-words">“{b.cancellation.reason}”</p>
-              <p className="text-[13px] text-mute">
-                {b.cancellation.status === 'requested'
-                  ? `Asked ${istFullDate(b.cancellation.requestedAt)} — the seats stay held until you decide.`
-                  : `${b.cancellation.status} ${b.cancellation.resolvedAt ? istFullDate(b.cancellation.resolvedAt) : ''}`}
-              </p>
+              <p className="text-sm break-words whitespace-pre-line">“{b.cancellation.reason}”</p>
+              {b.cancellation.status === 'requested' ? (
+                <>
+                  <p className="text-[13px] text-mute">
+                    Asked {istFullDate(b.cancellation.requestedAt)} — the seats stay held until you
+                    decide.
+                  </p>
+                  <ResolveCancellation
+                    bookingRef={b.ref}
+                    cancellation={b.cancellation}
+                    paidPaise={b.paidPaise}
+                  />
+                </>
+              ) : (
+                <Resolved c={b.cancellation} />
+              )}
             </section>
           )}
 
@@ -209,5 +223,27 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
         </div>
       </div>
     </>
+  );
+}
+
+/** An answered request: the decision, the refund agreed and the note the customer got. */
+function Resolved({ c }: { c: NonNullable<AdminBooking['cancellation']> }) {
+  const approved = c.status === 'approved';
+  return (
+    <div className="grid gap-1.5 rounded-btn bg-bg2 p-3 text-[13px] text-ink2">
+      <b className="text-sm text-ink">
+        {approved ? 'Approved — booking cancelled' : 'Rejected — the booking stands'}
+        {c.resolvedAt && (
+          <span className="font-normal text-mute"> · {istFullDate(c.resolvedAt)}</span>
+        )}
+      </b>
+      {approved && (
+        <span>
+          Refund agreed:{' '}
+          <b className="num text-ink">{c.refundPaise ? inr(c.refundPaise) : 'none'}</b>
+        </span>
+      )}
+      {c.refundNote && <p className="break-words whitespace-pre-line">{c.refundNote}</p>}
+    </div>
   );
 }

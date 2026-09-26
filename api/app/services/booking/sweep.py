@@ -6,7 +6,9 @@
    anyway is still honoured — `settle_capture` treats `hold_expired` like a lapsed pending
    booking and confirms it if the seats are free.
 2. A confirmed booking whose departure date has passed (IST) is `completed` — the state B13's
-   review form waits for. Seats are unchanged: the view counts completed bookings too.
+   review form waits for. Seats are unchanged: the view counts completed bookings too. A booking
+   whose cancellation request is still open is skipped (B11): it stays confirmed until the owner
+   decides — approving cancels it, rejecting lets the next night's sweep complete it.
 
 Each is one guarded UPDATE. A capture in progress holds the booking's row lock; the UPDATE waits
 for it and then re-checks its WHERE, so a booking confirmed a moment earlier is never swept.
@@ -15,11 +17,11 @@ for it and then re-checks its WHERE, so a booking confirmed a moment earlier is 
 import datetime as dt
 from typing import NamedTuple
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import exists, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Booking, Departure
-from app.models.enums import BookingStatus, CancelReason
+from app.models import Booking, BookingCancellation, Departure
+from app.models.enums import BookingStatus, CancellationStatus, CancelReason
 
 LAPSED_FOR = text("interval '1 hour'")
 
@@ -48,6 +50,10 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
         .where(
             Booking.status == BookingStatus.CONFIRMED,
             Booking.departure_id.in_(select(Departure.id).where(Departure.date < today)),
+            ~exists().where(
+                BookingCancellation.booking_id == Booking.id,
+                BookingCancellation.status == CancellationStatus.REQUESTED,
+            ),
         )
         .values(status=BookingStatus.COMPLETED, updated_at=func.now())
         .execution_options(synchronize_session=False)

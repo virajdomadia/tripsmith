@@ -83,6 +83,9 @@ class EnquiryMessage(IdMixin, Base):
     subject: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     resend_id: Mapped[str | None] = mapped_column(Text)  # null when the send failed
+    error: Mapped[str | None] = mapped_column(Text)  # why it was not sent (B11)
+    # The itinerary PDF that went with it, kept so "Send again" attaches the same one.
+    package_id: Mapped[str | None] = mapped_column(ForeignKey("packages.id", ondelete="SET NULL"))
     sent_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

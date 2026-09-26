@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% set title = business.name %}
+{% block body %}
+<p style="margin:0 0 18px;white-space:pre-line;">{{ body }}</p>
+{% if package_name %}
+<p style="margin:0 0 18px;padding:12px 14px;background:#f3f6fc;border-radius:12px;font-size:15px;">The <b>{{ package_name }}</b> itinerary is attached as a PDF.</p>
+{% endif %}
+<p style="margin:0;">— {{ business.name }}</p>
+{% endblock %}

@@ -1,6 +1,8 @@
 """The cancellation-request emails (B9, R19): the owner gets the request to decide on — reason,
 days to departure, the policy tier that applies today — and the customer an acknowledgement
-("nothing is cancelled yet; we reply within a day"). The resolution email is B11's.
+("nothing is cancelled yet; we reply within a day"). B11: the owner's decision reaches the
+customer only (the owner made it) — approved with the refund agreed, or rejected, each with the
+owner's note.
 
 Same demo-mode rule and never-raise contract as the booking emails (`deliver`).
 """
@@ -17,8 +19,11 @@ from app.infra.email import EmailMessage, EmailSender
 from app.services.booking.voucher import BookingFacts
 from app.services.email.bookings import _message, _vars, deliver
 from app.services.email.render import _ist
+from app.services.format import inr
 
 log = logging.getLogger(__name__)
+
+RESOLUTION_DEMO_NOTE = "Demo site: no money moves and no refund is made."
 
 
 def render_cancellation_emails(
@@ -81,3 +86,49 @@ async def send_cancellation_emails(
         sentry_sdk.capture_exception(exc)
         return
     await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation")
+
+
+def render_resolution_email(
+    facts: BookingFacts,
+    *,
+    approved: bool,
+    note: str,
+    refund_paise: int | None,
+    settings: Settings,
+) -> list[tuple[str, EmailMessage]]:
+    site = settings.site_url.rstrip("/")
+    vars = {
+        **_vars(facts, settings),
+        "approved": approved,
+        "note": note,
+        "refund": inr(refund_paise // 100) if refund_paise else None,
+        "demo_note": RESOLUTION_DEMO_NOTE,
+        "policy_url": f"{site}/cancellation-policy",
+        "trip_url": f"{site}/account/bookings/{facts.ref}",
+    }
+    subject = (
+        f"Booking {facts.ref} cancelled — {facts.package_name}"
+        if approved
+        else f"About your cancellation request — {facts.ref}, {facts.package_name}"
+    )
+    return [("customer", _message(facts.lead_email, subject, "cancellation_resolved", vars))]
+
+
+async def send_resolution_email(
+    sender: EmailSender,
+    settings: Settings,
+    facts: BookingFacts,
+    *,
+    approved: bool,
+    note: str,
+    refund_paise: int | None,
+) -> None:
+    try:
+        labelled = render_resolution_email(
+            facts, approved=approved, note=note, refund_paise=refund_paise, settings=settings
+        )
+    except Exception as exc:
+        log.exception("Could not render the resolution email for %s", facts.ref)
+        sentry_sdk.capture_exception(exc)
+        return
+    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation resolution")
