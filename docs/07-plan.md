@@ -4,7 +4,7 @@
 
 > **Revision 2026-09-13: backend switched from Hono to FastAPI.** `api/` is now FastAPI (Python 3.12, uv, SQLAlchemy + Alembic, pydantic, pytest); `shared/` is gone and the contract is `api/openapi.json` → generated `web/src/lib/api-types.ts`. What PR #1 (`feat/1.0.2-workspace`, merged as 270f27e — old numbering) and PR #3 (`fix/pr1-review-followups`, merged as 1ccf5da) built for the Hono api and `shared/` is removed in **S1**; their web-side pieces are kept. The v1 rows below were then re-cut into structure C the same evening (see the next note).
 
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 17 h (raised from 15 at re-validation, 2026-09-24) · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 20.5 h (raised from 15 at re-validation, 2026-09-24, then +3.5 h for B15 coupons, 2026-09-26) · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
 How the lifecycle maps onto milestones: step 8 (setup) **is** milestone 1.0 (the walking skeleton); steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
@@ -97,8 +97,8 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 ---
 
-## v2 — Booking engine (≈ 17 h) — requirements: [03-requirements-v2.md](03-requirements-v2.md)
-**Re-validated 2026-09-24** (lifecycle step 3, against v1.0.1 as shipped): 17 findings + 6 docs/17 carry-overs decided one by one with Viraj, recorded at the end of 03-requirements-v2. The old rows 2.0.1–2.3.3 are replaced by **B0–B14** ("bN" in chat means one of these rows). Budget raised 15 → 17 h for the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip.
+## v2 — Booking engine (≈ 20.5 h) — requirements: [03-requirements-v2.md](03-requirements-v2.md)
+**Re-validated 2026-09-24** (lifecycle step 3, against v1.0.1 as shipped): 17 findings + 6 docs/17 carry-overs decided one by one with Viraj, recorded at the end of 03-requirements-v2. The old rows 2.0.1–2.3.3 are replaced by **B0–B14**, plus **B15** (coupon codes, added 2026-09-26) ("bN" in chat means one of these rows). Budget raised 15 → 17 h for the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip.
 
 **Rules for every row:** own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`. New accounts/keys only in the row that first needs them. Prod migrations expand-first — Neon dev rehearsal, then Viraj runs `ALEMBIC_URL=… uv run alembic upgrade head` on prod, then the code merges. A merge touching web + api → check the web wasn't prerendered against the old api (redeploy web if so). Tests only where a failure would embarrass a demo.
 
@@ -126,14 +126,15 @@ Goal: the owner runs the business from `/admin` without touching the database.
 | B10 | **Bookings desk:** list/filters/search, detail with payment timeline + refund-needed flag, mark paid offline (re-check), release hold, CSV, printable manifest; `/cron/daily` sweeps lapsed holds (> 1 h) and completes departed bookings | 1.5 h | numbers match `departure_availability` (B7 review, decided 2026-09-26: once the sweep cancels lapsed holds as `hold_expired`, `settle_capture` must treat such a booking like a lapsed pending one — re-check seats, confirm if free, else `seats_gone` + refund — or a late payment on it gets the refund email when seats were still there; test it with the sweep) |
 | B11 | **Cancellation resolution** (approve/reject + refund note + email, seats freed) and **reply from inbox** (Resend + `enquiry_messages` thread) | 0.75 h | (decided 2026-09-26: resolve on the booking page; approve takes a refund in ₹ pre-filled from the policy tier on the day the customer *asked*, applied to what was paid, and editable — above ₹0 it raises refund needed and **Refund made** then records exactly that amount, part of a payment if need be (0007 `booking_cancellations.refund_paise`); a note to the customer (5–500 chars) is required for approve and reject; only the customer is emailed; a completed booking can only be rejected; the daily sweep leaves a booking with an open request confirmed until the owner decides. Replies: subject + body + any live package's itinerary PDF (default: the enquiry's own); every try is a thread row, a failed one kept with its reason (0007 `enquiry_messages.error`, `package_id`) and a **Send again**; a successful reply moves `new` → `contacted` with the usual status note) |
 
-### Milestone 2.3 — Deals, reviews, close (≈ 2.5 h) — closes lifecycle 10–12, 17 for v2
+### Milestone 2.3 — Deals, reviews, coupons, close (≈ 6 h) — closes lifecycle 10–12, 17 for v2
 | # | Task | Est. | Done when |
 |---|---|---|---|
 | B12 | **Deals:** three form fields (end = a date, stored as end of IST day) with validation; strikethrough on cards and page; home deals strip; JSON-LD `Offer.price`; `/cron/daily` revalidates ended deals | 1 h | an ended deal disappears without a deploy |
 | B13 | **Reviews:** form for completed bookings (rating + text), moderation, aggregate from approved reviews only + `AggregateRating`; darker-amber stars everywhere; seed a demo traveller with a completed past booking + one approved review | 1 h | demo shows the whole loop |
+| B15 | **Coupon codes** (added 2026-09-26; built **before** B14 so the close covers it): migration adds `coupons` (code, flat ₹ or % with an optional cap, valid from/to, minimum booking amount, total-use limit, one use per email, all packages or chosen ones, active) and `bookings.coupon_code`; "Have a code?" in the Book-now sheet → the server validates it and adds a "Coupon −₹X" line to the quote (the order is still built from the server quote only); a use counts on capture, not on hold; voucher, emails and the booking desk show the code; admin Coupons page (create / pause / edit, uses count) | 3.5 h | a valid code lowers the Razorpay order to the paisa; an expired, used-up, wrong-package or already-used-by-this-email code is refused with its reason; an abandoned checkout uses nothing (decide at the start of B15: stacks with a running deal or not, flat / % / both, one use per email enough or sign-in required) |
 | B14 | **v2 close:** security pass (webhook, ownership, limits, CSP), one PageSpeed Insights run on a package page with Book now open (≥ 85) into docs/12, docs/17 v2 section, README + case study, portfolio card | 0.5 h | v2 signed off |
 
-**v2 total: ≈ 17 h** (8.25 + 2.25 + 4 + 2.5).
+**v2 total: ≈ 20.5 h** (8.25 + 2.25 + 4 + 6).
 
 **v2 add-ons** (optional, only after v4): split payment (D, 8 h) · trip hub (C, 6 h) · departure-city pricing (3 h) · auto-link enquiry → booking (0.5 h) · review photos (1 h).
 
