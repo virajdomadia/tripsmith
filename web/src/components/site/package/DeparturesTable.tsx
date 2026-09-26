@@ -1,11 +1,18 @@
 import { Badge } from '@/components/site/Badge';
 import type { components } from '@/lib/api-types';
-import { formatDate, priceOrOnRequest } from '@/lib/format';
+import { afterDeal, type Deal } from '@/lib/deal';
+import { formatDate, inr, isPriced, priceOrOnRequest } from '@/lib/format';
 
 type Departure = components['schemas']['DepartureOut'];
 
 /** Seat bar + status pill per departure. The Enquire column arrives with the CTAs (F12). */
-export function DeparturesTable({ departures }: { departures: Departure[] }) {
+export function DeparturesTable({
+  departures,
+  deal,
+}: {
+  departures: Departure[];
+  deal?: Deal | null;
+}) {
   if (departures.length === 0) {
     return (
       <p className="rounded-[14px] border border-line bg-bg2 p-5 text-mute">
@@ -32,7 +39,20 @@ export function DeparturesTable({ departures }: { departures: Departure[] }) {
               <tr key={d.id} className="border-t border-line hover:bg-bg2/60">
                 <td className="px-3.5 py-3 font-bold">{formatDate(d.date)}</td>
                 {/* 0 is the api's "priced later" — a date parked before the rate is set. */}
-                <td className="num px-3.5 py-3">{priceOrOnRequest(d.priceDoublePaise)}</td>
+                <td className="num px-3.5 py-3">
+                  {deal && isPriced(d.priceDoublePaise) ? (
+                    <>
+                      <s className="mr-1.5 text-mute">
+                        <span className="sr-only">was </span>
+                        {inr(d.priceDoublePaise)}
+                      </s>
+                      <span className="sr-only">now </span>
+                      <b>{inr(afterDeal(d.priceDoublePaise, deal))}</b>
+                    </>
+                  ) : (
+                    priceOrOnRequest(d.priceDoublePaise)
+                  )}
+                </td>
                 <td className="px-3.5 py-3">
                   <span className="inline-flex items-center gap-2">
                     <i

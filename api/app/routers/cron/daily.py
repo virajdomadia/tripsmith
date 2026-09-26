@@ -8,11 +8,14 @@ IST midnight, so `ist_today()` is the new day:
    dates gone, yesterday's PDFs are stale keys;
 3. (B8) delete expired sessions and sign-in codes that expired over a day ago;
 4. (B10) cancel checkouts abandoned over an hour ago (`hold_expired`) and complete departed
-   confirmed bookings (services/booking/sweep.py).
+   confirmed bookings (services/booking/sweep.py);
+5. (B12) revalidate the pages of packages whose deal ended (at IST midnight), so the
+   strikethrough leaves the prerendered pages without a deploy.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -25,7 +28,10 @@ from app.services.analytics import ist_today
 from app.services.auth.otp import prune_codes
 from app.services.auth.sessions import prune_sessions
 from app.services.booking.sweep import sweep_bookings
-from app.services.catalog.admin_packages import recompute_all_starting_prices
+from app.services.catalog.admin_packages import (
+    recompute_all_starting_prices,
+    revalidate_ended_deals,
+)
 from app.services.pdf.service import PdfService
 
 router = APIRouter(tags=["cron"], dependencies=[Depends(require_cron)], include_in_schema=False)
@@ -41,6 +47,7 @@ async def daily(
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
     swept = await sweep_bookings(db, today=today)
+    ended = await revalidate_ended_deals(db, now=dt.datetime.now(dt.UTC))
     return DailyReport(
         prices_updated=changed,
         pdf=gc,
@@ -48,4 +55,5 @@ async def daily(
         codes_pruned=await prune_codes(db),
         holds_expired=swept.holds_expired,
         bookings_completed=swept.completed,
+        deals_ended=ended,
     )

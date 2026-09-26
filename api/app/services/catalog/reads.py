@@ -6,7 +6,7 @@ leave this module; `seats_left` always comes from the `departure_availability` v
 """
 
 import datetime as dt
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from sqlalchemy import func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,7 @@ from app.schemas.catalog import (
     PackageDetail,
 )
 from app.services.analytics import ist_today
+from app.services.catalog import deals
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
@@ -44,9 +45,14 @@ def month_bounds(month: str) -> tuple[dt.date, dt.date]:
     return start, end
 
 
-def related_order(package: Package, candidates: Iterable[Package]) -> list[Package]:
+def related_order(
+    package: Package, candidates: Iterable[Package], shown: Mapping[str, int] | None = None
+) -> list[Package]:
     """R4 "same destination or theme": tier 0 same destination, 1 shares a theme, 2 anything
-    else live; cheapest first within a tier, name as tiebreaker; the package itself excluded."""
+    else live; cheapest first within a tier, name as tiebreaker; the package itself excluded.
+    `shown` = the price each card shows (a running deal's), by package id; the starting price
+    when absent."""
+    prices = shown or {}
     mine = set(package.themes)
 
     def tier(p: Package) -> int:
@@ -58,7 +64,11 @@ def related_order(package: Package, candidates: Iterable[Package]) -> list[Packa
     # "no price", not "cheapest" — such packages go last within their tier.
     return sorted(
         (p for p in candidates if p.id != package.id),
-        key=lambda p: (tier(p), p.starting_price_paise or float("inf"), p.name),
+        key=lambda p: (
+            tier(p),
+            prices.get(p.id, p.starting_price_paise) or float("inf"),
+            p.name,
+        ),
     )
 
 
@@ -113,7 +123,9 @@ async def _live_package(db: AsyncSession, slug: str) -> Package | None:
     ).scalar_one_or_none()
 
 
-async def _related(db: AsyncSession, package: Package, today: dt.date) -> list[PackageCard]:
+async def _related(
+    db: AsyncSession, package: Package, today: dt.date, now: dt.datetime
+) -> list[PackageCard]:
     candidates = (
         (
             await db.execute(
@@ -126,14 +138,22 @@ async def _related(db: AsyncSession, package: Package, today: dt.date) -> list[P
         .all()
     )
     upcoming = await next_departures(db, today)
-    return [
-        package_card(p, upcoming.get(p.id))
-        for p in related_order(package, candidates)[:RELATED_LIMIT]
-    ]
+    base = await deals.bases(db, today)
+    cards = {
+        p.id: package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+        for p in candidates
+    }
+    shown = {id: c.deal.price_paise for id, c in cards.items() if c.deal}
+    return [cards[p.id] for p in related_order(package, candidates, shown)[:RELATED_LIMIT]]
 
 
 async def get_package(
-    db: AsyncSession, slug: str, *, today: dt.date | None = None, with_related: bool = True
+    db: AsyncSession,
+    slug: str,
+    *,
+    today: dt.date | None = None,
+    now: dt.datetime | None = None,
+    with_related: bool = True,
 ) -> PackageDetail | None:
     """Everything the package page renders; `None` for drafts and unknown slugs (06 C1).
 
@@ -141,11 +161,15 @@ async def get_package(
     (nor does its cache key read them), so the PDF route, the enquiry attachment and the GC
     leave `related` empty.
     """
-    today = today or ist_today()
+    now = now or dt.datetime.now(dt.UTC)
+    today = today or ist_today(now)
     p = await _live_package(db, slug)
     if p is None:
         return None
     images = [_image_out(i) for i in p.images]
+    departures = await _upcoming_departures(db, p.id, today)
+    # The base from the rows just read: the same query `_deal_base` runs for the quote.
+    base = min((d.price_double_paise for d in departures if d.price_double_paise), default=0)
     return PackageDetail(
         slug=p.slug,
         name=p.name,
@@ -156,6 +180,7 @@ async def get_package(
         days=p.days,
         departure_city=p.departure_city,
         starting_price_paise=p.starting_price_paise,
+        deal=deals.deal_for(p, base, now),
         highlights=list(p.highlights),
         inclusions=list(p.inclusions),
         exclusions=list(p.exclusions),
@@ -173,8 +198,8 @@ async def get_package(
         ],
         images=images,
         cover=_image_out(p.cover_image) if p.cover_image else (images[0] if images else None),
-        departures=await _upcoming_departures(db, p.id, today),
-        related=await _related(db, p, today) if with_related else [],
+        departures=departures,
+        related=await _related(db, p, today, now) if with_related else [],
         updated_at=p.updated_at,
     )
 
@@ -195,14 +220,19 @@ async def get_departures_for_month(
     return await _upcoming_departures(db, package_id, today, month)
 
 
-async def list_destinations(db: AsyncSession) -> list[DestinationCard]:
-    """Destinations with at least one live package, in display order (06 C1)."""
+async def list_destinations(
+    db: AsyncSession, *, now: dt.datetime | None = None
+) -> list[DestinationCard]:
+    """Destinations with at least one live package, in display order (06 C1). The "from" price
+    is the cheapest price a card there shows — a running deal's (03 R20)."""
+    now = now or dt.datetime.now(dt.UTC)
+    shown = deals.shown_price(now, ist_today(now))
     rows = await db.execute(
         select(
             Destination,
             func.count(Package.id),
             # 0 = no upcoming departure; it must not become the destination's "from" price.
-            func.coalesce(func.min(func.nullif(Package.starting_price_paise, 0)), 0),
+            func.coalesce(func.min(func.nullif(shown, 0)), 0),
         )
         .join(Package, Package.destination_id == Destination.id)
         .where(Package.status == PackageStatus.LIVE)
@@ -224,10 +254,11 @@ async def list_destinations(db: AsyncSession) -> list[DestinationCard]:
 
 
 async def get_destination(
-    db: AsyncSession, slug: str, *, today: dt.date | None = None
+    db: AsyncSession, slug: str, *, today: dt.date | None = None, now: dt.datetime | None = None
 ) -> DestinationDetail | None:
     """A destination with its live packages as cards; `None` if unknown or nothing is live."""
-    today = today or ist_today()
+    now = now or dt.datetime.now(dt.UTC)
+    today = today or ist_today(now)
     d = (await db.execute(select(Destination).where(Destination.slug == slug))).scalar_one_or_none()
     if d is None:
         return None
@@ -239,7 +270,7 @@ async def get_destination(
                 .options(selectinload(Package.destination), selectinload(Package.cover_image))
                 # 0 is "on request", not the cheapest — the same ordering search and home use.
                 .order_by(
-                    nulls_last(func.nullif(Package.starting_price_paise, 0).asc()), Package.name
+                    nulls_last(func.nullif(deals.shown_price(now, today), 0).asc()), Package.name
                 )
             )
         )
@@ -249,6 +280,7 @@ async def get_destination(
     if not packages:
         return None
     upcoming = await next_departures(db, today)
+    base = await deals.bases(db, today)
     return DestinationDetail(
         slug=d.slug,
         name=d.name,
@@ -257,5 +289,8 @@ async def get_destination(
         cover_url=d.cover_url,
         region=d.region,
         best_months=list(d.best_months),
-        packages=[package_card(p, upcoming.get(p.id)) for p in packages],
+        packages=[
+            package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+            for p in packages
+        ],
     )

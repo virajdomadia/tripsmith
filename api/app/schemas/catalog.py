@@ -14,6 +14,7 @@ MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
 PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
+DEAL_LABEL_MAX = 24  # fits the card's corner stamp
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 # Mirrors web/next.config.ts `images.remotePatterns`: prod Blob storage, or (dev only) the
 # `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against.
@@ -63,6 +64,29 @@ class SearchParams(ApiModel):
         return value
 
 
+class DealState(StrEnum):
+    """The owner's view of a saved deal (03 R20)."""
+
+    NONE = "none"
+    ACTIVE = "active"
+    ENDED = "ended"
+    INACTIVE = "inactive"  # saved, but not below the starting price after a departure change
+
+
+class DealOut(ApiModel):
+    """A running deal (03 R20): a flat amount off per traveller, until the end of `ends_on`."""
+
+    label: str | None = Field(description='The owner\'s label; the site says "Deal" when null')
+    ends_on: dt.date = Field(description="The last day of the deal, IST")
+    ends_at: dt.datetime = Field(description="When it stops: midnight IST after `endsOn`")
+    off_paise: int = Field(
+        description="Flat amount off per traveller (a quote caps it at the traveller's price)"
+    )
+    price_paise: int = Field(
+        description="The price shown beside the struck-through starting price: starting − off"
+    )
+
+
 class PackageCard(ApiModel):
     slug: str
     name: str
@@ -76,6 +100,7 @@ class PackageCard(ApiModel):
     badge: Badge | None = Field(
         description="From the next upcoming departure with seats; sold-out only when all are full"
     )
+    deal: DealOut | None = Field(description="Null when no deal is running")
 
 
 class FacetOption(ApiModel):
@@ -100,8 +125,8 @@ class SearchFacets(ApiModel):
     )
     nights: RangeFacet = Field(description="Shortest / longest live package; 0/0 when none")
     budget: RangeFacet = Field(
-        description="Cheapest / priciest starting price in rupees, rounded out to 1,000; 0/0 if "
-        "none"
+        description="Cheapest / priciest shown price (the deal price while one runs) in rupees, "
+        "rounded out to 1,000; 0/0 if none"
     )
 
 
@@ -178,6 +203,7 @@ class PackageDetail(ApiModel):
     starting_price_paise: int = Field(
         description="Cheapest upcoming double-sharing price; 0 if none"
     )
+    deal: DealOut | None = Field(description="Null when no deal is running")
     highlights: list[str]
     inclusions: list[str]
     exclusions: list[str]
@@ -197,7 +223,9 @@ class DestinationCard(ApiModel):
     tagline: str
     cover_url: str
     package_count: int = Field(description="Live packages")
-    starting_price_paise: int
+    starting_price_paise: int = Field(
+        description="Cheapest shown price among its live packages (a running deal counts)"
+    )
     best_months: list[int] = Field(description="1-12, in the destination's display order")
 
 
@@ -236,6 +264,7 @@ class HomeStats(ApiModel):
 class HomeData(ApiModel):
     destinations: list[DestinationCard] = Field(description="Display order, at most 6")
     packages: list[PackageCard] = Field(description="Featured first, then cheapest; at most 6")
+    deals: list[PackageCard] = Field(description="Running deals, ending soonest first; at most 4")
     testimonials: list[TestimonialOut] = Field(description="By position")
     stats: HomeStats
 
@@ -359,6 +388,18 @@ class PackageInput(ApiModel):
     featured: bool = False
     itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
     departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+    deal_price_paise: int | None = Field(
+        default=None,
+        gt=0,
+        le=PRICE_MAX_PAISE,
+        description="Per traveller; below the starting price. With `dealEndsOn`, or neither",
+    )
+    deal_label: str | None = Field(
+        default=None, max_length=DEAL_LABEL_MAX, description="Optional; blank = none"
+    )
+    deal_ends_on: dt.date | None = Field(
+        default=None, description="The last day of the deal (IST); today or later when changed"
+    )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
         description=(
@@ -375,6 +416,11 @@ class PackageInput(ApiModel):
     @classmethod
     def _strip(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
+
+    @field_validator("deal_label", mode="before")
+    @classmethod
+    def _blank_label(cls, v: object) -> object:
+        return (v.strip() or None) if isinstance(v, str) else v
 
     @field_validator("highlights", "inclusions", "exclusions", mode="before")
     @classmethod
@@ -477,6 +523,14 @@ class AdminPackage(ApiModel):
     status: PackageStatus
     featured: bool
     starting_price_paise: int
+    deal_price_paise: int | None
+    deal_label: str | None
+    deal_ends_on: dt.date | None = Field(description="The last day of the deal, IST")
+    deal_state: DealState
+    deal_base_paise: int = Field(
+        description="What the deal is measured from: the cheapest upcoming priced double, seats "
+        "ignored; 0 when nothing is priced"
+    )
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
@@ -496,6 +550,10 @@ class AdminPackageRow(ApiModel):
     nights: int
     days: int
     starting_price_paise: int
+    deal_price_paise: int | None
+    deal_ends_on: dt.date | None
+    deal_state: DealState
+    deal_base_paise: int
     departure_count: int = Field(description="Dated today or later")
     recent_enquiry_count: int = Field(description="Enquiries in the last 30 days")
     status: PackageStatus

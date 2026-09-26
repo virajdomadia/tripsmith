@@ -1067,6 +1067,49 @@
             "title": "Days",
             "type": "integer"
           },
+          "dealBasePaise": {
+            "description": "What the deal is measured from: the cheapest upcoming priced double, seats ignored; 0 when nothing is priced",
+            "title": "Dealbasepaise",
+            "type": "integer"
+          },
+          "dealEndsOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day of the deal, IST",
+            "title": "Dealendson"
+          },
+          "dealLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deallabel"
+          },
+          "dealPricePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealpricepaise"
+          },
+          "dealState": {
+            "$ref": "#/components/schemas/DealState"
+          },
           "departureCity": {
             "title": "Departurecity",
             "type": "string"
@@ -1226,6 +1269,11 @@
           "status",
           "featured",
           "startingPricePaise",
+          "dealPricePaise",
+          "dealLabel",
+          "dealEndsOn",
+          "dealState",
+          "dealBasePaise",
           "enquiryCount",
           "publishRules",
           "canPublish",
@@ -1268,6 +1316,36 @@
           "days": {
             "title": "Days",
             "type": "integer"
+          },
+          "dealBasePaise": {
+            "title": "Dealbasepaise",
+            "type": "integer"
+          },
+          "dealEndsOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealendson"
+          },
+          "dealPricePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealpricepaise"
+          },
+          "dealState": {
+            "$ref": "#/components/schemas/DealState"
           },
           "departureCount": {
             "description": "Dated today or later",
@@ -1324,6 +1402,10 @@
           "nights",
           "days",
           "startingPricePaise",
+          "dealPricePaise",
+          "dealEndsOn",
+          "dealState",
+          "dealBasePaise",
           "departureCount",
           "recentEnquiryCount",
           "status",
@@ -2083,6 +2165,65 @@
         "title": "Dashboard",
         "type": "object"
       },
+      "DealOut": {
+        "description": "A running deal (03 R20): a flat amount off per traveller, until the end of `ends_on`.",
+        "properties": {
+          "endsAt": {
+            "description": "When it stops: midnight IST after `endsOn`",
+            "format": "date-time",
+            "title": "Endsat",
+            "type": "string"
+          },
+          "endsOn": {
+            "description": "The last day of the deal, IST",
+            "format": "date",
+            "title": "Endson",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The owner's label; the site says \"Deal\" when null",
+            "title": "Label"
+          },
+          "offPaise": {
+            "description": "Flat amount off per traveller (a quote caps it at the traveller's price)",
+            "title": "Offpaise",
+            "type": "integer"
+          },
+          "pricePaise": {
+            "description": "The price shown beside the struck-through starting price: starting − off",
+            "title": "Pricepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "endsOn",
+          "endsAt",
+          "offPaise",
+          "pricePaise"
+        ],
+        "title": "DealOut",
+        "type": "object"
+      },
+      "DealState": {
+        "description": "The owner's view of a saved deal (03 R20).",
+        "enum": [
+          "none",
+          "active",
+          "ended",
+          "inactive"
+        ],
+        "title": "DealState",
+        "type": "string"
+      },
       "DepartureInput": {
         "description": "`id` present = update that row; absent = insert. Rows the payload omits are deleted.\n\nPrices are `ge=0` so a draft can park a departure with the rate still to be agreed; the\npublish rules are what insist on real prices before the package can go live.",
         "properties": {
@@ -2339,6 +2480,7 @@
             "type": "string"
           },
           "startingPricePaise": {
+            "description": "Cheapest shown price among its live packages (a running deal counts)",
             "title": "Startingpricepaise",
             "type": "integer"
           },
@@ -3120,6 +3262,14 @@
       },
       "HomeData": {
         "properties": {
+          "deals": {
+            "description": "Running deals, ending soonest first; at most 4",
+            "items": {
+              "$ref": "#/components/schemas/PackageCard"
+            },
+            "title": "Deals",
+            "type": "array"
+          },
           "destinations": {
             "description": "Display order, at most 6",
             "items": {
@@ -3151,6 +3301,7 @@
         "required": [
           "destinations",
           "packages",
+          "deals",
           "testimonials",
           "stats"
         ],
@@ -3743,6 +3894,17 @@
             "title": "Days",
             "type": "integer"
           },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no deal is running"
+          },
           "destination": {
             "description": "Destination display name",
             "title": "Destination",
@@ -3789,7 +3951,8 @@
           "themes",
           "coverUrl",
           "highlights",
-          "badge"
+          "badge",
+          "deal"
         ],
         "title": "PackageCard",
         "type": "object"
@@ -3838,6 +4001,17 @@
           "days": {
             "title": "Days",
             "type": "integer"
+          },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no deal is running"
           },
           "departureCity": {
             "title": "Departurecity",
@@ -3956,6 +4130,7 @@
           "days",
           "departureCity",
           "startingPricePaise",
+          "deal",
           "highlights",
           "inclusions",
           "exclusions",
@@ -3974,6 +4149,46 @@
       "PackageInput": {
         "description": "Owner create/update body (06 §C4) — the whole package in one transaction.\n\n`status` is deliberately absent: publishing is `POST /admin/packages/{id}/status`, so a\nPUT can never bypass the publish rules. `days` is derived (`nights + 1`, the DB check\nconstraint `days_is_nights_plus_one`).",
         "properties": {
+          "dealEndsOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day of the deal (IST); today or later when changed",
+            "title": "Dealendson"
+          },
+          "dealLabel": {
+            "anyOf": [
+              {
+                "maxLength": 24,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional; blank = none",
+            "title": "Deallabel"
+          },
+          "dealPricePaise": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per traveller; below the starting price. With `dealEndsOn`, or neither",
+            "title": "Dealpricepaise"
+          },
           "departureCity": {
             "default": "Ex-Mumbai",
             "maxLength": 80,
@@ -4605,7 +4820,7 @@
         "properties": {
           "budget": {
             "$ref": "#/components/schemas/RangeFacet",
-            "description": "Cheapest / priciest starting price in rupees, rounded out to 1,000; 0/0 if none"
+            "description": "Cheapest / priciest shown price (the deal price while one runs) in rupees, rounded out to 1,000; 0/0 if none"
           },
           "destinations": {
             "description": "value = slug; display order",

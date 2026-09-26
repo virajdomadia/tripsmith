@@ -1,14 +1,29 @@
+import type { ReactNode } from 'react';
 import type { components } from '@/lib/api-types';
-import { duration, priceOrOnRequest, shortDate } from '@/lib/format';
+import { duration, inr, priceOrOnRequest, shortDate } from '@/lib/format';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
 export function QuickFacts({ pkg }: { pkg: PackageDetail }) {
   const stay = pkg.hotels[0];
   const next = pkg.departures[0];
-  const facts: [string, string][] = [
+  const facts: [string, ReactNode][] = [
     ['Duration', duration(pkg.nights, pkg.days)],
-    ['From', priceOrOnRequest(pkg.startingPricePaise)],
+    [
+      'From',
+      pkg.deal ? (
+        <>
+          <s className="mr-1.5 text-sm font-semibold text-mute">
+            <span className="sr-only">was </span>
+            {inr(pkg.startingPricePaise)}
+          </s>
+          <span className="sr-only">now </span>
+          {inr(pkg.deal.pricePaise)}
+        </>
+      ) : (
+        priceOrOnRequest(pkg.startingPricePaise)
+      ),
+    ],
     ['Departs', pkg.departureCity.replace(/^Ex-/, '')],
     ['Stay', stay ? `${stay.stars}★ ${stay.city}` : '—'],
     ['Next date', next ? shortDate(next.date) : 'On request'],

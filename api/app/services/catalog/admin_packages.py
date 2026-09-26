@@ -33,7 +33,10 @@ from app.schemas.catalog import (
     PublishRule,
 )
 from app.services.analytics import ist_today
+from app.services.catalog import deals
+from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
+from app.services.format import inr
 
 DUPLICATE_SLUG = "A package with this slug already exists"
 ENQUIRY_WINDOW_DAYS = 30
@@ -43,6 +46,12 @@ FOREIGN_DEPARTURE = "A departure in this payload belongs to another package"
 DUPLICATE_DEPARTURE = "Two departures cannot share the same date"
 STALE = "This package was changed in another tab or by someone else — reload to see the latest"
 LIVE_RULES_BROKEN = "This trip is live, so this change would break its publish rules"
+DEAL_NEEDS_END = "Pick the last day of the deal"
+DEAL_NEEDS_PRICE = "Add the deal price"
+DEAL_LABEL_ALONE = "Add a deal price and end date, or clear the label"
+DEAL_ENDS_IN_PAST = "The deal cannot end before today"
+DEAL_NO_BASE = "Add a priced upcoming departure before setting a deal"
+DEAL_INVALID = "Check the deal fields"
 
 
 def revalidate_tags(
@@ -131,6 +140,32 @@ async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> 
     if tags:
         await revalidate(tags)
     return changed
+
+
+ENDED_DEAL_WINDOW = dt.timedelta(hours=48)
+
+
+async def revalidate_ended_deals(db: AsyncSession, *, now: dt.datetime) -> int:
+    """Daily (`/cron/daily`): the pages of live packages whose deal ended in the last 48 h are
+    rebuilt, so a prerendered strikethrough disappears without a deploy (03 R20). Quotes stop
+    the moment it ends; nothing is written, the fields stay for the owner to extend. 48 h, not
+    24: a missed run still catches up, and rebuilding a page twice costs nothing."""
+    rows = await db.execute(
+        select(Package.slug, Destination.slug)
+        .join(Destination, Destination.id == Package.destination_id)
+        .where(
+            Package.status == PackageStatus.LIVE,
+            Package.deal_ends_at <= now,
+            Package.deal_ends_at > now - ENDED_DEAL_WINDOW,
+        )
+    )
+    ended = rows.all()
+    tags: list[str] = []
+    for slug, destination_slug in ended:
+        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
+    if tags:
+        await revalidate(tags)
+    return len(ended)
 
 
 def publish_rules(pkg: Package, *, image_count: int, today: dt.date) -> list[PublishRule]:
@@ -304,7 +339,9 @@ def _image_out(i: PackageImage) -> AdminImage:
 
 
 async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
-    today = ist_today()
+    now = dt.datetime.now(dt.UTC)
+    today = ist_today(now)
+    base = deals.base_of(pkg.departures, today)
     left = await _seats_left(db, pkg)
     images = sorted(pkg.images, key=lambda i: i.position)
     rules = publish_rules(pkg, image_count=len(images), today=today)
@@ -344,6 +381,11 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         status=pkg.status,
         featured=pkg.featured,
         starting_price_paise=pkg.starting_price_paise,
+        deal_price_paise=pkg.deal_price_paise,
+        deal_label=pkg.deal_label,
+        deal_ends_on=deals.ends_on(pkg.deal_ends_at) if pkg.deal_ends_at else None,
+        deal_state=deals.state(pkg, base, now),
+        deal_base_paise=base,
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -360,8 +402,10 @@ async def get_package(db: AsyncSession, id: str) -> AdminPackage:
 async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
     """One aggregate subquery per count — the A3 table shows upcoming departures and 30-day
     enquiries next to every row, and there are a dozen packages, not a million."""
-    today = ist_today()
-    since = dt.datetime.now(dt.UTC) - dt.timedelta(days=ENQUIRY_WINDOW_DAYS)
+    now = dt.datetime.now(dt.UTC)
+    today = ist_today(now)
+    since = now - dt.timedelta(days=ENQUIRY_WINDOW_DAYS)
+    base = await deals.bases(db, today)
     upcoming = (
         select(Departure.package_id, func.count(Departure.id).label("n"))
         .where(Departure.date >= today)
@@ -400,6 +444,10 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             nights=p.nights,
             days=p.days,
             starting_price_paise=p.starting_price_paise,
+            deal_price_paise=p.deal_price_paise,
+            deal_ends_on=deals.ends_on(p.deal_ends_at) if p.deal_ends_at else None,
+            deal_state=deals.state(p, base.get(p.id, 0), now),
+            deal_base_paise=base.get(p.id, 0),
             departure_count=int(departures),
             recent_enquiry_count=int(enquiries),
             status=p.status,
@@ -459,6 +507,49 @@ async def _commit_or_conflict(db: AsyncSession) -> None:
         raise _conflict(exc) from None
 
 
+def _deal_pairing(payload: PackageInput) -> None:
+    """Price and end date come together or not at all; a label needs both (03 R24). Checked on
+    every save — it is the shape of the input, not a rule that a later departure edit breaks."""
+    price, ends = payload.deal_price_paise, payload.deal_ends_on
+    errors: dict[str, str] = {}
+    if price is not None and ends is None:
+        errors[DealField.ENDS] = DEAL_NEEDS_END
+    if ends is not None and price is None:
+        errors[DealField.PRICE] = DEAL_NEEDS_PRICE
+    if payload.deal_label and price is None and ends is None:
+        errors[DealField.LABEL] = DEAL_LABEL_ALONE
+    if errors:
+        raise ApiError("validation", DEAL_INVALID, field_errors=errors)
+
+
+def _deal_ends_at(payload: PackageInput) -> dt.datetime | None:
+    return deals.end_of_ist_day(payload.deal_ends_on) if payload.deal_ends_on else None
+
+
+def _deal_changed(pkg: Package, payload: PackageInput) -> bool:
+    saved = (pkg.deal_price_paise, pkg.deal_label, pkg.deal_ends_at)
+    return saved != (payload.deal_price_paise, payload.deal_label, _deal_ends_at(payload))
+
+
+def deal_errors(pkg: Package, *, today: dt.date) -> dict[str, str]:
+    """R20 on a deal the owner just set or edited, over the departures being saved with it:
+    `0 < deal < base` and an end date from today. An unchanged deal is not re-checked — a
+    departure edit that lifts it to the base only switches it off (`DealState.INACTIVE`)."""
+    if pkg.deal_price_paise is None or pkg.deal_ends_at is None:
+        return {}
+    errors: dict[str, str] = {}
+    base = deals.base_of(pkg.departures, today)
+    if not base:
+        errors[DealField.PRICE] = DEAL_NO_BASE
+    elif pkg.deal_price_paise >= base:
+        errors[DealField.PRICE] = (
+            f"The deal price must be below the starting price {inr(base // 100)}"
+        )
+    if deals.ends_on(pkg.deal_ends_at) < today:
+        errors[DealField.ENDS] = DEAL_ENDS_IN_PAST
+    return errors
+
+
 def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     pkg.slug = payload.slug
     pkg.destination_id = payload.destination_id
@@ -474,6 +565,9 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     pkg.hotels = [h.model_dump() for h in payload.hotels]
     pkg.faq = [f.model_dump() for f in payload.faq]
     pkg.featured = payload.featured
+    pkg.deal_price_paise = payload.deal_price_paise
+    pkg.deal_label = payload.deal_label
+    pkg.deal_ends_at = _deal_ends_at(payload)
 
 
 def _new_days(payload: PackageInput) -> list[ItineraryDay]:
@@ -535,12 +629,15 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
     """A new package has no children to diff against, so the rows are simply built. Any `id`
     on an incoming departure is ignored — it cannot belong to a package that does not exist
     yet, and a fresh row is what the owner meant."""
+    _deal_pairing(payload)
     await _assert_destination_exists(db, payload.destination_id)
     await _assert_slug_free(db, payload.slug, except_id=None)
     pkg = Package(status=PackageStatus.DRAFT, edited_at=dt.datetime.now(dt.UTC))
     _apply_fields(pkg, payload)
     pkg.itinerary = _new_days(payload)
     pkg.departures = [_fill_departure(Departure(), row) for row in payload.departures]
+    if errors := deal_errors(pkg, today=ist_today()):
+        raise ApiError("validation", DEAL_INVALID, field_errors=errors)
     pkg.starting_price_paise = recompute_starting_price(pkg, today=ist_today())
     db.add(pkg)
     await _commit_or_conflict(db)
@@ -562,15 +659,19 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
         raise ApiError("conflict", STALE, field_errors={"expectedEditedAt": STALE})
     if payload.slug != pkg.slug and slug_locked(pkg):
         raise ApiError("validation", SLUG_LOCKED, field_errors={"slug": SLUG_LOCKED})
+    _deal_pairing(payload)
     await _assert_destination_exists(db, payload.destination_id)
     await _assert_slug_free(db, payload.slug, except_id=id)
     old_slug, old_destination_slug = pkg.slug, pkg.destination.slug
     image_count = len(pkg.images)
     rules_before = publish_rules(pkg, image_count=image_count, today=ist_today())
+    deal_changed = _deal_changed(pkg, payload)
     _apply_fields(pkg, payload)
     await _replace_children(db, pkg, payload)
     try:
         assert_live_rules_hold(pkg, rules_before, image_count=image_count)
+        if deal_changed and (errors := deal_errors(pkg, today=ist_today())):
+            raise ApiError("validation", DEAL_INVALID, field_errors=errors)
     except ApiError:
         await db.rollback()  # `_replace_children` already flushed the deletes
         raise

@@ -34,7 +34,7 @@ export default async function Home() {
     api('/home', { tags: ['home', 'packages', 'destinations'], revalidate: REVALIDATE_SECONDS }),
     api('/packages', { tags: ['packages'], revalidate: 60 }),
   ]);
-  const { destinations, packages, testimonials, stats } = home;
+  const { destinations, packages, deals, testimonials, stats } = home;
 
   return (
     <>
@@ -79,6 +79,25 @@ export default async function Home() {
             ))}
           </ul>
         </section>
+
+        {/* B12: running deals, ending soonest first; no section at all when there are none. */}
+        {deals.length > 0 && (
+          <section className="mt-18">
+            <SectionHead
+              title="Deals"
+              sub="A flat amount off per traveller, on every date — until the day each one ends."
+              href="/packages"
+              link="All packages"
+            />
+            <ul className="grid gap-4.5 sm:grid-cols-2 lg:grid-cols-4">
+              {deals.map((p) => (
+                <li key={p.slug}>
+                  <PackageCard card={p} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <AboutBand stats={stats} />
 

@@ -12,7 +12,7 @@ import math
 from collections import Counter, defaultdict
 from typing import Any
 
-from sqlalchemy import Select, func, nulls_last, select
+from sqlalchemy import ColumnElement, Select, func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,6 +29,7 @@ from app.schemas.catalog import (
 )
 from app.schemas.meta import THEME_LABELS
 from app.services.analytics import ist_today
+from app.services.catalog import deals
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import month_bounds
@@ -60,10 +61,11 @@ def budget_range(cheapest_paise: int | None, priciest_paise: int | None) -> Rang
     )
 
 
-def sort_order(sort: SortOrder) -> tuple[Any, ...]:
-    """ORDER BY clauses. "On request" (price 0) sinks to the bottom whichever way prices go;
-    `name` breaks ties so the order is stable between requests."""
-    price = func.nullif(Package.starting_price_paise, 0)
+def sort_order(sort: SortOrder, shown: ColumnElement[int]) -> tuple[Any, ...]:
+    """ORDER BY clauses over `shown` (`deals.shown_price`: the deal price while one runs).
+    "On request" (price 0) sinks to the bottom whichever way prices go; `name` breaks ties so
+    the order is stable between requests."""
+    price = func.nullif(shown, 0)
     match sort:
         case SortOrder.PRICE_DESC:
             return (nulls_last(price.desc()), Package.name)
@@ -83,19 +85,21 @@ def seat_available_departures(today: dt.date) -> Select[tuple[str]]:
 
 
 def apply_filters(
-    stmt: Select[tuple[Package]], params: SearchParams, today: dt.date
+    stmt: Select[tuple[Package]],
+    params: SearchParams,
+    today: dt.date,
+    shown: ColumnElement[int] | None = None,
 ) -> Select[tuple[Package]]:
-    """The R3 filters, AND-ed; each list is any-of. Pure so a test can read the statement."""
+    """The R3 filters, AND-ed; each list is any-of. Pure so a test can read the statement.
+    The budget compares `shown` (default: the starting price) — what the card says."""
+    price = Package.starting_price_paise if shown is None else shown
     if params.destination:
         stmt = stmt.join(Destination, Destination.id == Package.destination_id).where(
             Destination.slug.in_(params.destination)
         )
     if params.max_budget is not None:
         # Rupees on the query, paise in the row; "on request" (0) has no price to compare.
-        stmt = stmt.where(
-            Package.starting_price_paise > 0,
-            Package.starting_price_paise <= params.max_budget * 100,
-        )
+        stmt = stmt.where(price > 0, price <= params.max_budget * 100)
     if params.nights_min is not None:
         stmt = stmt.where(Package.nights >= params.nights_min)
     if params.nights_max is not None:
@@ -119,7 +123,9 @@ def apply_filters(
 # --- queries --------------------------------------------------------------------------------------
 
 
-async def search_facets(db: AsyncSession, today: dt.date) -> SearchFacets:
+async def search_facets(
+    db: AsyncSession, today: dt.date, now: dt.datetime | None = None
+) -> SearchFacets:
     """The filter panel's options, from the live catalog. Twelve packages: counting in Python is
     simpler than array-unnest SQL and just as fast."""
     live = Package.status == PackageStatus.LIVE
@@ -161,13 +167,14 @@ async def search_facets(db: AsyncSession, today: dt.date) -> SearchFacets:
         for month, ids in sorted(by_month.items())
     ]
 
+    shown = deals.shown_price(now or dt.datetime.now(dt.UTC), today)
     nights_min, nights_max, cheapest, priciest = (
         await db.execute(
             select(
                 func.min(Package.nights),
                 func.max(Package.nights),
-                func.min(func.nullif(Package.starting_price_paise, 0)),
-                func.max(Package.starting_price_paise),
+                func.min(func.nullif(shown, 0)),
+                func.max(shown),
             ).where(live)
         )
     ).one()
@@ -182,24 +189,35 @@ async def search_facets(db: AsyncSession, today: dt.date) -> SearchFacets:
 
 
 async def search_packages(
-    db: AsyncSession, params: SearchParams | None = None, *, today: dt.date | None = None
+    db: AsyncSession,
+    params: SearchParams | None = None,
+    *,
+    today: dt.date | None = None,
+    now: dt.datetime | None = None,
 ) -> PackageList:
     """Live packages matching `params` as cards, plus the facets the filter panel needs.
     The v3 `searchPackages` tool calls this with the same `SearchParams`."""
     params = params or SearchParams()
-    today = today or ist_today()
-    stmt = apply_filters(select(Package).where(Package.status == PackageStatus.LIVE), params, today)
+    now = now or dt.datetime.now(dt.UTC)
+    today = today or ist_today(now)
+    shown = deals.shown_price(now, today)
+    stmt = apply_filters(
+        select(Package).where(Package.status == PackageStatus.LIVE), params, today, shown
+    )
     packages = (
         (
             await db.execute(
                 stmt.options(
                     selectinload(Package.destination), selectinload(Package.cover_image)
-                ).order_by(*sort_order(params.sort))
+                ).order_by(*sort_order(params.sort, shown))
             )
         )
         .scalars()
         .all()
     )
     upcoming = await next_departures(db, today)
-    items = [package_card(p, upcoming.get(p.id)) for p in packages]
-    return PackageList(items=items, total=len(items), facets=await search_facets(db, today))
+    base = await deals.bases(db, today)
+    items = [
+        package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now) for p in packages
+    ]
+    return PackageList(items=items, total=len(items), facets=await search_facets(db, today, now))

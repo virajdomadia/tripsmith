@@ -4,7 +4,8 @@ import { BookNowButton } from '@/components/site/booking/BookNow';
 import { WhatsApp } from '@/components/site/home/icons';
 import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
-import { formatDate, priceOrOnRequest } from '@/lib/format';
+import { dealEnds, dealLabel } from '@/lib/deal';
+import { formatDate, inr, priceOrOnRequest } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 import { ItineraryPdfLink } from '../ItineraryPdfLink';
 
@@ -26,12 +27,34 @@ export function PriceBox({
   bookable: boolean;
 }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
+  const deal = pkg.deal;
   return (
     <div className="sticky top-24 grid gap-3 rounded-card border border-line bg-bg p-5.5 shadow-[0_30px_60px_-40px_rgb(20_32_42/0.35)]">
+      {deal && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-bold">
+          <span className="rounded-full bg-action px-2.5 py-1 text-xs tracking-[0.08em] text-ink uppercase">
+            {dealLabel(deal)}
+          </span>
+          <span className="text-warn">{dealEnds(deal)}</span>
+        </p>
+      )}
       <div className="text-[13px] font-semibold text-mute">
-        From
+        From{' '}
+        {deal && (
+          <s className="num text-[15px]">
+            <span className="sr-only">was </span>
+            {inr(pkg.startingPricePaise)}
+          </s>
+        )}
         <b className="num block text-[34px] leading-tight tracking-tight text-ink">
-          {priceOrOnRequest(pkg.startingPricePaise)}
+          {deal ? (
+            <>
+              <span className="sr-only">now </span>
+              {inr(deal.pricePaise)}
+            </>
+          ) : (
+            priceOrOnRequest(pkg.startingPricePaise)
+          )}
         </b>
         per person, double sharing
       </div>

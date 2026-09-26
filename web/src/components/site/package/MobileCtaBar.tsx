@@ -4,7 +4,8 @@ import { File, WhatsApp } from '@/components/site/home/icons';
 import type { components } from '@/lib/api-types';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
-import { priceOrOnRequest } from '@/lib/format';
+import { dealEnds } from '@/lib/deal';
+import { inr, priceOrOnRequest } from '@/lib/format';
 import { itineraryPdfHref } from '@/lib/pdf';
 
 type PackageDetail = components['schemas']['PackageDetail'];
@@ -31,10 +32,26 @@ export function MobileCtaBar({
   return (
     <div className="sticky bottom-0 z-20 -mx-4 mt-10 flex items-center gap-2 border-t border-line bg-bg/95 px-4 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
       <div className="mr-auto min-w-0 leading-tight">
-        <b className="num block text-[20px] font-extrabold tracking-tight">
-          {priceOrOnRequest(pkg.startingPricePaise)}
-        </b>
-        <small className="text-xs text-mute">per person</small>
+        {pkg.deal ? (
+          <>
+            <b className="num block text-[20px] font-extrabold tracking-tight">
+              <s className="mr-1 text-xs font-semibold text-mute">
+                <span className="sr-only">was </span>
+                {inr(pkg.startingPricePaise)}
+              </s>
+              <span className="sr-only">now </span>
+              {inr(pkg.deal.pricePaise)}
+            </b>
+            <small className="text-xs font-bold text-warn">{dealEnds(pkg.deal)}</small>
+          </>
+        ) : (
+          <>
+            <b className="num block text-[20px] font-extrabold tracking-tight">
+              {priceOrOnRequest(pkg.startingPricePaise)}
+            </b>
+            <small className="text-xs text-mute">per person</small>
+          </>
+        )}
       </div>
       <a
         href={itineraryPdfHref(pkg.slug)}

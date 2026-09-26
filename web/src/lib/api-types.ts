@@ -1390,6 +1390,21 @@ export interface components {
             coverImageId: string | null;
             /** Days */
             days: number;
+            /**
+             * Dealbasepaise
+             * @description What the deal is measured from: the cheapest upcoming priced double, seats ignored; 0 when nothing is priced
+             */
+            dealBasePaise: number;
+            /**
+             * Dealendson
+             * @description The last day of the deal, IST
+             */
+            dealEndsOn: string | null;
+            /** Deallabel */
+            dealLabel: string | null;
+            /** Dealpricepaise */
+            dealPricePaise: number | null;
+            dealState: components["schemas"]["DealState"];
             /** Departurecity */
             departureCity: string;
             /**
@@ -1469,6 +1484,13 @@ export interface components {
             coverUrl: string | null;
             /** Days */
             days: number;
+            /** Dealbasepaise */
+            dealBasePaise: number;
+            /** Dealendson */
+            dealEndsOn: string | null;
+            /** Dealpricepaise */
+            dealPricePaise: number | null;
+            dealState: components["schemas"]["DealState"];
             /**
              * Departurecount
              * @description Dated today or later
@@ -1842,6 +1864,45 @@ export interface components {
             windowStart: string;
         };
         /**
+         * DealOut
+         * @description A running deal (03 R20): a flat amount off per traveller, until the end of `ends_on`.
+         */
+        DealOut: {
+            /**
+             * Endsat
+             * Format: date-time
+             * @description When it stops: midnight IST after `endsOn`
+             */
+            endsAt: string;
+            /**
+             * Endson
+             * Format: date
+             * @description The last day of the deal, IST
+             */
+            endsOn: string;
+            /**
+             * Label
+             * @description The owner's label; the site says "Deal" when null
+             */
+            label: string | null;
+            /**
+             * Offpaise
+             * @description Flat amount off per traveller (a quote caps it at the traveller's price)
+             */
+            offPaise: number;
+            /**
+             * Pricepaise
+             * @description The price shown beside the struck-through starting price: starting − off
+             */
+            pricePaise: number;
+        };
+        /**
+         * DealState
+         * @description The owner's view of a saved deal (03 R20).
+         * @enum {string}
+         */
+        DealState: "none" | "active" | "ended" | "inactive";
+        /**
          * DepartureInput
          * @description `id` present = update that row; absent = insert. Rows the payload omits are deleted.
          *
@@ -1980,7 +2041,10 @@ export interface components {
             packageCount: number;
             /** Slug */
             slug: string;
-            /** Startingpricepaise */
+            /**
+             * Startingpricepaise
+             * @description Cheapest shown price among its live packages (a running deal counts)
+             */
             startingPricePaise: number;
             /** Tagline */
             tagline: string;
@@ -2303,6 +2367,11 @@ export interface components {
         /** HomeData */
         HomeData: {
             /**
+             * Deals
+             * @description Running deals, ending soonest first; at most 4
+             */
+            deals: components["schemas"]["PackageCard"][];
+            /**
              * Destinations
              * @description Display order, at most 6
              */
@@ -2567,6 +2636,8 @@ export interface components {
             coverUrl: string | null;
             /** Days */
             days: number;
+            /** @description Null when no deal is running */
+            deal: components["schemas"]["DealOut"] | null;
             /**
              * Destination
              * @description Destination display name
@@ -2604,6 +2675,8 @@ export interface components {
             cover: components["schemas"]["ImageOut"] | null;
             /** Days */
             days: number;
+            /** @description Null when no deal is running */
+            deal: components["schemas"]["DealOut"] | null;
             /** Departurecity */
             departureCity: string;
             /**
@@ -2664,6 +2737,21 @@ export interface components {
          *     constraint `days_is_nights_plus_one`).
          */
         PackageInput: {
+            /**
+             * Dealendson
+             * @description The last day of the deal (IST); today or later when changed
+             */
+            dealEndsOn?: string | null;
+            /**
+             * Deallabel
+             * @description Optional; blank = none
+             */
+            dealLabel?: string | null;
+            /**
+             * Dealpricepaise
+             * @description Per traveller; below the starting price. With `dealEndsOn`, or neither
+             */
+            dealPricePaise?: number | null;
             /**
              * Departurecity
              * @default Ex-Mumbai
@@ -2934,7 +3022,7 @@ export interface components {
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
          */
         SearchFacets: {
-            /** @description Cheapest / priciest starting price in rupees, rounded out to 1,000; 0/0 if none */
+            /** @description Cheapest / priciest shown price (the deal price while one runs) in rupees, rounded out to 1,000; 0/0 if none */
             budget: components["schemas"]["RangeFacet"];
             /**
              * Destinations

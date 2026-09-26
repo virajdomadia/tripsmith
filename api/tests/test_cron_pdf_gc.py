@@ -164,6 +164,7 @@ async def test_daily_recomputes_prices_that_departures_left_behind(
         "codesPruned": 0,
         "holdsExpired": 0,  # B10: tested in test_bookings_desk.py
         "bookingsCompleted": 0,
+        "dealsEnded": 0,  # B12: tested in test_deals.py
     }
     db.expire_all()
     price, stamp = await price_and_stamp(db, "north-goa-beaches")

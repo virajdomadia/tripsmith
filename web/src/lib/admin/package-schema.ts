@@ -5,6 +5,13 @@ export type PackageInput = components['schemas']['PackageInput'];
 
 const NIGHTS_MAX = 30;
 const PRICE_MAX_PAISE = 100_000_000;
+export const DEAL_LABEL_MAX = 24;
+
+/** The deal's own messages, word for word the api's (admin_packages.py) so either side reads
+ *  the same on the field. */
+export const DEAL_NEEDS_END = 'Pick the last day of the deal';
+export const DEAL_NEEDS_PRICE = 'Add the deal price';
+export const DEAL_LABEL_ALONE = 'Add a deal price and end date, or clear the label';
 
 /**
  * `<input type="number">` hands over a string; an emptied one arrives as `''`, which
@@ -91,8 +98,40 @@ export const packageSchema = z
     featured: z.boolean(),
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
+    /** B12. Blank = no deal; the price box holds paise like the departure prices. */
+    dealPricePaise: z.preprocess(
+      (v: number | string | null | undefined) => (v === '' || v == null ? null : v),
+      z.coerce
+        .number<number | string>({ error: 'Deal price must be a whole amount' })
+        .int('Deal price must be a whole amount')
+        .min(100, 'Deal price must be at least ₹1')
+        .max(PRICE_MAX_PAISE)
+        .nullable(),
+    ),
+    dealLabel: z
+      .string()
+      .trim()
+      .max(DEAL_LABEL_MAX, `${DEAL_LABEL_MAX} characters at most — it sits on the card's stamp`)
+      .nullish()
+      .transform((s) => s || null),
+    dealEndsOn: z
+      .string()
+      .regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Pick a date')
+      .nullish()
+      .transform((s) => s || null),
   })
   .superRefine((v, ctx) => {
+    // Price and end date together or not at all; a label needs both. The price-vs-starting-
+    // price and end-date-from-today rules are the api's (it knows the saved deal and the base).
+    if (v.dealPricePaise !== null && !v.dealEndsOn) {
+      ctx.addIssue({ code: 'custom', path: ['dealEndsOn'], message: DEAL_NEEDS_END });
+    }
+    if (v.dealEndsOn && v.dealPricePaise === null) {
+      ctx.addIssue({ code: 'custom', path: ['dealPricePaise'], message: DEAL_NEEDS_PRICE });
+    }
+    if (v.dealLabel && v.dealPricePaise === null && !v.dealEndsOn) {
+      ctx.addIssue({ code: 'custom', path: ['dealLabel'], message: DEAL_LABEL_ALONE });
+    }
     const days = v.nights + 1;
     if (v.itinerary.length > days) {
       ctx.addIssue({
@@ -162,6 +201,9 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   featured: false,
   itinerary: [],
   departures: [],
+  dealPricePaise: '',
+  dealLabel: '',
+  dealEndsOn: '',
 });
 
 /** The exact wire body; a separate step so a schema tweak cannot silently send extra fields. */
@@ -182,5 +224,8 @@ export function toInput(v: PackageFormValues): PackageInput {
     featured: v.featured,
     itinerary: v.itinerary,
     departures: v.departures,
+    dealPricePaise: v.dealPricePaise,
+    dealLabel: v.dealLabel,
+    dealEndsOn: v.dealEndsOn,
   };
 }
