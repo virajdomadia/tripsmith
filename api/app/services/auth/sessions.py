@@ -111,7 +111,11 @@ async def delete_session(db: AsyncSession, token: str) -> None:
 
 
 def session_info(
-    session: Session, *, new_enquiries: int | None, bookings_attention: int | None = None
+    session: Session,
+    *,
+    new_enquiries: int | None,
+    bookings_attention: int | None = None,
+    reviews_pending: int | None = None,
 ) -> SessionInfo:
     u = session.user
     return SessionInfo(
@@ -119,4 +123,5 @@ def session_info(
         expires_at=session.expires_at,
         new_enquiries=new_enquiries,
         bookings_attention=bookings_attention,
+        reviews_pending=reviews_pending,
     )

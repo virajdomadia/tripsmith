@@ -141,7 +141,10 @@ class BookingCancellation(IdMixin, CreatedMixin, Base):
 
 
 class Review(IdMixin, CreatedMixin, Base):
-    """One per `completed` booking; hidden until the owner approves. No photo (R21)."""
+    """One per `completed` booking; hidden until the owner approves. No photo (R21).
+
+    State (B13): `moderated_at` null = pending; set + `approved` = published; set + not
+    `approved` = hidden. Only published reviews count in `packages.rating_avg / rating_count`."""
 
     __tablename__ = "reviews"
     __table_args__ = (
@@ -155,3 +158,4 @@ class Review(IdMixin, CreatedMixin, Base):
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 0008

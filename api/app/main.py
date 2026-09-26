@@ -31,6 +31,7 @@ from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
+from app.routers.admin import reviews as admin_reviews
 from app.routers.cron import daily, pdf_gc
 from app.routers.site import (
     account,
@@ -124,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_enquiries.router)
     app.include_router(admin_packages.router)
     app.include_router(admin_package_images.router)
+    app.include_router(admin_reviews.router)
     app.include_router(catalog.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)

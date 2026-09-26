@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { components } from '@/lib/api-types';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { duration, inr, isPriced } from '@/lib/format';
+import { reviewsCount } from '@/lib/reviews';
 import { Photo } from './Photo';
 import { DealStamp, Stamp } from './Stamp';
+import { Stars } from './Stars';
 
 type Card = components['schemas']['PackageCard'];
 
@@ -34,6 +36,16 @@ export function PackageCard({ card }: { card: Card }) {
           <span className="capitalize">{card.themes.join(' · ')}</span>
         </div>
         <h3 className="text-xl leading-tight">{card.name}</h3>
+        {card.rating && (
+          <p className="flex items-center gap-1.5 text-[13px]">
+            <Stars
+              value={card.rating.avg}
+              label={`Rated ${card.rating.avg.toFixed(1)} out of 5`}
+              number={card.rating.avg.toFixed(1)}
+            />
+            <span className="text-mute">({reviewsCount(card.rating.count)})</span>
+          </p>
+        )}
         <p className="line-clamp-2 text-[13px] text-mute">{card.highlights[0]}</p>
         <div className="mt-1 flex items-end justify-between border-t border-line pt-3">
           <div>

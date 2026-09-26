@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container } from '@/components/site/Container';
 import { SignInForm } from '@/components/site/account/SignInForm';
+import { DEMO_TRAVELLER } from '@/lib/reviews';
 
 type Search = Record<string, string | string[] | undefined>;
 
@@ -38,6 +39,12 @@ export default async function AccountSignInPage({
         <Link href="/privacy#demo" className="whitespace-nowrap">
           More in the privacy policy
         </Link>
+        <span className="mt-1.5 block">
+          {/* B13: scripts/seed.py --demo-traveller — two past trips, one waiting for a review. */}
+          To try reviews, sign in as{' '}
+          <b className="font-bold break-all text-ink">{DEMO_TRAVELLER}</b> — two past trips, one
+          still waiting for its review.
+        </span>
       </p>
       <p className="text-center text-[13px] text-mute">
         Running Tripsmith?{' '}

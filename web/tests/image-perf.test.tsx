@@ -47,6 +47,7 @@ const card: components['schemas']['PackageCard'] = {
   coverUrl: 'https://blob.test/cover.jpg',
   highlights: ['Sunset from Chapora Fort'],
   badge: 'guaranteed',
+  rating: null,
 };
 
 describe('LCP images declare fetchpriority=high', () => {

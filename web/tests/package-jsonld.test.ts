@@ -59,6 +59,8 @@ const pkg: PackageDetail = {
     }),
   ],
   related: [],
+  rating: null,
+  reviews: [],
   updatedAt: '2026-09-15T00:00:00Z',
 };
 
@@ -106,6 +108,50 @@ describe('packageJsonLd', () => {
       'https://tripsmith.vercel.app/packages/north-goa-beaches',
     );
     expect(ld).not.toHaveProperty('offers');
+  });
+
+  it('carries no rating while no review is published (testimonials never count)', () => {
+    const ld = packageJsonLd(pkg, 'https://x/p');
+    expect(ld['@type']).toBe('TouristTrip');
+    expect(ld).not.toHaveProperty('aggregateRating');
+    expect(ld).not.toHaveProperty('review');
+  });
+
+  it('adds AggregateRating and the shown reviews once some are published (B13)', () => {
+    const ld = packageJsonLd(
+      {
+        ...pkg,
+        rating: { avg: 4.5, count: 8 },
+        reviews: [
+          {
+            id: 'r1',
+            rating: 5,
+            text: 'Wonderful houseboat night.',
+            name: 'Asha B.',
+            travelled: '2026-08-01',
+            createdAt: '2026-08-10T06:00:00Z',
+          },
+        ],
+      },
+      'https://x/p',
+    );
+    expect(ld['@type']).toEqual(['TouristTrip', 'Product']);
+    expect(ld.aggregateRating).toEqual({
+      '@type': 'AggregateRating',
+      ratingValue: '4.5',
+      reviewCount: 8,
+      bestRating: '5',
+      worstRating: '1',
+    });
+    expect(ld.review).toEqual([
+      {
+        '@type': 'Review',
+        author: { '@type': 'Person', name: 'Asha B.' },
+        datePublished: '2026-08-10',
+        reviewBody: 'Wonderful houseboat night.',
+        reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+      },
+    ]);
   });
 });
 

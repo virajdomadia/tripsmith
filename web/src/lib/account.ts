@@ -8,6 +8,7 @@ export type AccountBooking = components['schemas']['AccountBooking'];
 export type AccountBookingDetail = components['schemas']['AccountBookingDetail'];
 export type AccountCancellation = components['schemas']['AccountCancellation'];
 export type OtpSent = components['schemas']['OtpSent'];
+export type AccountReview = components['schemas']['AccountReview'];
 
 export type Tone = 'ok' | 'warn' | 'mute' | 'primary';
 
@@ -153,6 +154,12 @@ export const verifyCode = (email: string, code: string) =>
 export const askToCancel = (ref: string, reason: string) =>
   postJson<AccountCancellation>(`/api/account/bookings/${encodeURIComponent(ref)}/cancellation`, {
     reason,
+  });
+
+export const sendReview = (ref: string, rating: number, text: string) =>
+  postJson<AccountReview>(`/api/account/bookings/${encodeURIComponent(ref)}/review`, {
+    rating,
+    text,
   });
 
 /** The success sheet hands the booking's email to the sign-in screen in this tab only — never

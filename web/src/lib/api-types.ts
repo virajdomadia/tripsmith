@@ -60,6 +60,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Review
+         * @description B13: one review per completed booking, final once sent, hidden until the owner
+         *     publishes it. The owner is emailed; a lost email never undoes the review.
+         */
+        post: operations["submitReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/voucher.pdf": {
         parameters: {
             query?: never;
@@ -537,6 +558,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reviews/{id}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide Route */
+        post: operations["hideReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reviews/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Route */
+        post: operations["publishReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -884,6 +956,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/packages/{slug}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reviews Route
+         * @description R21: published reviews only, newest first. Page 1 also rides on `GET /packages/{slug}`.
+         */
+        get: operations["listPackageReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/views": {
         parameters: {
             query?: never;
@@ -912,6 +1004,11 @@ export interface components {
              * Format: date-time
              */
             bookedAt: string;
+            /**
+             * Canreview
+             * @description Completed and not reviewed yet (B13)
+             */
+            canReview: boolean;
             /** @description Set once the customer has asked to cancel (B9) */
             cancellation?: components["schemas"]["CancellationStatus"] | null;
             /**
@@ -945,6 +1042,11 @@ export interface components {
             paidPaise: number;
             /** Ref */
             ref: string;
+            /**
+             * Reviewrating
+             * @description The stars of the customer's review, if any
+             */
+            reviewRating: number | null;
             status: components["schemas"]["BookingStatus"];
             /** Totalpaise */
             totalPaise: number;
@@ -966,6 +1068,11 @@ export interface components {
              * @description Confirmed (or part paid), not yet departed, no request made
              */
             canRequestCancellation: boolean;
+            /**
+             * Canreview
+             * @description Completed and not reviewed yet
+             */
+            canReview: boolean;
             cancellation?: components["schemas"]["AccountCancellation"] | null;
             /** Coverurl */
             coverUrl?: string | null;
@@ -1015,6 +1122,8 @@ export interface components {
              * Format: date
              */
             returns: string;
+            /** @description The customer's review of this trip (B13) */
+            review: components["schemas"]["AccountReview"] | null;
             status: components["schemas"]["BookingStatus"];
             /**
              * Today
@@ -1077,6 +1186,22 @@ export interface components {
              * @description Razorpay's payment id; none for an offline one
              */
             reference: string | null;
+        };
+        /**
+         * AccountReview
+         * @description The customer's own review, as their booking page shows it.
+         */
+        AccountReview: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Rating */
+            rating: number;
+            state: components["schemas"]["ReviewState"];
+            /** Text */
+            text: string;
         };
         /** AccountTraveller */
         AccountTraveller: {
@@ -1147,6 +1272,8 @@ export interface components {
              * Format: date
              */
             returns: string;
+            /** @description The customer's review of the trip (B13) */
+            review: components["schemas"]["AdminReview"] | null;
             /**
              * Seatsshort
              * @description Seats the party is missing right now; mark paid refuses while > 0
@@ -1559,6 +1686,56 @@ export interface components {
              */
             via: ("checkout" | "sync" | "webhook" | "desk") | null;
         };
+        /** AdminReview */
+        AdminReview: {
+            /** Bookingref */
+            bookingRef: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /** Moderatedat */
+            moderatedAt: string | null;
+            /**
+             * Name
+             * @description The booking's lead name, in full
+             */
+            name: string;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Rating */
+            rating: number;
+            state: components["schemas"]["ReviewState"];
+            /** Text */
+            text: string;
+            /**
+             * Travelled
+             * Format: date
+             */
+            travelled: string;
+        };
+        /** AdminReviewList */
+        AdminReviewList: {
+            counts: components["schemas"]["ReviewCounts"];
+            /** Items */
+            items: components["schemas"]["AdminReview"][];
+            /** Page */
+            page: number;
+            /** Pagesize */
+            pageSize: number;
+            state: components["schemas"]["ReviewState"];
+            /** Total */
+            total: number;
+            /** Totalpages */
+            totalPages: number;
+        };
         /** ApiErrorBody */
         ApiErrorBody: {
             code: components["schemas"]["ErrorCode"];
@@ -1823,6 +2000,11 @@ export interface components {
              * @description Null when nothing is waiting
              */
             oldestNewAt: string | null;
+            /**
+             * Reviewspending
+             * @description Reviews waiting to be published or hidden (B13)
+             */
+            reviewsPending: number;
             /**
              * Today
              * Format: date
@@ -2649,6 +2831,8 @@ export interface components {
             name: string;
             /** Nights */
             nights: number;
+            /** @description Published reviews only; null when none (B13) */
+            rating: components["schemas"]["RatingOut"] | null;
             /** Slug */
             slug: string;
             /** Startingpricepaise */
@@ -2706,11 +2890,18 @@ export interface components {
             name: string;
             /** Nights */
             nights: number;
+            /** @description Published reviews only, never testimonials; null when none (B13) */
+            rating: components["schemas"]["RatingOut"] | null;
             /**
              * Related
              * @description Up to 3: same destination, then shared theme
              */
             related: components["schemas"]["PackageCard"][];
+            /**
+             * Reviews
+             * @description The first page of published reviews, newest first; the rest via `/packages/{slug}/reviews`
+             */
+            reviews: components["schemas"]["PublicReview"][];
             /** Slug */
             slug: string;
             /**
@@ -2861,6 +3052,45 @@ export interface components {
          * @enum {string}
          */
         PaymentStatus: "created" | "captured" | "failed" | "refunded";
+        /** PublicReview */
+        PublicReview: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @description First name + last initial, e.g. 'Asha B.'
+             */
+            name: string;
+            /** Rating */
+            rating: number;
+            /** Text */
+            text: string;
+            /**
+             * Travelled
+             * Format: date
+             * @description The departure date; the page shows its month
+             */
+            travelled: string;
+        };
+        /**
+         * PublicReviewPage
+         * @description `GET /packages/{slug}/reviews?page=N`: newest first, six a page.
+         */
+        PublicReviewPage: {
+            /** Items */
+            items: components["schemas"]["PublicReview"][];
+            /** Page */
+            page: number;
+            /** Total */
+            total: number;
+            /** Totalpages */
+            totalPages: number;
+        };
         /**
          * PublishRule
          * @description One live-publish precondition, evaluated by the api so the UI never re-derives it.
@@ -2971,6 +3201,19 @@ export interface components {
             /** Min */
             min: number;
         };
+        /**
+         * RatingOut
+         * @description The cached aggregate (`packages.rating_avg / rating_count`): published reviews only.
+         */
+        RatingOut: {
+            /**
+             * Avg
+             * @description One decimal, 1.0–5.0
+             */
+            avg: number;
+            /** Count */
+            count: number;
+        };
         /** RefundMadeInput */
         RefundMadeInput: {
             /**
@@ -3017,6 +3260,34 @@ export interface components {
              */
             refundPaise?: number | null;
         };
+        /** ReviewCounts */
+        ReviewCounts: {
+            /** Hidden */
+            hidden: number;
+            /** Pending */
+            pending: number;
+            /** Published */
+            published: number;
+        };
+        /**
+         * ReviewInput
+         * @description `POST /account/bookings/{ref}/review`. Final once sent: no edit, no delete (B13).
+         */
+        ReviewInput: {
+            /** Rating */
+            rating: number;
+            /**
+             * Text
+             * @description Plain text; line breaks kept
+             */
+            text: string;
+        };
+        /**
+         * ReviewState
+         * @description Derived from `approved` + `moderated_at` (see `models.Review`).
+         * @enum {string}
+         */
+        ReviewState: "pending" | "published" | "hidden";
         /**
          * SearchFacets
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
@@ -3064,6 +3335,11 @@ export interface components {
              * @description Enquiries still in status `new`; owner sessions only
              */
             newEnquiries?: number | null;
+            /**
+             * Reviewspending
+             * @description Reviews waiting to be published or hidden (B13); owner
+             */
+            reviewsPending?: number | null;
             user: components["schemas"]["SessionUser"];
         };
         /** SessionUser */
@@ -3288,6 +3564,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountCancellation"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    submitReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountReview"];
                 };
             };
             /** @description Error envelope (06 C0) */
@@ -4458,6 +4769,102 @@ export interface operations {
             };
         };
     };
+    listAdminReviews: {
+        parameters: {
+            query?: {
+                /** @description The tab */
+                state?: components["schemas"]["ReviewState"];
+                /** @description 1-based */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    hideReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReview"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    publishReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReview"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -5130,6 +5537,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listPackageReviews: {
+        parameters: {
+            query?: {
+                /** @description 1-based; six a page */
+                page?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicReviewPage"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

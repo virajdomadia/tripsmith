@@ -10,10 +10,9 @@ import { describe, expect, it } from 'vitest';
  * 1.98:1), `--color-warn` (warn text on `--color-warn-soft` was 4.44:1) and the sold-out badge
  * (mute on `--color-line` was 4.43:1).
  *
- * One rendered pair is deliberately NOT asserted here: the marigold star glyphs in Hotels and
- * Testimonials are `--color-action` on white, 2.00:1. Marigold is the brand's one accent and is
- * everywhere else a fill with dark text on it (8.28:1); recolouring the stars is a design call
- * for the owner, tracked on the H3 row in docs/07-plan.md rather than silently changed here.
+ * The stars were the one pair H3 left open (marigold glyphs on white, 2.00:1). B13 (R21) gave
+ * them their own darker amber, `--color-star`, drawn only by `components/site/Stars.tsx` — the
+ * last test below holds both.
  */
 
 const css = readFileSync(resolve(__dirname, '../src/app/globals.css'), 'utf8');
@@ -57,6 +56,7 @@ const PAIRS: Array<[string, string, string]> = [
   ['the "guaranteed" badge', token('ok'), token('ok-soft')],
   ['the active section-nav pill', WHITE, token('ink')],
   ['the admin sidebar', token('ink-soft'), token('ink')],
+  ['star glyphs (hotel rows, reviews, ratings — B13)', token('star'), token('bg')],
 ];
 
 describe('token pairs meet WCAG AA', () => {
@@ -95,5 +95,15 @@ describe('token pairs meet WCAG AA', () => {
       'utf8',
     );
     expect(fab).toContain('rgb(37_211_102');
+  });
+
+  it('draws every star through <Stars>, in the star token, never in marigold on white', () => {
+    const stars = readFileSync(resolve(__dirname, '../src/components/site/Stars.tsx'), 'utf8');
+    expect(stars).toContain('text-star');
+    for (const file of ['package/Hotels.tsx', 'home/Testimonials.tsx']) {
+      const src = readFileSync(resolve(__dirname, `../src/components/site/${file}`), 'utf8');
+      expect(src).toContain('<Stars');
+      expect(src).not.toContain('★');
+    }
   });
 });

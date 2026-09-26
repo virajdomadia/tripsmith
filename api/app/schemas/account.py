@@ -8,6 +8,7 @@ from app.models.enums import BookingStatus, CancellationStatus, Occupancy, Payme
 from app.schemas import ApiModel
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
+from app.schemas.reviews import AccountReview
 
 
 class AccountBooking(ApiModel):
@@ -29,6 +30,8 @@ class AccountBooking(ApiModel):
     cancellation: CancellationStatus | None = Field(
         default=None, description="Set once the customer has asked to cancel (B9)"
     )
+    review_rating: int | None = Field(description="The stars of the customer's review, if any")
+    can_review: bool = Field(description="Completed and not reviewed yet (B13)")
 
 
 class AccountBookings(ApiModel):
@@ -90,6 +93,8 @@ class AccountBookingDetail(ApiModel):
     can_request_cancellation: bool = Field(
         description="Confirmed (or part paid), not yet departed, no request made"
     )
+    review: AccountReview | None = Field(description="The customer's review of this trip (B13)")
+    can_review: bool = Field(description="Completed and not reviewed yet")
 
 
 class CancellationRequest(ApiModel):

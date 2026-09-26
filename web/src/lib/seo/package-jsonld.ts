@@ -62,5 +62,32 @@ export function packageJsonLd(p: PackageDetail, url: string): Record<string, unk
       })),
     },
     ...(offers.length > 0 ? { offers } : {}),
+    ...ratingJsonLd(p),
+  };
+}
+
+/**
+ * B13 (R21): `AggregateRating` and the reviews shown on the page — from published reviews only,
+ * never the home page's testimonials — and nothing at all while none is published. schema.org's
+ * `Trip` has no `aggregateRating`, so a rated trip is also typed `Product`, which does.
+ */
+function ratingJsonLd(p: PackageDetail): Record<string, unknown> {
+  if (!p.rating) return {};
+  return {
+    '@type': ['TouristTrip', 'Product'],
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: p.rating.avg.toFixed(1),
+      reviewCount: p.rating.count,
+      bestRating: '5',
+      worstRating: '1',
+    },
+    review: p.reviews.map((r) => ({
+      '@type': 'Review',
+      author: { '@type': 'Person', name: r.name },
+      datePublished: r.createdAt.slice(0, 10),
+      reviewBody: r.text,
+      reviewRating: { '@type': 'Rating', ratingValue: String(r.rating), bestRating: '5' },
+    })),
   };
 }

@@ -31,6 +31,7 @@ from app.services.booking.desk import count_needing_attention
 from app.services.email.send import is_test_mode
 from app.services.email.signin import render_signin_code
 from app.services.enquiries import count_new_enquiries
+from app.services.reviews import count_pending
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +82,7 @@ async def _session_info(db: AsyncSession, session: Session) -> SessionInfo:
         session,
         new_enquiries=await count_new_enquiries(db),
         bookings_attention=await count_needing_attention(db),
+        reviews_pending=await count_pending(db),
     )
 
 

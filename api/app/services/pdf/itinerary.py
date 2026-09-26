@@ -98,12 +98,15 @@ def _renderer_hash() -> str:
 _RENDERER = _renderer_hash()
 
 
+NOT_DRAWN = {"related", "updated_at", "deal", "rating", "reviews"}
+
+
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:
     """16 hex chars over everything `render_itinerary` draws: the package page as served today
-    (`related`, `updated_at` and the B12 `deal` are not drawn), the two settings it prints,
-    the business block and the renderer. Any change → a new pathname; nothing else → the same
-    one."""
-    drawn = pkg.model_dump(mode="json", exclude={"related", "updated_at", "deal"})
+    (`NOT_DRAWN`: `related`, `updated_at`, the B12 `deal`, the B13 `rating` / `reviews`), the
+    two settings it prints, the business block and the renderer. Any change → a new pathname;
+    nothing else → the same one."""
+    drawn = pkg.model_dump(mode="json", exclude=NOT_DRAWN)
     payload = [drawn, site_url, whatsapp_number, BUSINESS, _RENDERER]
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
@@ -523,7 +526,7 @@ class _Itinerary:
         return y
 
     def hotels(self) -> None:
-        """`Hotels`: one bordered card per property — name, marigold stars, city · nights."""
+        """`Hotels`: one card per property — name, stars and their number, city · nights."""
         d, p = self.doc, self.pkg
         if not p.hotels:
             return
@@ -541,6 +544,9 @@ class _Itinerary:
             sx = d.get_x() + 1
             for k in range(5):
                 d.star(sx + k * 3.6, top + 6, 1.55, filled=k < hotel.stars)
+            d.set_xy(sx + 4 * 3.6 + 2.4, top + 3.9)
+            d.font(8.5, "B", INK2)
+            d.cell(14, 4.2, f"{hotel.stars}-star")
             d.set_xy(MARGIN + 4.5, top + 8.6)
             d.font(8.5, "", MUTE)
             nights = f"{hotel.nights} night{'s' if hotel.nights != 1 else ''}"

@@ -46,6 +46,7 @@ describe('destinationJsonLd', () => {
     coverUrl: 'https://blob.test/x.jpg',
     highlights: ['a'],
     badge: null,
+    rating: null,
   });
   const d: DestinationDetail = {
     slug: 'kerala',

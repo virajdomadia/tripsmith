@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Stars } from '@/components/site/Stars';
 import type { components } from '@/lib/api-types';
 import { Pin } from './icons';
 
@@ -41,14 +42,7 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
               <small className="text-mute">{t.city}</small>
             </span>
           </div>
-          <span
-            role="img"
-            aria-label={`${t.rating} out of 5 stars`}
-            className="text-[13px] tracking-[2px] text-action"
-          >
-            {'★'.repeat(t.rating)}
-            <span className="text-line">{'★'.repeat(5 - t.rating)}</span>
-          </span>
+          <Stars value={t.rating} className="text-[13px]" />
           <p className="text-[15px]">“{t.text}”</p>
           {t.packageSlug && t.packageName ? (
             <Link

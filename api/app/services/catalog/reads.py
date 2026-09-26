@@ -33,6 +33,7 @@ from app.services.catalog import deals
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
+from app.services.reviews import list_public_reviews, rating_out
 
 RELATED_LIMIT = 3
 
@@ -200,6 +201,8 @@ async def get_package(
         cover=_image_out(p.cover_image) if p.cover_image else (images[0] if images else None),
         departures=departures,
         related=await _related(db, p, today, now) if with_related else [],
+        rating=rating_out(p.rating_avg, p.rating_count),
+        reviews=(await list_public_reviews(db, p.id)).items if p.rating_count else [],
         updated_at=p.updated_at,
     )
 

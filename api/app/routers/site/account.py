@@ -1,5 +1,6 @@
-"""`/account/*` for a signed-in customer (R18, R19): My trips, one booking, and the request to
-cancel it. The voucher download lives beside the signed link in vouchers.py."""
+"""`/account/*` for a signed-in customer (R18, R19, R21): My trips, one booking, the request to
+cancel it, and the review of a completed trip. The voucher download lives beside the signed
+link in vouchers.py."""
 
 from typing import Annotated
 
@@ -17,11 +18,14 @@ from app.schemas.account import (
     AccountCancellation,
     CancellationRequest,
 )
+from app.schemas.reviews import AccountReview, ReviewInput
 from app.services.account import get_booking, list_bookings, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_cancellation_emails
+from app.services.email.reviews import send_review_email
+from app.services.reviews import submit_review
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -89,3 +93,36 @@ async def post_cancellation(
             today=today,
         )
     return asked
+
+
+@router.post(
+    "/bookings/{ref}/review",
+    operation_id="submitReview",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+)
+async def post_review(
+    ref: BookingRef,
+    payload: ReviewInput,
+    request: Request,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> AccountReview:
+    """B13: one review per completed booking, final once sent, hidden until the owner
+    publishes it. The owner is emailed; a lost email never undoes the review."""
+    response.headers.update(NO_STORE)
+    review = await submit_review(db, user, ref, payload)
+    try:
+        facts = await load_booking_facts(db, ref)
+    finally:
+        await db.rollback()
+    if facts is not None:
+        await send_review_email(
+            request.app.state.email_sender,
+            request.app.state.settings,
+            facts,
+            rating=review.rating,
+            text=review.text,
+        )
+    return review

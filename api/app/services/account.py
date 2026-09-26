@@ -28,6 +28,7 @@ from app.models import (
     Destination,
     Package,
     PackageImage,
+    Review,
     User,
 )
 from app.models.enums import BookingStatus, PaymentStatus
@@ -39,6 +40,7 @@ from app.schemas.account import (
     AccountTraveller,
 )
 from app.schemas.bookings import Quote
+from app.schemas.reviews import AccountReview, ReviewState
 from app.services.booking.voucher import HAS_VOUCHER
 
 CANCELLABLE = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
@@ -58,6 +60,20 @@ def owned_by(user: User) -> ColumnElement[bool]:
 async def owns_booking(db: AsyncSession, user: User, ref: str) -> bool:
     found = await db.execute(select(Booking.id).where(Booking.ref == ref, owned_by(user)))
     return found.first() is not None
+
+
+def account_review(r: Review) -> AccountReview:
+    return AccountReview(
+        rating=r.rating,
+        text=r.text,
+        state=ReviewState.of(r.approved, r.moderated_at),
+        created_at=r.created_at,
+    )
+
+
+def can_review(status: BookingStatus, *, reviewed: bool) -> bool:
+    """B13: only a completed trip (the daily sweep marks it the day after departure), once."""
+    return status == BookingStatus.COMPLETED and not reviewed
 
 
 def can_request_cancellation(
@@ -90,12 +106,14 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             travellers,
             PackageImage.url,
             BookingCancellation.status,
+            Review.rating,
         )
         .join(Package, Package.id == Booking.package_id)
         .join(Destination, Destination.id == Package.destination_id)
         .join(Departure, Departure.id == Booking.departure_id)
         .outerjoin(PackageImage, PackageImage.id == Package.cover_image_id)
         .outerjoin(BookingCancellation, BookingCancellation.booking_id == Booking.id)
+        .outerjoin(Review, Review.booking_id == Booking.id)
         .where(owned_by(user))
         .order_by(Booking.created_at.desc())
     )
@@ -115,6 +133,8 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             has_voucher=status in HAS_VOUCHER,
             cover_url=cover,
             cancellation=asked,
+            review_rating=stars,
+            can_review=can_review(status, reviewed=stars is not None),
         )
         for (
             ref,
@@ -130,6 +150,7 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             count,
             cover,
             asked,
+            stars,
         ) in rows
     ]
 
@@ -161,6 +182,9 @@ async def get_booking(
         await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
     ).scalar_one()
     asked = booking.cancellation
+    review = (
+        await db.execute(select(Review).where(Review.booking_id == booking.id))
+    ).scalar_one_or_none()
     return AccountBookingDetail(
         ref=booking.ref,
         status=booking.status,
@@ -201,6 +225,8 @@ async def get_booking(
         can_request_cancellation=can_request_cancellation(
             booking.status, departs, asked is not None, today
         ),
+        review=account_review(review) if review else None,
+        can_review=can_review(booking.status, reviewed=review is not None),
     )
 
 

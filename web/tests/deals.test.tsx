@@ -36,6 +36,7 @@ const card = (over: Partial<Card> = {}): Card => ({
   coverUrl: 'https://blob.test/cover.jpg',
   highlights: ['Sunset from Chapora Fort'],
   badge: 'filling-fast',
+  rating: null,
   ...over,
 });
 

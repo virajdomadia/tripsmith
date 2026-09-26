@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { MessageSquareQuote, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { PageHead } from '@/components/admin/PageHead';
 import { BarList } from '@/components/admin/dashboard/BarList';
@@ -53,6 +53,20 @@ export default async function AdminHome() {
           </>
         }
       />
+
+      {data.reviewsPending > 0 && (
+        // B13: a strip rather than a fifth tile — it only shows while something waits.
+        <Link
+          href="/admin/reviews"
+          className="flex items-center gap-3 rounded-card border border-warn/30 bg-warn-soft px-4 py-3 text-sm font-semibold text-warn no-underline hover:border-warn"
+        >
+          <MessageSquareQuote className="size-4.5" aria-hidden />
+          {data.reviewsPending === 1
+            ? '1 review waiting to be published or hidden'
+            : `${data.reviewsPending} reviews waiting to be published or hidden`}
+          <span className="ml-auto">Moderate →</span>
+        </Link>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

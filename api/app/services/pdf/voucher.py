@@ -170,6 +170,10 @@ class _Voucher:
             d.cell(90, 6, _clip(d, h.name, 78))
             for s in range(5):
                 d.star(MARGIN + 100 + s * 4.4, y + 5.6, 1.7, filled=s < h.stars)
+            if h.stars:
+                d.set_xy(MARGIN + 100 + 4 * 4.4 + 2.6, y + 3.4)
+                d.font(8.5, "B", INK2)
+                d.cell(6, 4.4, str(h.stars))
             d.set_xy(MARGIN + 126, y + 2.6)
             d.font(9.5, "", INK2)
             nights = f"{h.nights} night{'s' if h.nights != 1 else ''}" if h.nights else ""
