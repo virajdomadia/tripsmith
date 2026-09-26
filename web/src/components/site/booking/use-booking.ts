@@ -204,7 +204,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       return;
     }
     const ctrl = new AbortController();
-    setQuote((q) => ({ status: 'loading', last: q.status === 'ok' ? q.quote : undefined }));
+    // A re-ask while one is still loading (a refused code re-asks at once) keeps the last price.
+    setQuote((q) => ({
+      status: 'loading',
+      last: q.status === 'ok' ? q.quote : q.status === 'loading' ? q.last : undefined,
+    }));
     const timer = setTimeout(async () => {
       try {
         const res = await fetch('/api/bookings/quote', {
