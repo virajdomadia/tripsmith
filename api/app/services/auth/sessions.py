@@ -1,4 +1,4 @@
-"""Opaque 30-day sessions in the `sessions` table (06 §A2).
+"""Opaque 30-day sessions in the `sessions` table (06 §A2), for the owner and customers alike.
 
 The token is the cookie value; a row stores only its SHA-256 (`token_hash`), so a leaked
 backup or a read-only SQL hole yields no usable cookie. A plain hash is enough — the token is
@@ -52,6 +52,14 @@ async def login(
         return None
     if stored and needs_rehash(stored):
         user.password_hash = await asyncio.to_thread(hash_password, password)
+    return await open_session(db, user, ip=ip, user_agent=user_agent)
+
+
+async def open_session(
+    db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
+) -> tuple[Session, str]:
+    """A new 30-day session for `user`, committed with whatever else the caller has pending —
+    the owner's password login and the customer's email code (B8) both end here."""
     token = new_token()
     session = Session(
         user_id=user.id,
@@ -87,6 +95,14 @@ async def find_session(
         await db.commit()
         return None
     return session
+
+
+async def prune_sessions(db: AsyncSession, *, now: dt.datetime | None = None) -> int:
+    """Delete every expired session (the daily cron). `find_session` only drops the expired
+    rows someone still presents; a cookie that is never sent again would stay forever."""
+    result = await db.execute(delete(Session).where(Session.expires_at <= (now or _now())))
+    await db.commit()
+    return result.rowcount  # type: ignore[attr-defined]
 
 
 async def delete_session(db: AsyncSession, token: str) -> None:

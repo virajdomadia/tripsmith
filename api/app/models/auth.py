@@ -1,8 +1,8 @@
-"""Own auth tables (06 A2). `verification` is ⏩ for the v2 email OTP."""
+"""Own auth tables (06 A2). `verification` holds the customer sign-in codes (B8, R18)."""
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Text
+from sqlalchemy import DateTime, ForeignKey, Index, SmallInteger, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedMixin, IdMixin, TimestampsMixin, pg_enum
@@ -43,7 +43,9 @@ class Verification(IdMixin, CreatedMixin, Base):
     __tablename__ = "verification"
     __table_args__ = (Index("ix_verification_identifier_created_at", "identifier", "created_at"),)
 
-    identifier: Mapped[str] = mapped_column(Text, nullable=False)  # email
-    code_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    identifier: Mapped[str] = mapped_column(Text, nullable=False)  # email, lower-cased
+    code_hash: Mapped[str] = mapped_column(Text, nullable=False)  # HMAC, services/auth/otp.py
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Set on success, on the fifth wrong try, and when a newer code replaces this one.
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")

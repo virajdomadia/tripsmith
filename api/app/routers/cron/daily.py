@@ -5,7 +5,8 @@ IST midnight, so `ist_today()` is the new day:
 1. recompute every package's starting price, since yesterday's departures no longer count, and
    revalidate the pages whose price moved;
 2. the PDF GC (`/cron/pdf-gc`, still callable by hand): with the new prices and the departed
-   dates gone, yesterday's PDFs are stale keys.
+   dates gone, yesterday's PDFs are stale keys;
+3. (B8) delete expired sessions and sign-in codes that expired over a day ago.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -19,6 +20,8 @@ from app.infra.db import get_session
 from app.routers.cron import require_cron
 from app.schemas.pdf import DailyReport
 from app.services.analytics import ist_today
+from app.services.auth.otp import prune_codes
+from app.services.auth.sessions import prune_sessions
 from app.services.catalog.admin_packages import recompute_all_starting_prices
 from app.services.pdf.service import PdfService
 
@@ -32,4 +35,10 @@ async def daily(
     response.headers["Cache-Control"] = "no-store"
     changed = await recompute_all_starting_prices(db, today=ist_today())
     service: PdfService = request.app.state.pdf
-    return DailyReport(prices_updated=changed, pdf=await service.gc(db))
+    gc = await service.gc(db)
+    return DailyReport(
+        prices_updated=changed,
+        pdf=gc,
+        sessions_pruned=await prune_sessions(db),
+        codes_pruned=await prune_codes(db),
+    )

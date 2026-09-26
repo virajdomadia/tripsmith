@@ -9,9 +9,12 @@ const NAV = [
   ['/packages', 'Trips'],
   ['/about', 'About'],
   ['/contact', 'Contact'],
+  ['/account', 'My trips'],
 ] as const;
 
-/** Public header: the four site sections and the phone number (S1). Home is the logo. */
+/** Public header: the four site sections, My trips (B8) and the phone number (S1). Home is the
+ * logo. Static on every page, so it never asks who is signed in: `/account` sends a signed-out
+ * visitor on to the sign-in. */
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
@@ -31,7 +34,8 @@ export function SiteHeader() {
             <Link
               key={href}
               href={href}
-              className="rounded-chip px-2 py-2 hover:bg-bg2 hover:text-ink sm:px-3"
+              // Five links fit a 375px phone only without About (it is in the footer too).
+              className={`rounded-chip px-2 py-2 whitespace-nowrap hover:bg-bg2 hover:text-ink sm:px-3 ${href === '/about' ? 'max-[419px]:hidden' : ''}`}
             >
               {label}
             </Link>

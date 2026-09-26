@@ -4,7 +4,7 @@ import { visitorIp } from '@/lib/enquiry-forward';
 /**
  * Server-side hop web → api for `/auth/*`. Same reason as enquiry-forward.ts: Vercel rewrites
  * `X-Forwarded-For` on this hop, so the visitor's address travels under `X-Client-Ip` with the
- * shared secret, and the api's `login:{ip}` limiter sees the real browser. The viewer's raw
+ * shared secret, and the api's `login:{ip}` and `otp-ip:{ip}` limiters see the real browser. The viewer's raw
  * Cookie header is forwarded untouched (never re-encoded — see api.ts).
  */
 
@@ -19,8 +19,10 @@ export function isSameOriginPost(request: Request): boolean {
   return site === null || site === 'same-origin' || site === 'none';
 }
 
+export type AuthPath = '/auth/login' | '/auth/logout' | '/auth/otp/request' | '/auth/otp/verify';
+
 export async function forwardAuth(
-  path: '/auth/login' | '/auth/logout',
+  path: AuthPath,
   request: Request,
   body?: unknown,
 ): Promise<Response | undefined> {
@@ -51,4 +53,26 @@ export async function forwardAuth(
 /** A 303 whose headers stay mutable (`Response.redirect` returns immutable ones). */
 export function seeOther(location: URL): Response {
   return new Response(null, { status: 303, headers: { Location: location.toString() } });
+}
+
+/**
+ * The api's JSON answer passed through for the sign-in code screen (`fetch` from the browser):
+ * status, body and `Retry-After` as they came, `Set-Cookie` copied verbatim (a verified code
+ * opens the session), never cached. Unreachable → the api's own 502 envelope shape.
+ */
+export function passThrough(res: Response | undefined): Response {
+  if (!res)
+    return Response.json(
+      { error: { code: 'internal', message: 'Could not reach the server — try again' } },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
+    );
+  const out = new Headers({
+    'Content-Type': res.headers.get('content-type') ?? 'application/json',
+    'Cache-Control': 'no-store',
+  });
+  const retryAfter = res.headers.get('retry-after');
+  if (retryAfter) out.set('Retry-After', retryAfter);
+  const cookie = res.headers.get('set-cookie');
+  if (cookie) out.set('Set-Cookie', cookie);
+  return new Response(res.body, { status: res.status, headers: out });
 }

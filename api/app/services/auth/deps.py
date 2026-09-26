@@ -1,6 +1,8 @@
-"""FastAPI dependencies: `current_session` (may be None) and `require_owner` (401 / 403 envelope).
+"""FastAPI dependencies: `current_session` (may be None), `require_user` (any signed-in role,
+401 otherwise) and `require_owner` (401 / 403 envelope).
 
-Every `/admin/*` route depends on `require_owner` — the web's middleware gate is UX only (05 §Auth).
+Every `/admin/*` route depends on `require_owner`, every `/account/*` route on `require_user` —
+the web's middleware gate is UX only (05 §Auth).
 """
 
 from typing import Annotated
@@ -21,6 +23,14 @@ async def current_session(
 ) -> Session | None:
     token = request.cookies.get(COOKIE_NAME, "")
     return await find_session(db, token) if token else None
+
+
+async def require_user(
+    session: Annotated[Session | None, Depends(current_session)],
+) -> User:
+    if session is None:
+        raise ApiError("unauthorized", "Sign in to continue")
+    return session.user
 
 
 async def require_owner(

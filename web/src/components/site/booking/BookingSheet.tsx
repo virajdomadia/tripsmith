@@ -151,6 +151,7 @@ export function BookingSheet({
                 onRetry={phase.kind === 'unconfirmed' ? flow.retryConfirm : undefined}
                 onStartOver={flow.startOver}
                 lead={contact.name.trim()}
+                email={contact.email.trim().toLowerCase()}
                 travellers={partyWords}
               />
             ) : (

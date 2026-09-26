@@ -1,7 +1,10 @@
 'use client';
 
 import { CircleAlert, FileDown } from 'lucide-react';
+import Link from 'next/link';
 import { WhatsApp } from '@/components/site/home/icons';
+import { SIGN_IN_EMAIL_KEY } from '@/lib/account';
+import { ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
 import type { BookingOrder, PaymentResult } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { formatDate, inr } from '@/lib/format';
@@ -12,6 +15,8 @@ type Props = {
   /** Absent while the payment is taken but the confirm call has not come back. */
   result?: PaymentResult;
   lead: string;
+  /** The contact email — handed to the My trips sign-in in this tab only, never in a URL. */
+  email: string;
   travellers: string;
   confirming?: boolean;
   onRetry?: () => void;
@@ -31,6 +36,7 @@ export function BookingDone({
   order,
   result,
   lead,
+  email,
   travellers,
   confirming,
   onRetry,
@@ -122,6 +128,28 @@ export function BookingDone({
             The download link works for 30 minutes; the voucher is in your confirmation email too.
           </p>
         )}
+        <div className="grid gap-3 rounded-card border border-line bg-bg2 p-4 animate-rise [animation-delay:320ms] sm:grid-cols-[1fr_auto] sm:items-center">
+          <div>
+            <h3 className="text-[16px]">Keep this booking in one place</h3>
+            <p className="mt-0.5 text-[14px] leading-relaxed text-ink2">
+              Sign in with <b className="text-ink">{email}</b> — we send a 6-digit code. Your
+              booking is already waiting there.
+            </p>
+          </div>
+          <Link
+            href={ACCOUNT_SIGN_IN}
+            onClick={() => {
+              try {
+                sessionStorage.setItem(SIGN_IN_EMAIL_KEY, email);
+              } catch {
+                // storage blocked: they type it on the sign-in screen
+              }
+            }}
+            className="rounded-btn border-[1.5px] border-ink px-4 py-2.5 text-center text-sm font-bold text-ink no-underline transition-colors hover:bg-ink hover:text-white"
+          >
+            Go to My trips
+          </Link>
+        </div>
         <p className="rounded-btn bg-primary-soft px-3 py-2.5 text-[13px] leading-relaxed text-primary-ink">
           <b>Demo site.</b> This was a Razorpay test payment — no money moved, and no trip is
           booked.

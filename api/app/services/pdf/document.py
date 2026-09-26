@@ -7,6 +7,7 @@ Only the registered TTFs may be used: the core fonts are Latin-1 and would drop 
 DM Sans has no ★ ✓ ✕ either — those are drawn, never typed.
 """
 
+import logging
 import math
 from pathlib import Path
 
@@ -14,6 +15,10 @@ from fpdf import FPDF, XPos, YPos
 from fpdf.drawing_primitives import DeviceRGB
 
 from app.business import BUSINESS
+
+# fpdf2 subsets the embedded fonts with fontTools, which logs every glyph table at INFO — about
+# 150 lines per PDF in the Vercel logs, burying the request's own lines. Warnings still show.
+logging.getLogger("fontTools").setLevel(logging.WARNING)
 
 FONTS_DIR = Path(__file__).resolve().parents[3] / "assets" / "fonts"
 # fpdf2 styles are only B/I, so each weight the site uses is its own family.

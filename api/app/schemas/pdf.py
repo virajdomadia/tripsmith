@@ -14,3 +14,5 @@ class GcReport(ApiModel):
 class DailyReport(ApiModel):
     prices_updated: int = Field(description="Packages whose starting price moved today")
     pdf: GcReport
+    sessions_pruned: int = Field(default=0, description="Expired sessions deleted (B8)")
+    codes_pruned: int = Field(default=0, description="Sign-in codes expired over a day (B8)")

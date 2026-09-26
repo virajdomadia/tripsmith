@@ -2,8 +2,9 @@
 
 - `GET /bookings/{ref}/voucher.pdf?exp=&sig=` — the success sheet's 30-minute signed link, for a
   visitor who is not signed in. A missing, wrong or expired signature is a 403.
-- `GET /account/bookings/{ref}/voucher.pdf` — signed in: the owner (admin) in B7; B8 adds the
-  customer the booking belongs to. Anyone else signed in is a 403, nobody signed in a 401.
+- `GET /account/bookings/{ref}/voucher.pdf` — signed in: the owner (admin), or the customer the
+  booking belongs to (services/account.py). Anyone else signed in is a 403, nobody signed in a
+  401.
 
 Either way the booking must be confirmed (or completed): a pending or cancelled booking has no
 voucher (404). `private, no-store`: it carries names, ages and a phone number.
@@ -21,6 +22,7 @@ from app.infra.db import get_session
 from app.models import Session
 from app.models.enums import UserRole
 from app.routers.site.bookings import BookingRef
+from app.services.account import owns_booking
 from app.services.auth.deps import current_session
 from app.services.booking.voucher import HAS_VOUCHER, link_is_valid, load_booking_facts
 from app.services.pdf.voucher import render_voucher, voucher_filename
@@ -91,6 +93,6 @@ async def get_account_voucher(
 ) -> Response:
     if session is None:
         raise ApiError("unauthorized", "Sign in to continue")
-    if session.user.role != UserRole.OWNER:  # B8: or the customer this booking belongs to
+    if session.user.role != UserRole.OWNER and not await owns_booking(db, session.user, ref):
         raise ApiError("forbidden", "This booking is not on your account")
     return await _voucher(db, ref, request.app.state.settings)
