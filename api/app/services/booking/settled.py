@@ -16,8 +16,10 @@ class Settled(StrEnum):
 
 
 class Capture(NamedTuple):
-    """A payment applied for the first time (never a replay)."""
+    """A payment applied for the first time (never a replay). `offline` = the owner marked the
+    booking paid on the desk (B10): `payment_id` is then a label, not a Razorpay id."""
 
     settled: Settled
     payment_id: str
     amount_paise: int
+    offline: bool = False

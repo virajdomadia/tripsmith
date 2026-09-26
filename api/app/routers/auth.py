@@ -27,6 +27,7 @@ from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_sess
 from app.services.auth.deps import current_session
 from app.services.auth.otp import check_code, issue_code, role_of, sign_in_customer
 from app.services.auth.sessions import delete_session, login, session_info
+from app.services.booking.desk import count_needing_attention
 from app.services.email.send import is_test_mode
 from app.services.email.signin import render_signin_code
 from app.services.enquiries import count_new_enquiries
@@ -72,10 +73,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 async def _session_info(db: AsyncSession, session: Session) -> SessionInfo:
-    """The new-enquiry count is owner-only data (R18): a customer session never runs the query
-    and gets `newEnquiries: null`."""
-    is_owner = session.user.role == UserRole.OWNER
-    return session_info(session, new_enquiries=await count_new_enquiries(db) if is_owner else None)
+    """The sidebar counts are owner-only data (R18): a customer session never runs the queries
+    and gets `newEnquiries: null`, `bookingsAttention: null`."""
+    if session.user.role != UserRole.OWNER:
+        return session_info(session, new_enquiries=None)
+    return session_info(
+        session,
+        new_enquiries=await count_new_enquiries(db),
+        bookings_attention=await count_needing_attention(db),
+    )
 
 
 @router.post(

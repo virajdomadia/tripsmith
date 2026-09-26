@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Printer, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { Badge } from '@/components/ui/badge';
 import { NativeCheckbox } from '@/components/admin/NativeCheckbox';
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { manifestHref } from '@/lib/admin/booking-filters';
 import { blankDeparture, type PackageFieldValues } from '@/lib/admin/package-schema';
 import { ArrayError } from './ArrayError';
 
@@ -75,6 +76,7 @@ export function DeparturesEditor() {
               {fields.map((row, i) => {
                 const date = rows[i]?.date;
                 const past = Boolean(date) && String(date) < todayIso();
+                const savedId = rows[i]?.id;
                 return (
                   <TableRow key={row.id}>
                     <TableCell>
@@ -182,7 +184,21 @@ export function DeparturesEditor() {
                         )}
                       />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      {/* Only a saved row has an id for the manifest to read. */}
+                      {savedId && (
+                        <Button asChild variant="ghost" size="icon">
+                          <a
+                            href={manifestHref(savedId)}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Manifest, departure ${i + 1}`}
+                            title="Passenger manifest"
+                          >
+                            <Printer className="size-4" aria-hidden />
+                          </a>
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="ghost"
@@ -213,7 +229,8 @@ export function DeparturesEditor() {
           Add departure
         </Button>
         <span className="text-[13px] text-mute">
-          Seats total — lower it as you sell seats offline; online bookings arrive in v2.
+          Seats total is the capacity: online bookings count against it — lower it only for seats
+          sold outside the site. The printer icon opens a saved date&rsquo;s passenger manifest.
         </span>
       </div>
     </div>

@@ -37,6 +37,12 @@ class SessionInfo(ApiModel):
     new_enquiries: int | None = Field(
         default=None, ge=0, description="Enquiries still in status `new`; owner sessions only"
     )
+    bookings_attention: int | None = Field(
+        default=None,
+        ge=0,
+        description="Bookings with a refund to record or a cancellation to answer (B10); "
+        "owner sessions only",
+    )
 
 
 class OtpRequest(ApiModel):

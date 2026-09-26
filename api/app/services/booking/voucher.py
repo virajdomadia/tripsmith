@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Booking, Departure, Package, Payment
-from app.models.enums import BookingStatus, Occupancy, PaymentStatus
+from app.models.enums import BookingStatus, Occupancy, PaymentProvider, PaymentStatus
 
 LINK_SECONDS = 30 * 60
 HAS_VOUCHER = (BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
@@ -104,8 +104,9 @@ class BookingFacts:
     lead_email: str
     total_paise: int
     paid_paise: int
-    payment_ids: tuple[str, ...]  # captured, oldest first
+    payment_ids: tuple[str, ...]  # captured, oldest first; `offline_label` for an offline one
     booked_at: dt.datetime
+    paid_offline: bool = False  # B10: at least one payment was marked paid on the desk
 
     @property
     def first_name(self) -> str:
@@ -138,13 +139,15 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
     departs = (
         await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
     ).scalar_one()
-    paid_ids = (
-        await db.execute(
-            select(Payment.razorpay_payment_id)
-            .where(Payment.booking_id == booking.id, Payment.status == PaymentStatus.CAPTURED)
-            .order_by(Payment.created_at)
-        )
-    ).scalars()
+    paid = list(
+        (
+            await db.execute(
+                select(Payment)
+                .where(Payment.booking_id == booking.id, Payment.status == PaymentStatus.CAPTURED)
+                .order_by(Payment.created_at)
+            )
+        ).scalars()
+    )
     return BookingFacts(
         ref=booking.ref,
         status=booking.status,
@@ -174,9 +177,29 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         lead_email=booking.contact_email,
         total_paise=booking.total_paise,
         paid_paise=booking.paid_paise,
-        payment_ids=tuple(p for p in paid_ids.all() if p),
+        payment_ids=tuple(label for p in paid if (label := payment_label(p))),
         booked_at=booking.created_at,
+        paid_offline=any(p.provider == PaymentProvider.OFFLINE for p in paid),
     )
+
+
+def offline_reference(payment: Payment) -> str | None:
+    """What the owner typed when marking the booking paid (B10), kept in the row's `raw`."""
+    raw = payment.raw or {}
+    ref = raw.get("reference")
+    return ref if isinstance(ref, str) and ref else None
+
+
+def offline_label(reference: str | None) -> str:
+    return f"offline ({reference})" if reference else "offline"
+
+
+def payment_label(payment: Payment) -> str | None:
+    """How a captured payment is named on the voucher and in the CSV: Razorpay's id, or
+    `offline (UTR…)` for one marked paid on the desk."""
+    if payment.provider == PaymentProvider.OFFLINE:
+        return offline_label(offline_reference(payment))
+    return payment.razorpay_payment_id
 
 
 async def booking_has_order(db: AsyncSession, ref: str, order_id: str) -> bool:

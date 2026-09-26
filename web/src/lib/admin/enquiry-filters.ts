@@ -68,26 +68,26 @@ export interface Filters {
   page: number;
 }
 
-type RawParams = Record<string, string | string[] | undefined>;
+export type RawParams = Record<string, string | string[] | undefined>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_PAGE = 10_000;
-const SEARCH_MAX = 80;
-const PACKAGE_ID_MAX = 40;
+export const MAX_PAGE = 10_000;
+export const SEARCH_MAX = 80;
+export const ID_MAX = 40;
 
-const one = (v: string | string[] | undefined): string | undefined =>
+export const one = (v: string | string[] | undefined): string | undefined =>
   (Array.isArray(v) ? v[0] : v)?.trim() || undefined;
 
-const oneOf = <T extends string>(allowed: readonly T[], v?: string): T | undefined =>
+export const oneOf = <T extends string>(allowed: readonly T[], v?: string): T | undefined =>
   allowed.includes(v as T) ? (v as T) : undefined;
 
 /** Drop a value longer than the api's bound rather than truncate it — a truncated id names a
  * different package, and silently filtering by the wrong one is worse than not filtering. */
-const bounded = (v: string | undefined, max: number): string | undefined =>
+export const bounded = (v: string | undefined, max: number): string | undefined =>
   v && v.length <= max ? v : undefined;
 
 /** Shape AND calendar validity: reject `2026-02-30` rather than let `Date` roll it into March. */
-const isoDate = (v?: string): string | undefined => {
+export const isoDate = (v?: string): string | undefined => {
   if (!v || !ISO_DATE.test(v)) return undefined;
   const d = new Date(`${v}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : undefined;
@@ -110,7 +110,7 @@ export function parseFilters(params: RawParams): Filters {
   return {
     status: oneOf(STATUSES, one(params.status)),
     type: oneOf(TYPES, one(params.type)),
-    packageId: bounded(one(params.packageId), PACKAGE_ID_MAX),
+    packageId: bounded(one(params.packageId), ID_MAX),
     from,
     to,
     q: one(params.q)?.slice(0, SEARCH_MAX),

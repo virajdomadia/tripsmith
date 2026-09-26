@@ -22,7 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Booking, Payment
 from app.models.enums import PaymentProvider, PaymentStatus
 from app.services.booking.after_capture import Notify, on_new_capture
-from app.services.booking.payments import capture_razorpay_payment, lock_booking
+from app.services.booking.payments import (
+    SETTLED_PAYMENT,
+    capture_razorpay_payment,
+    lock_booking,
+)
 
 Outcome = Literal["captured", "replayed", "failed", "ignored"]
 
@@ -111,8 +115,8 @@ async def record_failed_payment(
         .all()
     )
     payment = next((p for p in rows if p.razorpay_payment_id == payment_id), None)
-    if payment is not None and payment.status == PaymentStatus.CAPTURED:
-        log.warning("payment.failed for %s after it was captured — kept as captured", payment_id)
+    if payment is not None and payment.status in SETTLED_PAYMENT:
+        log.warning("payment.failed for %s after it was captured — kept as it is", payment_id)
         return
     payment = payment or next((p for p in rows if p.razorpay_payment_id is None), None)
     if payment is None:

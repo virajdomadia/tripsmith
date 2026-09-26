@@ -24,6 +24,8 @@
   --color-ok-soft: #e3f0ea;
   --color-warn: #b0501c; /* filling fast — darkened in H3: #b5541e on `--color-warn-soft` was 4.44:1 */
   --color-warn-soft: #fff1dd;
+  --color-bad: #b42318; /* B10: the desk's red "refund needed" flag — 5.75:1 on --color-bad-soft */
+  --color-bad-soft: #fdeceb;
   /*
    * WhatsApp green, darkened from the brand's #25d366: white on #25d366 is 1.98:1, which fails
    * AA on every WhatsApp button (H3). This tint keeps the hue and clears 4.5:1; the buttons keep

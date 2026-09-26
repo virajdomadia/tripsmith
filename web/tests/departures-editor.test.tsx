@@ -74,9 +74,18 @@ describe('DeparturesEditor', () => {
     expect(latest?.departures[0]?.seatsTotal).toBe('20');
   });
 
-  it('tells the truth about seats in v1: the owner lowers the total by hand', () => {
+  it('tells the truth about seats: bookings count against the total', () => {
     render(<Harness />);
-    expect(screen.getByText(/lower it as you sell seats offline/i)).toBeDefined();
+    expect(screen.getByText(/lower it only for seats sold outside the site/i)).toBeDefined();
+  });
+
+  it('links a saved departure to its manifest, and not an unsaved one', async () => {
+    const user = userEvent.setup();
+    render(<Harness rows={1} />);
+    const link = screen.getByRole('link', { name: /manifest, departure 1/i });
+    expect(link.getAttribute('href')).toBe('/admin/departures/dep-0/manifest');
+    await user.click(screen.getByRole('button', { name: /add departure/i }));
+    expect(screen.queryByRole('link', { name: /manifest, departure 2/i })).toBeNull();
   });
 
   it('explains an empty list', () => {

@@ -6,7 +6,9 @@ IST midnight, so `ist_today()` is the new day:
    revalidate the pages whose price moved;
 2. the PDF GC (`/cron/pdf-gc`, still callable by hand): with the new prices and the departed
    dates gone, yesterday's PDFs are stale keys;
-3. (B8) delete expired sessions and sign-in codes that expired over a day ago.
+3. (B8) delete expired sessions and sign-in codes that expired over a day ago;
+4. (B10) cancel checkouts abandoned over an hour ago (`hold_expired`) and complete departed
+   confirmed bookings (services/booking/sweep.py).
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -22,6 +24,7 @@ from app.schemas.pdf import DailyReport
 from app.services.analytics import ist_today
 from app.services.auth.otp import prune_codes
 from app.services.auth.sessions import prune_sessions
+from app.services.booking.sweep import sweep_bookings
 from app.services.catalog.admin_packages import recompute_all_starting_prices
 from app.services.pdf.service import PdfService
 
@@ -33,12 +36,16 @@ async def daily(
     request: Request, response: Response, db: Annotated[AsyncSession, Depends(get_session)]
 ) -> DailyReport:
     response.headers["Cache-Control"] = "no-store"
-    changed = await recompute_all_starting_prices(db, today=ist_today())
+    today = ist_today()
+    changed = await recompute_all_starting_prices(db, today=today)
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
+    swept = await sweep_bookings(db, today=today)
     return DailyReport(
         prices_updated=changed,
         pdf=gc,
         sessions_pruned=await prune_sessions(db),
         codes_pruned=await prune_codes(db),
+        holds_expired=swept.holds_expired,
+        bookings_completed=swept.completed,
     )
