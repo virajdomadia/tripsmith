@@ -164,9 +164,15 @@ def search_clause(q: str) -> ColumnElement[bool]:
 
 
 def _open_request() -> ColumnElement[bool]:
-    return exists().where(
-        BookingCancellation.booking_id == Booking.id,
-        BookingCancellation.status == CancellationStatus.REQUESTED,
+    # Correlate on `bookings` only: the desk list also outer-joins `booking_cancellations`, and
+    # auto-correlation would then strip the subquery of its only FROM (a 500 on the tab).
+    return (
+        exists()
+        .where(
+            BookingCancellation.booking_id == Booking.id,
+            BookingCancellation.status == CancellationStatus.REQUESTED,
+        )
+        .correlate(Booking)
     )
 
 

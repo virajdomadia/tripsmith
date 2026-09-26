@@ -373,3 +373,19 @@ async def test_money_arriving_after_approval_is_refunded_in_full_not_the_agreed_
     assert (out["paidPaise"], out["refundNeeded"]) == (total // 2, False)
     late_row = next(p for p in out["payments"] if p["paymentId"] == "pay_Late0B11")
     assert (late_row["status"], late_row["refundedPaise"]) == ("refunded", late)
+
+
+@pytest.mark.db
+async def test_the_cancellation_requested_tab_lists_open_requests_only(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    _, ref, owner, id = await asked(db, db_app, db_client)
+    res = await db_client.get("/admin/bookings", params={"flag": "cancellation"}, headers=owner)
+    assert res.status_code == 200, res.text
+    assert [r["ref"] for r in res.json()["items"]] == [ref]
+    assert res.json()["counts"]["cancellation"] == 1
+    await resolve(db_client, id, owner, decision="reject", note="Not possible, sorry.")
+    res = await db_client.get("/admin/bookings", params={"flag": "cancellation"}, headers=owner)
+    assert res.json()["items"] == []
+    csv = await db_client.get("/admin/bookings.csv", params={"flag": "cancellation"}, headers=owner)
+    assert csv.status_code == 200
