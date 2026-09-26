@@ -9,7 +9,8 @@ Returns:     {{ returns }}
 Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop.last %}, {% endif %}{% endfor %}
 
 Paid:        {{ paid }}
-
+{% if coupon %}Coupon:      {{ coupon }}
+{% endif %}
 {% if voucher_attached %}
 Your voucher is attached as a PDF — show it, printed or on your phone, at check-in.
 {% else %}

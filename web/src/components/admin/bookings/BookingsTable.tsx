@@ -52,6 +52,11 @@ export function BookingsTable({ items }: { items: BookingRow[] }) {
               </TableCell>
               <TableCell className="num whitespace-nowrap">
                 {inr(b.paidPaise)} <span className="text-mute">/ {inr(b.totalPaise)}</span>
+                {b.couponCode && (
+                  <span className="block font-mono text-xs tracking-wide text-ok">
+                    {b.couponCode}
+                  </span>
+                )}
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">

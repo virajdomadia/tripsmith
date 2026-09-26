@@ -26,6 +26,7 @@ import { formatDate, inr } from '@/lib/format';
 import { AnimatedPrice } from './AnimatedPrice';
 import { BookingDone } from './BookingDone';
 import { ContactFields } from './ContactFields';
+import { CouponField } from './CouponField';
 import { DeparturePicker } from './DeparturePicker';
 import { PartyBuilder } from './PartyBuilder';
 import { PriceBreakdown } from './PriceBreakdown';
@@ -192,6 +193,7 @@ export function BookingSheet({
                 </Step>
                 <Step n={3} title="Price" done={done.price}>
                   <PriceBreakdown flow={flow} />
+                  {flow.quote.status !== 'idle' && <CouponField flow={flow} />}
                 </Step>
                 <Step n={4} title="Contact" done={done.contact}>
                   <ContactFields flow={flow} />

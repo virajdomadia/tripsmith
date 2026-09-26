@@ -7,6 +7,7 @@ import {
   MessageSquareQuote,
   Package,
   Ticket,
+  TicketPercent,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/site/BrandMark';
@@ -20,6 +21,7 @@ export const NAV = [
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
   { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },
+  { href: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
 ] as const;
 
 const initials = (name: string) =>

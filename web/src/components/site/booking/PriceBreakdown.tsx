@@ -7,8 +7,8 @@ import type { BookingFlow } from './use-booking';
 
 /**
  * Step 3 (B0 `.brk`): the server's quote, line for line. Not one rupee is added up here — the
- * lines, the deal and the total are `quoteBooking`'s, and the Razorpay order is made from the
- * same quote on the server. While a re-quote is in flight the last one stays, dimmed.
+ * lines, the deal, the coupon (B15) and the total are `quoteBooking`'s, and the Razorpay order is
+ * made from the same quote on the server. While a re-quote is in flight the last one stays, dimmed.
  */
 export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
   const { quote, departure, reason } = flow;
@@ -52,6 +52,14 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
           </span>
         </div>
       ))}
+      {q.coupon && (
+        <div className="flex justify-between gap-3 font-bold text-ok">
+          <span>
+            Coupon <span className="font-mono tracking-wide">{q.coupon.code}</span>
+          </span>
+          <span className="num">−{inr(q.coupon.offPaise)}</span>
+        </div>
+      )}
       <div className="mt-1 flex items-baseline justify-between border-t-[1.5px] border-ink pt-2.5">
         <span className="font-bold">Total</span>
         <AnimatedPrice paise={q.totalPaise} className="text-[28px] font-extrabold tracking-tight" />

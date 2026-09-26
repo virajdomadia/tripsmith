@@ -83,6 +83,7 @@ const QUOTE = {
     { kind: 'double', occupancy: 'double', count: 2, unitPaise: 14_999_00, amountPaise: 29_998_00 },
   ],
   deal: null,
+  coupon: null,
   subtotalPaise: 29_998_00,
   discountPaise: 0,
   totalPaise: 29_998_00,
@@ -190,6 +191,58 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     const voucher = screen.getByRole('link', { name: /Download voucher/ });
     expect(voucher.getAttribute('href')).toBe(`/api${VOUCHER}`);
     expect(voucher.hasAttribute('download')).toBe(true);
+  });
+
+  it('applies a code on the server quote, explains a refusal and orders with the code', async () => {
+    api();
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) !== '/api/bookings/quote') return base(url, init);
+      const body = JSON.parse(String(init?.body));
+      if (body.couponCode === 'OLD')
+        return json(409, {
+          error: {
+            code: 'conflict',
+            message: 'This code expired on 30 Sep 2026',
+            reason: 'coupon_expired',
+          },
+        });
+      if (body.couponCode === 'WELCOME10')
+        return json(200, {
+          ...QUOTE,
+          coupon: { code: 'WELCOME10', offPaise: 1_000_00 },
+          discountPaise: 1_000_00,
+          totalPaise: 28_998_00,
+        });
+      return json(200, QUOTE);
+    });
+    const user = userEvent.setup();
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    const sheet = screen.getByRole('dialog');
+
+    await user.click(within(sheet).getByRole('button', { name: 'Have a code?' }));
+    await user.type(within(sheet).getByLabelText('Coupon code'), 'old');
+    await user.click(within(sheet).getByRole('button', { name: 'Apply' }));
+    expect(await within(sheet).findByText('This code expired on 30 Sep 2026')).toBeTruthy();
+    // The refused code is dropped: the price is asked again without it, and a refusal is never
+    // mistaken for a sold-out date.
+    await waitFor(() =>
+      expect(JSON.parse(calls('/api/bookings/quote').at(-1)![1].body).couponCode).toBeUndefined(),
+    );
+    expect(calls('/api/packages/north-goa-beaches/departures')).toHaveLength(1);
+
+    await user.clear(within(sheet).getByLabelText('Coupon code'));
+    await user.type(within(sheet).getByLabelText('Coupon code'), 'welcome10');
+    await user.click(within(sheet).getByRole('button', { name: 'Apply' }));
+    expect(await within(sheet).findByText(/applied/)).toBeTruthy();
+    expect(within(sheet).getAllByText('−₹1,000', { selector: '.num' })).toHaveLength(2); // line + chip
+    const withCode = JSON.parse(calls('/api/bookings/quote').at(-1)![1].body);
+    expect(withCode).toMatchObject({ couponCode: 'WELCOME10', email: 'ananya@example.com' });
+
+    await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
+    await waitFor(() => expect(calls('/api/bookings')).toHaveLength(1));
+    expect(JSON.parse(calls('/api/bookings')[0][1].body).couponCode).toBe('WELCOME10');
   });
 
   it('says so plainly when the payment landed after the seats had gone', async () => {

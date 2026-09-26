@@ -117,6 +117,14 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   </span>
                 </div>
               ))}
+              {b.quote.coupon && (
+                <div className="flex justify-between gap-3 font-bold text-ok">
+                  <span>
+                    Coupon <span className="font-mono tracking-wide">{b.quote.coupon.code}</span>
+                  </span>
+                  <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-ink pt-2 font-bold">
                 <span>Total</span>
                 <span className="num">{inr(b.totalPaise)}</span>

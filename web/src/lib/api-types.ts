@@ -225,6 +225,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listCoupons"];
+        put?: never;
+        /** Create Route */
+        post: operations["createCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coupons/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getCoupon"];
+        /** Update Route */
+        put: operations["updateCoupon"];
+        post?: never;
+        /** Delete Route */
+        delete: operations["deleteCoupon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coupons/{id}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Active Route */
+        post: operations["setCouponActive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dashboard": {
         parameters: {
             query?: never;
@@ -1339,6 +1393,63 @@ export interface components {
              */
             tier: string;
         };
+        /** AdminCoupon */
+        AdminCoupon: {
+            /** Active */
+            active: boolean;
+            /** Allpackages */
+            allPackages: boolean;
+            /** Amountpaise */
+            amountPaise: number | null;
+            /** Cappaise */
+            capPaise: number | null;
+            /** Code */
+            code: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Endson */
+            endsOn: string | null;
+            /** Id */
+            id: string;
+            kind: components["schemas"]["CouponKind"];
+            /**
+             * Liveholds
+             * @description Checkouts holding the code right now
+             */
+            liveHolds: number;
+            /**
+             * Locked
+             * @description In use (a use or a live hold): code, kind and amount can no longer change, and it cannot be deleted
+             */
+            locked: boolean;
+            /** Minpaise */
+            minPaise: number | null;
+            /** Packages */
+            packages: components["schemas"]["CouponPackage"][];
+            /** Percent */
+            percent: number | null;
+            /**
+             * Startson
+             * Format: date
+             */
+            startsOn: string;
+            state: components["schemas"]["CouponState"];
+            /** Uselimit */
+            useLimit: number | null;
+            /**
+             * Uses
+             * @description Bookings with the code and money captured
+             */
+            uses: number;
+        };
+        /** AdminCouponList */
+        AdminCouponList: {
+            /** Items */
+            items: components["schemas"]["AdminCoupon"][];
+        };
         /**
          * AdminDeparture
          * @description Every departure the owner has, past ones included; `seats_left` is read-only.
@@ -1884,6 +1995,11 @@ export interface components {
          */
         BookingRequest: {
             contact: components["schemas"]["BookingContact"];
+            /**
+             * Couponcode
+             * @description As on the quote
+             */
+            couponCode?: string | null;
             /** Departureid */
             departureId: string;
             /** Travellers */
@@ -1898,6 +2014,11 @@ export interface components {
             bookedAt: string;
             cancelReason: components["schemas"]["CancelReason"] | null;
             cancellation: components["schemas"]["CancellationStatus"] | null;
+            /**
+             * Couponcode
+             * @description B15: the coupon the booking was quoted with
+             */
+            couponCode: string | null;
             /**
              * Departs
              * Format: date
@@ -1962,6 +2083,89 @@ export interface components {
          * @enum {string}
          */
         CancellationStatus: "requested" | "approved" | "rejected";
+        /** CouponActive */
+        CouponActive: {
+            /** Active */
+            active: boolean;
+        };
+        /** CouponInput */
+        CouponInput: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /**
+             * Allpackages
+             * @default true
+             */
+            allPackages: boolean;
+            /**
+             * Amountpaise
+             * @description Flat only: ₹ off the booking
+             */
+            amountPaise?: number | null;
+            /**
+             * Cappaise
+             * @description Percent only, optional
+             */
+            capPaise?: number | null;
+            /**
+             * Code
+             * @description Stored upper case; unique; locked once the coupon is in use
+             */
+            code: string;
+            /**
+             * Endson
+             * @description Last IST day it works; none = no end
+             */
+            endsOn?: string | null;
+            kind: components["schemas"]["CouponKind"];
+            /**
+             * Minpaise
+             * @description Optional; the total after the deal
+             */
+            minPaise?: number | null;
+            /**
+             * Packageids
+             * @description When not all packages
+             */
+            packageIds?: string[];
+            /**
+             * Percent
+             * @description Percent only
+             */
+            percent?: number | null;
+            /**
+             * Startson
+             * Format: date
+             * @description First IST day it works
+             */
+            startsOn: string;
+            /**
+             * Uselimit
+             * @description Captured uses; none = no limit
+             */
+            useLimit?: number | null;
+        };
+        /**
+         * CouponKind
+         * @enum {string}
+         */
+        CouponKind: "flat" | "percent";
+        /** CouponPackage */
+        CouponPackage: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * CouponState
+         * @description What the list's badge says, in the order it is decided.
+         * @enum {string}
+         */
+        CouponState: "paused" | "scheduled" | "expired" | "used_up" | "active";
         /** Dashboard */
         Dashboard: {
             /**
@@ -3113,6 +3317,7 @@ export interface components {
          * @description The server's price for a party on a departure; snapshotted on the booking as-is.
          */
         Quote: {
+            coupon: components["schemas"]["QuoteCoupon"] | null;
             /**
              * Date
              * Format: date
@@ -3123,7 +3328,7 @@ export interface components {
             departureId: string;
             /**
              * Discountpaise
-             * @description The deal lines' total, as a positive number
+             * @description The deal lines' total plus the coupon, as a positive number
              */
             discountPaise: number;
             /** Lines */
@@ -3134,11 +3339,24 @@ export interface components {
             seatsLeft: number;
             /**
              * Subtotalpaise
-             * @description Before the deal
+             * @description Before the deal and the coupon
              */
             subtotalPaise: number;
             /** Totalpaise */
             totalPaise: number;
+        };
+        /** QuoteCoupon */
+        QuoteCoupon: {
+            /**
+             * Code
+             * @example WELCOME10
+             */
+            code: string;
+            /**
+             * Offpaise
+             * @description Off the whole booking, after the deal; whole rupees
+             */
+            offPaise: number;
         };
         /** QuoteDeal */
         QuoteDeal: {
@@ -3183,8 +3401,18 @@ export interface components {
         QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal";
         /** QuoteRequest */
         QuoteRequest: {
+            /**
+             * Couponcode
+             * @description Case-insensitive; refused with its reason
+             */
+            couponCode?: string | null;
             /** Departureid */
             departureId: string;
+            /**
+             * Email
+             * @description The contact email once typed, so 'already used by this email' shows before Pay; a malformed one is ignored
+             */
+            email?: string | null;
             /** Travellers */
             travellers: components["schemas"]["QuoteTraveller"][];
         };
@@ -3897,6 +4125,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listCoupons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCouponList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setCouponActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponActive"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoupon"];
                 };
             };
             /** @description Error envelope (06 C0) */

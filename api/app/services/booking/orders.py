@@ -9,6 +9,10 @@ The Razorpay order is created after the hold commits (never a network call under
 from the server's amount. If Razorpay is down the hold we just made is released, any hold it
 replaced is given back, and the visitor gets a 502: holding seats nobody can pay for would only
 block the next visitor.
+
+A coupon code (B15) is checked after the quote without it is built — its minimum is measured
+after the deal — and again at hold time under the coupon's row lock, where the booking keeps the
+code. The order amount is still the server quote's total, coupon included.
 """
 
 import datetime as dt
@@ -35,9 +39,10 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.services.analytics import ist_today
+from app.services.booking import coupons
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
-from app.services.booking.pricing import build_quote, unbookable_reason
+from app.services.booking.pricing import apply_coupon, build_quote, unbookable_reason
 from app.services.enquiries import REF_ALPHABET
 
 HOLD = dt.timedelta(minutes=10)
@@ -121,7 +126,13 @@ async def quote_booking(
     if reason := unbookable_reason(dep, seats_left=seats, party=len(req.travellers), now=now):
         raise unbookable(reason)
     base = await _deal_base(db, pkg.id, now=now)
-    return build_quote(dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now)
+    quote = build_quote(dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now)
+    if req.coupon_code:
+        coupon = await coupons.check(
+            db, req.coupon_code, pkg, quote, email=req.email, now=now, lock=False
+        )
+        quote = apply_coupon(quote, coupon)
+    return quote
 
 
 async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:
@@ -226,6 +237,13 @@ async def create_booking_order(
             deal_base=await _deal_base(db, pkg.id, now=now),
             now=now,
         )
+        coupon_code: str | None = None
+        if req.coupon_code:
+            coupon = await coupons.check(
+                db, req.coupon_code, pkg, quote, email=contact.email, now=now, lock=True
+            )
+            quote = apply_coupon(quote, coupon)
+            coupon_code = coupon.code
 
         booking: Booking | None = None
         for _attempt in range(REF_ATTEMPTS):
@@ -240,6 +258,7 @@ async def create_booking_order(
                 contact_email=contact.email,
                 quote=quote.model_dump(mode="json", by_alias=True),
                 total_paise=quote.total_paise,
+                coupon_code=coupon_code,
                 travellers=[
                     BookingTraveller(name=t.name, age=t.age, occupancy=t.occupancy, position=i)
                     for i, t in enumerate(req.travellers)

@@ -101,7 +101,7 @@ While `EMAIL_FROM` is the Resend test sender (`@resend.dev` — no verified doma
 - The customer types a code in the Book-now sheet; the server validates it and the quote gains a "Coupon −₹X" line. The Razorpay order is built from that server quote only — no amount from the client.
 - A use counts when the payment is captured, not when a hold is placed, so an abandoned checkout uses nothing. The booking keeps the code; the voucher, the emails and the booking desk show it.
 - A refused code says why: unknown, not started, expired, used up, not for this trip, below the minimum, already used by this email.
-- Open until B15 starts: whether a coupon stacks with a running deal, flat / % / both, and whether one use per email is enough or sign-in is required.
+- Decided at B15 (2026-09-26): a coupon stacks with a running deal and comes after it, once per booking; flat ₹ or 1–90 % with an optional cap, the % and the minimum measured on the total after the deal, rounded down to the rupee, never below ₹1; one use per email, no sign-in; codes are case-insensitive; a live hold reserves a use, a capture counts it, a late capture keeps its price; once in use the code, kind and amount are locked and it can only be paused, not deleted.
 
 ---
 

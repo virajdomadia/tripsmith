@@ -16,6 +16,7 @@
 {% call row("Travellers") %}{% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}<br>{% endif %}{% endfor %}{% endcall %}
 {% call row("Total") %}{{ total }}{% endcall %}
 {% call row("Paid") %}{{ paid }}{% endcall %}
+{% if coupon %}{% call row("Coupon") %}{{ coupon }}{% endcall %}{% endif %}
 {% call row("Payment") %}{{ payment_id }}{% endcall %}
 </table>
 <p style="margin:14px 0 0;font-size:13px;color:#5e6b76;">Reply to this email to write to {{ b.first_name }} directly.</p>

@@ -94,3 +94,8 @@ class CancelReason(StrEnum):
     SEATS_GONE = "seats_gone"
     CANCELLATION_APPROVED = "cancellation_approved"
     OWNER_RELEASED = "owner_released"
+
+
+class CouponKind(StrEnum):
+    FLAT = "flat"  # ₹ off the booking
+    PERCENT = "percent"  # % off the booking after the deal, optionally capped
