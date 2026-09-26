@@ -11,8 +11,12 @@ Uses are counted, never stored:
   two checkouts racing for the last use serialise on it and the second sees the first's hold.
   Lock order everywhere: contact → departure → coupon.
 
-"Already used by this email" = a captured booking with the code and that contact email; the
-one-live-hold-per-email rule (R16) already stops the same email holding it twice.
+"Already used by this email" = a captured booking with the code and that contact email. The
+one-live-hold-per-email rule (R16) stops the same email *holding* it twice, but not paying twice:
+a hold released by a newer one still has its Razorpay order, and a late capture on it (seats
+permitting) keeps its quoted price like any late capture — so one email that pays both orders
+uses the code twice (and can take a limit one past). Accepted, as with the limit above: refusing
+money already taken would mean refunding a customer who paid the price they were shown.
 
 The checks run in the order the customer can do something about them: unknown → not started →
 expired → not for this trip → below the minimum → used up → used by this email. A paused code
