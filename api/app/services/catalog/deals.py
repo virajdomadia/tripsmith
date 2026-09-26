@@ -9,7 +9,9 @@ Two starting prices meet here, on purpose:
   (see pricing.py);
 - the cached `starting_price_paise` — the cheapest date *with seats* — is what a card shows,
   struck through, and the price shown next to it is `starting − off`. That equals the owner's
-  deal price whenever the cheapest date has seats.
+  deal price whenever the cheapest date has seats, and is never shown below it: between IST
+  midnight and the 01:00 cron the cached starting price can still include a date that just
+  left while the base has already moved past it, and `starting − off` would undercut the quote.
 
 A deal is shown only while the package has a bookable price at all (`starting > 0`): a sold-out
 package has nothing to strike through.
@@ -93,7 +95,16 @@ def shown_price(now: dt.datetime, today: dt.date) -> ColumnElement[int]:
         Package.deal_price_paise > 0,
         Package.deal_price_paise < base,
     )
-    return Package.starting_price_paise - case((active, base - Package.deal_price_paise), else_=0)
+    return case(
+        (
+            active,
+            func.greatest(
+                Package.starting_price_paise - (base - Package.deal_price_paise),
+                Package.deal_price_paise,
+            ),
+        ),
+        else_=Package.starting_price_paise,
+    )
 
 
 # --- what a read shows ------------------------------------------------------------------------
@@ -110,7 +121,7 @@ def deal_for(pkg: Package, base: int, now: dt.datetime) -> DealOut | None:
         ends_on=ends_on(pkg.deal_ends_at),
         ends_at=pkg.deal_ends_at,
         off_paise=off,
-        price_paise=pkg.starting_price_paise - off,
+        price_paise=max(pkg.starting_price_paise - off, pkg.deal_price_paise or 0),
     )
 
 

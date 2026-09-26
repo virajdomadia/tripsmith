@@ -375,3 +375,26 @@ async def test_daily_revalidates_pages_of_deals_that_ended_since_the_last_run(
     assert revalidated.calls == [
         ["packages", "destinations", "home", "package:kerala-backwaters", "destination:kerala"]
     ]
+
+
+def test_a_stale_starting_price_never_shows_below_the_deal_price() -> None:
+    """IST midnight → 01:00 cron: the cached starting price still names a date that just left,
+    while the base has moved on to a dearer one; `starting − off` would undercut the quote."""
+    later = NOW + dt.timedelta(days=3)
+    stale = deals.deal_for(pkg(20_000_00, later, starting=30_000_00), 50_000_00, NOW)
+    assert stale is not None and stale.price_paise == 20_000_00
+
+
+@pytest.mark.db
+async def test_search_clamps_a_stale_starting_price_at_the_deal_price(
+    catalog: None, db: AsyncSession
+) -> None:
+    await set_deal(db, KER, 20_000_00)
+    await db.execute(
+        update(Package).where(Package.slug == KER).values(starting_price_paise=5_000_00)
+    )
+    await db.commit()
+    kerala = next(c for c in (await search_packages(db)).items if c.slug == KER)
+    assert kerala.deal is not None and kerala.deal.price_paise == 20_000_00
+    under = await search_packages(db, SearchParams(max_budget=19_000))
+    assert KER not in [c.slug for c in under.items], "filtered by ₹20,000, not ₹-4,999"
