@@ -1111,6 +1111,14 @@
             "title": "Adults",
             "type": "integer"
           },
+          "bookings": {
+            "description": "Newest first",
+            "items": {
+              "$ref": "#/components/schemas/RelatedBooking"
+            },
+            "title": "Bookings",
+            "type": "array"
+          },
           "budgetPaise": {
             "anyOf": [
               {
@@ -1161,9 +1169,32 @@
           "emailStatus": {
             "$ref": "#/components/schemas/EmailStatus"
           },
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "lostReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lostreason"
           },
           "message": {
             "anyOf": [
@@ -3540,6 +3571,9 @@
       },
       "EnquiryList": {
         "properties": {
+          "attention": {
+            "$ref": "#/components/schemas/InboxAttention"
+          },
           "counts": {
             "$ref": "#/components/schemas/StatusCounts"
           },
@@ -3575,7 +3609,8 @@
           "pageSize",
           "total",
           "totalPages",
-          "counts"
+          "counts",
+          "attention"
         ],
         "title": "EnquiryList",
         "type": "object"
@@ -3781,9 +3816,44 @@
             "title": "Createdat",
             "type": "string"
           },
+          "estimatePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's starting price × the party; null without a priced package",
+            "title": "Estimatepaise"
+          },
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "lostReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lostreason"
           },
           "name": {
             "title": "Name",
@@ -3806,6 +3876,11 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "replied": {
+            "description": "A reply has been sent from the inbox",
+            "title": "Replied",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/EnquiryStatus"
@@ -3838,7 +3913,11 @@
           "travelMonth",
           "adults",
           "children",
-          "createdAt"
+          "createdAt",
+          "replied",
+          "followUpOn",
+          "lostReason",
+          "estimatePaise"
         ],
         "title": "EnquiryRow",
         "type": "object"
@@ -3855,6 +3934,19 @@
       },
       "EnquiryStatusInput": {
         "properties": {
+          "lostReason": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was lost; kept when moving to `closed`, cleared on reopening",
+            "title": "Lostreason"
+          },
           "status": {
             "$ref": "#/components/schemas/EnquiryStatus"
           }
@@ -3946,6 +4038,28 @@
           "a"
         ],
         "title": "FaqItem",
+        "type": "object"
+      },
+      "FollowUpInput": {
+        "description": "`PATCH /admin/enquiries/{id}/follow-up`: an IST day from today on, or null to clear.",
+        "properties": {
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          }
+        },
+        "required": [
+          "followUpOn"
+        ],
+        "title": "FollowUpInput",
         "type": "object"
       },
       "Health": {
@@ -4264,6 +4378,47 @@
           "height"
         ],
         "title": "ImageOut",
+        "type": "object"
+      },
+      "InboxAttention": {
+        "description": "A2's chips and subtitle, counted with the list's other filters (not status or view).",
+        "properties": {
+          "followUpDue": {
+            "description": "Open, with a follow-up due today or earlier (IST)",
+            "title": "Followupdue",
+            "type": "integer"
+          },
+          "needsReply": {
+            "description": "New, and no reply sent yet",
+            "title": "Needsreply",
+            "type": "integer"
+          },
+          "oldestWaitingSince": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the longest-waiting unanswered enquiry arrived",
+            "title": "Oldestwaitingsince"
+          },
+          "overTarget": {
+            "description": "Of those, waiting over 120 min",
+            "title": "Overtarget",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "needsReply",
+          "overTarget",
+          "followUpDue",
+          "oldestWaitingSince"
+        ],
+        "title": "InboxAttention",
         "type": "object"
       },
       "ItineraryDayInput": {
@@ -6063,6 +6218,35 @@
           }
         },
         "title": "RefundMadeInput",
+        "type": "object"
+      },
+      "RelatedBooking": {
+        "description": "A2's \"Same customer · past trips\": bookings with this enquiry's email or phone.",
+        "properties": {
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          }
+        },
+        "required": [
+          "ref",
+          "packageName",
+          "departs",
+          "status"
+        ],
+        "title": "RelatedBooking",
         "type": "object"
       },
       "RelatedEnquiry": {
@@ -8104,6 +8288,44 @@
               "title": "Page",
               "type": "integer"
             }
+          },
+          {
+            "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "reply",
+                    "followup"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+              "title": "View"
+            }
+          },
+          {
+            "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+              "enum": [
+                "newest",
+                "waiting"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8258,6 +8480,44 @@
               "title": "Page",
               "type": "integer"
             }
+          },
+          {
+            "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "reply",
+                    "followup"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+              "title": "View"
+            }
+          },
+          {
+            "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+              "enum": [
+                "newest",
+                "waiting"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8321,6 +8581,59 @@
           }
         },
         "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}/follow-up": {
+      "patch": {
+        "description": "P20 · A2: when to chase this open enquiry (an IST day from today on), or null to clear.\n409 `not_open` once it is won or lost.",
+        "operationId": "setEnquiryFollowUp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Set Follow Up Route",
         "tags": [
           "admin"
         ]

@@ -556,7 +556,7 @@ async def csv_records(db: AsyncSession, filters: EnquiryFilters) -> list[list[st
     closed session.
     """
     rows = await db.execute(_with_package(filters).limit(CSV_MAX_ROWS))
-    return [csv_record(e, name) for e, _slug, name in rows.all()]
+    return [csv_record(r[0], r[2]) for r in rows.all()]
 
 
 def csv_lines(

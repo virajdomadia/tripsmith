@@ -427,6 +427,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/enquiries/{id}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set Follow Up Route
+         * @description P20 · A2: when to chase this open enquiry (an IST day from today on), or null to clear.
+         *     409 `not_open` once it is won or lost.
+         */
+        patch: operations["setEnquiryFollowUp"];
+        trace?: never;
+    };
     "/admin/enquiries/{id}/messages/{message_id}/resend": {
         parameters: {
             query?: never;
@@ -1587,6 +1608,11 @@ export interface components {
             /** Adults */
             adults: number;
             /**
+             * Bookings
+             * @description Newest first
+             */
+            bookings?: components["schemas"]["RelatedBooking"][];
+            /**
              * Budgetpaise
              * @description Custom enquiries only; per person
              */
@@ -1612,8 +1638,12 @@ export interface components {
             /** Email */
             email: string;
             emailStatus: components["schemas"]["EmailStatus"];
+            /** Followupon */
+            followUpOn?: string | null;
             /** Id */
             id: string;
+            /** Lostreason */
+            lostReason?: string | null;
             /** Message */
             message: string | null;
             /**
@@ -2652,6 +2682,7 @@ export interface components {
         };
         /** EnquiryList */
         EnquiryList: {
+            attention: components["schemas"]["InboxAttention"];
             counts: components["schemas"]["StatusCounts"];
             /** Items */
             items: components["schemas"]["EnquiryRow"][];
@@ -2757,8 +2788,17 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+            /**
+             * Estimatepaise
+             * @description The package's starting price × the party; null without a priced package
+             */
+            estimatePaise: number | null;
+            /** Followupon */
+            followUpOn: string | null;
             /** Id */
             id: string;
+            /** Lostreason */
+            lostReason: string | null;
             /** Name */
             name: string;
             package: components["schemas"]["PackageRef"] | null;
@@ -2766,6 +2806,11 @@ export interface components {
             phone: string;
             /** Ref */
             ref: string;
+            /**
+             * Replied
+             * @description A reply has been sent from the inbox
+             */
+            replied: boolean;
             status: components["schemas"]["EnquiryStatus"];
             /**
              * Travelmonth
@@ -2781,6 +2826,11 @@ export interface components {
         EnquiryStatus: "new" | "contacted" | "converted" | "closed";
         /** EnquiryStatusInput */
         EnquiryStatusInput: {
+            /**
+             * Lostreason
+             * @description Why it was lost; kept when moving to `closed`, cleared on reopening
+             */
+            lostReason?: string | null;
             status: components["schemas"]["EnquiryStatus"];
         };
         /**
@@ -2822,6 +2872,14 @@ export interface components {
             a: string;
             /** Q */
             q: string;
+        };
+        /**
+         * FollowUpInput
+         * @description `PATCH /admin/enquiries/{id}/follow-up`: an IST day from today on, or null to clear.
+         */
+        FollowUpInput: {
+            /** Followupon */
+            followUpOn: string | null;
         };
         /** Health */
         Health: {
@@ -2975,6 +3033,32 @@ export interface components {
             url: string;
             /** Width */
             width: number;
+        };
+        /**
+         * InboxAttention
+         * @description A2's chips and subtitle, counted with the list's other filters (not status or view).
+         */
+        InboxAttention: {
+            /**
+             * Followupdue
+             * @description Open, with a follow-up due today or earlier (IST)
+             */
+            followUpDue: number;
+            /**
+             * Needsreply
+             * @description New, and no reply sent yet
+             */
+            needsReply: number;
+            /**
+             * Oldestwaitingsince
+             * @description When the longest-waiting unanswered enquiry arrived
+             */
+            oldestWaitingSince: string | null;
+            /**
+             * Overtarget
+             * @description Of those, waiting over 120 min
+             */
+            overTarget: number;
         };
         /**
          * ItineraryDayInput
@@ -3777,6 +3861,22 @@ export interface components {
              * @description Optional
              */
             note?: string | null;
+        };
+        /**
+         * RelatedBooking
+         * @description A2's "Same customer · past trips": bookings with this enquiry's email or phone.
+         */
+        RelatedBooking: {
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /** Packagename */
+            packageName: string;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["BookingStatus"];
         };
         /**
          * RelatedEnquiry
@@ -4907,6 +5007,10 @@ export interface operations {
                 q?: string | null;
                 /** @description 1-based; ignored by the CSV */
                 page?: number;
+                /** @description `reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST) */
+                view?: ("reply" | "followup") | null;
+                /** @description `waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first */
+                sort?: "newest" | "waiting";
             };
             header?: never;
             path?: never;
@@ -4948,6 +5052,10 @@ export interface operations {
                 q?: string | null;
                 /** @description 1-based; ignored by the CSV */
                 page?: number;
+                /** @description `reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST) */
+                view?: ("reply" | "followup") | null;
+                /** @description `waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first */
+                sort?: "newest" | "waiting";
             };
             header?: never;
             path?: never;
@@ -4985,6 +5093,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setEnquiryFollowUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUpInput"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
