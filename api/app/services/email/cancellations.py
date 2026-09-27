@@ -12,6 +12,7 @@ import logging
 from dataclasses import replace
 
 import sentry_sdk
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.business import refund_tier
 from app.config import Settings
@@ -76,6 +77,7 @@ async def send_cancellation_emails(
     reason: str,
     requested_at: dt.datetime,
     today: dt.date,
+    db: AsyncSession | None = None,
 ) -> None:
     try:
         labelled = render_cancellation_emails(
@@ -85,7 +87,7 @@ async def send_cancellation_emails(
         log.exception("Could not render cancellation emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation")
+    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation", db=db)
 
 
 def render_resolution_email(
@@ -122,6 +124,7 @@ async def send_resolution_email(
     approved: bool,
     note: str,
     refund_paise: int | None,
+    db: AsyncSession | None = None,
 ) -> None:
     try:
         labelled = render_resolution_email(
@@ -131,4 +134,4 @@ async def send_resolution_email(
         log.exception("Could not render the resolution email for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation resolution")
+    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation resolution", db=db)

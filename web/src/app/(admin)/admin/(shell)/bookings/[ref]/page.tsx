@@ -6,7 +6,7 @@ import { DeskActions } from '@/components/admin/bookings/DeskActions';
 import { ResolveCancellation } from '@/components/admin/bookings/ResolveCancellation';
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { CancelRequested, RefundFlag, StateBadge } from '@/components/admin/bookings/StateBadge';
-import { Timeline } from '@/components/admin/bookings/Timeline';
+import { History } from '@/components/admin/bookings/History';
 import { Stars } from '@/components/site/Stars';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
@@ -24,7 +24,8 @@ const REF = /^TB-[A-Z0-9]{6}$/;
 const PROVIDER = { razorpay: 'Razorpay', offline: 'Offline' } as const;
 const REVIEW_STATE = { pending: 'Waiting', published: 'Published', hidden: 'Hidden' } as const;
 
-/** One booking on the desk (R22): who, what, the money, and what the owner can do about it. */
+/** One booking on the desk (R22): who, what, the money, its history (R54), and what the owner
+ *  can do about it. P20 rebuilds this page as the Lifecycle layout around the same history. */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
   if (!REF.test(ref)) notFound();
@@ -136,11 +137,17 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             </div>
           </section>
 
-          <section className={panel}>
-            <h2 className={heading}>Payment timeline</h2>
-            <Timeline events={b.timeline} />
-            {b.payments.length > 0 && (
-              <ul className="grid gap-1 border-t border-line pt-3 text-[13px] text-ink2">
+          <section className={panel} aria-labelledby="history">
+            <h2 id="history" className={heading}>
+              History <span className="font-semibold text-mute">· changes, payments, emails</span>
+            </h2>
+            <History history={b.history} />
+          </section>
+
+          {b.payments.length > 0 && (
+            <section className={panel}>
+              <h2 className={heading}>Payments</h2>
+              <ul className="grid gap-1 text-[13px] text-ink2">
                 {b.payments.map((p) => (
                   <li key={p.id} className="flex flex-wrap justify-between gap-x-3">
                     <span>
@@ -163,8 +170,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
+            </section>
+          )}
         </div>
 
         <div className="grid gap-3.5">

@@ -249,6 +249,13 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - My trips shows the customer-safe entries as "Activity".
 - The migration backfills entries from v2 data. Only bookings are logged; packages, coupons and deals are not.
 - **Accept:** every write path added in v2 and v2.5 appears in the log, and nothing can edit or delete an entry.
+- **Settled at row start (2026-09-27):**
+  - **Actors** are stored as owner / customer / webhook / cron / system (plus the user's id when known). The desk shows the owner by name ("Viraj D."), then "Customer", "Razorpay", "Daily tidy" and "System".
+  - A payment through Checkout or the check-on-close sync is the **customer's** entry, and the webhook's is **Razorpay's**. Mark paid is the owner's. A late capture that finds no seats adds its own **system** entry for the cancellation.
+  - **Customers see** their money and their asks: booked, payment received or failed, hold lapsed, confirmed, cancellation asked, approved or rejected (with the owner's note), refund made, completed, review sent, and the emails sent to them. They never see Razorpay ids, offline references, refund-needed flags, owner emails, review moderation or before/after values. Each entry is written with the customer's wording, or none.
+  - **Backfill:** migration 0010 rebuilds entries from v2 rows, marked `backfill`. Times read off `updated_at` are marked approximate (≈). The desk shows one divider, "Rebuilt from records — the log started on <date>". v2 kept no email records, so no email entries are invented.
+  - **Emails** are logged by subject, never by address, in a short transaction after the send. Every other entry is written in the same transaction as its change, so a replay that changes nothing writes nothing.
+  - The trigger refuses UPDATE and DELETE. TRUNCATE and DROP stay possible, since they are schema-owner operations and the test harness truncates.
 
 ### R55. Reports (P12)
 - **`/admin/reports`** with presets: this month, last month, season, 12 months, custom. All in IST.

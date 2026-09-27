@@ -24,8 +24,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Booking, Session, User, Verification
-from app.models.enums import UserRole
+from app.models.enums import BookingActor, UserRole
 from app.services.auth.sessions import open_session
+from app.services.booking import history
 
 CODE_TTL = dt.timedelta(minutes=10)
 MAX_ATTEMPTS = 5
@@ -142,10 +143,20 @@ async def sign_in_customer(
         .on_conflict_do_nothing(index_elements=[User.email])
     )
     user = (await db.execute(select(User).where(User.email == email))).scalar_one()
-    await db.execute(
+    linked = await db.execute(
         update(Booking)
         .where(Booking.user_id.is_(None), Booking.contact_email == email)
         .values(user_id=user.id)
+        .returning(Booking.id)
+    )
+    history.record_each(
+        db,
+        list(linked.scalars()),
+        "account.linked",
+        actor=BookingActor.CUSTOMER,
+        by=user.id,
+        text="Linked to the customer's account when they signed in",
+        customer="Added to your account when you signed in",
     )
     return await open_session(db, user, ip=ip, user_agent=user_agent)
 

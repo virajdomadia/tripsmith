@@ -21,11 +21,13 @@ import logging
 from dataclasses import replace
 
 import sentry_sdk
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.business import BUSINESS, whatsapp_href
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender
 from app.models.enums import BookingStatus
+from app.services.booking.history import EmailLine, record_emails
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import BookingFacts
 from app.services.email.render import _env, _ist, _one_line
@@ -152,6 +154,7 @@ async def send_booking_emails(
     capture: Capture,
     *,
     voucher: EmailAttachment | None = None,
+    db: AsyncSession | None = None,
 ) -> None:
     try:
         labelled = render_booking_emails(facts, capture, settings=settings, voucher=voucher)
@@ -159,7 +162,7 @@ async def send_booking_emails(
         log.exception("Could not render booking emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="booking")
+    await deliver(sender, settings, labelled, ref=facts.ref, what="booking", db=db)
 
 
 async def deliver(
@@ -169,22 +172,38 @@ async def deliver(
     *,
     ref: str,
     what: str,
+    db: AsyncSession | None = None,
 ) -> None:
     """Send `(role, message)` pairs: in demo mode the customer's copy is redirected to the
-    owner's inbox; a failed send is logged by role (never the address) and reported."""
-    redirected = []
+    owner's inbox; a failed send is logged by role (never the address) and reported. With `db`,
+    each email lands in the booking's history (P16) — its subject, never its address."""
+    redirected: list[tuple[str, EmailMessage, str, bool]] = []
+    skipped: list[EmailLine] = []
     for role, m in labelled:
-        if role == "customer" and held_back(settings, m.to):
+        held = role == "customer" and held_back(settings, m.to)
+        if held:
             if not settings.owner_notify_email:
+                skipped.append(EmailLine(role, m.subject, "skipped"))
                 continue
+            subject = m.subject
             m = replace(m, to=settings.owner_notify_email, subject=f"[Test → {m.to}] {m.subject}")
-        redirected.append((role, m))
-    labelled = redirected
-    if not labelled:
+            redirected.append((role, m, subject, True))
+        else:
+            redirected.append((role, m, m.subject, False))
+    if not redirected:
+        if db is not None:
+            await record_emails(db, ref, skipped)
         return
-    results = await asyncio.gather(*(sender.send(m) for _, m in labelled), return_exceptions=True)
-    for (role, _), result in zip(labelled, results, strict=True):
+    results = await asyncio.gather(
+        *(sender.send(m) for _, m, _, _ in redirected), return_exceptions=True
+    )
+    lines = list(skipped)
+    for (role, _, subject, held), result in zip(redirected, results, strict=True):
+        failed = isinstance(result, BaseException)
+        lines.append(EmailLine(role, subject, "failed" if failed else "held" if held else "sent"))
         if isinstance(result, BaseException):
             # The role, never the address.
             log.error("%s %s email failed for %s: %s", role, what, ref, result)
             sentry_sdk.capture_exception(result)
+    if db is not None:
+        await record_emails(db, ref, lines)

@@ -99,3 +99,13 @@ class CancelReason(StrEnum):
 class CouponKind(StrEnum):
     FLAT = "flat"  # ₹ off the booking
     PERCENT = "percent"  # % off the booking after the deal, optionally capped
+
+
+class BookingActor(StrEnum):
+    """Who made a change in a booking's history (R54, P16)."""
+
+    OWNER = "owner"
+    CUSTOMER = "customer"
+    WEBHOOK = "webhook"  # Razorpay's server-to-server event
+    CRON = "cron"  # /cron/daily
+    SYSTEM = "system"  # the api on its own: a late capture's outcome, an email, the seed

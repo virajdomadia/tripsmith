@@ -2,11 +2,12 @@
 departure's manifest. Nothing here is ever served to a visitor."""
 
 import datetime as dt
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, ValidationInfo, field_validator
 
 from app.models.enums import (
+    BookingActor,
     BookingStatus,
     CancellationStatus,
     CancelReason,
@@ -24,10 +25,7 @@ NOTE_MAX = 80
 
 BookingFlag = Literal["refund", "cancellation"]
 PaymentVia = Literal["checkout", "sync", "webhook", "desk"]
-TimelineKind = Literal[
-    "booked", "order", "captured", "failed", "refunded", "offline", "lapsed", "cancelled",
-    "completed", "cancellation", "resolved",
-]  # fmt: skip
+HistoryGroup = Literal["booking", "payment", "email"]
 Decision = Literal["approve", "reject"]
 RESOLVE_NOTE_MIN = 5
 RESOLVE_NOTE_MAX = 500
@@ -150,10 +148,28 @@ class AdminPayment(ApiModel):
     updated_at: dt.datetime
 
 
-class TimelineEvent(ApiModel):
+class HistoryEntry(ApiModel):
+    """One line of the booking's history (R54, P16), in the owner's words."""
+
+    id: int
     at: dt.datetime
-    kind: TimelineKind
+    kind: str = Field(description="What happened, e.g. `payment.captured`, `email.sent`")
+    group: HistoryGroup = Field(description="The desk's filter chip")
+    actor: BookingActor
+    actor_label: str = Field(description="Who, as the desk shows it (the owner by name)")
     text: str
+    customer_visible: bool = Field(description="Shown on the customer's Activity too")
+    before: dict[str, Any] | None = None
+    after: dict[str, Any] | None = None
+    rebuilt: bool = Field(description="Rebuilt from v2 records when the log started")
+    approx: bool = Field(description="A rebuilt time read off a row's last update")
+
+
+class BookingHistory(ApiModel):
+    entries: list[HistoryEntry] = Field(description="Oldest first")
+    rebuilt_on: dt.datetime | None = Field(
+        description="When entries were rebuilt from v2 records; null when none were"
+    )
 
 
 class BookingPackage(ApiModel):
@@ -198,8 +214,8 @@ class AdminBooking(ApiModel):
     lead_phone: str
     lead_email: str
     payments: list[AdminPayment] = Field(description="Every attempt, oldest first")
-    timeline: list[TimelineEvent] = Field(
-        description="Derived from the booking and its payments, oldest first"
+    history: BookingHistory = Field(
+        description="Every change, payment and email, oldest first (R54)"
     )
     cancellation: AdminCancellation | None
     has_voucher: bool

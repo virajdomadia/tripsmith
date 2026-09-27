@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
 from app.models import Booking, Departure, Package, Review, User
-from app.models.enums import BookingStatus, PackageStatus
+from app.models.enums import BookingActor, BookingStatus, PackageStatus
 from app.schemas.reviews import (
     ADMIN_PAGE_SIZE,
     PUBLIC_PAGE_SIZE,
@@ -37,7 +37,9 @@ from app.schemas.reviews import (
     ReviewState,
 )
 from app.services.account import account_review, owned_by
+from app.services.booking import history
 from app.services.catalog.admin_packages import revalidate_tags
+from app.services.format import short_name as public_name
 
 NOT_COMPLETED = "You can review this trip once you're back from it"
 ALREADY_REVIEWED = "You've already reviewed this trip — thank you"
@@ -53,15 +55,6 @@ def in_state(state: ReviewState) -> ColumnElement[bool]:
 
 
 PUBLISHED = in_state(ReviewState.PUBLISHED)
-
-
-def public_name(full: str) -> str:
-    """'asha  bhat' → 'Asha B.'; a single name stays as it is."""
-    parts = full.split()
-    if not parts:
-        return "A traveller"
-    first = parts[0][:1].upper() + parts[0][1:]
-    return f"{first} {parts[-1][:1].upper()}." if len(parts) > 1 else first
 
 
 def rating_out(avg: Decimal | None, count: int) -> RatingOut | None:
@@ -104,6 +97,15 @@ async def submit_review(
         text=payload.text,
     )
     db.add(row)
+    history.record(
+        db,
+        booking.id,
+        "review.sent",
+        actor=BookingActor.CUSTOMER,
+        by=user.id,
+        text=f"Review sent · ★{payload.rating} — waiting for moderation",
+        customer=f"You reviewed the trip · ★{payload.rating}",
+    )
     try:
         await db.commit()
     except IntegrityError:
@@ -264,10 +266,15 @@ async def recompute_rating(db: AsyncSession, package_id: str) -> None:
 
 
 async def moderate(
-    db: AsyncSession, review_id: str, *, publish: bool, now: dt.datetime | None = None
+    db: AsyncSession,
+    review_id: str,
+    *,
+    publish: bool,
+    now: dt.datetime | None = None,
+    by: str | None = None,
 ) -> AdminReview:
     """Publish or hide one review, recompute its package's aggregate, commit, then revalidate
-    the package's pages. Repeating the same move is harmless."""
+    the package's pages. Repeating the same move is harmless, and logs nothing the second time."""
     package_id = (
         await db.execute(select(Review.package_id).where(Review.id == review_id))
     ).scalar_one_or_none()
@@ -284,6 +291,18 @@ async def moderate(
     review = (
         await db.execute(select(Review).where(Review.id == review_id).with_for_update())
     ).scalar_one()
+    if review.moderated_at is None or review.approved != publish:
+        history.record(
+            db,
+            review.booking_id,
+            "review.published" if publish else "review.hidden",
+            actor=BookingActor.OWNER,
+            by=by,
+            text=f"Review (★{review.rating}) "
+            + ("published on the package page" if publish else "hidden from the package page"),
+            before={"review": ReviewState.of(review.approved, review.moderated_at).value},
+            after={"review": "published" if publish else "hidden"},
+        )
     review.approved = publish
     review.moderated_at = now or dt.datetime.now(dt.UTC)
     await db.flush()

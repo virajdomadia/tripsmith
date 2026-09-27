@@ -91,6 +91,7 @@ async def post_cancellation(
             reason=asked.reason,
             requested_at=asked.requested_at,
             today=today,
+            db=db,
         )
     return asked
 
@@ -124,5 +125,6 @@ async def post_review(
             facts,
             rating=review.rating,
             text=review.text,
+            db=db,
         )
     return review

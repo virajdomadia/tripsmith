@@ -86,4 +86,6 @@ async def on_new_capture(
     voucher = None
     if capture.settled == Settled.CONFIRMED:
         voucher = await voucher_attachment(facts, notify.settings)
-    await send_booking_emails(notify.sender, notify.settings, facts, capture, voucher=voucher)
+    await send_booking_emails(
+        notify.sender, notify.settings, facts, capture, voucher=voucher, db=db
+    )

@@ -1113,6 +1113,11 @@ export interface components {
          */
         AccountBookingDetail: {
             /**
+             * Activity
+             * @description The customer-safe history, oldest first
+             */
+            activity: components["schemas"]["ActivityEntry"][];
+            /**
              * Bookedat
              * Format: date-time
              */
@@ -1266,6 +1271,31 @@ export interface components {
             occupancy: components["schemas"]["Occupancy"];
         };
         /**
+         * ActivityEntry
+         * @description One line of the booking's history the customer may see (R54, P16), in their words.
+         */
+        ActivityEntry: {
+            /**
+             * Approx
+             * @description A time rebuilt from records, read off a row's last update
+             */
+            approx: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "booking" | "payment" | "email";
+            /** Kind */
+            kind: string;
+            /** Text */
+            text: string;
+        };
+        /**
          * AdminBooking
          * @description `GET /admin/bookings/{ref}` and every desk action's answer.
          */
@@ -1295,6 +1325,8 @@ export interface components {
             departure: components["schemas"]["DepartureSeats"];
             /** Hasvoucher */
             hasVoucher: boolean;
+            /** @description Every change, payment and email, oldest first (R54) */
+            history: components["schemas"]["BookingHistory"];
             /**
              * Holdexpiresat
              * Format: date-time
@@ -1334,11 +1366,6 @@ export interface components {
              */
             seatsShort: number;
             status: components["schemas"]["BookingStatus"];
-            /**
-             * Timeline
-             * @description Derived from the booking and its payments, oldest first
-             */
-            timeline: components["schemas"]["TimelineEvent"][];
             /** Totalpaise */
             totalPaise: number;
             /**
@@ -1891,6 +1918,12 @@ export interface components {
             /** File */
             file: string;
         };
+        /**
+         * BookingActor
+         * @description Who made a change in a booking's history (R54, P16).
+         * @enum {string}
+         */
+        BookingActor: "owner" | "customer" | "webhook" | "cron" | "system";
         /** BookingContact */
         BookingContact: {
             /** Email */
@@ -1926,6 +1959,19 @@ export interface components {
              * @description Refund needed
              */
             refund: number;
+        };
+        /** BookingHistory */
+        BookingHistory: {
+            /**
+             * Entries
+             * @description Oldest first
+             */
+            entries: components["schemas"]["HistoryEntry"][];
+            /**
+             * Rebuilton
+             * @description When entries were rebuilt from v2 records; null when none were
+             */
+            rebuiltOn: string | null;
         };
         /** BookingList */
         BookingList: {
@@ -2749,6 +2795,61 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /**
+         * HistoryEntry
+         * @description One line of the booking's history (R54, P16), in the owner's words.
+         */
+        HistoryEntry: {
+            actor: components["schemas"]["BookingActor"];
+            /**
+             * Actorlabel
+             * @description Who, as the desk shows it (the owner by name)
+             */
+            actorLabel: string;
+            /** After */
+            after?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Approx
+             * @description A rebuilt time read off a row's last update
+             */
+            approx: boolean;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Before */
+            before?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Customervisible
+             * @description Shown on the customer's Activity too
+             */
+            customerVisible: boolean;
+            /**
+             * Group
+             * @description The desk's filter chip
+             * @enum {string}
+             */
+            group: "booking" | "payment" | "email";
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @description What happened, e.g. `payment.captured`, `email.sent`
+             */
+            kind: string;
+            /**
+             * Rebuilt
+             * @description Rebuilt from v2 records when the log started
+             */
+            rebuilt: boolean;
+            /** Text */
+            text: string;
         };
         /** HomeData */
         HomeData: {
@@ -3639,21 +3740,6 @@ export interface components {
             /** Label */
             label: string;
             value: components["schemas"]["Theme"];
-        };
-        /** TimelineEvent */
-        TimelineEvent: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "booked" | "order" | "captured" | "failed" | "refunded" | "offline" | "lapsed" | "cancelled" | "completed" | "cancellation" | "resolved";
-            /** Text */
-            text: string;
         };
         /** UpcomingDeparture */
         UpcomingDeparture: {

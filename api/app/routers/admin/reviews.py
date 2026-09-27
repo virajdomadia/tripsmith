@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.models import User
 from app.schemas.reviews import MAX_PAGE, AdminReview, AdminReviewList, ReviewState
 from app.services import reviews as svc
 from app.services.auth.deps import require_owner
@@ -16,6 +17,7 @@ from app.services.auth.deps import require_owner
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
 
 Db = Annotated[AsyncSession, Depends(get_session)]
+Owner = Annotated[User, Depends(require_owner)]  # the router already requires it; cached
 
 
 @router.get("/reviews", operation_id="listAdminReviews", response_model_by_alias=True)
@@ -30,12 +32,12 @@ async def list_route(
 
 
 @router.post("/reviews/{id}/publish", operation_id="publishReview", response_model_by_alias=True)
-async def publish_route(id: str, response: Response, db: Db) -> AdminReview:
+async def publish_route(id: str, response: Response, db: Db, owner: Owner) -> AdminReview:
     response.headers.update(NO_STORE)
-    return await svc.moderate(db, id, publish=True)
+    return await svc.moderate(db, id, publish=True, by=owner.id)
 
 
 @router.post("/reviews/{id}/hide", operation_id="hideReview", response_model_by_alias=True)
-async def hide_route(id: str, response: Response, db: Db) -> AdminReview:
+async def hide_route(id: str, response: Response, db: Db, owner: Owner) -> AdminReview:
     response.headers.update(NO_STORE)
-    return await svc.moderate(db, id, publish=False)
+    return await svc.moderate(db, id, publish=False, by=owner.id)

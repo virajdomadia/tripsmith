@@ -10,6 +10,7 @@ from app.models.base import Base, new_id
 from app.models.bookings import (
     Booking,
     BookingCancellation,
+    BookingEvent,
     BookingTraveller,
     Payment,
     Review,
@@ -29,6 +30,7 @@ __all__ = [
     "Base",
     "Booking",
     "BookingCancellation",
+    "BookingEvent",
     "BookingTraveller",
     "Coupon",
     "Departure",

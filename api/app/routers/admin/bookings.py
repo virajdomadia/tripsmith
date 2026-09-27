@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.models import User
 from app.schemas.admin_bookings import (
     AdminBooking,
     BookingFilters,
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(requir
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 Filters = Annotated[BookingFilters, Query()]
+Owner = Annotated[User, Depends(require_owner)]  # the router already requires it; cached
 
 
 @router.get("/bookings", operation_id="listAdminBookings", response_model_by_alias=True)
@@ -67,30 +69,35 @@ async def get_route(ref: str, response: Response, db: Db) -> AdminBooking:
     "/bookings/{ref}/mark-paid", operation_id="markBookingPaid", response_model_by_alias=True
 )
 async def mark_paid_route(
-    ref: str, payload: MarkPaidInput, request: Request, response: Response, db: Db
+    ref: str,
+    payload: MarkPaidInput,
+    request: Request,
+    response: Response,
+    db: Db,
+    owner: Owner,
 ) -> AdminBooking:
     """409 `seats_short` with the shortfall when the party no longer fits; nothing recorded."""
     response.headers.update(NO_STORE)
     notify = Notify(request.app.state.email_sender, request.app.state.settings)
-    return await desk.mark_paid(db, ref, payload.reference, notify)
+    return await desk.mark_paid(db, ref, payload.reference, notify, by=owner.id)
 
 
 @router.post(
     "/bookings/{ref}/release", operation_id="releaseBookingHold", response_model_by_alias=True
 )
-async def release_route(ref: str, response: Response, db: Db) -> AdminBooking:
+async def release_route(ref: str, response: Response, db: Db, owner: Owner) -> AdminBooking:
     response.headers.update(NO_STORE)
-    return await desk.release_hold(db, ref)
+    return await desk.release_hold(db, ref, by=owner.id)
 
 
 @router.post(
     "/bookings/{ref}/refund-made", operation_id="recordBookingRefund", response_model_by_alias=True
 )
 async def refund_route(
-    ref: str, payload: RefundMadeInput, response: Response, db: Db
+    ref: str, payload: RefundMadeInput, response: Response, db: Db, owner: Owner
 ) -> AdminBooking:
     response.headers.update(NO_STORE)
-    return await desk.record_refund(db, ref, payload.note)
+    return await desk.record_refund(db, ref, payload.note, by=owner.id)
 
 
 @router.post(
@@ -99,14 +106,19 @@ async def refund_route(
     response_model_by_alias=True,
 )
 async def resolve_route(
-    id: str, payload: ResolveCancellationInput, request: Request, response: Response, db: Db
+    id: str,
+    payload: ResolveCancellationInput,
+    request: Request,
+    response: Response,
+    db: Db,
+    owner: Owner,
 ) -> AdminBooking:
     """Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject
     (the booking stands). The customer is emailed either way. 409 `resolved` when already
     answered, `not_active` when approving a booking that no longer holds its seats."""
     response.headers.update(NO_STORE)
     notify = Notify(request.app.state.email_sender, request.app.state.settings)
-    return await resolve.resolve_cancellation(db, id, payload, notify)
+    return await resolve.resolve_cancellation(db, id, payload, notify, by=owner.id)
 
 
 @router.get(

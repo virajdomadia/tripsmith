@@ -20,12 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.models import Booking, BookingCancellation
-from app.models.enums import BookingStatus, CancellationStatus, CancelReason
+from app.models.enums import BookingActor, BookingStatus, CancellationStatus, CancelReason
 from app.schemas.admin_bookings import AdminBooking, ResolveCancellationInput
 from app.services.account import CANCELLABLE
 from app.services.booking.after_capture import Notify
 from app.services.booking.desk import get_booking
 from app.services.booking.freshness import refresh_quietly
+from app.services.booking.history import money, record
 from app.services.booking.payments import lock_booking
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_resolution_email
@@ -38,7 +39,12 @@ STATUS_WORD = {BookingStatus.CANCELLED: "cancelled", BookingStatus.COMPLETED: "c
 
 
 async def resolve_cancellation(
-    db: AsyncSession, id: str, payload: ResolveCancellationInput, notify: Notify | None
+    db: AsyncSession,
+    id: str,
+    payload: ResolveCancellationInput,
+    notify: Notify | None,
+    *,
+    by: str | None = None,
 ) -> AdminBooking:
     approve = payload.decision == "approve"
     ref = (
@@ -95,6 +101,7 @@ async def resolve_cancellation(
                 )
                 .execution_options(synchronize_session=False)
             )
+        _log_decision(db, booking, approve=approve, refund=refund, note=payload.note, by=by)
         row.status = CancellationStatus.APPROVED if approve else CancellationStatus.REJECTED
         row.refund_note = payload.note
         row.refund_paise = refund
@@ -119,5 +126,52 @@ async def resolve_cancellation(
                 approved=approve,
                 note=payload.note,
                 refund_paise=refund,
+                db=db,
             )
     return await get_booking(db, ref)
+
+
+def _log_decision(
+    db: AsyncSession,
+    booking: Booking,
+    *,
+    approve: bool,
+    refund: int | None,
+    note: str,
+    by: str | None,
+) -> None:
+    if approve:
+        refund = refund or 0
+        record(
+            db,
+            booking.id,
+            "cancellation.approved",
+            actor=BookingActor.OWNER,
+            by=by,
+            text="Cancellation approved — seats freed · "
+            + (f"refund {money(refund)} agreed" if refund else "no refund")
+            + f" · “{note}”",
+            customer="Cancellation approved — "
+            + (
+                f"a refund of {money(refund)} is on its way"
+                if refund
+                else "no refund under the policy"
+            )
+            + f". “{note}”",
+            before={"status": booking.status.value},
+            after={
+                "status": BookingStatus.CANCELLED.value,
+                "cancelReason": CancelReason.CANCELLATION_APPROVED.value,
+                "refundPaise": refund,
+            },
+        )
+    else:
+        record(
+            db,
+            booking.id,
+            "cancellation.rejected",
+            actor=BookingActor.OWNER,
+            by=by,
+            text=f"Cancellation request rejected — the booking stands · “{note}”",
+            customer=f"Your cancellation request wasn't approved: “{note}”",
+        )

@@ -153,7 +153,7 @@ async def test_approval_and_a_late_capture_on_the_same_booking_settle_the_same_e
 
     async def capture(session: AsyncSession) -> object:
         _, done = await capture_razorpay_payment(
-            session, ref, order_id=order_id, payment_id="pay_RaceLate01"
+            session, ref, order_id=order_id, payment_id="pay_RaceLate01", via="webhook"
         )
         await session.commit()
         return done

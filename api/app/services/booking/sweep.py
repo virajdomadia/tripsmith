@@ -21,7 +21,8 @@ from sqlalchemy import exists, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Booking, BookingCancellation, Departure
-from app.models.enums import BookingStatus, CancellationStatus, CancelReason
+from app.models.enums import BookingActor, BookingStatus, CancellationStatus, CancelReason
+from app.services.booking import history
 
 LAPSED_FOR = text("interval '1 hour'")
 
@@ -43,7 +44,19 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
             cancel_reason=CancelReason.HOLD_EXPIRED,
             updated_at=func.now(),
         )
+        .returning(Booking.id)
         .execution_options(synchronize_session=False)
+    )
+    expired_ids = list(expired.scalars())
+    history.record_each(
+        db,
+        expired_ids,
+        "hold.expired",
+        actor=BookingActor.CRON,
+        text="Cancelled by the daily tidy — the checkout was abandoned",
+        customer="Not paid in time — the held seats were released",
+        before={"status": BookingStatus.PENDING.value},
+        after={"status": BookingStatus.CANCELLED.value, "cancelReason": "hold_expired"},
     )
     completed = await db.execute(
         update(Booking)
@@ -56,10 +69,19 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
             ),
         )
         .values(status=BookingStatus.COMPLETED, updated_at=func.now())
+        .returning(Booking.id)
         .execution_options(synchronize_session=False)
     )
-    await db.commit()
-    return Swept(
-        holds_expired=expired.rowcount,  # type: ignore[attr-defined]
-        completed=completed.rowcount,  # type: ignore[attr-defined]
+    completed_ids = list(completed.scalars())
+    history.record_each(
+        db,
+        completed_ids,
+        "trip.completed",
+        actor=BookingActor.CRON,
+        text="Departed — marked completed by the daily tidy",
+        customer="Trip completed — welcome back",
+        before={"status": BookingStatus.CONFIRMED.value},
+        after={"status": BookingStatus.COMPLETED.value},
     )
+    await db.commit()
+    return Swept(holds_expired=len(expired_ids), completed=len(completed_ids))
