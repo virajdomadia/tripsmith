@@ -401,6 +401,120 @@
       ${rows || '<div class="a-empty">No rows match these filters.</div>'}</div></div>`;
   }
 
+  /* ---------- D · season heatmap (weeks x packages, the chosen month zoomed open) ---------- */
+  const SEASON = (() => {
+    const out = [];
+    for (let s = add(D(9, 1), -D(9, 1).getUTCDay()); s <= D(11, 31); s = add(s, 7)) out.push({ s, e: add(s, 6), m: add(s, 4).getUTCMonth() });
+    return out;
+  })();
+  const fillPct = (x) => Math.round((x.sold / x.total) * 100);
+  const pkgRows = () => ORDER.filter((k) => (!S.f.dest || P[k].dest === S.f.dest) && (!S.f.pkg || k === S.f.pkg));
+  function heat() {
+    const rows = pkgRows();
+    const inWk = (x, w) => x.start >= w.s && x.start <= w.e;
+    const zc = (w) => (w.m === S.m ? 'z' : 'o') + (TODAY >= w.s && TODAY <= w.e ? ' now' : '');
+    const cols = SEASON.map((w) => (w.m === S.m ? 'minmax(84px, 1fr)' : '30px')).join(' ');
+    const colsPh = SEASON.filter((w) => w.m === S.m).map(() => 'minmax(78px, 1fr)').join(' ');
+    let i = 0;
+    const band = [9, 10, 11].map((m) => {
+      const n = SEASON.filter((w) => w.m === m).length, all = DEPS.filter((x) => x.m === m && shown(x));
+      const seats = sum(all, (x) => x.total), pct = seats ? Math.round((sum(all, (x) => x.sold) / seats) * 100) : 0;
+      return `<button class="hm-mo ${m === S.m ? 'z' : 'o'}" style="grid-column: span ${n}" data-zoom="${m}" aria-pressed="${m === S.m}" aria-label="Zoom into ${MF[m]}: ${pct}% of seats sold">
+        <b>${m === S.m ? MF[m] : MN[m]}</b><small class="num">${pct}%</small></button>`;
+    }).join('');
+    const wkHead = SEASON.map((w) => `<span class="hm-wk ${zc(w)}">${w.m === S.m
+      ? `<small>${TODAY >= w.s && TODAY <= w.e ? 'This week' : 'Week of'}</small><b class="num">${w.s.getUTCDate()} ${MN[w.s.getUTCMonth()]}</b>`
+      : `<b class="num">${w.s.getUTCDate()}</b>`}</span>`).join('');
+    const cell = (pk, w) => {
+      const deps = DEPS.filter((x) => x.pk === pk && shown(x) && inWk(x, w)).sort((a, b) => a.start - b.start);
+      const z = w.m === S.m;
+      if (deps.length) {
+        return `<div class="hm-c ${zc(w)}">${deps.map((x) => {
+          const s = st(x), f = fillPct(x);
+          return `<button class="hm-d st-${s.k}${f >= 55 ? ' dk' : ''}${fresh(x)}" style="--f:${f}%;--i:${i++}" ${depAttrs(x)}>${z
+            ? `<span class="t"><b class="num">${x.sold}/${x.total}</b>${wdot(x)}</span><span class="w">${DN[x.start.getUTCDay()]} ${x.start.getUTCDate()} · ${s.w}</span>`
+            : `<span class="num">${s.k === 'full' ? 'Full' : f}</span>`}</button>`;
+        }).join('')}</div>`;
+      }
+      const closed = pk === 'leh' && w.m === 11;
+      const day = [5, 6, 4, 1, 2, 3, 0].map((d) => add(w.s, d)).find((d) => d >= TODAY && d.getUTCMonth() >= MIN_M && d.getUTCMonth() <= MAX_M);
+      if (day && !closed) return `<div class="hm-c ${zc(w)}"><button class="hm-add" data-add="${key(day)}" data-pkg="${pk}" tabindex="-1" aria-label="Add ${P[pk].name} on ${f1(day)}">${ICON.plus}${z ? '<span>Add</span>' : ''}</button></div>`;
+      return `<div class="hm-c ${zc(w)} past">${closed && z ? '<span class="hm-none">Closed</span>' : ''}</div>`;
+    };
+    const rowHtml = rows.map((pk) => {
+      const all = DEPS.filter((x) => x.pk === pk && shown(x));
+      const so = sum(all, (x) => x.sold), to = sum(all, (x) => x.total);
+      return `<div class="hm-lab"><b>${P[pk].name}</b><small>${P[pk].dest} · ${P[pk].nights}N · ${SEATS[pk]} seats</small>
+        <small class="num">${to ? `${Math.round((so / to) * 100)}% sold · ${plural(all.length, 'departure', 'departures')}` : pk === 'leh' ? 'Closed Dec to Apr' : 'No departures'}</small></div>${SEASON.map((w) => cell(pk, w)).join('')}`;
+    }).join('');
+    const tot = SEASON.map((w) => {
+      const deps = DEPS.filter((x) => rows.includes(x.pk) && shown(x) && inWk(x, w));
+      const seats = sum(deps, (x) => x.total), pct = seats ? Math.round((sum(deps, (x) => x.sold) / seats) * 100) : 0;
+      return `<span class="hm-tot ${zc(w)}${pct >= 55 ? ' dk' : ''}" style="--f:${pct}%">${seats ? `<b class="num">${pct}%</b>${w.m === S.m ? `<small>${plural(deps.length, 'dep', 'deps')}</small>` : ''}` : '<small>None</small>'}</span>`;
+    }).join('');
+    return `<div class="hm-key"><span>Shade shows seats sold</span><i class="hm-ramp" aria-hidden="true"></i><span class="num">0 → 100%</span>
+        <span class="hm-tip">Pick a month band to zoom it open; the other weeks stay as a heat strip.</span></div>
+      <div class="cal-scroll hm-scroll"><div class="hm cal-view" style="--cols:${cols};--cols-ph:${colsPh}" role="group" aria-label="Season heatmap, October to December 2026">
+        <div class="hm-lab hm-corner"><small>Package</small></div>${band}
+        <div class="hm-lab hm-corner"><small>Week</small></div>${wkHead}
+        ${rowHtml || '<div class="a-empty hm-empty">No packages match these filters.</div>'}
+        <div class="hm-lab hm-sum"><b>All shown</b><small>Week fill</small></div>${tot}</div></div>`;
+  }
+
+  /* ---------- E · destination map (schematic India, one node per region) ---------- */
+  const geo = (lo, la) => [((lo - 68) / 29) * 100, ((37 - la) / 31) * 110];
+  const OUTLINE = [[74, 35.5], [77, 35.8], [80, 33], [79, 30.5], [81, 30], [88, 27.8], [92, 27.5], [97, 28], [96, 24], [92, 22], [89, 21.8], [87, 21.5], [85, 19.5],
+    [82, 17], [80, 15], [80, 13], [78.5, 9], [77, 8], [76, 9.5], [74.5, 13], [73, 17], [72.8, 20], [70, 21], [68.5, 23.5], [70, 25], [71, 27.5], [74, 30], [74, 32.5]]
+    .map((p) => geo(...p).map((v) => v.toFixed(1)).join(',')).join(' ');
+  const REG = [
+    { d: 'Ladakh', x: 38, y: 7 }, { d: 'Himachal', x: 30, y: 19 }, { d: 'Rajasthan', x: 20, y: 41 },
+    { d: 'Goa', x: 18, y: 74 }, { d: 'Kerala', x: 32, y: 96 },
+  ];
+  const HUB = geo(77.2, 28.6);
+  function mapE() {
+    const base = DEPS.filter((x) => x.m === S.m && (!S.f.pkg || x.pk === S.f.pkg) && (!S.f.ld || x.ld === S.f.ld));
+    const nodes = REG.map((n, i) => {
+      const deps = base.filter((x) => P[x.pk].dest === n.d);
+      const seats = sum(deps, (x) => x.total), pct = seats ? Math.round((sum(deps, (x) => x.sold) / seats) * 100) : 0;
+      const wl = sum(deps, (x) => x.wl.length), att = deps.filter((x) => why(x).length).length;
+      const on = S.f.dest === n.d, dim = S.f.dest && !on;
+      return `<button class="mp-n${on ? ' on' : ''}${dim ? ' dim' : ''}${att ? ' att' : ''}" style="left:${n.x}%;top:${((n.y / 110) * 100).toFixed(1)}%;--f:${pct}%;--z:${34 + Math.min(deps.length, 16) * 1.5}px;--i:${i}"
+          data-dest="${on ? 'all' : n.d}" aria-pressed="${on}" aria-label="${n.d}: ${plural(deps.length, 'departure', 'departures')}, ${pct}% of seats sold${wl ? `, ${plural(wl, 'waitlist party', 'waitlist parties')}` : ''}${att ? `, ${att} ${att === 1 ? 'needs' : 'need'} attention` : ''}. ${on ? 'Show all regions' : 'Show only this region'}">
+        <span class="ring"><b class="num">${deps.length}</b></span>
+        <span class="lb"><b>${n.d}</b><small class="num">${deps.length ? `${pct}% sold` : 'No departures'}${wl ? ` · ${wl} waiting` : ''}</small>${att ? `<small class="at">Needs you · ${att}</small>` : ''}</span></button>`;
+    }).join('');
+    const him = REG[1];
+    return `<div class="mp" role="group" aria-label="Departures by region, ${MF[S.m]}">
+      <svg class="mp-bg" viewBox="0 0 100 110" aria-hidden="true"><polygon points="${OUTLINE}"/>
+        <path class="rt" d="M${HUB[0].toFixed(1)},${HUB[1].toFixed(1)} Q${(him.x + 6).toFixed(1)},${(him.y + 6).toFixed(1)} ${him.x},${him.y}"/>
+        <circle class="hub" cx="${HUB[0].toFixed(1)}" cy="${HUB[1].toFixed(1)}" r="1.3"/></svg>
+      <span class="mp-hub" style="left:${HUB[0].toFixed(1)}%;top:${((HUB[1] / 110) * 100).toFixed(1)}%">Delhi pickups</span>
+      ${nodes}</div>
+      <p class="mp-cap">Ring = seats sold. The number is departures in ${MF[S.m]}. ${S.f.dest ? `<button class="a-btn ghost sm" data-dest="all">Show all regions</button>` : 'Pick a region to list only its departures.'}</p>`;
+  }
+  function boardE(list) {
+    let i = 0;
+    return REG.map((n) => n.d).filter((d) => !S.f.dest || d === S.f.dest).map((d) => {
+      const deps = list.filter((x) => P[x.pk].dest === d);
+      const pks = ORDER.filter((k) => P[k].dest === d && (!S.f.pkg || k === S.f.pkg));
+      const seats = sum(deps, (x) => x.total), sold = sum(deps, (x) => x.sold);
+      const day = pks.length && !(d === 'Ladakh' && S.m === 11) ? monthDays(S.m).find((dd) => dd >= TODAY && !DEPS.some((y) => pks.includes(y.pk) && same(y.start, dd))) : null;
+      const rows = deps.map((x) => {
+        const s = st(x);
+        return `<button class="db-r st-${s.k}${fresh(x)}" ${depAttrs(x)}>
+          <span class="dt"><b class="num">${x.start.getUTCDate()}</b><small>${DN[x.start.getUTCDay()]}</small></span>
+          <span class="nm"><b>${SHORT[x.pk]}</b><small>${LD[x.ld].name} · ${P[x.pk].nights}N · back ${f1(x.end)}</small></span>
+          <span class="cp">${bar(x, i++)}<small class="num"><b>${x.sold}/${x.total}</b> sold${x.held ? ` · ${x.held} held` : ''} · ${x.free} free</small></span>
+          <span class="fl"><span class="a-chip ${s.c}">${s.w}</span>${x.wl.length ? `<span class="a-chip info">${x.wl.length} waiting</span>` : ''}${x.missing ? `<span class="a-chip bad">Details missing · ${x.missing}</span>` : ''}${x.sold ? `<span class="a-chip mute">Ready ${x.ready}%</span>` : ''}</span>
+        </button>`;
+      }).join('');
+      return `<section class="db-g"><header class="db-h"><h3>${d}</h3>
+          <span class="num">${deps.length ? `${plural(deps.length, 'departure', 'departures')} · ${sold}/${seats} sold` : 'No departures'}</span>
+          ${day ? `<button class="a-btn ghost sm" data-add="${key(day)}" data-pkg="${pks[0]}" aria-label="Add a ${d} departure">${ICON.plus}Add</button>` : ''}</header>
+        ${rows || `<p class="ag-none">${d === 'Ladakh' && S.m === 11 ? 'Closed for winter until April.' : `No ${d} departures in ${MF[S.m]}.`}</p>`}</section>`;
+    }).join('');
+  }
+
   /* ---------- page bodies ---------- */
   const shell = (v, body) => TS.adminShell('Calendar', `<div class="cal cal-${v} anim${S.sel || S.add ? ' has-sel' : ''}" data-cal="${v}">${body()}</div>`);
   const BODY = {
@@ -417,6 +531,10 @@
       return `${head()}${strip(list)}${filters(seg)}<div class="a-split"><div class="a-card cal-card"><div class="a-card-b">${monthNav()}
       <div class="cal-view">${agenda(shownList, S.att === 'all')}</div></div></div>${panel(list)}</div>`;
     },
+    D: () => { const list = monthList(); return `${head()}${strip(list)}${filters()}<div class="a-split"><div class="a-card cal-card"><div class="a-card-b">${monthNav()}
+      ${heat()}</div></div>${panel(list)}</div>`; },
+    E: () => { const list = monthList(); return `${head()}${strip(list)}${filters()}<div class="a-split"><div class="a-card cal-card"><div class="a-card-b">${monthNav()}
+      <div class="mp-wrap"><div class="mp-col">${mapE()}</div><div class="db cal-view">${boardE(list)}</div></div></div></div>${panel(list)}</div>`; },
   };
 
   /* ---------- interaction ---------- */
@@ -429,20 +547,40 @@
     const paint = (o = {}) => {
       const f = document.activeElement;
       let fk = null;
-      if (f && root.contains(f)) for (const a of ['data-dep', 'data-act', 'data-add', 'data-f', 'data-addf', 'data-tab', 'data-att', 'data-group']) if (f.hasAttribute(a)) { fk = `[${a}="${f.getAttribute(a)}"]`; break; }
+      if (f && root.contains(f)) for (const a of ['data-dep', 'data-act', 'data-add', 'data-f', 'data-addf', 'data-tab', 'data-att', 'data-group', 'data-zoom']) if (f.hasAttribute(a)) { fk = `[${a}="${f.getAttribute(a)}"]`; break; }
       root.className = `cal cal-${root.dataset.cal}${o.anim ? ' anim' : ''}${o.slide ? ` slide-${o.slide}` : ''}${o.pin ? ' pin' : ''}${S.sel || S.add ? ' has-sel' : ''}`;
       root.innerHTML = body();
       S.fresh = null;
       const t = (o.focus && vis(o.focus)) || (fk && (fk.startsWith('[data-dep') && !f.closest('.cal-panel') ? vis(fk) : root.querySelector(fk)));
       if (t) t.focus({ preventScroll: true });
+      zoomScroll();
       if (o.pin && phone()) { const pn = root.querySelector('.cal-panel'); if (pn) pn.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
     };
+    // D: keep the zoomed month in view inside the sideways-scrolling heatmap
+    function zoomScroll() {
+      const sc = root.querySelector('.hm-scroll'), z = sc && sc.querySelector('.hm-mo.z'), lab = sc && sc.querySelector('.hm-corner');
+      if (z && lab) sc.scrollLeft = Math.max(0, z.offsetLeft - lab.offsetWidth);
+    }
+    zoomScroll();
     const closePanel = () => { const back = S.sel; S.sel = null; S.add = null; S.msg = ''; paint({ focus: back ? `[data-dep="${back}"]` : null }); };
 
     root.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-dep],[data-add],[data-act],[data-tab],[data-att],[data-group]');
+      const t = e.target.closest('[data-dep],[data-add],[data-act],[data-tab],[data-att],[data-group],[data-dest],[data-zoom]');
       if (!t || !root.contains(t) || t.disabled) return;
       const d = t.dataset;
+      if (d.dest) {
+        const was = S.f.dest;
+        S.f.dest = d.dest === 'all' ? '' : d.dest;
+        if (S.f.pkg && S.f.dest && P[S.f.pkg].dest !== S.f.dest) S.f.pkg = '';
+        return paint({ anim: true, focus: S.f.dest ? '.mp-n[data-dest="all"]' : `.mp-n[data-dest="${was}"]` });
+      }
+      if (d.zoom) {
+        const nm = +d.zoom;
+        if (nm === S.m || nm < MIN_M || nm > MAX_M) return;
+        const dir = nm > S.m ? 'next' : 'prev';
+        S.m = nm; S.sel = null; S.add = null; S.msg = '';
+        return paint({ anim: true, slide: dir, focus: `[data-zoom="${nm}"]` });
+      }
       if (d.dep) { const changed = S.sel !== d.dep || S.add; S.sel = d.dep; S.add = null; S.msg = ''; if (changed) S.tab = 'bk'; return paint({ pin: !!changed }); }
       if (d.add) { openAdd(d.add, d.pkg); return paint({ pin: true, focus: '[data-addf="pk"]' }); }
       if (d.tab) { S.tab = d.tab; return paint(); }
@@ -581,7 +719,7 @@
   .ga-empty .ic { width: 16px; height: 16px; }
   .ga-c:hover .ga-empty { opacity: 1; border-color: color-mix(in srgb, var(--pri) 35%, transparent); background: var(--pri-soft); }
   .ga-chip { display: grid; gap: 4px; text-align: left; width: 100%; font: inherit; color: var(--ink); cursor: pointer; min-width: 0;
-    border: 1px solid color-mix(in srgb, var(--c) 26%, var(--a-line)); border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 7%, var(--a-surf));
+    border: 1px solid color-mix(in srgb, var(--c) 26%, var(--a-line)); background: color-mix(in srgb, var(--c) 7%, var(--a-surf));
     border-radius: 7px; padding: 5px 6px 5px 7px; transition: transform .2s var(--ease), box-shadow .2s; }
   .ga-chip:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--c) 70%, transparent); }
   .ga-chip .t { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 1.2; }
@@ -613,7 +751,7 @@
   .gb-days span.we { color: var(--warn); } .gb-days span.today { background: var(--act); color: var(--ink); border-radius: 8px; }
   .gb-headrow .gb-lab { align-content: end; } .gb-headrow .gb-lab small { font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 10.5px; }
   .gb-bar { z-index: 1; margin: 3px 2px; min-width: 0; overflow: hidden; display: grid; align-content: center; gap: 4px; padding: 3px 7px; text-align: left; font: inherit; color: var(--ink); cursor: pointer;
-    border: 1px solid color-mix(in srgb, var(--c) 30%, var(--a-line)); border-left: 3px solid var(--c); border-radius: 8px; background: color-mix(in srgb, var(--c) 9%, var(--a-surf)); transition: box-shadow .2s, transform .2s var(--ease); }
+    border: 1px solid color-mix(in srgb, var(--c) 30%, var(--a-line)); border-radius: 8px; background: color-mix(in srgb, var(--c) 9%, var(--a-surf)); transition: box-shadow .2s, transform .2s var(--ease); }
   .gb-bar:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--c) 70%, transparent); }
   .gb-bar .t { display: flex; gap: 5px; align-items: center; font-weight: 800; font-size: 11.5px; white-space: nowrap; }
   .gb-bar .w { color: var(--c); font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
@@ -633,7 +771,7 @@
   .ag-today { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; color: var(--warn); letter-spacing: .04em; text-transform: uppercase; }
   .ag-today::after { content: ""; flex: 1; height: 2px; border-radius: 2px; background: var(--act); }
   .ag-row { display: grid; grid-template-columns: 52px minmax(170px, 1.2fr) minmax(190px, 1.3fr) minmax(0, 1.3fr); gap: 14px; align-items: center; width: 100%; text-align: left;
-    font: inherit; color: inherit; background: var(--a-surf); border: 1px solid var(--a-line); border-left: 4px solid var(--c); border-radius: min(var(--a-r), 12px);
+    font: inherit; color: inherit; background: color-mix(in srgb, var(--c) 6%, var(--a-surf)); border: 1px solid color-mix(in srgb, var(--c) 30%, var(--a-line)); border-radius: min(var(--a-r), 12px);
     padding: 9px 12px 9px 9px; cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s var(--ease); }
   .ag-row:hover { border-color: color-mix(in srgb, var(--c) 45%, var(--a-line)); border-left-color: var(--c); transform: translateX(2px); }
   .ag-row[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 6%, var(--a-surf)); box-shadow: 0 0 0 2px var(--c); }
@@ -687,7 +825,7 @@
   .cal-list .a-chip { white-space: normal; text-align: right; }
   .cal-att { display: grid; gap: 6px; }
   .cal-att button { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; font: inherit; color: inherit; cursor: pointer;
-    border: 1px solid var(--a-line); border-left: 3px solid var(--c); background: var(--a-surf); border-radius: 10px; padding: 8px 10px 8px 8px; transition: border-color .2s; }
+    border: 1px solid color-mix(in srgb, var(--c) 30%, var(--a-line)); background: color-mix(in srgb, var(--c) 6%, var(--a-surf)); border-radius: 10px; padding: 8px 10px 8px 8px; transition: border-color .2s; }
   .cal-att button:hover { border-color: var(--c); }
   .cal-att .dd { display: grid; justify-items: center; line-height: 1.05; } .cal-att .dd b { font-size: 18px; } .cal-att .dd small { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--mute); letter-spacing: .06em; }
   .cal-att b { font-size: 13.5px; } .cal-att .rs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -695,6 +833,98 @@
   .cal-mix span { display: flex; align-items: center; gap: 7px; } .cal-mix b { color: var(--ink); font-size: 15px; }
   .cal-mix i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
   .cal-panel .a-tabs button { padding: 7px 10px 9px; }
+
+  /* D · season heatmap */
+  .hm-key { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; font-weight: 700; color: var(--mute); margin-bottom: 10px; }
+  .hm-ramp { width: 90px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--a-surf), var(--pri)); box-shadow: inset 0 0 0 1px var(--a-line); }
+  .hm-tip { margin-left: auto; font-weight: 600; }
+  .hm { --lab: 168px; display: grid; grid-template-columns: var(--lab) var(--cols); min-width: max-content; position: relative; font-size: 12px;
+    border: 1px solid var(--a-line); border-radius: min(var(--a-r), 12px); background: var(--a-surf); }
+  .hm > * { border-bottom: 1px solid var(--a-line); min-width: 0; }
+  .hm-lab { position: sticky; left: 0; z-index: 2; background: var(--a-surf); border-right: 1px solid var(--a-line); padding: 7px 10px; display: grid; gap: 1px; align-content: center; }
+  .hm-lab b { font-size: 12.5px; line-height: 1.2; } .hm-lab small { color: var(--mute); font-size: 11px; font-weight: 600; }
+  .hm-corner small { font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 10.5px; }
+  .hm-mo { font: inherit; color: var(--mute); background: none; border: 0; border-left: 1px solid var(--a-line); border-bottom: 1px solid var(--a-line); cursor: pointer;
+    display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 7px 4px; transition: background .2s, color .2s; }
+  .hm-mo b { font-size: 12.5px; font-weight: 800; letter-spacing: .02em; } .hm-mo small { font-size: 11px; font-weight: 700; }
+  .hm-mo:hover { background: var(--pri-soft); color: var(--pri-ink); }
+  .hm-mo.z { color: var(--ink); background: color-mix(in srgb, var(--act) 22%, var(--a-surf)); cursor: default; }
+  .hm-mo.z b { font-size: 14px; }
+  .hm-wk { display: grid; justify-items: center; align-content: center; line-height: 1.15; padding: 5px 2px; border-left: 1px solid color-mix(in srgb, var(--a-line) 70%, transparent); font-variant-numeric: tabular-nums; }
+  .hm-wk b { font-size: 11.5px; font-weight: 800; } .hm-wk small { font-size: 10px; color: var(--mute); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .hm-wk.o b { color: var(--mute); font-weight: 700; }
+  .hm-wk.now small, .hm-wk.now b { color: var(--warn); }
+  .hm-c { display: grid; gap: 2px; padding: 3px 2px; border-left: 1px solid color-mix(in srgb, var(--a-line) 70%, transparent); min-height: 46px; align-content: stretch; }
+  .hm-c.now { background: color-mix(in srgb, var(--act) 12%, transparent); }
+  .hm-c.o { padding: 3px 1px; }
+  .hm-d { --c: var(--pri); font: inherit; cursor: pointer; border: 0; border-radius: 6px; min-width: 0; display: grid; align-content: center; gap: 1px; padding: 4px 6px; text-align: left; color: var(--ink);
+    background: color-mix(in srgb, var(--pri) var(--f), var(--a-surf)); box-shadow: inset 0 -3px 0 var(--c), inset 0 0 0 1px color-mix(in srgb, var(--pri) 18%, transparent);
+    transition: transform .2s var(--ease), box-shadow .2s; }
+  .hm-d.st-full { --c: var(--st-full); } .hm-d.st-hot { --c: var(--st-hot); } .hm-d.st-open { --c: var(--st-open); } .hm-d.st-low { --c: var(--st-low); }
+  .hm-d.dk { color: #fff; } .hm-d.dk .w { color: rgba(255,255,255,.86); }
+  .hm-d:hover { transform: scale(1.04); z-index: 1; }
+  .hm-d[aria-pressed="true"] { outline: 2px solid var(--act); outline-offset: 1px; z-index: 1; }
+  .hm-d .t { display: flex; align-items: center; gap: 4px; } .hm-d .t b { font-size: 13px; font-weight: 800; }
+  .hm-d .w { font-size: 10.5px; font-weight: 700; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hm-c.o .hm-d { padding: 2px 0; justify-items: center; font-size: 9.5px; font-weight: 800; }
+  .hm-add { font: 700 11px "DM Sans", sans-serif; color: var(--pri); background: none; border: 1.5px dashed transparent; border-radius: 6px; cursor: copy;
+    display: flex; align-items: center; justify-content: center; gap: 3px; opacity: 0; transition: opacity .2s; }
+  .hm-add .ic { width: 13px; height: 13px; }
+  .hm-c:hover .hm-add, .hm-add:focus-visible { opacity: 1; border-color: color-mix(in srgb, var(--pri) 35%, transparent); background: var(--pri-soft); }
+  .hm-c.past { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--a-line) 60%, transparent) 6px 7px); }
+  .hm-none { font-size: 10.5px; font-weight: 700; color: var(--mute); align-self: center; justify-self: center; }
+  .hm-sum { border-bottom: 0; } .hm-tot { border-bottom: 0; }
+  .hm-tot { display: grid; justify-items: center; align-content: center; gap: 1px; padding: 6px 2px; border-left: 1px solid var(--a-line); font-size: 11px;
+    background: color-mix(in srgb, var(--ink) calc(var(--f) * .8), var(--a-surf)); color: var(--ink); }
+  .hm-tot.dk { color: var(--a-surf); } .hm-tot small { font-size: 10px; font-weight: 700; opacity: .8; } .hm-tot.o b { font-size: 9.5px; }
+  .hm-empty { grid-column: 1 / -1; }
+  .cal.anim .hm-d { animation: hm-in .5s var(--ease) both; animation-delay: calc(var(--i, 0) * 12ms + 60ms); }
+  @keyframes hm-in { from { opacity: 0; transform: scale(.6); } }
+
+  /* E · destination map */
+  .mp-wrap { display: grid; grid-template-columns: minmax(250px, .85fr) minmax(0, 1.3fr); gap: 18px; align-items: start; }
+  .mp-col { position: sticky; top: 12px; display: grid; gap: 8px; justify-items: center; }
+  .mp { position: relative; width: 100%; max-width: 330px; aspect-ratio: 100 / 110; border-radius: min(var(--a-r), 14px);
+    background: radial-gradient(circle, color-mix(in srgb, var(--mute) 30%, transparent) 1px, transparent 1.6px) 0 0 / 14px 14px, color-mix(in srgb, var(--pri) 4%, var(--a-surf)); }
+  .mp-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .mp-bg polygon { fill: color-mix(in srgb, var(--pri) 9%, var(--a-surf)); stroke: color-mix(in srgb, var(--pri) 35%, var(--a-line)); stroke-width: .5; stroke-linejoin: round; }
+  .mp-bg .rt { fill: none; stroke: var(--pri); stroke-width: .6; stroke-dasharray: 1.4 1.2; animation: mp-ants 1.6s linear infinite; }
+  .mp-bg .hub { fill: var(--ink); }
+  @keyframes mp-ants { to { stroke-dashoffset: -5.2; } }
+  .mp-hub { position: absolute; transform: translate(6px, -50%); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+  .mp-n { position: absolute; display: flex; align-items: center; gap: 7px; transform: translate(calc(var(--z) / -2), -50%); background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: pointer; text-align: left; transition: opacity .25s; }
+  .mp-n .ring { position: relative; flex: none; width: var(--z); height: var(--z); border-radius: 50%; display: grid; place-items: center;
+    background: conic-gradient(var(--pri) var(--f), color-mix(in srgb, var(--pri) 16%, var(--a-surf)) 0); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--pri) 80%, transparent); transition: transform .25s var(--ease); }
+  .mp-n .ring b { width: calc(100% - 10px); height: calc(100% - 10px); border-radius: 50%; background: var(--a-surf); display: grid; place-items: center; font-size: 14px; font-weight: 800; }
+  .mp-n.att .ring::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--act); animation: mp-pulse 2.2s var(--ease) infinite; }
+  @keyframes mp-pulse { 0% { transform: scale(.9); opacity: 1; } 100% { transform: scale(1.35); opacity: 0; } }
+  .mp-n .lb { display: grid; gap: 0; line-height: 1.2; background: color-mix(in srgb, var(--a-surf) 90%, transparent); border: 1px solid var(--a-line); border-radius: 8px; padding: 4px 8px; white-space: nowrap; }
+  .mp-n .lb b { font-size: 12.5px; } .mp-n .lb small { font-size: 11px; font-weight: 700; color: var(--mute); } .mp-n .lb .at { color: var(--warn); }
+  .mp-n:hover .ring { transform: scale(1.08); }
+  .mp-n.on .ring { outline: 3px solid var(--act); outline-offset: 2px; } .mp-n.on .lb { border-color: var(--ink); }
+  .mp-n.dim { opacity: .42; } .mp-n.dim:hover { opacity: .8; }
+  .cal.anim .mp-n .ring { animation: mp-in .6s var(--ease) both; animation-delay: calc(var(--i) * 80ms); }
+  @keyframes mp-in { from { transform: scale(.4); opacity: 0; } }
+  .mp-cap { font-size: 12px; color: var(--mute); font-weight: 600; text-align: center; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+  .db { display: grid; gap: 18px; min-width: 0; }
+  .db-g { display: grid; gap: 7px; }
+  .db-h { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid var(--a-line); }
+  .db-h h3 { font-size: 15px; } .db-h .num { color: var(--mute); font-size: 12.5px; font-weight: 600; } .db-h .a-btn { margin-left: auto; }
+  .db-r { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; align-items: center; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: color-mix(in srgb, var(--c) 6%, var(--a-surf)); border: 1px solid color-mix(in srgb, var(--c) 30%, var(--a-line)); border-radius: min(var(--a-r), 12px); padding: 8px 10px 8px 8px; transition: border-color .2s, transform .2s var(--ease); }
+  .db-r:hover { border-color: color-mix(in srgb, var(--c) 45%, var(--a-line)); border-left-color: var(--c); transform: translateX(2px); }
+  .db-r[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 7%, var(--a-surf)); box-shadow: 0 0 0 2px var(--c); }
+  .db-r .dt { display: grid; justify-items: center; line-height: 1.05; background: var(--bg2); border-radius: 9px; padding: 5px 0; color: var(--ink); }
+  .db-r .dt b { font-size: 18px; } .db-r .dt small { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+  .db-r .nm { min-width: 0; display: grid; } .db-r .nm b { font-size: 14px; } .db-r .nm small { font-size: 12px; color: var(--mute); font-weight: 600; }
+  .db-r .cp { display: grid; gap: 4px; min-width: 0; } .db-r .cp small { font-size: 12px; color: var(--mute); font-weight: 600; } .db-r .cp small b { color: var(--ink); }
+  .db-r .fl { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+  @container calcard (max-width: 680px) {
+    .mp-wrap { grid-template-columns: 1fr; } .mp-col { position: static; }
+  }
+  @container calcard (max-width: 460px) {
+    .db-r { grid-template-columns: 40px minmax(0, 1fr); } .db-r .cp, .db-r .fl { grid-column: 2; }
+  }
 
   @container site (max-width: 700px) {
     .cal .cal-desk { display: none; } .cal .cal-phone { display: block; }
@@ -708,6 +938,11 @@
     .cal .cal-count { margin-left: 0; flex-basis: 100%; }
     .cal.has-sel .a-split > .cal-panel { order: -1; }
     .cal .cal-acts { grid-template-columns: 1fr; }
+    .cal .hm { --lab: 112px; grid-template-columns: var(--lab) var(--cols-ph); }
+    .cal .hm .o { display: none; }
+    .cal .hm-lab small:last-child:not(:first-child) { display: none; }
+    .cal .hm-tip { margin-left: 0; flex-basis: 100%; }
+    .cal .mp { max-width: 300px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .cal *, .cal *::before, .cal *::after { animation: none !important; transition: none !important; }
@@ -726,6 +961,12 @@
       V('C', 'Ops board',
         'A week-by-week board built for the morning check. Each departure is a full-width row with a seat-by-seat capacity bar, a status word, waitlist, missing details and readiness, and each week ends with its open days as one-tap Add buttons. The Needs attention switch cuts the month to departures with low fill, missing details, balances due soon or free seats the waitlist can take. Same side panel; on a phone the rows stack into a two-line list.',
         'Richest per-departure detail and the most actionable, but you lose the at-a-glance calendar shape of the month.'),
+      V('D', 'Season heatmap',
+        'The whole October to December season on one grid: rows are packages, columns are weeks, and every departure is a cell shaded by how many seats are sold, with a status-coloured underline and an amber waitlist count. The chosen month is zoomed open, so its cells show sold / seats, the day and a status word, while the other months stay a thin heat strip; click a month band (or use the arrows) to zoom there. A bottom row gives each week\'s fill across packages, and empty future cells add that package that week. Same side panel. On a phone only the zoomed month shows, with the package names pinned while the weeks scroll sideways.',
+        'Shows demand patterns across the season in one look (which weekends sell, which packages lag), but a single departure is a small cell and the grid still scrolls sideways on a laptop.'),
+      V('E', 'Destination map',
+        'A schematic map of India with one node per region (Ladakh, Himachal, Rajasthan, Goa, Kerala). Each node is a ring filled by seats sold, carries the number of departures that month, and pulses amber when something there needs you; Delhi pickups link to Himachal. Pick a region to filter the list beside it, which groups every departure by region with a sold / held / free bar, status word, waitlist, missing details and readiness, plus an Add button per region. Same side panel. On a phone the map sits above the grouped list.',
+        'Makes regional load and where the team is needed obvious, and suits an owner who thinks in destinations, but it says nothing about dates until you read the list.'),
     ],
   });
 })();

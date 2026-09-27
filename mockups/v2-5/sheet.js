@@ -57,7 +57,7 @@
   const S = {
     dep: 'j15', rooms: { double: 1, triple: 0, single: 0 }, children: 1,
     add: { boat: 1, canoe: 2, night: 0, jeep: 0 },
-    coupon: true, couponErr: '', pay: 'dep', rc: false, rzp: false, vals: {},
+    coupon: true, couponErr: '', pay: 'dep', rc: false, rzp: false, vals: {}, dq: 0,
   };
   const depById = (id) => DEPS.find((d) => d.id === id);
   const adults = () => S.rooms.double * 2 + S.rooms.triple * 3 + S.rooms.single;
@@ -282,6 +282,149 @@
     return `<div class="bns bns-c">${behind()}${ovl}${rzp(q)}</div>`;
   }
 
+  /* ---------------- Variant D — one question at a time ---------------- */
+  const DQ = [
+    { q: 'When do you want to go?', hint: 'Each date shows today’s price per person, twin sharing. Earlier dates keep more of the early-bird saving.', next: 'Next: who’s coming', lab: 'Date' },
+    { q: 'Who’s coming?', hint: 'Rooms first, then names exactly as they appear on each ID.', next: 'Next: extras', lab: 'Travellers' },
+    { q: 'Want to make it yours?', hint: 'Optional. Extras are priced as you tap, and no deal, early bird or coupon applies to them.', next: 'See my price', lab: 'Extras' },
+    { q: 'Here’s your price, line by line', hint: 'Deal first, then early bird, then your coupon. Extras are added last, at full price.', next: 'Next: how you pay', lab: 'Price' },
+    { q: 'How would you like to pay?', hint: 'Pay it all now, or hold your seats with a quarter of it and pay the rest later.', next: '', lab: 'Pay' },
+  ];
+  let dLastI = 30, dLastH = 130, dLastQ = -1;
+
+  /* The ladder as a line from today to departure, with each early-bird cut-off marked on it. */
+  function ladderLine(q) {
+    const { rungs, ended } = ladderData(q);
+    const base = rungs[0].fare;
+    const span = Math.max(q.d.t - TODAY, DAY);
+    const pos = (t) => Math.max(0, Math.min(100, ((t - TODAY) / span) * 100));
+    const ends = TIERS.map((t) => q.d.t - t.n * DAY).filter((e) => e >= TODAY);
+    const cuts = [TODAY, ...ends.map((e) => e + DAY), q.d.t];
+    const zone = (t) => { const tr = tierFor(q.d, t); return tr ? (tr === TIERS[0] ? 'z1' : 'z2') : 'z0'; };
+    const segs = cuts.slice(0, -1).map((s, i) => `<i class="sg ${zone(s)}" style="left:${pos(s).toFixed(1)}%;width:${(pos(cuts[i + 1]) - pos(s)).toFixed(1)}%"></i>`).join('');
+    const marks = ends.map((e, i) => `<b class="mk" style="left:${pos(e).toFixed(1)}%">${i + 1}</b>`).join('');
+    return `<div class="ll" aria-label="Price ladder for ${dt(q.d.t, { yr: 1 })}"><div class="lad-h"><b>${ICON.chart} Book sooner, pay less</b><span>Trip fare for ${plural(q.n, 'traveller', 'travellers')}, add-ons extra</span></div><div class="trk" aria-hidden="true"><div class="bar">${segs}</div>${marks}${q.depositOk ? `<b class="mk due" style="left:${pos(q.due).toFixed(1)}%"></b>` : ''}</div><div class="trk-l" aria-hidden="true"><span>Today, ${dt(TODAY)}</span><span>Departs ${dt(q.d.t)}</span></div><ol class="rg">${rungs.map((r, i) => `<li class="${r.now ? 'now' : ''}"><small>${i ? `<em>${i}</em>` : ''}${r.when}</small><b class="num">${inr(r.fare)}</b><span>${r.now ? (q.tier ? `Early bird −${inr(q.tier.off)} each` : 'No early bird left') : `+${inr(r.fare - base)}`}</span></li>`).join('')}</ol><p class="fine">${rungs.length === 1 ? `No early bird left on ${dt(q.d.t)}, so this price holds until departure. ` : 'Numbered marks are the last day of each tier. '}${q.depositOk ? `The dark orange tick is ${dt(q.due)}, when a deposit’s balance falls due. ` : 'Inside 30 days of departure: pay in full only. '}Counted in IST from the day you pay.${ended.length ? ' ' + ended.join('; ') + '.' : ''}</p></div>`;
+  }
+
+  function renderD() {
+    const q = quote();
+    const dq = Math.max(0, Math.min(4, S.dq || 0));
+    const grew = dq > dLastQ;
+    const i = [22, 17, 12, 6, 0][dq], i0 = dLastI, sh = 150 + 22 * dq, sh0 = dLastH;
+    dLastI = i; dLastH = sh; dLastQ = dq;
+    const chosen = ADDONS.filter((a) => S.add[a.id]);
+    const ans = [
+      `${dt(q.d.t, { wd: 1, yr: 1 })} to ${dt(q.back, { wd: 1 })}${q.tier ? ` · early bird −${inr(q.tier.off)} each` : ''}`,
+      `${plural(adults(), 'adult', 'adults')}, ${plural(S.children, 'child', 'children')} · ${['double', 'triple', 'single'].filter((k) => S.rooms[k]).map((k) => `${S.rooms[k]} ${k}`).join(', ')}`,
+      chosen.length ? `${chosen.map((a) => a.name).join(', ')} · +${inr(q.addSum)}` : 'No extras',
+      `${inr(q.total)} for ${plural(q.n, 'traveller', 'travellers')}${q.cpn ? ` · ${COUPON.code} on` : ''}`,
+    ];
+    const nw = (k) => (grew && k === dq - 1 ? 'nw' : '');
+    const tags = [
+      dq > 0 ? `<span class="t ${nw(0)}">${ICON.cal}${dt(q.d.t, { wd: 1 })} – ${dt(q.back, { wd: 1 })}</span>` : '',
+      dq > 1 ? `<span class="t ${nw(1)}">${ICON.users}${plural(q.n, 'traveller', 'travellers')}</span>` : '',
+      dq > 2 ? (chosen.length ? `<span class="pol ${nw(2)}">${chosen.map((a) => `<span class="ph"><img src="${a.img}" alt="${esc(a.name)}"></span>`).join('')}</span>` : `<span class="t ${nw(2)}">No extras</span>`) : '',
+      dq > 3 ? `<span class="t big ${nw(3)}">${cnt('stage', q.total)}</span>` : '',
+    ].join('');
+    const dcards = `<div class="dcs" role="group" aria-label="Departure dates">${DEPS.map((d) => {
+      const w = why(d);
+      if (w) return `<div class="dcd off"><b class="dd">${dt(d.t, { wd: 1, yr: 1 })}</b><span class="pr">${w === 'sold' ? 'Sold out' : 'Price on request'}</span><span class="mt">${w === 'sold' ? 'Fully booked' : '<a href="#enquire">Ask us for a quote</a>'}</span></div>`;
+      const t = tierFor(d, TODAY), days = daysBetween(TODAY, d.t);
+      return `<button class="dcd" ${act('dep', d.id)} aria-pressed="${S.dep === d.id}"><b class="dd">${dt(d.t, { wd: 1, yr: 1 })}</b><span class="pr num">${inr(d.double - DEAL.off - (t ? t.off : 0))} <s>${inr(d.double)}</s></span><span class="mt">${d.left <= 4 ? `<span class="badge fill">${plural(d.left, 'seat', 'seats')} left</span>` : d.g ? `<span class="badge sure">Guaranteed</span>` : `${d.left} seats left`}${t ? EB(t, d.t - t.n * DAY) : ''}${days <= BALANCE_DAYS ? `<span class="pif">${days} days away · pay in full only</span>` : ''}</span></button>`;
+    }).join('')}</div><span class="live">Live availability · checked just now</span>`;
+    const tiles = `<div class="dts">${ADDONS.map((a) => `<div class="dtl ${S.add[a.id] ? 'on' : ''}"><div class="ph"><img src="${a.img}" alt="${esc(a.alt)}"></div><div class="tx"><b>${a.name}</b><p>${a.blurb}</p><span class="u">${addUnit(a)}</span></div><div class="ctl">${addCtl(a, q)}${addAmt(a, q)}</div></div>`).join('')}</div>${S.add.night ? `<p class="fine">You now return ${dt(q.back, { wd: 1, yr: 1 })}.</p>` : ''}`;
+    const body = [
+      dcards + ladderLine(q),
+      `<div class="two">${roomsBlock(q)}${names()}</div>`,
+      tiles,
+      breakdown(q) + couponUI(q),
+      `${payUI(q)}<h3 class="sub">Where we send your voucher</h3>${contact()}${demo}`,
+    ][dq];
+    const nextOk = dq !== 1 || q.n <= q.d.left;
+    const foot = dq < 4
+      ? `<div class="fr"><div><small>${dq < 3 ? 'Your trip so far' : 'Total'}</small><b>${cnt('total', q.total)}</b></div><button class="btn pri" ${act('dq', '', dq + 1)} ${nextOk ? '' : 'disabled'}>${DQ[dq].next} ${ICON.arrowR}</button></div>`
+      : `<div class="fr"><div><small>${q.byDeposit ? `Then ${inr(q.balance)} by ${dt(q.due)}` : 'Paid in full today'}</small><b>${cnt('total', q.total)}</b></div>${payBtn(q)}</div>${lock}`;
+    const stage = `<div class="stg" style="--i:${i};--i0:${i0};--sh:${sh}px;--sh0:${sh0}px"><div class="pic"><img src="img/munnar-2.jpg" alt="Tea gardens in Munnar seen from above"></div><div class="sh"><button class="x" aria-label="Close">×</button><div><b>${P.name}</b><small>${NIGHTS}N / ${NIGHTS + 1}D · ${P.places.join(' · ')}</small></div></div><div class="lk" aria-label="Locked in so far">${tags}</div></div>`;
+    const conv = `<div class="cv"><div class="cvh"><span class="eyebrow">Question ${dq + 1} of 5</span>${dq ? `<button class="lnk" ${act('dq', '', dq - 1)}>${ICON.chevL} Back</button>` : ''}<ol class="dots" aria-hidden="true">${DQ.map((x, k) => `<li class="${k <= dq ? 'on' : ''}"></li>`).join('')}</ol></div><div class="cvs" data-keep="d1">${dq ? `<ol class="ans" aria-label="Your answers">${ans.slice(0, dq).map((a, k) => `<li class="an"><span class="k" aria-hidden="true">${ICON.check}</span><div><small>${DQ[k].q}</small><b>${a}</b></div><button class="lnk" ${act('dq', '', k)}>Change</button></li>`).join('')}</ol>` : ''}<section class="qa ${grew ? 'nw' : ''}" aria-labelledby="bnsD-q"><h2 id="bnsD-q" tabindex="-1">${DQ[dq].q}</h2><p class="hint">${DQ[dq].hint}</p>${body}</section>${dq < 4 ? `<p class="soon">Still to come: ${DQ.slice(dq + 1).map((x) => x.lab).join(' · ')}</p>` : ''}</div><div class="cvf">${foot}</div></div>`;
+    return `<div class="bns bns-d">${behind()}<div class="dx ${painting ? '' : 'in'}" role="dialog" aria-modal="true" aria-label="Book ${esc(P.name)}">${stage}${conv}</div>${rzp(q)}</div>`;
+  }
+
+  /* ---------------- Variant E — plan it on the page: calendar + itinerary ---------------- */
+  const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  let eLastDep = null;
+  function renderE() {
+    const q = quote(), d = q.d;
+    const paint = eLastDep !== d.id; eLastDep = d.id;
+    const zone = (t) => { const tr = tierFor(d, t); return tr ? (tr === TIERS[0] ? 'z1' : 'z2') : 'z0'; };
+    const depAt = {}; DEPS.forEach((x) => { depAt[x.t] = x; });
+    let k = 0;
+    const cell = (t) => {
+      const x = depAt[t], cls = [], lab = dt(t, { wd: 1, yr: 1 }), n = new Date(t).getUTCDate();
+      if (t < TODAY) cls.push('past');
+      else if (t < d.t) {
+        cls.push(zone(t));
+        if (daysBetween(t, d.t) <= BALANCE_DAYS) cls.push('pif');
+        TIERS.forEach((tt, i) => { if (t === d.t - tt.n * DAY) cls.push('cut'); });
+        if (q.depositOk && t === q.due) cls.push('due');
+      } else if (t === d.t) cls.push('go');
+      else if (t <= q.back) cls.push('trip');
+      if (t === TODAY) cls.push('today');
+      const st = t >= TODAY && t <= q.back ? ` style="--k:${k++}"` : '';
+      if (x === d) return `<button class="c ${cls.join(' ')}"${st} ${act('dep', x.id)} aria-pressed="true" aria-label="Depart ${lab}, chosen">${n}</button>`;
+      if (x) {
+        const w = why(x);
+        if (w) return `<span class="c dd x ${cls.join(' ')}"${st} title="${lab}: ${w === 'sold' ? 'sold out' : 'price on request'}">${n}</span>`;
+        return `<button class="c dd ${cls.join(' ')}"${st} ${act('dep', x.id)} aria-pressed="false" aria-label="Depart ${lab}">${n}</button>`;
+      }
+      return `<span class="c ${cls.join(' ')}"${st}>${n}</span>`;
+    };
+    const month = ([y, m]) => {
+      const days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = (new Date(D(y, m, 1)).getUTCDay() + 6) % 7;
+      let h = '';
+      for (let i = 0; i < lead; i++) h += '<span class="c pad"></span>';
+      for (let i = 1; i <= days; i++) h += cell(D(y, m, i));
+      return `<div class="mo"><h4>${MONL[m - 1]} ${y}</h4><div class="wk" aria-hidden="true">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((x) => `<span>${x}</span>`).join('')}</div><div class="cells">${h}</div></div>`;
+    };
+    const cal = `<div class="cal ${paint ? 'paint' : ''}" aria-label="Departures and booking days, September 2026 to February 2027">${[[2026, 9], [2026, 10], [2026, 11], [2026, 12], [2027, 1], [2027, 2]].map(month).join('')}</div>`;
+    const strip = `<div class="dstrip" role="group" aria-label="All departures">${DEPS.map((x) => {
+      const w = why(x);
+      if (w) return `<span class="dp off"><b>${dt(x.t, { wd: 1 })}</b><small>${w === 'sold' ? 'Sold out' : 'Price on request'}</small></span>`;
+      const t = tierFor(x, TODAY), days = daysBetween(TODAY, x.t);
+      return `<button class="dp" ${act('dep', x.id, 's')} aria-pressed="${x === d}"><b>${dt(x.t, { wd: 1 })}</b><span class="num">${inr(x.double - DEAL.off - (t ? t.off : 0))} <small>per person</small></span>${t ? EB(t, x.t - t.n * DAY) : `<small class="pif">${days <= BALANCE_DAYS ? 'Pay in full only' : 'No early bird left'}</small>`}${x.left <= 4 ? `<small class="lf">${plural(x.left, 'seat', 'seats')} left</small>` : ''}</button>`;
+    }).join('')}</div>`;
+    const { rungs, ended } = ladderData(q);
+    const base = rungs[0].fare;
+    const ends = TIERS.map((t) => d.t - t.n * DAY).filter((e) => e >= TODAY);
+    const rows = rungs.map((r, i) => {
+      const from = i ? ends[i - 1] + DAY : TODAY, to = i < rungs.length - 1 ? ends[i] : d.t - DAY;
+      const tr = tierFor(d, from);
+      const head = rungs.length === 1 ? 'Book any day before you go' : i ? `Book ${dt(from)} – ${dt(to)}` : `Book by ${dt(to)}`;
+      return `<li class="${r.now ? 'now' : ''}"><i class="sw ${zone(from)}"></i><span><b>${head}</b><small>${tr ? `Early bird −${inr(tr.off)} each` : 'No early bird'}</small></span><span class="pp"><b class="num">${inr(r.fare)}</b><em>${r.now ? 'Your price today' : `+${inr(r.fare - base)}`}</em></span></li>`;
+    }).join('');
+    const keyx = `<li><i class="sw cut"></i><span><b>Early-bird cut-off</b><small>The last day a tier applies</small></span></li><li><i class="sw pif"></i><span><b>${q.depositOk ? `From ${dt(q.due)}: pay in full only` : 'Pay in full only'}</b><small>${q.depositOk ? `Book before it and you can reserve with ${DEPOSIT_PCT}%; the balance is due ${dt(q.due)}.` : `${dt(d.t)} is ${q.daysOut} days away, inside the 30-day window.`}</small></span></li><li><i class="sw go"></i><span><b>${dt(d.t, { wd: 1 })} – ${dt(q.back, { wd: 1, yr: 1 })}</b><small>Your trip, ${plural(NIGHTS + S.add.night, 'night', 'nights')}</small></span></li>`;
+    const key = `<div class="ekey" aria-label="Price ladder for ${dt(d.t, { yr: 1 })}"><div class="lad-h"><b>${ICON.chart} What each shaded day costs</b><span>Trip fare for ${plural(q.n, 'traveller', 'travellers')}, add-ons extra</span></div><ol>${rows}</ol><ul>${keyx}</ul><p class="fine">Counted in IST from the day you pay. Early bird never applies to add-ons.${ended.length ? ' ' + ended.join('; ') + '.' : ''}</p></div>`;
+    const slot = (id) => { const a = ADDONS.find((x) => x.id === id); return `<div class="slot ${S.add[id] ? 'on' : ''}"><div class="ph"><img src="${a.img}" alt="${esc(a.alt)}"></div><div class="tx"><span class="eyebrow">Make it yours · ${addUnit(a)}</span><b>${a.name}</b><p>${a.blurb}</p></div><div class="ctl">${addCtl(a, q)}${addAmt(a, q)}</div></div>`; };
+    const days = [
+      ['a', 'Kochi to Munnar', 'Pick-up at Kochi airport, then four hours up through cardamom country to Tea County.'],
+      ['b', 'Munnar', 'Tea estate walk in the morning, Eravikulam National Park after lunch.', 'jeep'],
+      ['c', 'Munnar', 'A free day among the estates, with Mattupetty dam if you want it.', 'night'],
+      ...Array.from({ length: S.add.night }, (_, i) => ['x' + i, 'Munnar · extra night', 'Another slow day at Tea County, breakfast included.', null, true]),
+      ['d', 'Munnar to Alleppey', 'Down to the backwaters by noon and onto your houseboat. All meals on board.', 'boat'],
+      ['e', 'Alleppey to Kochi', 'Off the boat after breakfast, at Kochi airport by 2 pm.', 'canoe'],
+    ];
+    const it = `<ol class="it">${days.map(([id, t, p, s, x], i) => `<li class="${x ? 'xtra' : ''}" data-line="dy-${id}"><div class="dn"><b>Day ${i + 1}</b><small>${dt(d.t + i * DAY, { wd: 1 })}</small></div><div class="db"><b>${t}${x ? ' <span class="badge new">Added</span>' : ''}</b><p>${p}</p>${s ? slot(s) : ''}</div></li>`).join('')}</ol>`;
+    const Sec = (n, title, sub, body) => `<section class="es" aria-labelledby="bnsE-${n}"><header><span class="k" aria-hidden="true">${n}</span><div><h2 id="bnsE-${n}">${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div></header>${body}</section>`;
+    const card = `<aside class="eq" id="bns-eq" aria-label="Your price" data-keep="e1"><div class="eqh"><div class="ph"><img src="img/munnar-2.jpg" alt=""></div><div><span class="eyebrow">Your trip</span><b>${dt(d.t, { wd: 1 })} – ${dt(q.back, { wd: 1, yr: 1 })}</b><small>${plural(q.n, 'traveller', 'travellers')} · ${plural(NIGHTS + S.add.night, 'night', 'nights')}</small></div></div>${breakdown(q)}${couponUI(q)}<span class="eyebrow">How you pay</span>${payUI(q)}${payBtn(q, 'btn block')}${q.byDeposit ? `<div class="lock">${ICON.cal} Then <span class="num">${inr(q.balance)}</span> by ${dt(q.due, { wd: 1, yr: 1 })}</div>` : lock}</aside>`;
+    const pill = `<div class="fl" role="region" aria-label="Your total"><button class="flq" data-act="ejump" data-k="ejump" aria-controls="bns-eq"><b>${cnt('total', q.total)}</b><small>${q.byDeposit ? `${inr(q.deposit)} today · ` : ''}See the quote</small></button>${payBtn(q)}</div>`;
+    const head = `<div class="wrap"><div class="crumbs"><a href="#">Home</a> / <a href="#">${P.dest}</a> / <span>${P.name}</span></div><div class="phead"><div class="ph"><img src="img/munnar-1.jpg" alt="Tea estates rolling over the hills of Munnar"></div><div class="ph"><img src="img/kerala-1.jpg" alt="A houseboat on the Alleppey backwaters"></div></div><div class="ptitle"><div><h1>${P.name}</h1><div class="sub"><span>${NIGHTS}N / ${NIGHTS + 1}D</span><span>${P.places.join(' · ')}</span><span>${TS.stars(P.rating)} · ${P.reviews} reviews</span></div></div><div class="deal"><s class="num">${inr(P.from)}</s><b class="num" style="font-size:26px;letter-spacing:-.03em">${inr(P.from - DEAL.off)}</b><span class="tag">${DEAL.label} · ends ${dt(DEAL.ends)}</span><span class="tag eb-tag">Early-bird savings</span></div></div></div>`;
+    const main = `<div class="em">${
+      Sec(1, 'Pick a date on the calendar', 'Tap a ringed day to depart on it. The shaded days before it show what you pay if you book on that day, so each early-bird cut-off is a line you can see.', strip + cal + '<span class="live">Live availability · checked just now</span>' + key)
+    }${Sec(2, 'Who’s travelling', '', `<div class="two">${roomsBlock(q)}${names()}</div>`)
+    }${Sec(3, 'Make it yours, day by day', 'Each extra sits on the day it happens. Extra nights add days to the trip and move your return.', it)
+    }${Sec(4, 'Lead traveller', '', contact() + demo)}</div>`;
+    return `<div class="bns bns-e"><div class="pg" data-keep="e0">${TS.header()}${head}<div class="wrap eg">${main}${card}</div></div>${pill}${rzp(q)}</div>`;
+  }
+
   /* ---------------- interaction ---------------- */
   let painting = false, off = null, prevLines = null;
   const shown = {};
@@ -312,6 +455,7 @@
     else if (a === 'pay') S.pay = v;
     else if (a === 'cpn-rm') { S.coupon = false; S.couponErr = ''; }
     else if (a === 'rc') S.rc = !S.rc;
+    else if (a === 'dq') S.dq = Math.max(0, Math.min(4, +v));
     else if (a === 'paybtn') S.rzp = true;
     else if (a === 'rzp-x') S.rzp = false;
     else return false;
@@ -335,8 +479,19 @@
       if (!site.querySelector('.bns')) return;
       const b = e.target.closest('[data-act]');
       if (!b || !site.contains(b) || b.disabled) return;
+      if (b.dataset.act === 'ejump') {
+        const t = site.querySelector('#bns-eq');
+        if (t) t.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        return;
+      }
       const k = b.dataset.act === 'rzp-x' ? 'paybtn--' : b.dataset.k;
-      if (apply(b)) repaint(k);
+      if (apply(b)) {
+        repaint(k);
+        if (b.dataset.act === 'dq') {
+          const sc = site.querySelector('[data-keep="d1"]'); if (sc) sc.scrollTop = 0;
+          const h = site.querySelector('#bnsD-q'); if (h) h.focus({ preventScroll: true });
+        }
+      }
     };
     const onInput = (e) => { const t = e.target; if (t.id && t.closest && t.closest('.bns')) S.vals[t.id] = t.value; };
     const onSubmit = (e) => {
@@ -587,6 +742,218 @@
   @media (prefers-reduced-motion: reduce) {
     .bns .sheet.in, .bns-c .ovl.in, .bns .brk .l.nw { animation: none; }
     .bns .tg i, .bns-c .gc .ph img { transition: none; }
+  }
+  /* D: one question at a time — the trip photo grows as answers lock in */
+  .bns-d .dx { position: absolute; inset: 0; z-index: 10; display: grid; grid-template-columns: minmax(0, 1fr) 600px; background: #0E1A24; }
+  .bns-d .dx.in { animation: bnsDFade .5s var(--ease); }
+  @keyframes bnsDFade { from { opacity: 0; } }
+  .bns-d .stg { position: relative; overflow: hidden; min-height: 0; }
+  .bns-d .pic { position: absolute; inset: 0; clip-path: inset(calc(var(--i) * 1%) round 26px); animation: bnsDGrow .9s var(--ease); }
+  @keyframes bnsDGrow { from { clip-path: inset(calc(var(--i0) * 1%) round 26px); } }
+  .bns-d .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .bns-d .lk { position: absolute; inset: calc(var(--i) * 1%); padding: 22px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 8px; border-radius: 26px; background: linear-gradient(transparent 50%, rgba(8,16,24,.7)); animation: bnsDInset .9s var(--ease); }
+  @keyframes bnsDInset { from { inset: calc(var(--i0) * 1%); } }
+  @keyframes bnsDH { from { height: var(--sh0); } }
+  .bns-d .lk .t { display: inline-flex; gap: 7px; align-items: center; background: rgba(255,255,255,.95); color: var(--ink); border-radius: 999px; padding: 7px 13px; font-weight: 800; font-size: 13.5px; box-shadow: 0 8px 20px -10px rgba(0,0,0,.5); }
+  .bns-d .lk .t .ic { width: 15px; height: 15px; color: var(--pri); }
+  .bns-d .lk .t.big { font-size: 24px; letter-spacing: -.03em; padding: 8px 18px; background: var(--act); }
+  .bns-d .lk .nw { animation: bnsDPop .6s var(--ease) .35s both; }
+  @keyframes bnsDPop { from { opacity: 0; transform: translateY(12px) scale(.92); } }
+  .bns-d .pol { display: flex; gap: 8px; }
+  .bns-d .pol .ph { width: 62px; height: 62px; border-radius: 8px; border: 3px solid #fff; box-shadow: 0 10px 20px -10px rgba(0,0,0,.6); transform: rotate(-4deg); }
+  .bns-d .pol .ph:nth-child(even) { transform: rotate(3deg); }
+  .bns-d .sh { position: absolute; top: 18px; left: 22px; right: 22px; display: flex; gap: 12px; align-items: center; color: #fff; z-index: 2; }
+  .bns-d .sh .x { width: 38px; height: 38px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,.45); background: rgba(8,16,24,.45); color: #fff; font-size: 18px; cursor: pointer; flex: none; }
+  .bns-d .sh b { display: block; font-size: 16px; letter-spacing: -.02em; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+  .bns-d .sh small { font-size: 12.5px; color: #D6DEE6; font-weight: 600; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+  .bns-d .cv { background: #fff; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+  .bns-d .cvh { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+  .bns-d .cvh .eyebrow { margin-right: auto; }
+  .bns-d .cvh .lnk .ic { width: 15px; height: 15px; }
+  .bns-d .dots { display: flex; gap: 5px; list-style: none; margin: 0; padding: 0; }
+  .bns-d .dots li { width: 24px; height: 5px; border-radius: 99px; background: var(--line); }
+  .bns-d .dots li.on { background: var(--pri); }
+  .bns-d .cvs { overflow: auto; padding: 18px 24px 28px; display: grid; gap: 18px; align-content: start; overscroll-behavior: contain; min-width: 0; }
+  .bns-d .ans { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .bns-d .an { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--bg2); border-radius: 12px; padding: 7px 6px 7px 10px; }
+  .bns-d .an .k { width: 24px; height: 24px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; }
+  .bns-d .an .k .ic { width: 13px; height: 13px; }
+  .bns-d .an small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .bns-d .an b { font-size: 14px; }
+  .bns-d .qa { display: grid; gap: 14px; min-width: 0; }
+  .bns-d .qa.nw { animation: bnsDQ .55s var(--ease); }
+  @keyframes bnsDQ { from { opacity: 0; transform: translateY(16px); } }
+  .bns-d .qa h2 { font-size: 30px; letter-spacing: -.035em; outline: none; }
+  .bns-d .qa .hint { color: var(--ink2); font-size: 14.5px; margin-top: -6px; }
+  .bns-d .qa h3.sub { font-size: 16px; margin-top: 6px; }
+  .bns-d .soon { font-size: 13px; color: var(--mute); font-weight: 600; border-top: 1px dashed var(--line); padding-top: 12px; }
+  .bns-d .two { display: grid; gap: 16px; }
+  .bns-d .dcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .bns-d .dcd { display: grid; gap: 4px; align-content: start; justify-items: start; text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 12px; font: inherit; color: inherit; cursor: pointer; transition: border-color .2s, background .2s; min-width: 0; }
+  .bns-d .dcd:hover { border-color: var(--ink); }
+  .bns-d .dcd[aria-pressed="true"] { border-color: var(--pri); background: var(--pri-soft); box-shadow: inset 0 0 0 1px var(--pri); }
+  .bns-d .dcd .dd { font-size: 15px; }
+  .bns-d .dcd .pr { font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+  .bns-d .dcd .pr s { color: var(--mute); font-weight: 600; font-size: 12px; letter-spacing: 0; }
+  .bns-d .dcd .mt { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--mute); font-weight: 600; }
+  .bns-d .dcd .eb { white-space: normal; }
+  .bns-d .dcd.off { cursor: default; background: #F7F8FA; border-style: dashed; color: #6E7A85; }
+  .bns-d .dcd.off:hover { border-color: var(--line); }
+  .bns-d .dcd a { color: var(--pri); font-weight: 700; text-decoration: none; }
+  .bns-d .ll { border: 1px solid #D6E0F5; border-radius: 14px; padding: 14px; display: grid; gap: 10px; background: var(--bg2); }
+  .bns-d .trk { position: relative; height: 12px; margin: 10px 11px 0; }
+  .bns-d .trk .bar { position: absolute; inset: 0; border-radius: 99px; overflow: hidden; background: #C9D4E6; }
+  .bns-d .trk .sg { position: absolute; top: 0; bottom: 0; }
+  .bns-d .sg.z1 { background: var(--act); } .bns-d .sg.z2 { background: #FBD89A; } .bns-d .sg.z0 { background: #C9D4E6; }
+  .bns-d .mk { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+  .bns-d .mk.due { width: 4px; height: 24px; margin: -12px 0 0 -2px; border: 0; border-radius: 2px; background: var(--warn); }
+  .bns-d .trk-l { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--mute); font-weight: 700; }
+  .bns-d .rg { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  .bns-d .rg li { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 1px; min-width: 0; }
+  .bns-d .rg li.now { border-color: var(--pri); box-shadow: inset 0 0 0 1px var(--pri); }
+  .bns-d .rg small { display: flex; gap: 5px; align-items: center; font-size: 11.5px; color: var(--mute); font-weight: 700; }
+  .bns-d .rg small em { font-style: normal; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--ink); display: inline-grid; place-items: center; font-size: 9.5px; color: var(--ink); flex: none; }
+  .bns-d .rg b { font-size: 16px; letter-spacing: -.02em; }
+  .bns-d .rg span { font-size: 12px; font-weight: 800; color: var(--warn); }
+  .bns-d .rg li.now span { color: var(--pri); }
+  .bns-d .dts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bns-d .dtl { display: grid; grid-template-rows: auto 1fr auto; border: 1.5px solid var(--line); border-radius: 16px; overflow: hidden; transition: border-color .2s, box-shadow .2s; min-width: 0; }
+  .bns-d .dtl.on { border-color: var(--pri); box-shadow: inset 0 0 0 1px var(--pri); }
+  .bns-d .dtl .ph { aspect-ratio: 16 / 9; }
+  .bns-d .dtl .tx { padding: 10px 12px 0; display: grid; gap: 4px; align-content: start; }
+  .bns-d .dtl .tx b { font-size: 15px; }
+  .bns-d .dtl .tx p { font-size: 12.5px; color: var(--ink2); line-height: 1.4; }
+  .bns-d .dtl .u { font-size: 12px; color: var(--mute); font-weight: 700; }
+  .bns-d .dtl .ctl { padding: 10px 12px 12px; justify-content: space-between; }
+  .bns-d .cvf { border-top: 1px solid var(--line); padding: 12px 24px; display: grid; gap: 6px; background: #fff; }
+  .bns-d .fr { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .bns-d .fr small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .bns-d .fr b { font-size: 26px; letter-spacing: -.03em; }
+  .bns-d .fr .btn .ic { width: 16px; height: 16px; }
+  /* E: plan it on the page — calendar with the ladder painted on, extras on the itinerary */
+  .bns-e .pg { height: 100%; overflow: auto; overscroll-behavior: contain; }
+  .bns-e .phead .ph { height: 190px; }
+  .bns-e .eg { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 40px; align-items: start; margin-top: 24px; padding-bottom: 60px; }
+  .bns-e .em { display: grid; gap: 40px; min-width: 0; }
+  .bns-e .es { display: grid; gap: 14px; min-width: 0; }
+  .bns-e .es > header { display: flex; gap: 12px; align-items: flex-start; }
+  .bns-e .es > header .k { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; flex: none; }
+  .bns-e .es > header h2 { font-size: 24px; }
+  .bns-e .es > header p { color: var(--ink2); font-size: 14px; margin-top: 4px; max-width: 66ch; }
+  .bns-e .dstrip { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bns-e .dp { display: grid; gap: 3px; justify-items: start; align-content: start; text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 12px; padding: 9px 12px; font: inherit; color: inherit; cursor: pointer; transition: border-color .2s, background .2s; max-width: 100%; }
+  .bns-e .dp:hover { border-color: var(--ink); }
+  .bns-e .dp[aria-pressed="true"] { border-color: var(--pri); background: var(--pri-soft); box-shadow: inset 0 0 0 1px var(--pri); }
+  .bns-e .dp b { font-size: 14px; }
+  .bns-e .dp .num { font-weight: 800; font-size: 15px; }
+  .bns-e .dp small { font-size: 12px; font-weight: 700; color: var(--mute); }
+  .bns-e .dp .num small { font-weight: 600; }
+  .bns-e .dp .lf { color: var(--warn); }
+  .bns-e .dp .eb { white-space: normal; }
+  .bns-e .dp.off { background: #F7F8FA; border-style: dashed; color: #6E7A85; cursor: default; }
+  .bns-e .dp.off:hover { border-color: var(--line); }
+  .bns-e .cal { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 22px; border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+  .bns-e .mo { min-width: 0; }
+  .bns-e .mo h4 { font-size: 14px; letter-spacing: -.01em; margin-bottom: 6px; }
+  .bns-e .wk, .bns-e .cells { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+  .bns-e .wk span { font-size: 10.5px; font-weight: 700; color: var(--mute); text-align: center; padding-bottom: 2px; }
+  .bns-e .c { aspect-ratio: 1; display: grid; place-items: center; font: 700 12px "DM Sans", sans-serif; border-radius: 6px; position: relative; color: var(--ink); border: 0; background: none; padding: 0; min-width: 0; }
+  .bns-e .c.past { color: #AAB3BC; }
+  .bns-e .c.z1, .bns-e .sw.z1 { background: #F7C66E; }
+  .bns-e .c.z2, .bns-e .sw.z2 { background: #FCE3B4; }
+  .bns-e .c.z0, .bns-e .sw.z0 { background: #DCE4F1; }
+  .bns-e .c.pif, .bns-e .sw.pif { background: repeating-linear-gradient(135deg, #F3C9AE 0 3px, #FFF5EE 3px 7px); }
+  .bns-e .c.cut, .bns-e .sw.cut { box-shadow: inset -3px 0 0 var(--ink); }
+  .bns-e .c.due { box-shadow: inset -3px 0 0 var(--warn); }
+  .bns-e .c.today { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .bns-e .c.go { background: var(--pri); color: #fff; border-radius: 50%; box-shadow: 0 0 0 3px var(--pri-soft); }
+  .bns-e .c.trip { background: var(--pri-soft); color: var(--pri); }
+  .bns-e button.c { cursor: pointer; }
+  .bns-e .c.dd { box-shadow: inset 0 0 0 2px var(--pri); border-radius: 50%; color: var(--pri); }
+  .bns-e button.c.dd:hover { background: var(--pri-soft); }
+  .bns-e .c.dd.x { box-shadow: inset 0 0 0 2px #C3C9CF; color: #7D8994; text-decoration: line-through; cursor: default; }
+  .bns-e .cal.paint .c[style] { animation: bnsEPaint .5s var(--ease) both; animation-delay: calc(var(--k) * 5ms); }
+  @keyframes bnsEPaint { from { opacity: 0; transform: scale(.55); } }
+  .bns-e .ekey { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px 24px; background: var(--bg2); border: 1px solid #D6E0F5; border-radius: 16px; padding: 14px 16px; }
+  .bns-e .ekey .lad-h, .bns-e .ekey .fine { grid-column: 1 / -1; }
+  .bns-e .ekey ol, .bns-e .ekey ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
+  .bns-e .ekey li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .bns-e .ekey ul li { grid-template-columns: 18px minmax(0, 1fr); }
+  .bns-e .ekey li b { display: block; font-size: 13.5px; }
+  .bns-e .ekey li small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
+  .bns-e .ekey .pp { text-align: right; display: grid; }
+  .bns-e .ekey .pp b { font-size: 15px; }
+  .bns-e .ekey .pp em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--warn); }
+  .bns-e .ekey li.now .pp em { color: var(--pri); }
+  .bns-e .sw { width: 18px; height: 18px; border-radius: 5px; display: block; }
+  .bns-e .sw.cut { background: #fff; border: 1px solid var(--line); }
+  .bns-e .sw.go { background: var(--pri); border-radius: 50%; }
+  .bns-e .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .bns-e .it { list-style: none; margin: 0; padding: 0; display: grid; }
+  .bns-e .it li { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 16px; }
+  .bns-e .it li.nw { animation: bnsEDay .7s var(--ease); }
+  @keyframes bnsEDay { from { opacity: 0; transform: translateY(-8px); } }
+  .bns-e .it .dn b { display: block; font-size: 14px; }
+  .bns-e .it .dn small { font-size: 12px; color: var(--mute); font-weight: 600; }
+  .bns-e .it .db { border-left: 2px solid var(--line); padding: 0 0 22px 18px; display: grid; gap: 6px; position: relative; min-width: 0; }
+  .bns-e .it li:last-child .db { border-left-color: transparent; }
+  .bns-e .it .db::before { content: ""; position: absolute; left: -7px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--pri); }
+  .bns-e .it li.xtra .db::before { background: var(--act); border-color: var(--act-ink); }
+  .bns-e .it .db > b { font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bns-e .it .db > p { font-size: 14px; color: var(--ink2); }
+  .bns-e .slot { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1.5px dashed #C4CFDE; border-radius: 14px; padding: 10px; margin-top: 4px; background: #fff; transition: border-color .2s, background .2s; }
+  .bns-e .slot.on { border-style: solid; border-color: var(--pri); background: #F6F8FF; }
+  .bns-e .slot .ph { width: 88px; height: 66px; border-radius: 10px; }
+  .bns-e .slot .eyebrow { color: var(--pri); letter-spacing: .08em; }
+  .bns-e .slot .tx b { display: block; font-size: 15px; }
+  .bns-e .slot .tx p { font-size: 12.5px; color: var(--ink2); line-height: 1.4; }
+  .bns-e .slot .ctl { flex-direction: column; align-items: flex-end; gap: 6px; }
+  .bns-e .eq { position: sticky; top: 16px; max-height: 888px; overflow: auto; border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 14px; align-content: start; background: #fff; box-shadow: 0 30px 60px -40px rgba(20,32,42,.35); overscroll-behavior: contain; scroll-margin-top: 12px; }
+  .bns-e .eqh { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .bns-e .eqh .ph { width: 56px; height: 56px; border-radius: 12px; }
+  .bns-e .eqh b { display: block; font-size: 16px; letter-spacing: -.02em; }
+  .bns-e .eqh small { color: var(--mute); font-size: 12.5px; font-weight: 600; }
+  .bns-e .fl { display: none; }
+  @container site (max-width: 700px) {
+    .bns-d .dx { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    .bns-d .stg { height: var(--sh); animation: bnsDH .9s var(--ease); }
+    .bns-d .pic { clip-path: none; animation: none; }
+    .bns-d .lk { inset: 0; border-radius: 0; animation: none; padding: 12px 14px; flex-direction: row; flex-wrap: wrap; align-items: flex-end; align-content: flex-end; gap: 6px; }
+    .bns-d .lk .t { font-size: 12px; padding: 5px 10px; }
+    .bns-d .lk .t.big { font-size: 16px; padding: 5px 12px; }
+    .bns-d .pol .ph { width: 38px; height: 38px; border-width: 2px; }
+    .bns-d .sh { top: 10px; left: 12px; right: 12px; }
+    .bns-d .sh small { display: none; }
+    .bns-d .cvh, .bns-d .cvs, .bns-d .cvf { padding-left: 16px; padding-right: 16px; }
+    .bns-d .cvs { padding-top: 14px; }
+    .bns-d .dots li { width: 14px; }
+    .bns-d .qa h2 { font-size: 24px; }
+    .bns-d .dcs, .bns-d .dts { grid-template-columns: 1fr; }
+    .bns-d .rg b { font-size: 14px; }
+    .bns-d .fr b { font-size: 22px; }
+    .bns-d .fr .btn { padding: 12px 14px; }
+    .bns-e .phead .ph { height: 170px; }
+    .bns-e .eg { grid-template-columns: 1fr; gap: 32px; padding-bottom: 120px; }
+    .bns-e .em { gap: 32px; }
+    .bns-e .eq { position: static; max-height: none; overflow: visible; }
+    .bns-e .es > header h2 { font-size: 20px; }
+    .bns-e .cal { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 14px 12px; }
+    .bns-e .c { font-size: 11px; border-radius: 4px; }
+    .bns-e .ekey { grid-template-columns: 1fr; padding: 12px; }
+    .bns-e .two { grid-template-columns: 1fr; gap: 14px; }
+    .bns-e .it li { grid-template-columns: 56px minmax(0, 1fr); gap: 10px; }
+    .bns-e .it .db { padding-left: 14px; }
+    .bns-e .slot { grid-template-columns: 56px minmax(0, 1fr); }
+    .bns-e .slot .ph { width: 56px; height: 56px; }
+    .bns-e .slot .ctl { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+    .bns-e .fl { display: flex; position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 20; align-items: center; gap: 8px; background: var(--ink); color: #fff; border-radius: 18px; padding: 8px 8px 8px 6px; box-shadow: 0 20px 40px -16px rgba(0,0,0,.6); }
+    .bns-e .flq { margin-right: auto; min-width: 0; text-align: left; border: 0; background: none; color: #fff; font: inherit; cursor: pointer; padding: 4px 8px; border-radius: 10px; }
+    .bns-e .flq b { display: block; font-size: 20px; letter-spacing: -.03em; }
+    .bns-e .flq small { display: block; font-size: 11.5px; color: #C9D2DB; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bns-e .fl .btn { padding: 11px 14px; flex: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bns-d .dx.in, .bns-d .pic, .bns-d .lk, .bns-d .stg, .bns-d .qa.nw, .bns-d .lk .nw, .bns-e .cal.paint .c[style], .bns-e .it li.nw { animation: none; }
   }`;
 
   const V = [
@@ -607,6 +974,18 @@
       note: 'Book now opens a trip builder over the package page. Dates are cards across the top with the early-bird label on each and the ladder beneath; travellers and names sit side by side; add-ons are a photo gallery where a chosen card lifts, gets a tick, and drops its line into the ticket on the right. The ticket shows leave and back dates (extra nights move the return), every quote line, the pay choice and Pay. On a phone the dates and add-on gallery swipe sideways, the ticket follows below, and a bar with the total (or deposit today) and Pay stays pinned.',
       tradeoff: 'Sells add-ons hardest and looks the most distinct, but it is the biggest step away from the shipped sheet and the most new code.',
       render: renderC,
+    },
+    {
+      id: 'D', name: 'One question at a time',
+      note: 'Book now turns the page into a conversation: one question fills the right-hand column (when, who, extras, price, pay) and each answer collapses into a line you can change. On the left the trip photo starts as a framed postcard and grows toward full bleed with every answer, collecting what you locked in on top of it: dates, travellers, a photo of each extra, then the total. The date question pairs big date cards (early-bird label on each) with a line from today to departure, the tier cut-offs and the balance due date marked on it, and the three ladder prices beneath. The footer always carries the running total, counting as it changes. On a phone the photo becomes a band that grows from 150px to 240px above the question, and Next or Pay stays pinned. Try Back, then Change on an answer.',
+      tradeoff: 'Calmest and most memorable, and each step fits a phone screen, but it takes five taps to reach Pay and the price sits on its own step instead of beside the add-ons that change it.',
+      render: renderD,
+    },
+    {
+      id: 'E', name: 'Plan it on the calendar',
+      note: 'No sheet: booking happens on the package page itself. Departures are ringed days on a six-month calendar; pick one and every day from today to it is painted with what you would pay if you booked that day, with a line at each early-bird cut-off, a hatch from the balance due date (inside 30 days: pay in full only), and the trip days in blue. A key under it reads the ladder out in rupees. “Make it yours” sits inside the day-by-day itinerary, each extra on the day it happens; adding extra nights inserts new days and moves the return. On desktop the quote, coupon, pay choice and Pay stay in a sticky card on the right; on a phone the months go two across, the quote follows the itinerary, and a floating dark pill holds the total and Pay, and scrolls to the quote on tap. Try 13 Nov (tier 2 ends in two days) and 16 Oct.',
+      tradeoff: 'The only layout that shows why a date costs what it does and where the extras fall in the trip, but it is a long page, the calendar needs care on small phones, and it is a different flow from every other screen in the shipped app.',
+      render: renderE,
     },
   ];
   V.forEach((v) => { v.mount = (site) => bind(site, v); });

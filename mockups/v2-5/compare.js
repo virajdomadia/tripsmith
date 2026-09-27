@@ -227,6 +227,255 @@
     mount: (s, rr) => mountAll(s, rr),
   };
 
+  /* ---------- extra facts for D and E: Tripsmith's own comfort / adventure ratings and the night plan ---------- */
+  const Z = {
+    manali: { comfort: 3, adv: 4, cB: '3★ hotels, then a village homestay', aB: 'Village walks, optional Kheerganga trek',
+      plan: [['Manali', 2, 'Snow Valley Resorts'], ['Kasol', 2, 'Parvati Kuteer'], ['Tosh', 1, 'Tosh homestay']] },
+    shimla: { comfort: 3.5, adv: 2, cB: '3★ hotels and a private sedan', aB: 'Sightseeing, Solang is optional',
+      plan: [['Shimla', 2, 'Hotel Willow Banks'], ['Manali', 2, 'Snow Valley Resorts']] },
+    kasol: { comfort: 2, adv: 3, cB: 'Swiss tents by the river, overnight Volvo', aB: 'Chalal trail and a riverside camp',
+      plan: [['Kasol', 2, 'Riverside camp']] },
+    leh: { comfort: 3.5, adv: 5, cB: '4★ in Leh, camps at Nubra and Pangong', aB: 'Khardung La at 5,359 m, Hunder dunes',
+      plan: [['Leh', 2, 'The Grand Dragon'], ['Nubra', 2, 'Nubra Organic Retreat'], ['Pangong', 1, 'Lakeside camp'], ['Leh', 1, 'The Grand Dragon']] },
+    munnar: { comfort: 4.5, adv: 2, cB: '4★ tea resort and a private houseboat', aB: 'Estate walk and a backwater cruise',
+      plan: [['Munnar', 3, 'Tea County'], ['Alleppey', 1, 'Private houseboat']] },
+    jaipur: { comfort: 5, adv: 1, cB: 'Heritage hotels and a private car', aB: 'Forts and palaces at an easy pace',
+      plan: [['Jaipur', 2, 'Umaid Mahal'], ['Jodhpur', 1, 'Ratan Vilas'], ['Udaipur', 2, 'Lake Pichola Hotel']] },
+    goa: { comfort: 4, adv: 1.5, cB: '4★ waterfront hotel', aB: 'Beaches, a fort and a sunset cruise',
+      plan: [['North Goa', 3, 'Acron Waterfront']] },
+  };
+  const PZ = (id) => Object.assign(P(id), Z[id]);
+  const pairRows = (ps) => ROWS.map((r) => Object.assign({}, r, { d: ps.length > 1 && new Set(ps.map(r.v).map(String)).size > 1, cells: ps.map((p) => r.h(p)) }));
+
+  /* ================= D · Head to head ================= */
+  let vs = null, split = 50, nudged = false;
+  const vsPair = () => {
+    let pr = (vs || []).filter((id) => ids.includes(id));
+    for (const id of ids) if (pr.length < 2 && !pr.includes(id)) pr.push(id);
+    vs = pr;
+    return pr;
+  };
+  const leanOf = (l) => (l >= 60 ? 0 : l <= 40 ? 1 : -1);
+  const leanBar = (ps, l) => {
+    const k = ps.length > 1 ? leanOf(l) : 0, p = ps[k];
+    if (k < 0) return `<p class="vs-lean-t"><b>Even so far.</b> Drag the divider toward the trip you like more.</p>`;
+    return `<p class="vs-lean-t"><span class="eyebrow">${ps.length > 1 ? 'Leaning towards' : 'Your pick'}</span><b>${esc(p.name)}</b><small>from <span class="num">${inr(now(p))}</span> · next ${day(p.deps[0][0])}, ${p.deps[0][1]} seats left</small></p>${ctas(p, 'sm')}`;
+  };
+  const D = {
+    id: 'D', name: 'Head to head',
+    note: 'Two trips go head to head on one full-bleed photo split. Drag the marigold "vs" handle (or focus it and use the arrow keys) and the photos, names and prices slide with it; lean past 60 % and the bar under the photo offers Book now and Enquire for the trip you are leaning towards. A third trip waits on the bench and swaps into either side. Below, a centre spine puts each fact between the two trips, with differing rows tinted and the winning side marked, then a night-by-night timeline shows where you sleep on each trip. On a phone the split stays full width at 300 px, the two trip names pin to the top while you scroll the spine, and each fact label sits above its two values.',
+    tradeoff: 'The most memorable and photo-led layout, but only two trips are ever side by side, so a third one has to be swapped in.',
+    render() {
+      const m = model(), ps = vsPair().map(PZ), two = ps.length > 1;
+      const bench = ids.filter((id) => !vs.includes(id)).map(PZ);
+      const rows = pairRows(ps), w = winners(ps), nd = rows.filter((r) => r.d).length;
+      const vis = diffOnly && two ? rows.filter((r) => r.d) : rows;
+      const L = ps[0], R = ps[1];
+      const cap = (p, side) => `<div class="vs-cap ${side}"><div class="ov">${heart(p)}${rm(p)}</div>
+          <span class="eyebrow">${esc(p.dest)} · ${p.nights} nights</span><h2>${esc(p.name)}</h2>
+          <p class="vs-pr"><b class="num">${inr(now(p))}</b><small>per person</small></p>${stars(p.rating)}
+          <div class="vs-cap-cta">${ctas(p, 'sm')}</div></div>`;
+      const stage = `<div class="vs-stage${two ? '' : ' one'}${!nudged && two ? ' intro' : ''}" style="--l:${two ? split : 100}">
+          ${two ? `<div class="vs-side r ph"><img src="${R.img}" alt="${esc(R.alt)}"></div>` : ''}
+          <div class="vs-side l ph"><img src="${L.img}" alt="${esc(L.alt)}"></div>
+          <div class="vs-shade" aria-hidden="true"></div>
+          ${cap(L, 'l')}${two ? cap(R, 'r') : ''}
+          ${two ? `<div class="vs-div" role="slider" tabindex="0" aria-label="Divide the photo between ${esc(L.name)} and ${esc(R.name)}" aria-valuemin="15" aria-valuemax="85" aria-valuenow="${split}" aria-valuetext="${leanOf(split) < 0 ? 'Even' : 'Leaning ' + esc(ps[leanOf(split)].name)}"><span class="vs-knob">vs</span></div>` : ''}
+        </div>`;
+      const swapBtns = (b) => ps.map((p, k) => `<button class="btn line sm" data-act="vs-swap" data-id="${b.id}" data-k="${k}">Swap for ${esc(p.places[0])}</button>`).join('');
+      const benchHtml = `<div class="vs-bench"><span class="eyebrow">${bench.length ? 'On the bench' : two ? 'In the ring' : 'Needs a rival'}</span>
+          ${bench.map((b) => `<div class="vs-chip"><span class="ph"><img src="${b.img}" alt=""></span><span class="t"><b>${esc(b.name)}</b><small>${b.nights} nights · from <span class="num">${inr(now(b))}</span></small></span><span class="vs-chip-b">${swapBtns(b)}${heart(b)}${rm(b)}</span></div>`).join('')}
+          ${two ? `<button class="btn line sm vs-flip" data-act="vs-flip">${ICON.arrowR}Swap sides</button>` : ''}
+          ${m.slot ? addSlot() : ''}</div>`;
+      let i = 0, lastG = '';
+      const spine = vis.map((r) => {
+        const g = r.g !== lastG ? `<div class="vs-g"><span>${r.g}</span></div>` : '';
+        lastG = r.g;
+        const v = (k) => `<div class="v ${k ? 'r' : 'l'}${w[ps[k].id + ':' + r.k] ? ' won' : ''}">${r.cells[k]}${winTag(w, ps[k].id, r.k)}</div>`;
+        return `${g}<div class="vs-row ${cellCls(r, i++)}">${v(0)}<div class="k${r.d ? ' dl' : ''}"><b>${r.l}</b>${r.sub ? `<small>${r.sub}</small>` : ''}</div>${two ? v(1) : ''}</div>`;
+      }).join('');
+      const maxN = Math.max(...ps.map((p) => p.nights));
+      const lane = (p, k) => {
+        let n = 0;
+        const blocks = p.plan.map(([pl, c, h], j) => { const st = n + 1; n += c; return `<div class="nb" style="grid-column:${st} / span ${c};--j:${j + k * 4}"><b>${esc(pl)}</b><small>${c} night${c > 1 ? 's' : ''} · ${esc(h)}</small></div>`; }).join('');
+        return `<div class="vs-lane" role="listitem" aria-label="${esc(p.name)}" style="--n:${maxN}"><span class="ln"><span class="ph"><img src="${p.img}" alt=""></span>${esc(p.places[0])}<small>${p.nights}N</small></span><div class="tr">${blocks}${n < maxN ? `<div class="nb home" style="grid-column:${n + 1} / span ${maxN - n}"><small>Home ${maxN - n} night${maxN - n > 1 ? 's' : ''} earlier</small></div>` : ''}</div></div>`;
+      };
+      return `<div class="cmp cmpD">${head(m, two ? `${esc(L.places[0])} <span class="vs-v">vs</span> ${esc(R.places[0])}` : 'Compare trips')}
+        <div class="wrap">
+          ${stage}
+          <div class="vs-lean" aria-live="polite">${leanBar(ps, split)}</div>
+          ${benchHtml}
+          ${two ? '' : empty1(m)}
+          <div class="cmpC-h"><h2>Fact by fact</h2>${two ? `<span class="fine">${nd} of ${ROWS.length} facts differ</span>` : ''}${key}</div>
+          <div class="vs-spine${two ? '' : ' one'}">
+            <div class="vs-heads"><span class="l">${esc(L.name)}</span><span class="k" aria-hidden="true">vs</span>${two ? `<span class="r">${esc(R.name)}</span>` : ''}</div>
+            ${spine}
+            <div class="vs-row act"><div class="v l">${ctas(L, '')}</div><div class="k"><b>Ready?</b><small>Holds your seats for 15 min</small></div>${two ? `<div class="v r">${ctas(R, '')}</div>` : ''}</div>
+          </div>
+          <div class="cmpC-h"><h2>Night by night</h2><span class="fine">Where you sleep each night</span></div>
+          <div class="vs-tl" role="list" style="--n:${maxN}">
+            <div class="vs-nights" aria-hidden="true"><span></span><div class="tr">${Array.from({ length: maxN }, (_, k) => `<span>Night ${k + 1}</span>`).join('')}</div></div>
+            ${ps.map(lane).join('')}
+          </div>
+        </div></div>`;
+    },
+    mount(s, rr) {
+      mountAll(s, rr);
+      const base = s.onclick;
+      s.onclick = (e) => {
+        const b = e.target.closest('[data-act]');
+        if (b && b.dataset.act === 'vs-swap') { vs[+b.dataset.k] = b.dataset.id; flash = true; rr(); return; }
+        if (b && b.dataset.act === 'vs-flip') { vs.reverse(); split = 100 - split; rr(); return; }
+        if (base) base(e);
+      };
+      const st = s.querySelector('.vs-stage'), dv = s.querySelector('.vs-div');
+      if (!st || !dv) return;
+      const ps = vs.map(PZ), lean = s.querySelector('.vs-lean');
+      let lastK = leanOf(split);
+      const set = (l) => {
+        split = Math.round(Math.max(15, Math.min(85, l)));
+        st.style.setProperty('--l', split);
+        const k = leanOf(split);
+        dv.setAttribute('aria-valuenow', split);
+        dv.setAttribute('aria-valuetext', k < 0 ? 'Even' : 'Leaning ' + ps[k].name);
+        st.classList.toggle('lean-l', k === 0); st.classList.toggle('lean-r', k === 1);
+        if (k !== lastK) { lastK = k; lean.innerHTML = leanBar(ps, split); lean.classList.remove('in'); void lean.offsetWidth; lean.classList.add('in'); }
+      };
+      const stop = () => { if (st.classList.contains('intro')) { st.classList.remove('intro'); nudged = true; } };
+      if (st.classList.contains('intro')) { if (reduce()) stop(); else setTimeout(stop, 2200); }
+      set(split);
+      const at = (e) => { const r = st.getBoundingClientRect(); return ((e.clientX - r.left) / r.width) * 100; };
+      let drag = false;
+      st.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button, a') || e.button > 0) return;
+        drag = true; stop(); st.classList.add('drag'); st.setPointerCapture(e.pointerId); set(at(e));
+      });
+      st.addEventListener('pointermove', (e) => { if (drag) set(at(e)); });
+      const end = () => { drag = false; st.classList.remove('drag'); };
+      st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
+      dv.addEventListener('keydown', (e) => {
+        const d = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5 }[e.key];
+        if (d != null) { e.preventDefault(); stop(); set(split + d); }
+        else if (e.key === 'Home') { e.preventDefault(); set(15); } else if (e.key === 'End') { e.preventDefault(); set(85); }
+      });
+    },
+  };
+
+  /* ================= E · Your ranking ================= */
+  const FAC = [
+    { k: 'price', l: 'Low price', c: 'var(--pri)', f: (p) => now(p), inv: true, why: (p) => `from ${inr(now(p))}` },
+    { k: 'comfort', l: 'Comfort', c: 'var(--act)', f: (p) => p.comfort, why: (p) => p.cB },
+    { k: 'adv', l: 'Adventure', c: 'var(--warn)', f: (p) => p.adv, why: (p) => p.aB },
+    { k: 'len', l: 'More days', c: 'var(--ok)', f: (p) => p.nights, why: (p) => `${p.nights} nights, ${p.places.length} places` },
+    { k: 'rating', l: 'Reviews', c: '#6B3FA0', f: (p) => p.rating, why: (p) => `${p.rating.toFixed(1)} from ${p.reviews} travellers` },
+  ];
+  const LEVEL = ['Ignore', 'A little', 'Matters', 'A lot', 'Top priority'];
+  const PRESETS = [
+    { id: 'budget', l: 'Weekend on a budget', w: { price: 4, comfort: 1, adv: 2, len: 0, rating: 2 } },
+    { id: 'comfort', l: 'Comfort first', w: { price: 1, comfort: 4, adv: 0, len: 2, rating: 3 } },
+    { id: 'adv', l: 'Big adventure', w: { price: 1, comfort: 0, adv: 4, len: 3, rating: 2 } },
+  ];
+  const wt = { price: 3, comfort: 2, adv: 2, len: 1, rating: 2 };
+  const openFacts = {};
+  const RANGE = {};
+  const rangeOf = (f) => {
+    if (!RANGE[f.k]) { const v = Object.keys(TS.PKGS).map((id) => f.f(PZ(id))); RANGE[f.k] = [Math.min(...v), Math.max(...v)]; }
+    return RANGE[f.k];
+  };
+  const normF = (f, p) => { const [a, b] = rangeOf(f); const x = b === a ? 1 : (f.f(p) - a) / (b - a); return f.inv ? 1 - x : x; };
+  const scoreOf = (p) => {
+    const tot = FAC.reduce((s, f) => s + wt[f.k], 0);
+    const parts = FAC.map((f) => ({ f, n: normF(f, p), pts: tot ? (wt[f.k] * normF(f, p) / tot) * 100 : 0 }));
+    return { tot, parts, score: Math.round(parts.reduce((s, x) => s + x.pts, 0)) };
+  };
+  const ranked = () => ids.map(PZ).map((p) => Object.assign(p, { sc: scoreOf(p) })).sort((a, b) => b.sc.score - a.sc.score || now(a) - now(b));
+  const wq = () => '&w=' + FAC.map((f) => wt[f.k]).join('');
+  const liveHtml = (p, rank, n) => {
+    const { tot, parts, score } = p.sc;
+    const strong = parts.filter((x) => wt[x.f.k] > 0 && x.n >= 0.6).sort((a, b) => b.pts - a.pts).slice(0, 2);
+    return `<div class="sc-top"><span class="sc-rank num">${rank}</span><span class="sc-rk">${rank === 1 && n > 1 ? 'Best match for you' : `of ${n}`}</span>
+        <span class="sc-score"><b class="num">${tot ? score : '–'}</b><small>/ 100 match</small></span></div>
+      <div class="sc-bar" role="img" aria-label="${tot ? `Match ${score} out of 100: ${parts.filter((x) => x.pts >= 1).map((x) => `${x.f.l} ${Math.round(x.pts)}`).join(', ')}` : 'No weights set'}">${parts.map((x) => `<i style="width:${x.pts.toFixed(1)}%;background:${x.f.c}"></i>`).join('')}</div>
+      <p class="sc-why">${tot ? (strong.length ? `Strong on ${strong.map((x) => `<b>${x.f.l.toLowerCase()}</b> (${esc(x.f.why(p))})`).join(' and ')}.` : 'No standout on what you picked; it sits mid-table on every count.') : 'Move a slider to rank the trips.'}</p>`;
+  };
+  const E = {
+    id: 'E', name: 'Your ranking',
+    note: 'The traveller tells the page what matters: five sliders for low price, comfort, adventure, more days and reviews, or one of three presets (Weekend on a budget, Comfort first, Big adventure). Each trip gets a match score out of 100 with a coloured bar showing where its points came from and a plain line on why, and the ranked tickets slide into their new order live as the sliders move. The weights ride in the share link. Every ticket keeps the photo, ♡, ×, price, next three departures, leader and Book/Enquire, and opens to the full fact list with differing rows tinted. On a phone the sliders sit in a compact panel above the list and each ticket stacks the photo over its facts, with fact labels in a pinned left column.',
+    tradeoff: 'Answers "which one suits me" directly, but the comfort and adventure scores are Tripsmith\'s own ratings, so each ticket has to show what they are based on.',
+    render() {
+      const m = model(), rk = ranked(), n = rk.length;
+      const hd = head(m, n > 1 ? 'Rank these trips your way' : 'Compare trips').replace(esc(url()), esc(url() + wq()));
+      const sliders = FAC.map((f) => `<label class="sc-sl" style="--c:${f.c}"><span class="t"><i aria-hidden="true"></i>${f.l}<output class="lv">${LEVEL[wt[f.k]]}</output></span>
+          <input type="range" min="0" max="4" step="1" value="${wt[f.k]}" data-f="${f.k}" aria-valuetext="${LEVEL[wt[f.k]]}" style="--v:${wt[f.k] * 25}%"></label>`).join('');
+      const presetOn = (p) => FAC.every((f) => p.w[f.k] === wt[f.k]);
+      const tickets = rk.map((p, j) => {
+        const fr = m.vis.map((r) => `<div class="${cellCls(r)}"><dt>${r.l}</dt><dd>${r.h(p)}${winTag(m.w, p.id, r.k)}</dd></div>`).join('');
+        return `<article class="sc-t${j === 0 && n > 1 ? ' first' : ''}" data-id="${p.id}" aria-label="${esc(p.name)}">
+          <div class="ph"><img src="${p.img}" alt="${esc(p.alt)}"><div class="ov">${heart(p)}${rm(p)}</div><span class="badge new sc-dest">${esc(p.dest)} · ${p.nights}N</span></div>
+          <div class="sc-b">
+            <div class="sc-live">${liveHtml(p, j + 1, n)}</div>
+            <h3>${esc(p.name)}</h3>
+            <p class="cmp-route">${p.places.map(esc).join(`<i aria-hidden="true">→</i>`)}</p>
+            <div class="sc-row"><div>${priceCell(p)}</div><div class="sc-ld">${leaderCell(p)}${ratingCell(p)}</div></div>
+            <div class="sc-deps"><span class="eyebrow">Next departures</span>${depsCell(p)}</div>
+            ${ctas(p, '')}
+            <details class="sc-facts" data-id="${p.id}"${openFacts[p.id] ? ' open' : ''}><summary>${ICON.chevD}All ${diffOnly && n > 1 ? m.vis.length : ROWS.length} facts${n > 1 ? ` · ${m.nd} differ` : ''}</summary><dl>${fr}</dl></details>
+          </div></article>`;
+      }).join('');
+      return `<div class="cmp cmpE">${hd}
+        <div class="wrap">${empty1(m)}
+          <div class="sc-grid">
+            <aside class="sc-panel" aria-label="What matters to you">
+              <h2>What matters to you?</h2><p class="fine">Drag to weigh each one. The list re-ranks as you go.</p>
+              <div class="sc-pre" role="group" aria-label="Presets">${PRESETS.map((p) => `<button data-act="sc-pre" data-p="${p.id}" aria-pressed="${presetOn(p)}">${p.l}</button>`).join('')}</div>
+              <div class="sc-sls">${sliders}</div>
+              <p class="sc-note">${ICON.info}<span>Comfort and adventure are Tripsmith ratings out of 5, set per trip by the ops team. Each ticket says what they are based on.</span></p>
+            </aside>
+            <div class="sc-main"><div class="cmp-meta">${key}<span class="cmp-hint">Weights travel with the share link.</span></div>
+              <div class="sc-list">${tickets}</div>
+              ${m.slot ? `<div class="sc-add">${addSlot()}</div>` : ''}
+            </div>
+          </div>
+        </div></div>`;
+    },
+    mount(s, rr) {
+      mountAll(s, rr);
+      const list = s.querySelector('.sc-list'), inp = s.querySelector('#cmp-url');
+      if (!list) return;
+      s.querySelectorAll('.sc-facts').forEach((d) => d.addEventListener('toggle', () => { openFacts[d.dataset.id] = d.open; }));
+      const update = () => {
+        const rk = ranked(), n = rk.length;
+        const before = new Map([...list.children].map((c) => [c.dataset.id, c.getBoundingClientRect().top]));
+        rk.forEach((p, j) => {
+          const t = list.querySelector(`.sc-t[data-id="${p.id}"]`);
+          t.querySelector('.sc-live').innerHTML = liveHtml(p, j + 1, n);
+          t.classList.toggle('first', j === 0 && n > 1);
+          list.appendChild(t);
+        });
+        if (!reduce()) [...list.children].forEach((t) => {
+          const dy = before.get(t.dataset.id) - t.getBoundingClientRect().top;
+          if (!dy) return;
+          t.style.transition = 'none'; t.style.transform = `translateY(${dy}px)`;
+          requestAnimationFrame(() => requestAnimationFrame(() => { t.style.transition = ''; t.style.transform = ''; }));
+        });
+        if (inp) inp.value = url() + wq();
+        s.querySelectorAll('.sc-sl input').forEach((r) => {
+          r.value = wt[r.dataset.f]; r.style.setProperty('--v', wt[r.dataset.f] * 25 + '%');
+          r.setAttribute('aria-valuetext', LEVEL[wt[r.dataset.f]]);
+          r.closest('.sc-sl').querySelector('.lv').textContent = LEVEL[wt[r.dataset.f]];
+        });
+        s.querySelectorAll('[data-act="sc-pre"]').forEach((b) => { const p = PRESETS.find((x) => x.id === b.dataset.p); b.setAttribute('aria-pressed', FAC.every((f) => p.w[f.k] === wt[f.k])); });
+      };
+      s.querySelector('.sc-sls').addEventListener('input', (e) => { const r = e.target.closest('input[data-f]'); if (!r) return; wt[r.dataset.f] = +r.value; update(); });
+      const base = s.onclick;
+      s.onclick = (e) => {
+        const b = e.target.closest('[data-act="sc-pre"]');
+        if (b) { Object.assign(wt, PRESETS.find((x) => x.id === b.dataset.p).w); update(); return; }
+        if (base) base(e);
+      };
+    },
+  };
+
   /* ---------- interactions (one delegated handler; re-assigned each render so it never stacks) ---------- */
   const reduce = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } };
   async function copyLink(s, btn) {
@@ -412,7 +661,7 @@
   .rail > .top p { font-weight: 800; font-size: 15px; color: var(--ink); }
   .rail > .end { border-top: 0; }
   .cmp-dots { display: none; justify-content: center; gap: 8px; margin-top: 14px; }
-  .cmp-dots button { width: 10px; height: 10px; border-radius: 999px; border: 0; background: #C9CFD5; padding: 0; cursor: pointer; transition: width .3s var(--ease), background .3s; }
+  .cmp-dots button { width: 10px; height: 10px; border-radius: 999px; border: 0; background: #C9CFD5; padding: 0; cursor: pointer; transition: background .3s; }
   .cmp-dots button[aria-pressed="true"] { width: 26px; background: var(--pri); }
 
   /* ---------- C ---------- */
@@ -424,7 +673,7 @@
   .vc h3 { font-size: 20px; margin-top: 4px; }
   .vc .tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .vc .tags .ic { width: 12px; height: 12px; }
-  .vc .why { font-size: 15.5px; line-height: 1.45; font-weight: 600; border-left: 3px solid var(--act); padding-left: 12px; }
+  .vc .why { font-size: 15.5px; line-height: 1.45; font-weight: 600; background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; }
   .vc .why span { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-weight: 800; margin-bottom: 2px; }
   .vc .foot { display: flex; justify-content: space-between; align-items: end; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
   .vc .foot small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; }
@@ -453,6 +702,144 @@
   .cmpC-same > div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
   .cmpC-same dt { font-weight: 700; font-size: 14px; color: var(--ink2); }
   .cmpC-same dd { margin: 0; font-size: 14px; }
+
+  /* ---------- D · head to head ---------- */
+  @property --l { syntax: '<number>'; inherits: true; initial-value: 50; }
+  .vs-v { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--act); color: var(--ink); font-size: .55em; vertical-align: .35em; margin: 0 .15em; letter-spacing: 0; }
+  .vs-stage { --l: 50; position: relative; height: clamp(360px, 44cqi, 520px); border-radius: 22px; overflow: hidden; background: #14202A; touch-action: pan-y; user-select: none; cursor: ew-resize; isolation: isolate; box-shadow: 0 40px 70px -50px rgba(20,32,42,.7); }
+  .vs-stage.one { cursor: default; }
+  .vs-side { position: absolute; inset: 0; }
+  .vs-side img { transform: scale(1.08) translateX(calc((var(--l) - 50) * .08%)); transition: transform .6s var(--ease), filter .4s; }
+  .vs-side.l { clip-path: inset(0 calc(100% - var(--l) * 1%) 0 0); z-index: 1; }
+  .vs-stage.lean-r .vs-side.l img, .vs-stage.lean-l .vs-side.r img { filter: saturate(.55) brightness(.8); }
+  .vs-shade { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(180deg, rgba(10,18,28,.15) 0%, rgba(10,18,28,0) 35%, rgba(10,18,28,.78) 100%); }
+  .vs-cap { position: absolute; bottom: 0; z-index: 3; padding: 24px 28px; color: #fff; display: grid; gap: 6px; max-width: 44%; transition: opacity .3s, transform .5s var(--ease); }
+  .vs-cap.l { left: 0; justify-items: start; opacity: clamp(0, (var(--l) - 28) / 16, 1); transform: translateX(calc((var(--l) - 50) * .4px)); }
+  .vs-cap.r { right: 0; text-align: right; justify-items: end; opacity: clamp(0, (72 - var(--l)) / 16, 1); transform: translateX(calc((var(--l) - 50) * .4px)); }
+  .vs-stage.one .vs-cap.l { opacity: 1; transform: none; max-width: 60%; }
+  .vs-cap .eyebrow { color: rgba(255,255,255,.8); }
+  .vs-cap h2 { font-size: clamp(24px, 2.8cqi, 36px); line-height: 1.05; letter-spacing: -.02em; color: #fff; }
+  .vs-pr { display: flex; gap: 6px; align-items: baseline; }
+  .vs-pr b { font-size: 26px; font-weight: 800; letter-spacing: -.03em; } .vs-pr small { font-size: 12.5px; opacity: .8; font-weight: 600; }
+  .vs-cap .stars b { color: #fff; }
+  .vs-cap .ov { position: static; margin-bottom: 4px; }
+  .vs-cap-cta { margin-top: 6px; } .vs-cap-cta .btn.line { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.45); backdrop-filter: blur(6px); }
+  .vs-div { position: absolute; top: 0; bottom: 0; left: calc(var(--l) * 1%); width: 44px; margin-left: -22px; z-index: 4; display: grid; place-items: center; cursor: ew-resize; outline: none; }
+  .vs-div::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 18px rgba(0,0,0,.35); }
+  .vs-knob { position: relative; width: 54px; height: 54px; border-radius: 50%; background: var(--act); color: var(--ink); display: grid; place-items: center; font: 800 16px "DM Sans", sans-serif; letter-spacing: .02em; box-shadow: 0 0 0 4px #fff, 0 12px 26px -8px rgba(0,0,0,.55); transition: transform .3s var(--ease); }
+  .vs-knob::before, .vs-knob::after { content: ""; position: absolute; top: 50%; margin-top: -5px; border: 5px solid transparent; }
+  .vs-knob::before { left: -20px; border-right-color: #fff; } .vs-knob::after { right: -20px; border-left-color: #fff; }
+  .vs-stage.drag .vs-knob, .vs-div:hover .vs-knob { transform: scale(1.1); }
+  .vs-div:focus-visible .vs-knob { box-shadow: 0 0 0 4px #fff, 0 0 0 8px var(--pri); }
+  .vs-stage.intro { animation: vsNudge 2s var(--ease) .5s both; }
+  @keyframes vsNudge { 0% { --l: 50; } 30% { --l: 62; } 62% { --l: 40; } 100% { --l: 50; } }
+  .vs-lean { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin: 14px 0 0; padding: 14px 18px; border-radius: 16px; border: 1.5px solid var(--line); background: #fff; min-height: 70px; }
+  .vs-lean.in { animation: cmpIn .45s var(--ease); }
+  .vs-lean-t { display: grid; gap: 2px; font-size: 14.5px; }
+  .vs-lean-t b { font-size: 17px; } .vs-lean-t small { color: var(--mute); font-weight: 600; font-size: 12.5px; }
+  .vs-lean:has(.cmp-cta) { border-color: var(--act); box-shadow: inset 4px 0 0 var(--act); }
+  .vs-lean .cmp-cta { min-width: 240px; }
+  .vs-bench { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .vs-bench > .eyebrow { flex-basis: 100%; }
+  .vs-chip { display: flex; align-items: center; gap: 10px; border: 1.5px solid var(--line); border-radius: 14px; padding: 6px 8px 6px 6px; background: var(--bg2); flex: 1 1 420px; min-width: 0; }
+  .vs-chip .ph { width: 64px; height: 48px; border-radius: 10px; flex: none; }
+  .vs-chip .t { flex: 1; min-width: 0; } .vs-chip b { display: block; font-size: 14px; } .vs-chip small { font-size: 12px; color: var(--mute); font-weight: 600; }
+  .vs-chip-b { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .vs-chip .cmp-heart, .vs-chip .cmp-x { width: 30px; height: 30px; box-shadow: none; border: 1.5px solid var(--line); }
+  .vs-flip .ic { width: 15px; height: 15px; }
+  .vs-bench .cmp-add { flex: 1 1 300px; }
+  .vs-spine { border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+  .vs-heads, .vs-row { display: grid; grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr); }
+  .vs-spine.one .vs-heads, .vs-spine.one .vs-row { grid-template-columns: 210px minmax(0, 1fr); }
+  .vs-heads { position: sticky; top: var(--cmp-top, 0px); z-index: 3; background: #14202A; color: #fff; border-radius: 17px 17px 0 0; font-weight: 800; font-size: 14.5px; }
+  .vs-heads > * { padding: 12px 18px; } .vs-heads .l { text-align: right; } .vs-heads .k { text-align: center; color: var(--act); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; align-self: center; }
+  .vs-spine.one .vs-heads .l, .vs-spine.one .vs-row .v.l { order: 2; }
+  .vs-spine.one .vs-heads .l { text-align: left; }
+  .vs-g { padding: 20px 18px 6px; text-align: center; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--pri); font-weight: 800; border-top: 1px solid var(--line); }
+  .vs-row { border-top: 1px solid var(--line); }
+  .vs-row > * { padding: 14px 18px; font-size: 14px; }
+  .vs-row .k { text-align: center; background: var(--bg2); display: grid; align-content: start; gap: 2px; }
+  .vs-row .k b { font-size: 13.5px; } .vs-row .k small { font-size: 11.5px; color: var(--mute); font-weight: 600; line-height: 1.35; }
+  .vs-row .k.dl { box-shadow: inset 0 3px 0 var(--act); }
+  .vs-row .v.l { display: grid; justify-items: end; text-align: right; align-content: start; }
+  .vs-row .v.l .cmp-route, .vs-row .v.l .cmp-inc, .vs-row .v.l .cmp-ld, .vs-row .v.l .cmp-deps li { justify-content: flex-end; }
+  .vs-row .v.l .cmp-inc { flex-direction: row-reverse; }
+  .vs-row .v.l .cmp-li li { padding: 0 16px 0 0; } .vs-row .v.l .cmp-li li::before { left: auto; right: 2px; }
+  .vs-row .v.l .cmp-price, .vs-row .v.l .cmp-rt { justify-items: end; }
+  .vs-row .v.won { box-shadow: inset 0 -3px 0 var(--ok); }
+  .vs-spine.one .vs-row .v.l { justify-items: start; text-align: left; }
+  .vs-row.act .v { display: block; }
+  .vs-tl { display: grid; gap: 10px; }
+  .vs-nights, .vs-lane { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .vs-tl .tr { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; }
+  .vs-nights .tr span { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); padding-left: 4px; white-space: nowrap; overflow: hidden; }
+  .vs-lane .ln { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14px; }
+  .vs-lane .ln small { color: var(--mute); font-weight: 700; font-size: 12px; margin-left: auto; }
+  .vs-lane .ln .ph { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+  .nb { border-radius: 12px; padding: 12px 14px; background: var(--pri); color: #fff; display: grid; gap: 2px; min-width: 0; transform-origin: left; animation: vsGrow .7s var(--ease) backwards; animation-delay: calc(var(--j, 0) * 90ms + 150ms); }
+  .vs-lane:nth-child(3) .nb:not(.home) { background: var(--act); color: var(--ink); }
+  .nb:nth-child(even):not(.home) { filter: brightness(1.12); }
+  .nb b { font-size: 14px; } .nb small { font-size: 12px; font-weight: 600; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nb.home { background: repeating-linear-gradient(135deg, transparent 0 8px, #EEF1F5 8px 16px); color: var(--mute); border: 1.5px dashed #C9CFD5; align-content: center; animation: none; }
+  @keyframes vsGrow { from { transform: scaleX(0); opacity: 0; } }
+
+  /* ---------- E · your ranking ---------- */
+  .sc-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 8px; }
+  .sc-panel { position: sticky; top: calc(var(--cmp-top, 0px) + 16px); border-radius: 20px; background: #14202A; color: #fff; padding: 22px 20px; display: grid; gap: 14px; box-shadow: 0 40px 70px -50px rgba(20,32,42,.8); }
+  .sc-panel h2 { font-size: 22px; color: #fff; letter-spacing: -.02em; }
+  .sc-panel .fine { color: #B7C0C8; margin-top: -8px; }
+  .sc-pre { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sc-pre button { border: 1.5px solid rgba(255,255,255,.25); background: transparent; color: #fff; border-radius: 999px; padding: 6px 11px; font: 700 12.5px "DM Sans", sans-serif; cursor: pointer; transition: background .25s, border-color .25s; }
+  .sc-pre button:hover { border-color: #fff; }
+  .sc-pre button[aria-pressed="true"] { background: var(--act); border-color: var(--act); color: var(--ink); }
+  .sc-sls { display: grid; gap: 14px; }
+  .sc-sl { display: grid; gap: 6px; min-width: 0; }
+  .sc-sl .t { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+  .sc-sl .t i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+  .sc-sl .lv { margin-left: auto; font-size: 12px; color: #B7C0C8; font-weight: 700; }
+  .sc-sl input { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 999px; margin: 6px 0; cursor: pointer; background: linear-gradient(90deg, var(--c) var(--v), rgba(255,255,255,.18) var(--v)); }
+  .sc-sl input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 4px solid var(--c); box-shadow: 0 4px 10px rgba(0,0,0,.4); transition: transform .2s var(--ease); }
+  .sc-sl input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 4px solid var(--c); }
+  .sc-sl input:active::-webkit-slider-thumb { transform: scale(1.2); }
+  .sc-sl input:focus-visible { outline: 3px solid var(--act); outline-offset: 4px; }
+  .sc-note { display: flex; gap: 8px; font-size: 12px; line-height: 1.45; color: #B7C0C8; border-top: 1px solid rgba(255,255,255,.14); padding-top: 12px; }
+  .sc-note .ic { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+  .sc-list { display: grid; gap: 18px; }
+  .sc-t { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: #fff; box-shadow: 0 26px 50px -42px rgba(20,32,42,.45); transition: transform .6s var(--ease), box-shadow .4s, border-color .4s; }
+  .sc-t.first { border-color: var(--act); box-shadow: 0 0 0 2px var(--act), 0 30px 60px -40px rgba(242,169,59,.7); }
+  .sc-t > .ph { min-height: 100%; }
+  .sc-t > .ph img { transition: transform 1.2s var(--ease); } .sc-t:hover > .ph img { transform: scale(1.05); }
+  .sc-dest { position: absolute; left: 10px; bottom: 10px; }
+  .sc-b { padding: 18px 20px 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .sc-b h3 { font-size: 22px; letter-spacing: -.02em; }
+  .sc-top { display: flex; align-items: center; gap: 10px; }
+  .sc-rank { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--pri-soft); color: var(--pri); font-weight: 800; font-size: 20px; animation: cmpPop .5s var(--ease); }
+  .sc-t.first .sc-rank { background: var(--act); color: var(--ink); }
+  .sc-rk { font-size: 12.5px; font-weight: 800; color: var(--mute); text-transform: uppercase; letter-spacing: .08em; }
+  .sc-t.first .sc-rk { color: var(--act-ink); }
+  .sc-score { margin-left: auto; display: flex; align-items: baseline; gap: 4px; } .sc-score b { font-size: 30px; font-weight: 800; letter-spacing: -.04em; } .sc-score small { font-size: 12px; color: var(--mute); font-weight: 700; }
+  .sc-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: #EEF1F5; }
+  .sc-bar i { display: block; height: 100%; animation: vsGrow .8s var(--ease) backwards; transform-origin: left; }
+  .sc-why { font-size: 13.5px; color: var(--ink2); line-height: 1.45; }
+  .sc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .sc-ld { display: grid; gap: 8px; align-content: start; }
+  .sc-deps { display: grid; gap: 6px; }
+  .sc-facts { border-top: 1px solid var(--line); padding-top: 10px; }
+  .sc-facts summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 800; font-size: 13.5px; color: var(--pri); list-style: none; }
+  .sc-facts summary::-webkit-details-marker { display: none; }
+  .sc-facts summary .ic { width: 16px; height: 16px; transition: transform .3s var(--ease); }
+  .sc-facts[open] summary .ic { transform: rotate(180deg); }
+  .sc-facts dl { margin: 10px 0 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .sc-facts dl > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); border-top: 1px solid var(--line); }
+  .sc-facts dl > div:first-child { border-top: 0; }
+  .sc-facts dt { padding: 10px 12px; font-weight: 700; font-size: 13px; color: var(--ink2); background: var(--bg2); }
+  .sc-facts .dif dt { box-shadow: inset 3px 0 0 var(--act); background: color-mix(in srgb, var(--act) 16%, #fff); }
+  .sc-facts dd { margin: 0; padding: 10px 12px; font-size: 13.5px; min-width: 0; }
+  .sc-add { margin-top: 18px; max-width: 420px; }
+  @media (prefers-reduced-motion: reduce) {
+    .vs-stage.intro, .vs-lean.in, .nb, .sc-rank, .sc-bar i { animation: none; }
+    .vs-side img, .vs-cap, .sc-t, .sc-bar i, .sc-t > .ph img { transition: none; }
+  }
 
   /* ---------- phone ---------- */
   @container site (max-width: 700px) {
@@ -512,7 +899,59 @@
     .mxr > .mxc { scroll-snap-align: start; }
     .cmpC-same { grid-template-columns: 1fr; }
     .cmpC-same > div { grid-template-columns: 110px 1fr; }
+
+    /* D: shorter split, captions trimmed, labels above their two values, names pinned */
+    .vs-stage { height: 300px; border-radius: 16px; }
+    .vs-cap { padding: 14px; max-width: 48%; gap: 4px; }
+    .vs-cap h2 { font-size: 18px; }
+    .vs-cap .eyebrow { font-size: 10px; letter-spacing: .08em; }
+    .vs-pr b { font-size: 18px; } .vs-pr small, .vs-cap .stars, .vs-cap-cta { display: none; }
+    .vs-cap .cmp-heart, .vs-cap .cmp-x { width: 30px; height: 30px; }
+    .vs-knob { width: 44px; height: 44px; font-size: 14px; }
+    .vs-lean { padding: 12px 14px; } .vs-lean .cmp-cta { min-width: 0; width: 100%; grid-template-columns: 1fr 1fr; }
+    .vs-chip { flex-wrap: wrap; flex-basis: 100%; }
+    .vs-chip-b { width: 100%; justify-content: flex-start; }
+    .vs-heads, .vs-row { grid-template-columns: 1fr 1fr; }
+    .vs-spine.one .vs-heads, .vs-spine.one .vs-row { grid-template-columns: 1fr; }
+    .vs-heads { font-size: 13px; border-radius: 15px 15px 0 0; }
+    .vs-heads > * { padding: 10px 12px; } .vs-heads .l { text-align: left; } .vs-heads .k { display: none; }
+    .vs-row .k { grid-column: 1 / -1; grid-row: 1; text-align: left; padding: 8px 12px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .vs-row .k small { font-size: 11px; }
+    .vs-row > .v { padding: 12px; font-size: 13.5px; min-width: 0; }
+    .vs-row .v.l { justify-items: start; text-align: left; border-right: 1px solid var(--line); }
+    .vs-row .v.l .cmp-route, .vs-row .v.l .cmp-inc, .vs-row .v.l .cmp-ld, .vs-row .v.l .cmp-deps li { justify-content: flex-start; }
+    .vs-row .v.l .cmp-inc { flex-direction: row; }
+    .vs-row .v.l .cmp-li li { padding: 0 0 0 16px; } .vs-row .v.l .cmp-li li::before { right: auto; left: 2px; }
+    .vs-row .v.l .cmp-price, .vs-row .v.l .cmp-rt { justify-items: start; }
+    .vs-row .cmp-deps li { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .vs-row .cmp-deps .badge { white-space: normal; }
+    .vs-row .cmp-ld { flex-direction: column; align-items: flex-start; }
+    .vs-row.act .cmp-cta { grid-template-columns: 1fr; }
+    .vs-g { text-align: left; padding: 16px 12px 6px; }
+    .vs-nights, .vs-lane { grid-template-columns: 1fr; gap: 6px; }
+    .vs-nights > span { display: none; }
+    .vs-nights .tr span { font-size: 9.5px; letter-spacing: .04em; padding-left: 2px; }
+    .vs-tl .tr { gap: 4px; }
+    .nb { padding: 9px 8px; border-radius: 10px; } .nb b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .nb small { display: none; }
+    .nb.home small { display: block; font-size: 10.5px; white-space: normal; }
+
+    /* E: panel above, tickets stack */
+    .sc-grid { grid-template-columns: 1fr; gap: 16px; }
+    .sc-panel { position: static; padding: 18px 16px; gap: 12px; }
+    .sc-panel h2 { font-size: 19px; }
+    .sc-sls { grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    .sc-sl .t { font-size: 13px; flex-wrap: wrap; } .sc-sl .lv { margin-left: 18px; flex-basis: 100%; }
+    .sc-t { grid-template-columns: 1fr; border-radius: 16px; }
+    .sc-t > .ph { aspect-ratio: 16 / 9; min-height: 0; }
+    .sc-b { padding: 14px; }
+    .sc-b h3 { font-size: 19px; }
+    .sc-score b { font-size: 24px; }
+    .sc-row { grid-template-columns: 1fr; }
+    .sc-facts dl > div { grid-template-columns: 100px minmax(0, 1fr); }
+    .sc-facts dt { font-size: 12px; padding: 10px 8px 10px 10px; }
+    .sc-facts dd { font-size: 13px; padding: 10px; }
+    .sc-facts .cmp-deps li { flex-direction: column; align-items: flex-start; gap: 2px; }
   }`;
 
-  TS.register({ id: 'compare', label: 'Compare', group: 'v2.5 · customer', css, variants: [A, B, C] });
+  TS.register({ id: 'compare', label: 'Compare', group: 'v2.5 · customer', css, variants: [A, B, C, D, E] });
 })();

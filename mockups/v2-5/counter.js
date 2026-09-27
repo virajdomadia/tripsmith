@@ -1,6 +1,6 @@
 /* Counter booking (/admin/bookings/new, R56 · P18). Converting enquiry EQ-2291: Priya Nair phoned about Kerala.
    One shared booking state + one quote function (fares → deal → early-bird → coupon → manual; add-ons never discounted).
-   Three layouts: A desk two-pane · B call script · C wizard + receipt. "Now" = Sun 27 Sep 2026, 14:12 IST. */
+   Five layouts: A desk two-pane · B call script · C wizard + receipt · D quote sheet · E WhatsApp to booking. "Now" = Sun 27 Sep 2026, 14:12 IST. */
 (() => {
   const TS = window.TS;
   const { inr, esc, ICON } = TS;
@@ -394,6 +394,161 @@
   const cfin = () => cta(Q());
   SLOTS.cfin = cfin;
 
+  /* ---------- D · quote sheet: the quote is the form ---------- */
+  let DED = 'disc';
+  const DEDS = { cust: ['Bill to', secCust], trip: ['Trip and departure', secTrip], party: ['Party', secParty], disc: ['Discounts', secDisc], addons: ['Add-ons', secAddons], trav: ['Travellers', secTrav], settle: ['Settle', secSettle] };
+  const chanName = () => CHANNELS.find((c) => c[0] === S.chan)[1];
+  function dItems() {
+    const q = Q(), d = q.d, it = [];
+    const open = (ed) => DED === ed && !S.done;
+    const H = (t, cols) => it.push({ html: `<div class="ctr-ih"><span>${t}</span>${cols ? '<span class="c q">Qty</span><span class="c r">Rate</span><span class="c a">Amount</span>' : ''}</div>` });
+    const L = (ed, lab, sub, qty, rate, amt, cls) => it.push({ ed, html: `<button type="button" class="ctr-il ${cls || ''}${open(ed) ? ' sel' : ''}" data-act="dline" data-v="${ed}" aria-expanded="${open(ed)}"><span class="it"><b>${lab}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="c q num">${qty}</span><span class="c r num">${rate}</span><span class="c a num">${amt}</span></button>` });
+    const K = (ed, lab, val, sub, cls) => it.push({ ed, html: `<button type="button" class="ctr-il kv ${cls || ''}${open(ed) ? ' sel' : ''}" data-act="dline" data-v="${ed}" aria-expanded="${open(ed)}"><span class="k">${lab}</span><span class="it"><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>` });
+    const T = (lab, amt, cls, sub) => it.push({ html: `<div class="ctr-is ${cls || ''}"><span class="it"><b>${lab}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="c a num">${amt}</span></div>` });
+    const c = CUSTS.find((x) => x.id === S.cust);
+    H('Bill to');
+    K('cust', 'Customer', esc(custName() || 'Pick or create a customer'), S.cust ? `${esc(custPhone() || 'mobile needed')} · ${esc(custEmail() || 'email needed')}${c && c.trips.length ? ` · ${pl(c.trips.length, 'past trip', 'past trips')}` : ''} · GST state ${esc(q.state)}` : 'Search by phone, email or name', S.cust ? '' : 'gh');
+    K('trip', 'Trip', esc(PKG.name), `${d.date} · ${d.g ? 'guaranteed · ' : ''}${d.left} of ${d.total} seats left · counter sells until departure morning`);
+    H('Fares', true);
+    const aRate = S.ad === 1 ? inr(d.dbl + d.sup) : S.ad % 2 === 0 ? inr(d.dbl) : S.ad === 3 ? inr(d.tpl) : 'mixed';
+    L('party', pl(S.ad, 'Adult', 'Adults'), roomTxt(d, S.ad), S.ad, aRate, inr(q.adults));
+    if (S.ch) L('party', pl(S.ch, 'Child', 'Children'), '5–11 years, sharing', S.ch, inr(d.child), inr(q.kids));
+    else L('party', '+ Add a child', `Party is capped at ${d.left} on ${d.short}`, '', '', '', 'gh');
+    if (q.deal) L('disc', d.dealName, `${d.deal}% off fares · applies on its own`, '', `${d.deal}%`, `−${inr(q.deal)}`, 'neg');
+    if (q.eb) L('disc', 'Early bird', `Applies on its own · tier ends ${d.eb1}`, q.n, `−${inr(q.ebPer)}`, `−${inr(q.eb)}`, 'neg');
+    if (q.cp) L('disc', `Coupon ${COUPON.code}`, '3+ travellers', 1, '', `−${inr(q.cp)}`, 'neg');
+    else L('disc', '+ Coupon code', `${COUPON.code} is live for this trip (3+ travellers)`, '', '', '', 'gh');
+    if (q.man) L('disc', 'Manual discount', q.needReason ? 'Reason required: it prints on the invoice' : `“${esc(S.reason.trim())}”`, '', S.manMode === 'pct' ? `${esc(S.manV)}%` : '', `−${inr(q.man)}`, 'neg' + (q.needReason ? ' bad' : ''));
+    else L('disc', '+ Manual discount', '₹ or %, with a required reason · fares never below ₹1', '', '', '', 'gh');
+    T('Fares after discounts', inr(q.fareNet), 'sub');
+    H('Add-ons · never discounted', true);
+    q.add.forEach((a) => L('addons', a[0], a[1], '', '', inr(a[2])));
+    L('addons', q.add.length < 4 ? '+ Add an add-on' : 'Change add-ons', q.add.length < 4 ? `${4 - q.add.length} more for this trip` : 'All four are on', '', '', '', 'gh');
+    it.push({ html: `<div class="ctr-is tot"><span class="it"><b>Total</b><small>Includes ${gstTxt(q)} · SAC 998555</small></span><span class="c a num" data-total>${inr(q.total)}</span></div>` });
+    T('Deposit today · 25%', inr(q.deposit), 'dim', q.depOK ? '' : 'Closed: under 30 days to departure');
+    T(`Balance due ${d.due}`, inr(q.balance), 'dim');
+    H('Travellers');
+    const names = S.tn.slice(0, q.n).map((x) => (x || '').trim()).filter(Boolean);
+    K('trav', 'Names', S.trav === 'later' ? `${esc(firstName())} adds them later` : names.length ? esc(names.join(', ')) : 'No names yet', SECS[5][2]());
+    H('Payment');
+    K('settle', 'Settle', SECS[6][2](), `${S.settle === 'link' ? `${inr(payAmt(q))} Payment Link · seats held 24 h` : S.settle === 'paid' ? `${inr(q.total)} by ${S.method.toUpperCase()}` : `${inr(q.deposit)} now by ${S.method.toUpperCase()}, balance by ${d.due}`} · channel ${chanName()} · created by Viraj D.`);
+    return it;
+  }
+  function dl(part) {
+    const it = dItems();
+    let cut = it.length - 1;
+    if (DED && !S.done) it.forEach((x, i) => { if (x.ed === DED) cut = i; });
+    return (part ? it.slice(cut + 1) : it.slice(0, cut + 1)).map((x) => x.html).join('');
+  }
+  const dEd = () => {
+    if (!DED || S.done) return '';
+    const [t, fn] = DEDS[DED];
+    return `<div class="ctr-ied" role="region" aria-label="Edit ${t}"><div class="ctr-iedh"><span class="lab">${ICON.chevD}Editing · ${t}</span><small>The sheet re-prices as you type · <kbd>Esc</kbd> closes</small><button type="button" class="a-btn ghost sm" data-act="dline" data-v="">Done</button></div>${fn()}</div>`;
+  };
+  const dcta = () => {
+    const q = Q();
+    return `<div class="t"><small>Total · GST incl.</small><b class="num" data-total>${inr(q.total)}</b><small>${S.settle === 'paid' ? 'Paid in full now' : `Deposit ${inr(q.deposit)} · balance ${inr(q.balance)}`}</small></div><div class="go">${cta(q, true)}</div>`;
+  };
+  Object.assign(SLOTS, { dl0: () => dl(0), dl1: () => dl(1), dcta });
+  const D = {
+    id: 'D', name: 'Quote sheet',
+    note: 'The quote is the form. A spreadsheet-style quote sheet with numbered rows (bill to, trip, fares, the automatic deal and early bird, coupon, manual discount with its reason, add-ons, total with GST, deposit, travellers, payment); click any line, or arrow to it and press Enter, and its editor unfolds right under that line while every figure around it re-prices from the server. Empty lines such as “+ Coupon code” or “+ Add an add-on” are ghost rows you click to fill. A sticky bar carries the total and the send button; on sending, the sheet is stamped and the link or receipt card sits above it. On a phone the Qty and Rate columns fold into each line’s subtitle and the editor spans the full width.',
+    tradeoff: 'What you edit is exactly what the customer reads, so the form and the quote can never disagree, but a new staff member has to learn that lines are clickable, and only one group is open at a time.',
+    render() {
+      CURV = 'D';
+      const stamp = S.done ? `<span class="ctr-stamp ${S.done.kind === 'link' ? '' : 'ok'}">${S.done.kind === 'link' ? 'Link sent' : S.done.kind === 'paid' ? 'Paid' : 'Deposit paid'}</span>` : '';
+      const doc = `<article class="ctr-inv" aria-label="Quote sheet">${stamp}<header class="ctr-ivh"><div><span class="lab">Quote sheet</span><h2>${S.done ? REF : 'Q-2291'}<em>${S.done ? 'issued' : 'draft'}</em></h2><small>${esc(PKG.name)} · from enquiry EQ-2291 · 27 Sep 2026, 14:12 IST</small></div><span class="ctr-live">Server-priced</span></header>
+        <div data-slot="dl0">${dl(0)}</div>${dEd()}<div data-slot="dl1">${dl(1)}</div></article>`;
+      const tip = `<p class="ctr-ivtip">${ICON.info}<span>Every line is a cell: click one to change it. <kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>Enter</kbd> opens · <kbd>Esc</kbd> closes · <kbd>Ctrl ↵</kbd> sends.</span></p>`;
+      const body = S.done ? `<div class="ctr-dw">${doneCard()}${doc}</div>` : `${tip}${doc}<div class="ctr-ivf" data-slot="dcta">${dcta()}</div>`;
+      return TS.adminShell('Bookings', `<div class="ctr-bk ctr-d">${head('New booking · quote sheet', 'The quote is the form: click any line to change it, and the server re-prices the sheet')}${eqBanner()}${body}</div>`);
+    },
+  };
+
+  /* ---------- E · WhatsApp to booking ---------- */
+  let EED = null;
+  const tokOn = (k) => ({ d0: S.dep === 0, d1: S.dep === 1, party: S.ad === 2 && S.ch === 1, ac: S.ac, cp: S.couponOk, rep: Number(S.manV) > 0 && /goa/i.test(S.reason), adv: S.settle === 'link' && S.linkAmt === 'deposit' })[k];
+  const TOKL = { d0: 'Departure', d1: 'Departure', party: 'Party 2 + 1', ac: 'Add-on', cp: 'Coupon', rep: 'Manual discount', adv: 'Deposit link' };
+  const tok = (k, txt) => { const on = tokOn(k); return `<button type="button" class="ctr-tk${on ? ' on' : ''}" data-act="tok" data-v="${k}" aria-pressed="${on}">${txt}<span class="ctr-tkl">${on ? ICON.check : ICON.plus}${TOKL[k]}</span></button>`; };
+  const THREAD = () => [
+    ['in', '11:52', `Hi, this is Priya. I spoke to your team earlier about Munnar &amp; Alleppey. ${tok('d0', '13 Nov')} works best, or ${tok('d1', '18 Dec')} if November is full.`],
+    ['in', '11:53', `It's ${tok('party', 'me, my husband Arun and our daughter Diya')}. She is 8.`],
+    ['in', '11:54', `Can we get the ${tok('ac', 'AC room on the houseboat')}? Diya can't sleep in the heat.`],
+    ['out', '11:55', `Of course. The AC upgrade is ${inr(4500)} for the night. Would you like Kathakali seats or an extra night in Munnar too?`],
+    ['in', '11:56', `Just the AC. Is there a ${tok('cp', 'family offer')}? We ${tok('rep', 'went to Goa with you last year')}.`],
+    ['in', '11:57', `Please send the link. I'll pay ${tok('adv', 'the advance')} now and the rest later.`],
+  ];
+  const ADDN = { 'Houseboat AC upgrade': 'the AC houseboat room', 'Kathakali front-row seats': 'Kathakali front-row seats', 'Extra night in Munnar': 'an extra night in Munnar', 'Late-night airport pickup': 'a late-night airport pickup' };
+  function draftTxt(q) {
+    const d = q.d;
+    const join = (a) => (a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a[0]);
+    const discs = [q.deal ? `the ${d.dealName}` : '', q.eb ? 'the early-bird price' : '', q.cp ? `coupon ${COUPON.code}` : '', q.man ? `${inr(q.man)} off${/repeat|goa/i.test(S.reason) ? ' as a returning traveller' : ''}` : ''].filter(Boolean);
+    const party = `${pl(S.ad, 'adult', 'adults')}${S.ch ? ` + ${pl(S.ch, 'child', 'children')}` : ''}`;
+    const adds = q.add.length ? `, with ${join(q.add.map((a) => ADDN[a[0]]))}` : '';
+    const pay = S.settle === 'link'
+      ? (S.linkAmt === 'deposit' ? `Pay the ${inr(q.deposit)} advance on the link below to hold your ${pl(q.n, 'seat', 'seats')} for 24 hours; the ${inr(q.balance)} balance is due by ${d.due}.` : `Pay the full amount on the link below; it holds your ${pl(q.n, 'seat', 'seats')} for 24 hours.`)
+      : S.settle === 'paid' ? `Once your ${S.method === 'cash' ? 'cash payment' : S.method === 'upi' ? 'UPI payment' : 'bank transfer'} of ${inr(q.total)} is in, you are confirmed and the receipt comes by email.`
+      : `Pay the ${inr(q.deposit)} deposit today to confirm; the ${inr(q.balance)} balance is due by ${d.due}.`;
+    return `Hi ${esc(firstName())}, here is your quote for ${esc(PKG.name)} on ${d.date} for ${party}${adds}. ${discs.length ? `After ${join(discs)}, it` : 'It'} comes to <b>${inr(q.total)}</b>, GST included. ${pay}`;
+  }
+  function ethr() {
+    const q = Q();
+    let h = `<div class="ctr-day"><span>Today</span></div><p class="ctr-wtip">${ICON.info}Tap a highlighted phrase to apply or undo it.</p>` + THREAD().map(([w, t, x]) => `<div class="ctr-msg ${w}"><p>${x}</p><time>${t}${w === 'out' ? ' · Read' : ''}</time></div>`).join('');
+    if (S.done) {
+      h += `<div class="ctr-msg out new"><p>${draftTxt(q)}</p><time>14:12 · Delivered</time></div>`;
+      if (S.done.kind === 'link') {
+        const left = Math.max(0, S.done.at + 864e5 - Date.now());
+        h += `<div class="ctr-msg out new ctr-paym"><div class="pl">${ICON.link}<span><b>Tripsmith · pay ${inr(S.done.amount)}</b><small>${LINK.replace('https://', '')}</small></span></div><p class="exp">${pl(q.n, 'seat', 'seats')} held · link expires in <b class="num" data-cd>${cdFmt(left)}</b></p><time>14:12 · Delivered</time></div>
+          <div class="ctr-typing" role="status"><i></i><i></i><i></i><span>Priya is typing</span></div>`;
+      } else h += `<div class="ctr-msg out new ctr-paym"><div class="pl">${ICON.check}<span><b>Received ${inr(S.done.amount)} by ${S.method === 'upi' ? 'UPI' : S.method === 'bank' ? 'bank transfer' : 'cash'}</b><small>Receipt RC/2026-27/0148 attached · ${REF}</small></span></div><time>14:12 · Delivered</time></div>`;
+    }
+    return h;
+  }
+  function ecmp() {
+    const q = Q();
+    if (S.done) return `<div class="ctr-cmps">${ICON.check}<span>Sent on WhatsApp at 14:12 from Tripsmith Business · booking ${REF}</span><button type="button" class="a-btn ghost sm" data-act="edit">Back to the draft</button></div>`;
+    return `<div class="ctr-cmpd"><span class="lab">${ICON.chat}Reply written from the server quote</span><p>${draftTxt(q)}</p><span class="att">${ICON.file}Quote PDF${S.settle === 'link' ? ` · ${ICON.link}Payment Link ${inr(payAmt(q))}` : ''}</span></div><div class="ctr-cmpa">${cta(q, true)}</div>`;
+  }
+  function eSrc(i) {
+    const q = Q(), b = blockers(q), need = (re) => b.some((x) => re.test(x));
+    switch (i) {
+      case 0: return S.dep <= 1 ? ['chat', 'Chat 11:52'] : ['you', 'You set'];
+      case 1: return tokOn('party') ? ['chat', 'Chat 11:53'] : ['you', 'You set'];
+      case 2: return S.ac && !S.kath && !S.nights && !S.pick ? ['chat', 'Chat 11:54'] : ['you', 'You set'];
+      case 3: return q.needReason ? ['need', 'Needs a reason'] : q.cp || q.man ? ['chat', 'Chat 11:56'] : ['auto', 'Auto'];
+      case 4: return need(/customer/i) ? ['need', 'Needs you'] : S.cust === 'priya' ? ['chat', 'Matched by number'] : ['you', 'You set'];
+      case 5: return S.trav === 'later' ? ['you', 'Customer adds'] : tokOn('party') ? ['chat', 'Names 11:53'] : ['you', 'You set'];
+      default: return need(/reference|Deposit closes/) ? ['need', 'Needs you'] : tokOn('adv') ? ['chat', 'Chat 11:57'] : ['you', 'You set'];
+    }
+  }
+  function efl() {
+    const src = SECS.map((_, i) => eSrc(i));
+    const chat = src.filter((s) => s[0] === 'chat').length, need = src.filter((s) => s[0] === 'need').length;
+    return `<div class="ctr-xph"><h2>Booking draft</h2><span class="a-chip ok">${chat} of 7 from the chat</span>${need ? `<span class="a-chip warn">${need} need you</span>` : ''}</div>
+      <div class="ctr-xfs">${SECS.map(([t, , sum], i) => `<button type="button" class="ctr-xf${EED === i ? ' on' : ''}" data-act="efield" data-v="${i}" aria-expanded="${EED === i}"><span class="l">${t}</span><span class="v">${esc(sum())}</span><span class="src ${src[i][0]}">${src[i][1]}</span>${ICON.chevD}</button>`).join('')}</div>`;
+  }
+  const eEd = () => (EED === null || S.done ? '' : `<div class="ctr-xe" role="region" aria-label="Edit ${SECS[EED][0]}"><div class="ctr-iedh"><span class="lab">Edit · ${SECS[EED][0]}</span><button type="button" class="a-btn ghost sm" data-act="efield" data-v="${EED}">Done</button></div>${SECS[EED][1]()}</div>`);
+  const eq = () => {
+    const q = Q();
+    return `<div class="ctr-xq"><div class="h"><span class="lab">Live quote</span><span class="ctr-live">Server quote</span></div>
+      <dl><div><dt>Fares</dt><dd class="num">${inr(q.fares)}</dd></div><div><dt>Discounts</dt><dd class="num">−${inr(q.disc)}</dd></div><div><dt>Add-ons</dt><dd class="num">${inr(q.addT)}</dd></div></dl>
+      <div class="tot"><span>Total</span><b class="num" data-total>${inr(q.total)}</b></div>
+      <small>Includes ${gstTxt(q)} · deposit ${inr(q.deposit)} · balance ${inr(q.balance)} by ${q.d.due}</small><small>Channel ${chanName()} · created by Viraj D.</small></div>`;
+  };
+  Object.assign(SLOTS, { ethr, ecmp, efl, eq });
+  const E = {
+    id: 'E', name: 'WhatsApp to booking',
+    note: 'Built for the WhatsApp half of the desk: the customer’s thread sits on the left, and the phrases that map to booking fields (“13 Nov”, “me, my husband Arun and our daughter Diya”, “AC room on the houseboat”, “family offer”, “went to Goa with you last year”, “the advance”) are highlighted with what they set. Tap one to apply or undo it. The right rail is the booking draft: each of the seven fields shows where its value came from (chat, auto, you, or needs you) and opens its editor on tap, above the live server quote. The reply under the thread rewrites itself from the quote, and sending drops the message and the payment-link card into the thread with a live 24 h countdown. Extraction is plain phrase matching on dates, counts, add-on names and offer words, so it costs nothing per use. On a phone the thread runs first and the draft follows.',
+    tradeoff: 'Fastest when the customer is already typing and the reply is the deliverable, but it leans on the thread: a walk-in with no chat gets an empty left side and the rail does all the work.',
+    render() {
+      CURV = 'E';
+      const thread = `<section class="ctr-wat" aria-label="WhatsApp thread with Priya Nair"><header><span class="ctr-av">PN</span><span class="who"><b>Priya Nair</b><small>+91 98470 11234 · WhatsApp · customer since Nov 2024</small></span><span class="a-chip ok">${ICON.check}Known customer</span></header>
+        <div class="ctr-msgs" data-slot="ethr">${ethr()}</div><div class="ctr-cmp" data-slot="ecmp">${ecmp()}</div></section>`;
+      const side = S.done ? `<aside class="ctr-xp">${doneCard()}</aside>` : `<aside class="ctr-xp"><div class="a-card"><div data-slot="efl">${efl()}</div>${eEd()}<div data-slot="eq">${eq()}</div></div></aside>`;
+      return TS.adminShell('Bookings', `<div class="ctr-bk ctr-e">${head('New booking · from WhatsApp', 'Tap the highlighted words to fill the booking; the reply writes itself from the server quote')}${eqBanner()}<div class="ctr-ew">${thread}${side}</div></div>`);
+    },
+  };
+
   /* ---------- behaviour ---------- */
   const reduce = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } };
   function countTo(to) {
@@ -410,7 +565,7 @@
     };
     raf = requestAnimationFrame(step);
   }
-  const V = () => ({ A, B, C })[CURV];
+  const V = () => ({ A, B, C, D, E })[CURV];
   function focusKey(el) {
     if (!el || !el.dataset || !SITE.contains(el)) return null;
     if (el.dataset.in) return `[data-in="${el.dataset.in}"]${el.dataset.i != null ? `[data-i="${el.dataset.i}"]` : ''}${el.dataset.f ? `[data-f="${el.dataset.f}"]` : ''}`;
@@ -444,6 +599,19 @@
     if (c !== COUPON.code) S.couponMsg = `“${c}” isn't a live coupon for this trip.`;
     else if (S.ad + S.ch < COUPON.min) S.couponMsg = `${COUPON.code} needs 3 or more travellers.`;
     else { S.couponOk = true; S.coupon = c; }
+  }
+  function applyTok(k) {
+    const on = tokOn(k);
+    if (k === 'd0' || k === 'd1') { S.dep = k === 'd0' ? 0 : 1; clampParty(); if (S.couponOk) applyCoupon(); }
+    else if (k === 'party') {
+      if (!on) { S.ad = 2; S.ch = 1; clampParty(); }
+      S.trav = 'now';
+      ['Priya Nair', 'Arun Nair', 'Diya Nair'].forEach((x, i) => { if (!(S.tn[i] || '').trim()) { S.tn[i] = x; S.ta[i] = ['36', '38', '8'][i]; } });
+      if (S.couponOk || S.couponMsg) applyCoupon();
+    } else if (k === 'ac') S.ac = !S.ac;
+    else if (k === 'cp') { if (on) { S.couponOk = false; S.coupon = ''; S.couponMsg = ''; } else { S.coupon = COUPON.code; applyCoupon(); } }
+    else if (k === 'rep') { if (on) { S.manV = ''; S.reason = ''; } else { S.manMode = 'inr'; S.manV = '2000'; S.reason = 'Repeat customer, 2024 Goa trip'; } }
+    else if (k === 'adv') { if (on) S.linkAmt = 'full'; else { S.settle = 'link'; S.linkAmt = 'deposit'; } }
   }
   function go() {
     const q = Q();
@@ -486,6 +654,9 @@
       case 'cnext': S.cstep = Math.min(6, S.cstep + 1); break;
       case 'cprev': S.cstep = Math.max(0, S.cstep - 1); break;
       case 'copy': copyLink(b); return;
+      case 'dline': if (S.done) { S.done = null; DED = v || null; } else DED = !v || DED === v ? null : v; break;
+      case 'efield': EED = EED === +v ? null : +v; break;
+      case 'tok': applyTok(v); break;
       default: return;
     }
     e.preventDefault();
@@ -510,6 +681,19 @@
     const t = e.target;
     if (e.key === 'Enter' && t.dataset && t.dataset.in === 'coupon') { e.preventDefault(); applyCoupon(); draw(); return; }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (go()) draw(); return; }
+    if (e.key === 'Escape' && CURV === 'D' && DED) {
+      e.preventDefault(); const was = DED; DED = null; draw();
+      const r = SITE.querySelector(`.ctr-il[data-v="${was}"]`); if (r) r.focus({ preventScroll: true }); return;
+    }
+    if (e.key === 'Escape' && CURV === 'E' && EED !== null) {
+      e.preventDefault(); const was = EED; EED = null; draw();
+      const r = SITE.querySelector(`.ctr-xf[data-v="${was}"]`); if (r) r.focus({ preventScroll: true }); return;
+    }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && t.classList && t.classList.contains('ctr-il')) {
+      const all = [...SITE.querySelectorAll('.ctr-il')], i = all.indexOf(t) + (e.key === 'ArrowDown' ? 1 : -1);
+      if (all[i]) { e.preventDefault(); all[i].focus(); }
+      return;
+    }
     if (e.altKey && /^[1-7]$/.test(e.key) && SITE.querySelector('.ctr-b')) {
       const sec = SITE.querySelector(`[data-sec="${e.key}"]`);
       if (!sec) return;
@@ -522,10 +706,10 @@
   }
   function onTick() {
     if (!SITE || !SITE.querySelector('.ctr-bk')) { clearInterval(tick); tick = 0; return; }
-    const cd = SITE.querySelector('[data-cd]');
-    if (cd && S.done) {
+    const cds = SITE.querySelectorAll('[data-cd]');
+    if (cds.length && S.done) {
       const left = Math.max(0, S.done.at + 864e5 - Date.now());
-      cd.textContent = cdFmt(left);
+      cds.forEach((cd) => { cd.textContent = cdFmt(left); });
       const bar = SITE.querySelector('[data-cdbar]'); if (bar) bar.style.setProperty('--v', ((left / 864e5) * 100).toFixed(2) + '%');
     }
     const cl = SITE.querySelector('[data-call]');
@@ -538,7 +722,7 @@
     site.onclick = onClick; site.oninput = onInput; site.onkeydown = onKey;
     clearInterval(tick); tick = setInterval(onTick, 1000);
   }
-  A.mount = B.mount = C.mount = mount;
+  A.mount = B.mount = C.mount = D.mount = E.mount = mount;
 
   /* ---------- styles ---------- */
   const css = `
@@ -701,7 +885,7 @@
   .ctr-ledger > span { display: grid; } .ctr-ledger small { font-size: 11px; font-weight: 700; color: #9FB0BE; letter-spacing: .04em; }
   .ctr-ledger b { font-size: 15px; } .ctr-ledger i { font-style: normal; color: #6F8292; font-weight: 800; font-size: 18px; }
   .ctr-ledger .tot b { font-size: 24px; color: var(--act); letter-spacing: -.02em; }
-  .ctr-ledger .dep { padding-left: 14px; border-left: 1px solid #33485A; }
+  .ctr-ledger .dep { background: none; border: 0; border-left: 1px solid #33485A; border-radius: 0; box-shadow: none; cursor: default; padding: 0 0 0 14px; width: auto; display: grid; grid-template-columns: none; color: inherit; }
   .ctr-ledger .go { margin-left: auto; min-width: 260px; } .ctr-ledger .ctr-blk li { color: var(--act); }
   .ctr-ledger .ctr-tick { color: #fff; }
 
@@ -766,6 +950,112 @@
   .ctr-tl { margin-top: 4px; }
   .ctr-dact { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* D · quote sheet */
+  .ctr-ivtip { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--mute); margin: 0; }
+  .ctr-ivtip .ic { width: 15px; height: 15px; margin-top: 2px; flex: none; }
+  .ctr-ivtip kbd { margin: 0 1px; }
+  .ctr-inv { position: relative; background: var(--a-surf); border: 1px solid var(--a-line); border-radius: var(--a-r); overflow: hidden; counter-reset: r; box-shadow: 0 18px 40px -30px rgba(20,32,42,.35); min-width: 0; }
+  .ctr-ivh { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 2px solid var(--ink); }
+  .ctr-ivh > div { min-width: 0; }
+  .ctr-ivh h2 { font-size: 26px; letter-spacing: -.02em; margin-top: 2px !important; }
+  .ctr-ivh h2 em { font-style: normal; font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-left: 8px; vertical-align: middle; }
+  .ctr-ivh small { color: var(--mute); font-size: 12.5px; font-weight: 600; }
+  .ctr-ih, .ctr-il, .ctr-is { display: grid; grid-template-columns: 38px minmax(0, 1fr) 52px 100px 112px; gap: 0 12px; align-items: center; }
+  .ctr-ih { padding: 12px 20px 6px 0; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); border-bottom: 1px solid var(--a-line); background: color-mix(in srgb, var(--a-bg) 60%, var(--a-surf)); }
+  .ctr-ih > span:first-child { grid-column: 2; } .ctr-ih .c { text-align: right; }
+  .ctr-il, .ctr-is { width: 100%; padding: 9px 20px 9px 0; border: 0; border-bottom: 1px solid var(--a-line); background: none; font: inherit; color: inherit; text-align: left; counter-increment: r; position: relative; }
+  .ctr-il::before, .ctr-is::before { content: counter(r); font: 700 11px ui-monospace, "SF Mono", Consolas, monospace; color: var(--mute); display: grid; place-items: center; align-self: stretch; border-right: 1px solid var(--a-line); margin: -9px 0; }
+  .ctr-il { cursor: pointer; transition: background .15s, box-shadow .15s; }
+  .ctr-il:hover { background: color-mix(in srgb, var(--pri) 6%, transparent); }
+  .ctr-il:focus-visible { outline: 2px solid var(--pri); outline-offset: -2px; }
+  .ctr-il.sel { background: var(--pri-soft); box-shadow: inset 3px 0 0 var(--pri); }
+  .ctr-il.sel::before { color: var(--pri); font-weight: 800; }
+  .ctr-il .it, .ctr-is .it { min-width: 0; }
+  .ctr-il .it b, .ctr-is .it b { display: block; font-size: 14px; }
+  .ctr-il .it small, .ctr-is .it small { display: block; font-size: 12px; color: var(--mute); font-weight: 600; overflow-wrap: anywhere; }
+  .ctr-il .c, .ctr-is .c { text-align: right; font-size: 13.5px; white-space: nowrap; }
+  .ctr-il .a, .ctr-is .a { font-weight: 800; font-size: 14px; }
+  .ctr-is .it { grid-column: 2 / 5; }
+  .ctr-il.neg .a, .ctr-il.neg .r { color: var(--ok); }
+  .ctr-il.bad .it small { color: #B42318; font-weight: 700; }
+  .ctr-il.gh .it b { color: var(--pri); font-weight: 700; }
+  .ctr-il.kv { grid-template-columns: 38px 96px minmax(0, 1fr); }
+  .ctr-il.kv .k { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .ctr-is.sub { background: color-mix(in srgb, var(--a-bg) 50%, var(--a-surf)); } .ctr-is.sub .it b { font-weight: 800; }
+  .ctr-is.tot { border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); padding-top: 12px; padding-bottom: 12px; }
+  .ctr-is.tot .it b { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; } .ctr-is.tot .a { font-size: 28px; letter-spacing: -.03em; }
+  .ctr-is.dim .it b { font-weight: 600; color: var(--ink2); font-size: 13.5px; } .ctr-is.dim .a { font-weight: 700; }
+  .ctr-ied { margin-left: 38px; padding: 14px 20px 16px; border-bottom: 1px solid var(--a-line); border-left: 3px solid var(--pri); background: var(--a-surf); box-shadow: inset 0 12px 18px -18px rgba(20,32,42,.5); animation: ctr-drop .3s var(--ease); min-width: 0; }
+  @keyframes ctr-drop { from { opacity: 0; transform: translateY(-6px); } }
+  .ctr-iedh { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .ctr-iedh .lab { display: inline-flex; gap: 6px; align-items: center; color: var(--pri); }
+  .ctr-iedh small { font-size: 12px; color: var(--mute); flex: 1 1 200px; } .ctr-iedh .a-btn { margin-left: auto; }
+  .ctr-inv .ctr-stamp { top: 22px; right: 20px; background: var(--a-surf); }
+  .ctr-inv .ctr-live { margin-left: 0; flex: none; }
+  .ctr-ivf { position: sticky; bottom: 0; z-index: 4; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; background: var(--a-surf); border: 1px solid var(--a-line); border-radius: var(--a-r); padding: 10px 12px 10px 18px; box-shadow: 0 -12px 30px -18px rgba(20,32,42,.4); }
+  .ctr-ivf .t { display: grid; } .ctr-ivf .t small { font-size: 11.5px; color: var(--mute); font-weight: 700; } .ctr-ivf .t b { font-size: 24px; letter-spacing: -.02em; }
+  .ctr-ivf .go { margin-left: auto; min-width: 280px; flex: 0 1 380px; }
+  .ctr-dw { display: grid; gap: 16px; min-width: 0; }
+
+  /* E · WhatsApp to booking */
+  .ctr-ew { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 18px; align-items: start; }
+  .ctr-wat { background: var(--a-surf); border: 1px solid var(--a-line); border-radius: var(--a-r); overflow: hidden; display: grid; min-width: 0; }
+  .ctr-wat > header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--a-line); background: color-mix(in srgb, var(--wa) 10%, var(--a-surf)); }
+  .ctr-wat .who { flex: 1 1 200px; min-width: 0; } .ctr-wat .who b { display: block; } .ctr-wat .who small { font-size: 12px; color: var(--mute); font-weight: 600; }
+  .ctr-msgs { display: grid; gap: 8px; align-content: start; padding: 16px; background-color: var(--a-bg); background-image: radial-gradient(color-mix(in srgb, var(--ink) 8%, transparent) 1px, transparent 1.5px); background-size: 16px 16px; min-width: 0; }
+  .ctr-day { justify-self: center; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); background: var(--a-surf); border-radius: 8px; padding: 3px 10px; }
+  .ctr-wtip { justify-self: center; display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 700; color: var(--mute); margin: 0; text-align: center; }
+  .ctr-wtip .ic { width: 13px; height: 13px; flex: none; }
+  .ctr-msg { max-width: 82%; min-width: 0; justify-self: start; background: var(--a-surf); border: 1px solid var(--a-line); border-radius: 4px 14px 14px 14px; padding: 8px 12px 6px; font-size: 14px; line-height: 1.7; box-shadow: 0 1px 1px rgba(20,32,42,.06); overflow-wrap: anywhere; }
+  .ctr-msg.out { justify-self: end; border-radius: 14px 4px 14px 14px; background: color-mix(in srgb, var(--wa) 15%, var(--a-surf)); border-color: color-mix(in srgb, var(--wa) 30%, var(--a-line)); }
+  .ctr-msg.new { animation: ctr-pop .4s var(--ease) both; } .ctr-msg.new + .ctr-msg.new { animation-delay: .18s; }
+  @keyframes ctr-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+  .ctr-msg time { display: block; text-align: right; font-size: 11px; color: var(--mute); font-weight: 600; }
+  .ctr-msg p b { background: color-mix(in srgb, var(--act) 55%, transparent); padding: 0 3px; border-radius: 4px; }
+  .ctr-tk { display: inline; max-width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 0 3px; margin: 0 1px; border: 0; border-bottom: 2px dashed var(--warn); border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--act) 32%, transparent); transition: background .2s, border-color .2s; }
+  .ctr-tk:hover { background: color-mix(in srgb, var(--act) 60%, transparent); }
+  .ctr-tk.on { background: var(--ok-soft); border-bottom: 2px solid var(--ok); }
+  .ctr-tkl { display: inline-flex; gap: 3px; align-items: center; margin-left: 5px; vertical-align: 1px; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); white-space: nowrap; }
+  .ctr-tk.on .ctr-tkl { color: var(--ok); } .ctr-bk .ctr-tkl .ic { width: 11px; height: 11px; }
+  .ctr-paym .pl { display: flex; gap: 10px; align-items: center; background: var(--a-surf); border-radius: 10px; padding: 8px 10px; line-height: 1.4; }
+  .ctr-paym .pl .ic { width: 20px; height: 20px; color: var(--pri); flex: none; } .ctr-paym .pl span { min-width: 0; }
+  .ctr-paym .pl b, .ctr-paym .pl small { display: block; } .ctr-paym .pl small { font-size: 12px; color: var(--mute); }
+  .ctr-paym .exp { font-size: 12.5px; margin-top: 6px !important; }
+  .ctr-typing { justify-self: start; display: inline-flex; gap: 4px; align-items: center; background: var(--a-surf); border: 1px solid var(--a-line); border-radius: 14px; padding: 8px 12px; font-size: 12px; color: var(--mute); }
+  .ctr-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); animation: ctr-dot 1.2s infinite; }
+  .ctr-typing i:nth-child(2) { animation-delay: .15s; } .ctr-typing i:nth-child(3) { animation-delay: .3s; } .ctr-typing span { margin-left: 6px; }
+  @keyframes ctr-dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+  .ctr-cmp { border-top: 1px solid var(--a-line); padding: 12px 14px; display: grid; gap: 10px; background: var(--a-surf); min-width: 0; }
+  .ctr-cmpd { border: 1.5px dashed color-mix(in srgb, var(--wa) 50%, var(--a-line)); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+  .ctr-cmpd .lab { display: inline-flex; gap: 6px; align-items: center; }
+  .ctr-cmpd p { font-size: 14px; line-height: 1.55; } .ctr-cmpd p b { background: color-mix(in srgb, var(--act) 60%, transparent); padding: 0 4px; border-radius: 4px; }
+  .ctr-cmpd .att { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; font-weight: 700; color: var(--mute); } .ctr-cmpd .att .ic { width: 14px; height: 14px; }
+  .ctr-e .ctr-go { background: var(--wa); color: #fff; } .ctr-e .ctr-go:hover:not(:disabled) { background: #106a31; }
+  .ctr-cmps { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ok); font-weight: 700; } .ctr-cmps span { flex: 1 1 220px; }
+  .ctr-xp { display: grid; gap: 12px; min-width: 0; position: sticky; top: 12px; }
+  .ctr-xp > .a-card { overflow: hidden; }
+  .ctr-xph { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; padding: 14px 16px 10px; } .ctr-xph h2 { font-size: 16px; margin-right: auto; }
+  .ctr-xfs { display: grid; border-top: 1px solid var(--a-line); }
+  .ctr-xf { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto 14px; gap: 10px; align-items: center; width: 100%; padding: 10px 16px; background: none; border: 0; border-bottom: 1px solid var(--a-line); font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background .15s; }
+  .ctr-xf:hover { background: color-mix(in srgb, var(--pri) 6%, transparent); } .ctr-xf.on { background: var(--pri-soft); box-shadow: inset 3px 0 0 var(--pri); }
+  .ctr-xf .l { font-size: 11.5px; font-weight: 800; color: var(--mute); text-transform: uppercase; letter-spacing: .05em; }
+  .ctr-xf .v { font-weight: 700; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+  .ctr-xf .src { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; white-space: nowrap; background: var(--bg2); color: var(--mute); }
+  .ctr-xf .src.chat { background: color-mix(in srgb, var(--wa) 14%, transparent); color: var(--wa); }
+  .ctr-xf .src.need { background: var(--warn-soft); color: var(--warn); } .ctr-xf .src.auto { background: var(--ok-soft); color: var(--ok); }
+  .ctr-bk .ctr-xf .ic { width: 14px; height: 14px; color: var(--mute); transition: transform .2s; } .ctr-xf.on .ic { transform: rotate(180deg); }
+  .ctr-xe { padding: 14px 16px; border-bottom: 1px solid var(--a-line); border-left: 3px solid var(--pri); animation: ctr-drop .3s var(--ease); min-width: 0; }
+  .ctr-xe .ctr-deps, .ctr-xe .ctr-opts, .ctr-xe .a-row2 { grid-template-columns: 1fr; }
+  .ctr-xe .ctr-ao { grid-template-columns: minmax(0, 1fr) auto; } .ctr-xe .ctr-ao .amt { grid-column: 2; grid-row: 1; align-self: start; } .ctr-xe .ctr-ao .ctl { grid-column: 1 / -1; }
+  .ctr-xe .ctr-tr { grid-template-columns: minmax(0, 1fr) 60px; } .ctr-xe .ctr-tr .lab { grid-column: 1 / -1; }
+  .ctr-xe .ctr-by { margin-left: 0; } .ctr-xe .ctr-pk .a-btn { display: none; }
+  .ctr-xq { padding: 14px 16px 16px; display: grid; gap: 6px; } .ctr-xq .h { display: flex; align-items: center; }
+  .ctr-xq dl { margin: 0; display: grid; gap: 4px; } .ctr-xq dl div { display: flex; justify-content: space-between; font-size: 13.5px; } .ctr-xq dd { margin: 0; font-weight: 700; }
+  .ctr-xq .tot { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--a-line); padding-top: 8px; }
+  .ctr-xq .tot span { font-weight: 800; } .ctr-xq .tot b { font-size: 28px; letter-spacing: -.03em; }
+  .ctr-xq small { font-size: 12px; color: var(--mute); }
+  .ctr-e .ctr-done .a-card-b { padding: 18px; } .ctr-e .ctr-docs { grid-template-columns: 1fr; }
+
   @media (prefers-reduced-motion: reduce) { .ctr-bk *, .ctr-bk *::before, .ctr-bk *::after { animation: none !important; transition: none !important; } }
 
   @container site (max-width: 700px) {
@@ -790,7 +1080,22 @@
     .ctr-fin { flex-basis: 100%; }
     .ctr-c .ctr-done .a-card-b, .ctr-b .ctr-done .a-card-b { padding: 16px; }
     .ctr-lk { flex-wrap: wrap; }
+    .ctr-ih, .ctr-il, .ctr-is { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 0 10px; padding-right: 12px; }
+    .ctr-ih .q, .ctr-ih .r, .ctr-il .q, .ctr-il .r { display: none; }
+    .ctr-is .it { grid-column: 2; }
+    .ctr-il.kv { grid-template-columns: 28px minmax(0, 1fr); } .ctr-il.kv::before { grid-row: span 2; } .ctr-il.kv .k { grid-column: 2; }
+    .ctr-ied { margin-left: 0; padding: 12px; }
+    .ctr-ivh { padding: 14px 12px 12px; flex-wrap: wrap; } .ctr-ivh h2 { font-size: 22px; }
+    .ctr-inv .ctr-stamp { top: auto; bottom: 14px; right: 12px; font-size: 13px; }
+    .ctr-is.tot .a { font-size: 22px; }
+    .ctr-ivf { padding: 10px 12px; } .ctr-ivf .go { min-width: 0; flex: 1 1 100%; }
+    .adm[data-dir="B"] .ctr-ivf { bottom: 62px; }
+    .ctr-ew { grid-template-columns: 1fr; }
+    .ctr-xp { position: static; }
+    .ctr-msgs { padding: 12px; } .ctr-msg { max-width: 94%; }
+    .ctr-cmp { padding: 12px; }
+    .ctr-xf { grid-template-columns: minmax(0, 1fr) auto 14px; gap: 4px 10px; } .ctr-xf .l { grid-column: 1 / -1; }
   }`;
 
-  TS.register({ id: 'counter', label: 'Counter booking', group: 'v2.5 · owner', admin: true, css, variants: [A, B, C] });
+  TS.register({ id: 'counter', label: 'Counter booking', group: 'v2.5 · owner', admin: true, css, variants: [A, B, C, D, E] });
 })();

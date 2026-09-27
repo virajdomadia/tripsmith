@@ -14,9 +14,9 @@
     TS.adminDir = localStorage.getItem('ts-p0-dir') || 'A';
   } catch (_) {}
   const h = location.hash.slice(1).split('-');
-  if (SCREENS.some((s) => s.id === h[0])) { cur = h[0]; if (h[1]) pick[cur] = h[1]; if (/^[ABC]$/.test(h[2] || '')) TS.adminDir = h[2]; }
+  if (SCREENS.some((s) => s.id === h[0])) { cur = h[0]; if (h[1]) pick[cur] = h[1]; if (/^[A-E]$/.test(h[2] || '')) TS.adminDir = h[2]; }
   if (!SCREENS.some((s) => s.id === cur)) cur = SCREENS[0].id;
-  if (!/^[ABC]$/.test(TS.adminDir)) TS.adminDir = 'A';
+  if (!/^[A-E]$/.test(TS.adminDir)) TS.adminDir = 'A';
 
   GROUPS.forEach((g) => {
     const list = SCREENS.filter((s) => s.group === g);
@@ -40,7 +40,7 @@
     dirs.hidden = !s.admin;
     dirs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.d === TS.adminDir));
     scr.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.s === cur));
-    const dirName = { A: 'Ink rail', B: 'Command', C: 'Operator' }[TS.adminDir];
+    const dirName = { A: 'Ink rail', B: 'Command', C: 'Operator', D: 'Studio', E: 'Night desk' }[TS.adminDir];
     const title = s.variants.length > 1 ? `${s.label} — ${v.id} · ${v.name}` : s.label;
     $('#note').innerHTML = `<b>${title}${s.admin ? ` <small style="font-weight:600;color:var(--c-mute)">· admin style ${TS.adminDir} ${dirName}</small>` : ''}</b><p>${v.note}</p>${v.tradeoff ? `<p class="tradeoff"><b>Trade-off:</b> ${v.tradeoff}</p>` : ''}`;
     site.innerHTML = v.render();

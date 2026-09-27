@@ -9,7 +9,7 @@ const ctx = { window: {}, document: { createElement: el, head: { appendChild: no
 ctx.window = ctx; vm.createContext(ctx);
 for (const f of ['lib.js', 'admin.js', mod]) vm.runInContext(fs.readFileSync(path.resolve(dir, f), 'utf8'), ctx, { filename: f });
 const TS = ctx.TS; let bad = 0, n = 0;
-for (const s of TS.SCREENS) for (const v of s.variants) for (const d of s.admin ? ['A', 'B', 'C'] : ['A']) {
+for (const s of TS.SCREENS) for (const v of s.variants) for (const d of s.admin ? ['A', 'B', 'C', 'D', 'E'] : ['A']) {
   TS.adminDir = d; let html;
   try { html = v.render(); } catch (e) { console.error(`✗ ${s.id}/${v.id}/${d} threw: ${e.stack}`); bad++; continue; }
   n++;

@@ -130,7 +130,7 @@
   };
 
   /* ================= state ================= */
-  const S = { preset: '12m', dark: false, view: {}, csv: null, drill: 'money', anim: true, lastV: '' };
+  const S = { preset: '12m', dark: false, view: {}, csv: null, drill: 'money', q: 'money', anim: true, lastV: '' };
 
   /* ================= chart primitives ================= */
   const HEX = { c1: '#1B4FD8', c2: '#C98314', cw: '#B0501C' };
@@ -558,6 +558,208 @@
     }
   };
 
+  /* ================= D · Money river · E · Question explorer ================= */
+  const RIV = {}; // custom SVG charts: id -> { fn(width) -> svg, tips }
+  const custBox = (id, fn, tips, W) => { RIV[id] = { fn, tips }; return `<div class="rc rx" data-cust="${id}"><div class="rxw">${fn(W)}</div><div class="rtip" hidden></div></div>`; };
+  const FILL = { c1: '#1B4FD8', c2: '#C98314', cw: '#B0501C', cn: '#C9D1D9' };
+  const f1 = (n) => n.toFixed(1);
+  const kOf = (cls) => (cls === 'cn' ? 'kn' : 'k' + cls.slice(1));
+
+  /* the river: one px-per-rupee scale for every band, so band widths are exact shares of booked */
+  function riverParts(a) {
+    const N = [], L = [], kept = a.cxPaid - a.refunded;
+    const node = (id, c, label, v, cls) => { if (v > 0) N.push({ id, c, label, v, cls }); };
+    const link = (s, t, v) => { if (v > 0) L.push({ s, t, v }); };
+    a.pk.filter((p) => p.rev > 0).forEach((p) => { node('p' + p.k, 0, SHORT[p.k], p.rev, 'c1'); link('p' + p.k, 'bk', p.rev); });
+    node('bk', 1, 'Booked', a.booked, 'c1');
+    node('live', 2, 'Live', a.live, 'c1'); node('cx', 2, 'Cancelled', a.cxv, 'cw');
+    node('due', 3, 'Balances due', a.balance, 'c2'); node('col', 3, 'Collected', a.colLive, 'c1');
+    node('cxp', 3, 'Paid, then cancelled', a.cxPaid, 'cw'); node('cxu', 3, 'Never charged', a.cxv - a.cxPaid, 'cn');
+    node('net', 4, 'Net kept', a.net, 'c1'); node('ref', 4, 'Refunded', a.refunded, 'cw');
+    link('bk', 'live', a.live); link('bk', 'cx', a.cxv); link('live', 'due', a.balance); link('live', 'col', a.colLive);
+    link('cx', 'cxp', a.cxPaid); link('cx', 'cxu', a.cxv - a.cxPaid); link('col', 'net', a.colLive); link('cxp', 'net', kept); link('cxp', 'ref', a.refunded);
+    [['due', a.balance], ['col', a.colLive], ['cxp', a.cxPaid], ['cxu', a.cxv - a.cxPaid]].forEach(([t, v]) => { if (v > 0) L.push({ s: 'bk', t, v, nar: 1 }); }); // phone: Booked straight to outcomes
+    const why = { bk: `${a.N} bookings made in the range`, live: 'Still travelling', cx: `${a.cxN} bookings cancelled`, due: 'Balance reminders go out 14 and 3 days before departure', col: 'Paid on live bookings',
+      cxp: `${inr(kept)} kept as fees, ${inr(a.refunded)} refunded`, cxu: 'Balance never charged before the cancel', net: 'Collected minus refunds', ref: 'Back to travellers' };
+    const tips = N.map((n) => {
+      const p = a.pk.find((q) => 'p' + q.k === n.id);
+      if (p) return tip(PKGS[p.k].name, [['k1', 'Booked', inr(p.rev)], ['', 'Bookings', String(p.n)], ['', 'Share of booked', pc(p.rev, a.booked, 1)]]);
+      return tip(n.label, [[kOf(n.cls), 'Amount', inr(n.v)], ['', 'Share of booked', pc(n.v, a.booked, 1)]], why[n.id]);
+    }).concat(L.map((l) => {
+      const s = N.find((n) => n.id === l.s), t = N.find((n) => n.id === l.t);
+      return tip(`${s.label} to ${t.label}`, [[kOf(t.cls), 'Flow', inr(l.v)], ['', 'Share of booked', pc(l.v, a.booked, 1)]]);
+    }));
+    return { N, L, tips };
+  }
+  function riverSvg(a, W) {
+    const { N, L } = riverParts(a), narrow = W < 840;
+    const COLN = [-1, 0, -1, 1, 2]; // phone keeps Booked, outcomes, ends
+    const nodes = N.filter((n) => !narrow || COLN[n.c] >= 0).map((n) => ({ ...n, c: narrow ? COLN[n.c] : n.c, label: narrow && n.id === 'cxp' ? 'Paid, cancelled' : n.label }));
+    const keep = new Set(nodes.map((n) => n.id));
+    const links = L.filter((l) => (narrow ? keep.has(l.s) && keep.has(l.t) : !l.nar));
+    const H = narrow ? 360 : 420, T = 34, B = 12, nw = narrow ? 10 : 14, g = narrow ? 8 : 10;
+    const cols = narrow ? 3 : 5, padL = narrow ? 2 : 150, padR = narrow ? 84 : 124;
+    const byC = [...Array(cols)].map((_, c) => nodes.filter((n) => n.c === c));
+    const maxG = Math.max(0, ...byC.map((x) => x.length - 1));
+    const k = (H - T - B - maxG * g) / Math.max(1, a.booked);
+    const colX = (c) => padL + (c * (W - padL - padR - nw)) / (cols - 1);
+    const M = {};
+    byC.forEach((col, c) => {
+      const tot = col.reduce((s, n) => s + n.v * k, 0) + Math.max(0, col.length - 1) * g;
+      let y = T + (H - T - B - tot) / 2;
+      col.forEach((n) => { Object.assign(n, { x: colX(c), y, h: n.v * k, so: 0, to: 0 }); y += n.h + g; M[n.id] = n; });
+    });
+    let o = '';
+    const HEADS = narrow ? ['Booked', 'Paid so far', 'Ends as'] : ['From packages', 'Booked', 'Live or cancelled', 'Paid so far', 'Where it ends'];
+    HEADS.forEach((h, c) => {
+      const first = c === 0, last = c === cols - 1;
+      const x = first ? (narrow ? colX(0) : colX(0) + nw) : last ? colX(c) : colX(c) + nw / 2;
+      const an = first ? (narrow ? 'start' : 'end') : last ? 'start' : 'middle';
+      o += `<text class="rv-h" x="${f1(x)}" y="14" text-anchor="${an}" fill="#5E6B76">${h.toUpperCase()}</text>`;
+    });
+    links.forEach((l) => {
+      const s = M[l.s], t = M[l.t], h = l.v * k, x1 = s.x + nw, x2 = t.x, y1 = s.y + s.so, y2 = t.y + t.to, xm = (x1 + x2) / 2;
+      s.so += h; t.to += h;
+      o += `<path class="rv-l ${t.cls}" data-t="${N.length + L.indexOf(l)}" style="--c:${s.c}" d="M${f1(x1)},${f1(y1)} C${f1(xm)},${f1(y1)} ${f1(xm)},${f1(y2)} ${f1(x2)},${f1(y2)} L${f1(x2)},${f1(y2 + h)} C${f1(xm)},${f1(y2 + h)} ${f1(xm)},${f1(y1 + h)} ${f1(x1)},${f1(y1 + h)} Z" fill="${FILL[t.cls]}" fill-opacity=".26"/>`;
+    });
+    nodes.forEach((n) => { o += `<rect class="rv-n ${n.cls}" data-t="${N.findIndex((q) => q.id === n.id)}" style="--c:${n.c}" x="${f1(n.x)}" y="${f1(n.y)}" width="${nw}" height="${f1(Math.max(1.5, n.h))}" rx="2" fill="${FILL[n.cls]}"/>`; });
+    byC.forEach((col, c) => {
+      const left = !narrow && c === 0;
+      const ys = col.map((n) => n.y + n.h / 2);
+      for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + 28);
+      const over = ys.length ? ys[ys.length - 1] + 16 - H : 0;
+      if (over > 0) for (let i = 0; i < ys.length; i++) ys[i] -= over;
+      col.forEach((n, i) => {
+        const x = left ? n.x - 6 : n.x + nw + 6, an = left ? 'end' : 'start', y = Math.max(T + 10, ys[i]);
+        const val = narrow || (!narrow && c === 0) ? lakh(n.v) : `${lakh(n.v)} · ${pc(n.v, a.booked)}`;
+        o += `<text class="rv-t${narrow ? ' sm' : ''}" x="${f1(x)}" y="${f1(y - 2)}" text-anchor="${an}" fill="#14202A">${esc(n.label)}</text><text class="rv-v" x="${f1(x)}" y="${f1(y + 12)}" text-anchor="${an}" fill="#5E6B76">${val}</text>`;
+      });
+    });
+    return `<svg class="rvsvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Money flow: ${esc(lakh(a.booked))} booked, split into collected, balances due, cancelled and refunded, ending at ${esc(lakh(a.net))} net">${o}</svg>`;
+  }
+
+  /* packages: revenue against fill (E) */
+  const pkPoints = (a) => a.pk.filter((p) => p.cap).map((p) => ({ ...p, fill: Math.round((p.seats / p.cap) * 100) }));
+  function pkScatter(a, W) {
+    const pts = pkPoints(a), narrow = W < 520, H = narrow ? 290 : 330, L = narrow ? 46 : 58, R = narrow ? 8 : 20, T = 26, B = 44;
+    const pw = W - L - R, ph = H - T - B, avg = Math.round((a.seats / Math.max(1, a.cap)) * 100);
+    const minF = Math.min(...pts.map((p) => p.fill)), lo = Math.min(50, Math.max(0, Math.floor((minF - 6) / 10) * 10)), st = narrow ? 20 : 10;
+    const maxR = Math.max(1, ...pts.map((p) => p.rev)), top = maxR * 1.18;
+    const X = (f) => L + ((f - lo) / (100 - lo)) * pw, Y = (v) => T + ph - (v / top) * ph;
+    let o = '';
+    ticks(maxR, 4).forEach((v) => { const yy = f1(Y(v)); o += `<line class="${v === 0 ? 'bl' : 'gl'}" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#E9EDF1"/><text class="tx" x="${L - 8}" y="${yy}" dy="4" text-anchor="end" fill="#5E6B76">${yMoney(v)}</text>`; });
+    for (let f = lo; f <= 100; f += st) o += `<line class="gl" x1="${f1(X(f))}" x2="${f1(X(f))}" y1="${T}" y2="${T + ph}" stroke="#E9EDF1"/><text class="tx" x="${f1(X(f))}" y="${T + ph + 17}" text-anchor="middle" fill="#5E6B76">${f}%</text>`;
+    o += `<text class="tx" x="${f1(L + pw / 2)}" y="${H - 4}" text-anchor="middle" fill="#5E6B76">Seats filled on departures that ran</text>`;
+    const ax = X(avg);
+    o += `<line class="ref" x1="${f1(ax)}" x2="${f1(ax)}" y1="${T - 6}" y2="${T + ph}" stroke="#5E6B76"/><text class="tx" x="${f1(ax)}" y="${T - 10}" text-anchor="${ax > W - R - 70 ? 'end' : 'middle'}" fill="#5E6B76">Average ${avg}%</text>`;
+    const placed = [];
+    pts.slice().sort((p, q) => Y(p.rev) - Y(q.rev)).forEach((p) => {
+      const i = pts.indexOf(p), cx = X(p.fill), cy = Y(p.rev), r = 5 + Math.sqrt(p.n) * (narrow ? 1.2 : 1.6), cls = p.fill < 70 ? 'cw' : 'c1';
+      o += `<circle class="sc-d ${cls}" data-t="${i}" style="--i:${i}" cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(r)}" fill="${FILL[cls]}" fill-opacity=".82" stroke="#fff" stroke-width="1.5"/>`;
+      const right = cx + r + (narrow ? 70 : 120) < W - R, lx = right ? cx + r + 5 : cx - r - 5;
+      let ly = cy + 4;
+      placed.filter((q) => Math.abs(q.x - lx) < 120).forEach((q) => { if (Math.abs(q.y - ly) < 14) ly = q.y + 14; });
+      placed.push({ x: lx, y: ly });
+      o += `<text class="sc-l" x="${f1(lx)}" y="${f1(Math.min(T + ph - 4, ly))}" text-anchor="${right ? 'start' : 'end'}" fill="#14202A">${esc(narrow ? PLACE[p.k] : SHORT[p.k])}</text>`;
+    });
+    return `<svg class="rvsvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue against seats filled, one dot per package">${o}</svg>`;
+  }
+
+  const QS = { money: 'Is the money actually coming in?', packages: 'Which packages earn, and which fill?', occupancy: 'Which departures need seats?', funnel: 'Where do browsers drop off?',
+    cancellations: 'Why do people cancel?', discounts: 'Do discounts pay for themselves?', addons: 'What do travellers add on?', channels: 'Is the counter worth running?', customers: 'Who travels with us?' };
+  const XSUB = ['2025', '', '', '2026', '', '', '', '', '', '', '', ''];
+  const reconLine = (a) => `<p class="recon num">Booked ${inr(a.booked)} = live ${inr(a.live)} + cancelled ${inr(a.cxv)} · live = collected ${inr(a.colLive)} + balances due ${inr(a.balance)} · net ${inr(a.net)} = collected ${inr(a.collected)} − refunded ${inr(a.refunded)}</p>`;
+
+  function answerChart(s, a) {
+    if (s.id === 'money') {
+      let cb = 0, cc = 0;
+      const cumB = BOOKED.map((v) => (cb += v)), cumC = MM.map((m) => (cc += m.collected));
+      const spec = { id: 'moneyE', type: 'area', h: 300, labels: MON, xsub: XSUB, hi: a.ms, fmt: yMoney, pr: 16,
+        series: [{ cls: 'c1', vals: cumB }, { cls: 'c2', vals: cumC }], aria: 'Running total of booked and collected, October 2025 to September 2026' };
+      const tips = MON.map((_, i) => tip(`By end of ${ML(i)}`, [['k1', 'Booked so far', lakh(cumB[i])], ['k2', 'Collected so far', lakh(cumC[i])]], `Gap ${inr(cumB[i] - cumC[i])}: balances due and cancelled value`));
+      return legend([['k1', 'Booked, running total'], ['k2', 'Collected, running total']], 'The gap between the lines is money not yet in') + chartBox(spec, tips) + reconLine(a);
+    }
+    if (s.id === 'packages') {
+      const pts = pkPoints(a);
+      if (!pts.length) return s.chart();
+      const none = a.pk.filter((p) => !p.cap).map((p) => SHORT[p.k]);
+      const tips = pts.map((p) => tip(PKGS[p.k].name, [['k1', 'Booked', inr(p.rev)], ['', 'Bookings', String(p.n)], [p.fill < 70 ? 'kw' : 'k1', 'Seats filled', `${p.seats}/${p.cap} · ${p.fill}%`]], `${p.deps} departure${p.deps === 1 ? '' : 's'} ran`));
+      return legend([['k1', '70% full or more'], ['kw', 'Under 70% full']], 'Dot size = bookings · up = revenue · across = fill') + custBox('pkE', (w) => pkScatter(a, w), tips, 760)
+        + (none.length ? `<p class="rfine">Booked, but no departure ran in the range: ${none.join(', ')}.</p>` : '');
+    }
+    if (s.id === 'discounts') {
+      const given = a.disc.reduce((x, d) => x + d.given, 0);
+      return legend([['k1', 'Booked per ₹1 given']], `${pc(given, a.booked, 1)} of booked went out as discounts`)
+        + hbars(a.disc.map((d) => ({ label: d.name, sub: `${inr(d.given)} given · ${d.n} bookings`, v: d.by / d.given, txt: '₹' + (d.by / d.given).toFixed(1), tip: `${d.name}: ${inr(d.by)} booked for ${inr(d.given)} given` })));
+    }
+    return s.chart({ h: 290, money: 'area' });
+  }
+
+  const renderD = () => {
+    const a = agg(S.preset), secs = sections(a), m = secs[0], tbl = (S.view.money || 'chart') === 'table';
+    const { tips } = riverParts(a);
+    const spec = { id: 'moneyD', type: 'bar', h: 170, labels: MON, xsub: XSUB, hi: a.ms, fmt: yMoney, nt: 3, series: [{ cls: 'c1', vals: BOOKED }], aria: 'Booked by month, October 2025 to September 2026' };
+    const mtips = MON.map((_, i) => tip(ML(i), [['k1', 'Booked', lakh(BOOKED[i])], ['k2', 'Collected', lakh(MM[i].collected)], ['kw', 'Refunded', inr(MM[i].refunded)]], `${BK[i]} bookings${a.ms.includes(i) ? '' : ' · outside range'}`));
+    const river = legend([['k1', 'Kept'], ['k2', 'Still to collect'], ['kw', 'Cancelled or refunded'], ['kn', 'Never charged']], 'Hover a band for the rupees')
+      + custBox('river', (w) => riverSvg(a, w), tips, 960) + reconLine(a)
+      + `<div class="rd-month"><h3>Booked by month <small>${a.ms.length < 12 ? 'range lit, other months for context' : 'by the month the booking was made'}</small></h3>${chartBox(spec, mtips)}</div>`;
+    const hero = `<section class="a-card rd-hero" id="rs-money"><div class="a-card-h"><span class="rs-n num">01</span><h2>Where the money went</h2>${cardActs(m)}</div>
+      <div class="a-card-b"><p class="rd-lede">${m.head} Every band is drawn to one scale: follow ${lakh(a.booked)} from the packages that earned it to the ${lakh(a.net)} that stays.</p>${facts(m)}
+      ${S.csv === 'money' ? csvNote('money', m.rows, a) : ''}${tbl ? m.table() : river}</div></section>`;
+    const down = secs.slice(1).map((s) => `<section class="a-card rd-c${s.id === 'occupancy' ? ' wide' : ''}" id="rs-${s.id}"><div class="a-card-h"><span class="rs-n num">${s.n}</span><h2>${s.title}</h2>${cardActs(s)}</div>
+      <div class="a-card-b"><p class="rd-say">${s.head}</p>${body(s, a, { h: 220 })}</div></section>`).join('');
+    return wrap('D', `${head(a, 'D')}${hero}<div class="rd-dh"><span class="eyebrow">Downstream</span><span>What moved the river: eight sections, each with Chart/Table and CSV</span></div><div class="rd-down">${down}</div>`);
+  };
+
+  const renderE = () => {
+    const a = agg(S.preset), secs = sections(a);
+    const s = secs.find((x) => x.id === S.q) || secs[0], i = secs.indexOf(s), prev = secs[(i + secs.length - 1) % secs.length], next = secs[(i + 1) % secs.length];
+    const bodyE = `${S.csv === s.id ? csvNote(s.id, s.rows, a) : ''}${(S.view[s.id] || 'chart') === 'table' ? s.table() : answerChart(s, a)}`;
+    return wrap('E', `${head(a, 'E')}<div class="re"><nav class="re-q" aria-label="Questions"><span class="eyebrow">Ask the report</span>${secs.map((x) => `<button data-q="${x.id}" aria-pressed="${x === s}"><span class="n num">${x.n}</span><span class="t">${QS[x.id]}<small class="num">${x.title} · ${x.idx}</small></span></button>`).join('')}</nav>
+      <article class="a-card re-a" aria-live="polite"><div class="re-top"><span class="eyebrow">Question ${s.n} of ${String(secs.length).padStart(2, '0')} · ${s.title}</span><h2 class="re-qt">${QS[s.id]}</h2><p class="re-ans">${s.head}</p></div>
+        <div class="a-card-h re-bar"><span class="eyebrow">The answer, charted</span>${cardActs(s)}</div>
+        <div class="a-card-b">${facts(s)}${bodyE}</div>
+        <div class="re-why"><div><span class="eyebrow">Why we say so</span><ul>${s.story.map((t) => `<li>${t}</li>`).join('')}</ul></div>${s.next ? `<p class="rv-do"><b>Next</b>${s.next}</p>` : ''}</div>
+        <div class="re-nav"><button class="a-btn ghost sm" data-q="${prev.id}">${ICON.chevL}<span>${QS[prev.id]}</span></button><button class="a-btn sm" data-q="${next.id}"><span>${QS[next.id]}</span>${ICON.chevR}</button></div></article></div>`);
+  };
+
+  function wireCust(root) {
+    root.querySelectorAll('.rx').forEach((rc) => {
+      const R = RIV[rc.dataset.cust], holder = rc.querySelector('.rxw'), tipEl = rc.querySelector('.rtip');
+      if (!R || !holder) return;
+      const redraw = () => { const w = Math.round(holder.clientWidth); if (w > 60 && w !== rc._w) { rc._w = w; holder.innerHTML = R.fn(w); } };
+      if (window.ResizeObserver) new ResizeObserver(redraw).observe(holder); else redraw();
+      const hide = () => { tipEl.hidden = true; rc.classList.remove('hov'); rc.querySelectorAll('.on').forEach((n) => n.classList.remove('on')); };
+      rc.addEventListener('pointermove', (e) => {
+        const h = e.target.closest && e.target.closest('[data-t]');
+        const html = h && R.tips[+h.dataset.t];
+        if (!html) { hide(); return; }
+        rc.querySelectorAll('.on').forEach((n) => n !== h && n.classList.remove('on'));
+        h.classList.add('on'); rc.classList.add('hov');
+        tipEl.innerHTML = html; tipEl.hidden = false;
+        const rb = rc.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+        const left = Math.max(tw / 2 + 4, Math.min(rb.width - tw / 2 - 4, e.clientX - rb.left));
+        let top = e.clientY - rb.top + 18;
+        if (top + th > rb.height) top = e.clientY - rb.top - th - 14;
+        tipEl.style.left = left + 'px'; tipEl.style.top = Math.max(0, top) + 'px';
+      });
+      rc.addEventListener('pointerleave', hide);
+    });
+  }
+  const mountX = (v) => (site, rerender) => {
+    mount(v)(site, rerender);
+    const root = site.querySelector('.rpt');
+    if (!root) return;
+    wireCust(root);
+    if (v === 'E') root.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-q]');
+      if (!t || !root.contains(t)) return;
+      S.q = t.dataset.q; S.csv = null; S.anim = true; rerender();
+      const q = site.querySelector('.re-q [aria-pressed="true"]');
+      if (q && q.scrollIntoView) q.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduced() ? 'auto' : 'smooth' });
+    });
+  };
+
   /* ================= styles ================= */
   const css = `
   .rpt { --c1: #1B4FD8; --c2: #C98314; --rg: #EBEEF2; --rbase: #C9D1D9; --rband: #EEF3FF; --rhov: rgba(20,32,42,.05); --rtrack: #EDF0F3;
@@ -693,6 +895,57 @@
   .rpt .rv-do b { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--warn); }
   .adm[data-dir="C"] .rpt .rv-c .a-card-h h2 { display: none; }
 
+  /* custom SVG charts (D river, E scatter) */
+  .rpt .kn { background: var(--rbase); }
+  .rpt .rx .rtip { top: 0; }
+  .rpt .rvsvg { display: block; width: 100%; height: auto; font: 600 11.5px "DM Sans", sans-serif; font-variant-numeric: tabular-nums; overflow: visible; }
+  .rvsvg text, .rvsvg line { pointer-events: none; }
+  .rvsvg .gl { stroke: var(--rg); } .rvsvg .bl { stroke: var(--rbase); } .rvsvg .ref { stroke: var(--mute); stroke-dasharray: 4 4; opacity: .7; }
+  .rvsvg .tx { fill: var(--mute); }
+  .rvsvg .c1 { fill: var(--c1); } .rvsvg .c2 { fill: var(--c2); } .rvsvg .cw { fill: var(--warn); } .rvsvg .cn { fill: var(--rbase); }
+  .rvsvg .rv-l { fill-opacity: .26; cursor: default; transition: fill-opacity .2s; }
+  .rpt .rx.hov .rv-l { fill-opacity: .12; } .rpt .rx.hov .rv-l.on { fill-opacity: .55; }
+  .rvsvg .rv-n.on, .rvsvg .sc-d.on { stroke: var(--ink); stroke-width: 2; }
+  .rvsvg .rv-h { fill: var(--mute); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; }
+  .rvsvg .rv-t, .rvsvg .rv-v, .rvsvg .sc-l { paint-order: stroke; stroke: var(--a-surf); stroke-width: 4px; stroke-linejoin: round; }
+  .rvsvg .rv-t { fill: var(--ink); font-size: 12.5px; font-weight: 800; }
+  .rvsvg .rv-v { fill: var(--mute); font-size: 11.5px; } .rvsvg .rv-t.sm { font-size: 11.5px; }
+  .rvsvg .sc-l { fill: var(--ink); font-size: 12px; font-weight: 700; }
+  .rvsvg .sc-d { stroke: var(--a-surf); }
+
+  /* D · Money river */
+  .rpt .rd-hero .a-card-h h2 { font-size: 20px; }
+  .rpt .rd-lede { font-size: 15px; color: var(--ink2); max-width: 70ch; margin-bottom: 12px; text-wrap: pretty; }
+  .rpt .rd-month { margin-top: 16px; border-top: 1px solid var(--a-line); padding-top: 14px; }
+  .rpt .rd-month h3 { font-size: 12.5px; font-weight: 800; color: var(--ink2); margin-bottom: 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .rpt .rd-month h3 small { color: var(--mute); font-weight: 600; }
+  .rpt .rd-dh { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--mute); font-weight: 600; margin-top: 6px; }
+  .rpt .rd-down { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; align-items: start; }
+  .rpt .rd-c.wide { grid-column: 1 / -1; }
+  .rpt .rd-say { font-size: 15px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; margin-bottom: 12px; text-wrap: balance; }
+  .rpt .rd-c { border-top: 3px solid color-mix(in srgb, var(--c1) 30%, var(--a-line)); }
+
+  /* E · Question explorer */
+  .rpt .re { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .rpt .re-q { position: sticky; top: 12px; display: grid; gap: 2px; }
+  .rpt .re-q .eyebrow { padding: 0 10px 8px; }
+  .rpt .re-q button { font: inherit; color: var(--ink2); text-align: left; cursor: pointer; display: grid; grid-template-columns: 26px 1fr; gap: 4px; padding: 9px 10px; border-radius: 10px; background: none; border: 1px solid transparent; font-weight: 700; font-size: 13.5px; line-height: 1.3; transition: background .2s, border-color .2s; }
+  .rpt .re-q button .n { color: var(--mute); font-size: 12px; padding-top: 1px; }
+  .rpt .re-q button small { display: block; color: var(--mute); font-weight: 600; font-size: 11.5px; margin-top: 2px; }
+  .rpt .re-q button:hover { background: var(--a-surf); }
+  .rpt .re-q button[aria-pressed="true"] { background: var(--a-surf); border-color: var(--a-line); color: var(--ink); box-shadow: inset 3px 0 0 var(--pri); }
+  .rpt .re-q button[aria-pressed="true"] .n { color: var(--pri); }
+  .rpt .re-a { min-width: 0; }
+  .rpt .re-top { display: grid; gap: 8px; padding: 22px var(--a-pad) 4px; }
+  .rpt .re-qt { font-size: 30px; line-height: 1.12; letter-spacing: -.035em; text-wrap: balance; }
+  .rpt .re-ans { font-size: 18px; font-weight: 700; color: var(--pri); letter-spacing: -.01em; max-width: 52ch; text-wrap: pretty; }
+  .rpt.dark .re-ans { color: var(--pri-ink); }
+  .rpt .re-bar { border-top: 1px solid var(--a-line); margin-top: 14px; padding-top: 12px; }
+  .rpt .re-why { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 16px; align-items: start; padding: 14px var(--a-pad); border-top: 1px solid var(--a-line); }
+  .rpt .re-why ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; color: var(--ink2); }
+  .rpt .re-nav { display: flex; justify-content: space-between; gap: 10px; padding: 12px var(--a-pad) var(--a-pad); border-top: 1px solid var(--a-line); }
+  .rpt .re-nav .a-btn { min-width: 0; max-width: 48%; } .rpt .re-nav .a-btn span { overflow: hidden; text-overflow: ellipsis; }
+
   /* motion: grow once */
   .rpt.anim .rsvg .bar { transform-box: fill-box; transform-origin: 50% 100%; animation: r-grow .8s var(--ease) both; animation-delay: calc(min(var(--i), 24) * 22ms); }
   .rpt.anim .rsvg .wipe { animation: r-wipe 1.2s var(--ease) both; }
@@ -703,6 +956,11 @@
   @keyframes r-grow-x { from { transform: scaleX(0); } }
   @keyframes r-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
   @keyframes r-fade { from { opacity: 0; } }
+  .rpt.anim .rvsvg .rv-n { transform-box: fill-box; transform-origin: 50% 50%; animation: r-grow .7s var(--ease) both; animation-delay: calc(var(--c) * 160ms); }
+  .rpt.anim .rvsvg .rv-l { animation: r-flow .9s var(--ease) both; animation-delay: calc(var(--c) * 160ms + 120ms); }
+  .rpt.anim .rvsvg .sc-d { transform-box: fill-box; transform-origin: 50% 50%; animation: r-pop .6s var(--ease) both; animation-delay: calc(var(--i) * 70ms); }
+  @keyframes r-flow { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+  @keyframes r-pop { from { transform: scale(0); } }
   @media (prefers-reduced-motion: reduce) { .rpt *, .rpt { animation: none !important; transition: none !important; } }
 
   @container site (max-width: 900px) {
@@ -714,6 +972,11 @@
     .rpt .ra-ix a.on { border-bottom-color: var(--pri); }
     .rpt .fac3 { grid-template-columns: 1fr 1fr; } .rpt .fac3 > div:last-child { grid-column: 1 / -1; }
     .rpt .rv { grid-template-columns: 1fr; gap: 14px; } .rpt .rv-t { position: static; }
+    .rpt .re { grid-template-columns: 1fr; }
+    .rpt .re-q { position: static; display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+    .rpt .re-q .eyebrow, .rpt .re-q button small { display: none; }
+    .rpt .re-q button { display: flex; gap: 6px; white-space: nowrap; flex: none; border-color: var(--a-line); background: var(--a-surf); }
+    .rpt .re-q button[aria-pressed="true"] { box-shadow: inset 0 -2px 0 var(--pri); }
   }
   @container site (max-width: 700px) {
     .rpt.dark { padding: 12px; }
@@ -728,6 +991,10 @@
     .rpt .rv-h { font-size: 20px; } .rpt .rv-lead { padding: 16px; }
     .rpt .rfacts { gap: 8px 18px; }
     .rpt .rleg small { margin-left: 0; flex-basis: 100%; }
+    .rpt .rd-hero .a-card-h h2 { font-size: 17px; } .rpt .rd-lede, .rpt .rd-say { font-size: 14px; }
+    .rpt .re-top { padding-top: 16px; } .rpt .re-qt { font-size: 23px; } .rpt .re-ans { font-size: 16px; }
+    .rpt .re-why { grid-template-columns: 1fr; }
+    .rpt .re-nav .a-btn { max-width: 49%; }
   }`;
 
   TS.register({
@@ -742,6 +1009,12 @@
       { id: 'C', name: 'Monthly review', render: renderC, mount: mount('C'),
         note: 'Reads like a written review of the chosen period. A lead block states the month in one or two sentences with five figures; then each section puts its story on the left ("Kasol weekends filled 94%; Leh\'s 3 and 10 Oct dates sit at 40% and 30%") and the chart on the right, with a marigold "Next" note where there is something to do. All sentences are generated from the same numbers as the charts, so switching the range rewrites them. On a phone the text sits above each chart.',
         tradeoff: 'Best for the owner who wants the story rather than the dashboard, but the sentences need care as data changes and it takes the most vertical space.' },
+      { id: 'D', name: 'Money river', render: renderD, mount: mountX('D'),
+        note: 'The page opens on one hand-drawn flow chart: every package pours its revenue into Booked, which splits into live and cancelled, then into collected, balances due, paid-then-cancelled and never charged, and ends as net kept and refunded. Every band is drawn to one rupee scale, so widths are exact shares, and the reconciliation line under it spells out the sums. Hover any band or node for the rupees; the Chart/Table toggle and CSV sit on it like every other chart, with booked-by-month underneath. The other eight sections follow as "downstream" cards, two across, each led by its one-line finding, with occupancy full width so the emptiest upcoming departures stay flagged. On a phone (and tablet) the river redraws in three columns, Booked straight to its outcomes and then to net and refunded (packages stay in the Packages card), labels keep a halo over the bands, and the cards stack.',
+        tradeoff: 'Shows in one picture where every rupee went and why net is lower than booked, which no table does as fast; but a flow chart takes a moment to learn, and everything below it is a plainer card grid.' },
+      { id: 'E', name: 'Question explorer', render: renderE, mount: mountX('E'),
+        note: 'The report is a list of nine plain questions on the left ("Is the money actually coming in?", "Which departures need seats?", "Do discounts pay for themselves?"), each with its headline number. Pick one and the right side answers it: the question in large type, the answer in one sentence, the key figures, one big answer chart (a running-total chart where the gap is money not yet in; packages as dots of revenue against fill; return per ₹1 of discount), then "Why we say so" and a Next note. Chart/Table and CSV sit on every answer; previous/next buttons walk through all nine. On a phone the questions become a scrolling chip row above the answer.',
+        tradeoff: 'The friendliest way in for an owner who is not a numbers person, and each answer gets a full-size chart; but only one section is on screen at a time, so it is the slowest to scan end to end or print.' },
     ],
   });
 })();

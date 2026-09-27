@@ -51,7 +51,7 @@
   const ACTIVITY = () => [
     ...S.log.slice().reverse().map((p) => ({ t: '27 Sep, just now', who: 'You', x: `Paid ${inr(p)} towards the balance.`, tone: 'pay' })),
     ...(S.miraId ? [{ t: '27 Sep, just now', who: 'You', x: 'Added Mira Rao’s ID (Aadhaar ending ' + S.miraId + ').', tone: 'det' }] : []),
-    { t: '26 Sep, 19:10', who: 'Tripsmith', x: 'Emailed the receipt to ananya.rao@example.com.', tone: 'mail' },
+    { t: '26 Sep, 19:10', who: 'Tripsmith', x: 'Emailed the receipt to ananya.rao@customer.in.', tone: 'mail' },
     { t: '26 Sep, 19:08', who: 'You', x: `Paid ${inr(9625)} towards the balance. ${inr(36497)} left.`, tone: 'pay' },
     { t: '25 Sep, 21:34', who: 'You', x: 'Added Vikram Rao’s details.', tone: 'det' },
     { t: '24 Sep, 11:51', who: 'You', x: 'Added your own details.', tone: 'det' },
@@ -337,6 +337,171 @@
         S.tab = b.dataset.t; again('tab-' + S.tab);
       }
     });
+  };
+
+  /* ---------- shared by D and E ---------- */
+  const firstTodo = () => (items().find((i) => i.status === 'todo' || i.status === 'part') || { k: null }).k;
+  const FEED = () => ACTIVITY().map((a) => Object.assign({}, a, { x: a.x.replace('@example.com', '@customer.in') }));
+  const feedLis = (list) => list.map((a) => `<li class="${a.tone}"><span class="fi">${ICON[actIc[a.tone]]}</span><div><p>${a.x}</p><small>${a.t} · ${a.who}</small></div></li>`).join('');
+  const DEMO = `<p class="demo">${ICON.info}<span><b>Demo site: use made-up ID numbers only.</b> IDs show masked everywhere, only the trip leader’s printed manifest has them in full, and we delete them 30 days after you’re back.</span></p>`;
+  const tickBox = (i, p, cls, text) => `<label class="${cls}"><input type="checkbox" data-act="tick" data-tick="${i.k}" data-k="${p}-tick-${i.k}" aria-label="Done: ${esc(i.label)}" ${S.ticks[i.k] ? 'checked' : ''}><span class="tbox" aria-hidden="true">${ICON.check}</span><span>${text}</span></label>`;
+  const upcoming = () => (bal() > 0 ? 'Upcoming: balance reminders on 7 Oct, 11 Oct and 14 Oct. ' : '');
+
+  /* ================= Variant D · Boarding pass ================= */
+  const DUE = { det: 'Locks 10 Nov', bal: 'Due 14 Oct', pack: 'Opens 6 Nov', cal: 'Any time', id: 'By 13 Nov', tabs: 'By 13 Nov', rain: 'By 13 Nov' };
+  const DONEON = { cal: '24 Sep', tabs: '25 Sep' };
+  const BARS = 'TB7K2M9Q1311'.split('').reduce((a, c) => { const n = c.charCodeAt(0); return a.concat([1 + (n % 3), 1 + ((n >> 2) % 2)]); }, [])
+    .map((w, i) => `<i class="${i % 2 ? 'g' : ''}" style="--w:${w}"></i>`).join('');
+
+  const renderD = () => {
+    const b = bal(), its = items(), intro = !S.seen.D;
+    const open = S.dOpen === undefined ? firstTodo() : S.dOpen;
+    const all = its.map((i, n) => ({ i, n }));
+    const live = all.filter((x) => x.i.status !== 'done' && x.i.status !== 'locked');
+    const later = all.filter((x) => x.i.status === 'locked');
+    const torn = all.filter((x) => x.i.status === 'done');
+    const body = (i) => (i.k === 'det' ? `<p class="fine">As lead booker you can fill in everyone. Details lock on <b>Tue 10 Nov</b>, 3 days before departure.</p>${travSection('d', { noHead: true })}`
+      : i.k === 'bal' ? payPanel('d', { hist: true }) : i.k === 'pack' ? pack('d') : i.k === 'cal' ? calCard('d') : '');
+    const coupon = ({ i, n }) => {
+      const isOpen = !i.owner && open === i.k;
+      const verb = isOpen ? 'Close' : i.status === 'done' ? 'View' : i.status === 'locked' ? 'Look inside' : i.k === 'bal' ? 'Pay' : 'Open';
+      const ctl = i.owner ? tickBox(i, 'd', 'dtick', S.ticks[i.k] ? 'Done' : 'Mark done')
+        : `<button type="button" class="lnk cp-tg" data-act="dopen" data-d="${i.k}" data-k="d-cp-${i.k}" aria-expanded="${isOpen}" aria-controls="d-cpb-${i.k}">${verb} ${ICON.chevD}</button>`;
+      return `<li class="cp ${i.status}${isOpen ? ' open' : ''}" data-cp="${i.k}">
+        <div class="cp-stub"><span class="cp-no num">0${n + 1}</span><small>${i.status === 'done' ? 'Torn off ' + (DONEON[i.k] || 'today') : DUE[i.k]}</small></div>
+        <div class="cp-main"><div class="cp-hd"><div class="cp-tx"><b>${esc(i.label)}</b><small>${esc(i.sub)}</small></div>${i.status === 'done' ? '<span class="stamp" aria-hidden="true">Torn<br>off</span>' : ''}${ctl}</div>
+        ${i.owner ? '' : `<div class="cp-b" id="d-cpb-${i.k}" ${isOpen ? '' : 'hidden'}>${body(i)}</div>`}</div></li>`;
+    };
+    const holes = its.map((i, n) => `<span class="hole ${i.status}" style="--i:${n}"></span>`).join('');
+    const dlog = `<section class="card dlog" aria-labelledby="d-lg-h"><div class="ex-hd"><h3 id="d-lg-h">Ticket log</h3><span class="fine num">${FEED().length} entries</span></div>
+      <ol>${FEED().map((a) => `<li><span class="num">${a.t}</span><p>${a.x}<small>${a.who}</small></p></li>`).join('')}</ol>
+      <p class="fine">${upcoming()}Entries can’t be edited or deleted.</p></section>`;
+    return `${TS.header('My trips')}<div class="mtp vD"><div class="wrap">${crumbs}
+      <header class="bp ${intro ? 'intro' : ''}">
+        <div class="bp-ph ph"><img src="${IMG.hero}" alt="Tea estates on the hills around Munnar"></div>
+        <div class="bp-main">
+          <div class="bp-top"><span class="bp-brand">Tripsmith · Holiday pass</span><span class="chips"><span class="badge dep">${b > 0 ? 'Deposit paid' : 'Fully paid'}</span><span class="rf">TB-7K2M9Q</span></span></div>
+          <h1>${esc(PKG.name)}</h1>
+          <div class="route" aria-label="Route: Kochi, Munnar, Alleppey"><div class="stop"><b>Kochi</b><small>Pickup 11:00</small></div><span class="leg" aria-hidden="true"><i></i><small>4 h by road</small></span><div class="stop"><b>Munnar</b><small>3 nights</small></div><span class="leg" aria-hidden="true"><i></i><small>5 h by road</small></span><div class="stop"><b>Alleppey</b><small>Houseboat, 1 night</small></div></div>
+          <dl class="bp-meta">
+            <div><dt>Depart</dt><dd>Fri 13 Nov · 11:00</dd></div><div><dt>Return</dt><dd>Tue 17 Nov · 13:00</dd></div><div><dt>Travellers</dt><dd>2 adults, 1 child</dd></div>
+            <div><dt>Trip leader</dt><dd>${LEAD.name}</dd></div><div><dt>Meeting point</dt><dd>In the trip pack, 6 Nov</dd></div><div class="${b > 0 ? 'due' : ''}"><dt>Balance</dt><dd class="num">${b > 0 ? `${inr(b)} due 14 Oct` : 'Paid in full'}</dd></div>
+          </dl>
+        </div>
+        <div class="bp-stub">
+          <div class="cd"><small>Leaves in</small><b class="num">47</b><span>days</span></div>
+          <div class="rd"><div class="holes" role="img" aria-label="Readiness ${pct()} percent: ${its.map((i) => `${i.label} ${i.status === 'done' ? 'done' : i.status === 'locked' ? 'locked' : 'to do'}`).join(', ')}">${holes}</div><small class="num">${pct()}% ready · ${todoCount()} coupons left</small></div>
+          <div class="bars" aria-hidden="true">${BARS}</div>
+        </div>
+      </header>
+      <div class="dgrid"><div class="dcol">
+        <div class="cps-hd"><h2>Your coupons <span class="ct num">${live.length} to tear off</span></h2><p class="fine">Finish a task and its coupon tears off. Each stub shows the date it matters by.</p></div>
+        <ol class="cps">${live.map(coupon).join('')}</ol>
+        ${later.length ? `<h3 class="cps-h">Opens later</h3><ol class="cps">${later.map(coupon).join('')}</ol>` : ''}
+        ${torn.length ? `<h3 class="cps-h">Torn off <span class="ct num">${torn.length}</span></h3><ol class="cps torn">${torn.map(coupon).join('')}</ol>` : ''}
+      </div>
+      <aside class="drail">${extrasCard('d')}${manageCard('d')}${voucherCard()}${dlog}</aside></div>
+    </div></div>`;
+  };
+
+  /* ================= Variant E · One thing next ================= */
+  const eQueue = () => items().filter((i) => i.status === 'todo' || i.status === 'part');
+  const eNowKey = () => (S.eNow && items().some((i) => i.k === S.eNow) ? S.eNow : firstTodo());
+  const nowCopy = (i) => ({
+    det: ['Add Mira’s ID number', 'It’s the one field missing across your three travellers. Details lock on Tue 10 Nov.'],
+    bal: [`Pay the ${inr(bal())} balance`, `Due Wed 14 Oct. Pay it all at once, or in parts from ${inr(MIN)}.`],
+    pack: ['Your trip pack', bal() > 0 ? 'Opens Fri 6 Nov, once the balance is paid. Here is what will be inside.' : 'Opens Fri 6 Nov. You’re fully paid, so it opens on the day.'],
+    cal: ['Add the trip to your calendar', 'All-day, 13–17 Nov, at Kochi airport.'],
+  }[i.k] || [esc(i.label), `${esc(i.sub)} ${LEAD.name.split(' ')[0]} asks every Munnar group to do this.`]);
+  const DONEMSG = { det: 'All three travellers are complete', bal: 'Balance paid in full', cal: 'On your calendar' };
+
+  const renderE = () => {
+    const its = items(), q = eQueue(), nk = eNowKey(), now = its.find((i) => i.k === nk);
+    const upNext = q.filter((i) => i.k !== nk);
+    const waiting = its.filter((i) => i.status === 'locked' && i.k !== nk);
+    const done = its.filter((i) => i.status === 'done' && i.k !== nk);
+    const intro = !S.seen.E, feed = FEED();
+    const row = (i, btn) => `<li><div class="ck ${i.status}"><span class="st">${statusIc(i.status)}</span><span class="tx"><b>${esc(i.label)}</b><small>${esc(i.sub)}</small></span>${btn}</div></li>`;
+    const go = (i, l) => `<button type="button" class="btn line sm" data-act="enow" data-e="${i.k}" data-k="e-go-${i.k}" aria-label="${l}: ${esc(i.label)}">${l}</button>`;
+    const allTrav = () => `<details class="emini"><summary>${TRAV().filter((t) => t.done).map((t) => av(t, 28)).join('')}<span>See the complete travellers</span>${ICON.chevD}</summary><div class="tvs">${TRAV().filter((t) => t.done).map((t) => travCard(t, 'e')).join('')}</div>${DEMO}</details>`;
+    const eBody = (i) => {
+      if (i.k === 'det') return `<div class="trs"><div class="tvs">${TRAV().filter((t) => !t.done).map((t) => travCard(t, 'e')).join('')}</div>${DEMO}${allTrav()}</div>`;
+      if (i.k === 'bal') return payPanel('e', { hist: true });
+      if (i.k === 'pack') return pack('e');
+      if (i.k === 'cal') return calCard('e');
+      return `<div class="eown">${av({ hue: LEAD.hue, mono: LEAD.mono }, 36)}<p class="fine">From ${LEAD.name}, your trip leader. Nothing to upload, just tick it when it’s sorted.</p>${tickBox(i, 'e', 'etick', 'Yes, sorted')}</div>`;
+    };
+    let card;
+    if (!now) card = `<div class="eclear"><span class="bigok">${ICON.check}</span><h2 data-k="e-now" tabindex="-1">Nothing to do until Fri 6 Nov</h2><p class="fine">Your trip pack opens that morning. We’ll email you when it does.</p></div>`;
+    else if (now.status === 'done') {
+      const nx = q[0];
+      card = `<div class="eclear"><span class="bigok">${ICON.check}</span><span class="eyebrow">Done · ${pct()}% ready</span><h2 data-k="e-now" tabindex="-1">${DONEMSG[now.k] || 'Ticked off: ' + esc(now.label)}</h2>
+        <p class="fine">${nx ? `${q.length} left before Kerala.` : 'That was the last task for now. The trip pack opens on Fri 6 Nov.'}</p>
+        ${nx ? `<button type="button" class="btn pri" data-act="enow" data-e="" data-k="e-next">Next: ${esc(nx.label)} ${ICON.arrowR}</button>` : ''}</div>`;
+    } else {
+      const [t, s] = nowCopy(now);
+      const tools = now.status === 'locked' ? (q.length ? `<button type="button" class="lnk" data-act="enow" data-e="" data-k="e-back">${ICON.chevL} Back to your next task</button>` : '')
+        : upNext.length ? `<button type="button" class="lnk" data-act="enow" data-e="${upNext[0].k}" data-k="e-skip">Not now, show the next one ${ICON.chevR}</button>` : '';
+      card = `<div class="enow-hd"><span class="eyebrow">${now.status === 'locked' ? 'Coming up · look inside' : `Now · ${q.length} left`}</span><h2 data-k="e-now" tabindex="-1">${t}</h2><p>${s}</p></div>
+        <div class="eb">${eBody(now)}</div>${tools ? `<div class="etools">${tools}</div>` : ''}`;
+    }
+    const doneRow = (i) => {
+      if (i.owner) return `<li><label class="ck done"><input type="checkbox" data-act="tick" data-k="e-dt-${i.k}" data-tick="${i.k}" checked><span class="box">${ICON.check}</span><span class="tx"><b>${esc(i.label)}</b><small>Ticked. Untick it if that changes.</small></span></label></li>`;
+      if (i.k === 'cal') return `<li><div class="ck done"><span class="st">${ICON.check}</span><div class="tx"><b>${esc(i.label)}</b><small>${esc(i.sub)}. Add it somewhere else:</small><span class="row2 ecal"><a class="btn line sm" href="${GCAL}" target="_blank" rel="noopener">${ICON.cal} Google Calendar</a><a class="btn line sm" href="${ICS}" download="tripsmith-TB-7K2M9Q.ics">${ICON.down} Apple / Outlook (.ics)</a></span></div></div></li>`;
+      if (i.k === 'det') return `<li><div class="ck done"><span class="st">${ICON.check}</span><div class="tx"><b>${esc(i.label)}</b><small>All 3 complete. Editable until Tue 10 Nov.</small>${allTrav()}</div></div></li>`;
+      return row(i, '');
+    };
+    const more = [
+      ['plus', 'Add extras', 'Kathakali, tea tasting or an extra houseboat night · until Fri 6 Nov', extrasCard('e')],
+      ['cal', 'Change date or cancel', 'Date change is free until Wed 14 Oct', manageCard('e')],
+      ['file', 'Voucher', bal() > 0 ? `Shows “Balance due ${inr(bal())}” until you’ve paid in full` : 'Ready to show at check-in', voucherCard()],
+    ];
+    const n = q.length;
+    return `${TS.header('My trips')}<div class="mtp vE"><div class="wrap">${crumbs}
+      <div class="es">
+        <aside class="eph ${intro ? 'intro' : ''}"><div class="ph"><img src="${IMG.boat}" alt="Kettuvallam houseboat on the Alleppey backwaters"></div><div class="eshade"></div>
+          <div class="etop chips"><span class="badge dep">${bal() > 0 ? 'Deposit paid' : 'Fully paid'}</span><span class="rf">TB-7K2M9Q</span></div>
+          <div class="ebot"><p class="ecd"><b class="num">47</b><span>days to Kerala</span></p><h1>${esc(PKG.name)}</h1><p class="when">Fri 13 Nov → Tue 17 Nov 2026 · 2 adults, 1 child · led by ${LEAD.name}</p>
+            <div class="erd"><span class="num">${pct()}% ready</span>${segbar('E')}</div></div></aside>
+        <div class="ein">
+          <div class="ehi"><span class="eyebrow">Hi Ananya</span><p class="etitle">${n ? `${n} thing${n === 1 ? '' : 's'} before Kerala. One at a time.` : 'You’re ready for Kerala.'}</p></div>
+          <section class="enow ${now && now.status === 'done' ? 'isdone' : ''}" aria-live="polite" aria-label="Your next task">${card}</section>
+          ${upNext.length ? `<section class="eq"><h3>Up next <span class="ct num">${upNext.length}</span></h3><ul class="ck-list">${upNext.map((i) => row(i, go(i, 'Do now'))).join('')}</ul></section>` : ''}
+          <section class="eq"><h3>Coming up</h3><ul class="ck-list">${waiting.map((i) => row(i, go(i, 'Look inside'))).join('')}
+            <li><div class="ck"><span class="st">${ICON.clock}</span><span class="tx"><b>Extras close</b><small>Fri 6 Nov, with the trip pack</small></span></div></li>
+            <li><div class="ck"><span class="st">${ICON.clock}</span><span class="tx"><b>Traveller details lock</b><small>Tue 10 Nov, 3 days before departure</small></span></div></li></ul></section>
+          ${done.length ? `<details class="edone"><summary><span>Done</span><span class="ct num">${done.length}</span>${ICON.chevD}</summary><ul class="ck-list">${done.map(doneRow).join('')}</ul></details>` : ''}
+          <section class="emore" aria-label="More for this booking">${more.map(([ic, t, s, c]) => `<details class="exd"><summary><span class="exi">${ICON[ic]}</span><span class="tx"><b>${t}</b><small>${s}</small></span>${ICON.chevD}</summary><div class="exb">${c}</div></details>`).join('')}</section>
+          <section class="eact" aria-labelledby="e-ac-h"><div class="ex-hd"><h3 id="e-ac-h">Activity</h3><span class="fine">Newest first</span></div><ol class="feed">${feedLis(feed.slice(0, 3))}</ol>
+            <details class="emini"><summary><span>Show all ${feed.length} entries</span>${ICON.chevD}</summary><ol class="feed">${feedLis(feed.slice(3))}</ol></details>
+            <p class="fine">${upcoming()}Every change to your booking is logged here and can’t be edited.</p></section>
+        </div>
+      </div>
+    </div></div>`;
+  };
+
+  // D and E add two actions on top of the shared handler: open a coupon (D) and pick the focused task (E).
+  const mountX = (vid) => {
+    const base = mount(vid);
+    return (site, rerender) => {
+      base(site, rerender);
+      if (vid === 'E' && !S.eNow) S.eNow = eNowKey();
+      const done = items().filter((i) => i.status === 'done').map((i) => i.k);
+      if (S.prevDone && !reduced()) done.filter((k) => S.prevDone.indexOf(k) < 0).forEach((k) => { const el = site.querySelector(`.mtp [data-cp="${k}"]`); if (el) el.classList.add('just'); });
+      S.prevDone = done;
+      if (site.__mtpXBound) return;
+      site.__mtpXBound = true;
+      site.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('.mtp [data-act="dopen"], .mtp [data-act="enow"]');
+        if (!b) return;
+        let key = b.dataset.k;
+        if (b.dataset.act === 'dopen') { const cur = S.dOpen === undefined ? firstTodo() : S.dOpen; S.dOpen = cur === b.dataset.d ? null : b.dataset.d; }
+        else { S.eNow = b.dataset.e || null; key = 'e-now'; }
+        CUR.rerender();
+        const el = site.querySelector(`[data-k="${key}"]`);
+        if (el) el.focus();
+      });
+    };
   };
 
   /* ---------- CSS ---------- */
@@ -658,6 +823,203 @@
   @media (prefers-reduced-motion: reduce) {
     .mtp .ring.intro .fg, .mtp .seg.intro .s i, .mtp.vB .jr.intro::after, .mtp.vB .jr.intro .ms, .mtp .pack.opening .lks .sh, .mtp .pack.opening .pk-body, .mtp.vC .cpanel { animation: none !important; }
   }
+
+  /* tick pill (D, E) */
+  .mtp .dtick, .mtp .etick { position: relative; display: inline-flex; gap: 8px; align-items: center; flex: none; font: 700 13px "DM Sans", sans-serif; cursor: pointer; border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 7px; background: #fff; white-space: nowrap; }
+  .mtp .dtick input, .mtp .etick input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+  .mtp .tbox { width: 22px; height: 22px; border-radius: 7px; border: 2px solid #9AA5AF; display: grid; place-items: center; color: transparent; transition: background .2s, border-color .2s; }
+  .mtp .tbox .ic { width: 13px; height: 13px; }
+  .mtp .dtick input:checked + .tbox, .mtp .etick input:checked + .tbox { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .mtp .dtick:has(input:checked), .mtp .etick:has(input:checked) { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+  .mtp .dtick:has(input:focus-visible), .mtp .etick:has(input:focus-visible) { outline: 2px solid var(--pri); outline-offset: 2px; }
+
+  /* ===== D · Boarding pass ===== */
+  .mtp.vD .bp { margin-top: 12px; display: grid; grid-template-columns: 200px minmax(0, 1fr) 240px; background: var(--ink); color: #fff; border-radius: 22px; overflow: hidden; position: relative; }
+  .mtp.vD .bp-ph { min-height: 100%; } .mtp.vD .bp-ph img { opacity: .9; }
+  .mtp.vD .bp-main { padding: 22px 26px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+  .mtp.vD .bp-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .mtp.vD .bp-brand { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #AFC0D0; font-weight: 800; }
+  .mtp.vD .bp h1 { font-size: 16px; font-weight: 700; color: #D6DEE6; letter-spacing: 0; }
+  .mtp.vD .route { display: grid; grid-template-columns: auto minmax(24px, 1fr) auto minmax(24px, 1fr) auto; align-items: start; gap: 12px; }
+  .mtp.vD .stop { display: grid; min-width: 0; }
+  .mtp.vD .stop b { font-size: clamp(24px, 3.2cqi, 38px); letter-spacing: -.04em; line-height: 1.05; }
+  .mtp.vD .stop small { font-size: 12px; color: #AFC0D0; font-weight: 700; }
+  .mtp.vD .leg { display: grid; gap: 4px; padding-top: 16px; text-align: center; }
+  .mtp.vD .leg i { height: 0; border-top: 2px dashed rgba(255,255,255,.4); position: relative; }
+  .mtp.vD .leg i::after { content: ""; position: absolute; right: -2px; top: -6px; width: 8px; height: 8px; border-top: 2px solid rgba(255,255,255,.6); border-right: 2px solid rgba(255,255,255,.6); transform: rotate(45deg); }
+  .mtp.vD .leg small { font-size: 11px; color: #AFC0D0; font-weight: 600; white-space: nowrap; }
+  .mtp.vD .bp-meta { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; border-top: 1px solid rgba(255,255,255,.14); padding-top: 14px; }
+  .mtp.vD .bp-meta dt { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #AFC0D0; font-weight: 700; }
+  .mtp.vD .bp-meta dd { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
+  .mtp.vD .bp-meta .due dd { color: var(--act); }
+  .mtp.vD .bp-stub { border-left: 2px dashed rgba(255,255,255,.3); padding: 22px; display: grid; gap: 14px; align-content: space-between; position: relative; background: #1B2A36; min-width: 0; }
+  .mtp.vD .bp-stub::before, .mtp.vD .bp-stub::after { content: ""; position: absolute; left: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--bg); }
+  .mtp.vD .bp-stub::before { top: -12px; } .mtp.vD .bp-stub::after { bottom: -12px; }
+  .mtp.vD .cd { display: grid; }
+  .mtp.vD .cd small { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #AFC0D0; font-weight: 800; }
+  .mtp.vD .cd b { font-size: 72px; line-height: .95; letter-spacing: -.05em; color: var(--act); }
+  .mtp.vD .cd span { font-weight: 800; font-size: 16px; }
+  .mtp.vD .rd { display: grid; gap: 8px; }
+  .mtp.vD .rd small { font-size: 12.5px; color: #D6DEE6; font-weight: 700; }
+  .mtp.vD .holes { display: flex; gap: 7px; flex-wrap: wrap; }
+  .mtp.vD .hole { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); flex: none; }
+  .mtp.vD .hole.done { background: var(--bg); border-color: var(--bg); }
+  .mtp.vD .hole.part { background: conic-gradient(var(--act) 0 67%, transparent 0); border-color: var(--act); }
+  .mtp.vD .hole.locked { border-style: dashed; opacity: .6; }
+  .mtp.vD .bp.intro .hole.done, .mtp.vD .bp.intro .hole.part { animation: dPunch .45s var(--ease) both; animation-delay: calc(var(--i) * 110ms + 300ms); }
+  @keyframes dPunch { from { transform: scale(0); } 70% { transform: scale(1.25); } }
+  .mtp.vD .bars { display: flex; height: 40px; gap: 2px; }
+  .mtp.vD .bars i { flex: var(--w) 1 0; min-width: 0; background: #fff; opacity: .85; }
+  .mtp.vD .bars i.g { background: transparent; }
+  .mtp.vD .bp.intro { animation: mtpIn .6s var(--ease) both; }
+
+  .mtp.vD .dgrid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; margin-top: 28px; align-items: start; }
+  .mtp.vD .dcol { display: grid; gap: 12px; min-width: 0; align-content: start; }
+  .mtp.vD .cps-hd h2 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mtp.vD .cps-hd p { margin-top: 2px; }
+  .mtp.vD .cps-h { margin-top: 10px; display: flex; gap: 8px; align-items: center; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+  .mtp.vD .cps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .mtp.vD .cp { display: grid; grid-template-columns: 104px minmax(0, 1fr); background: #fff; border: 1px solid var(--line); border-radius: 16px; position: relative; transition: box-shadow .3s, border-color .3s; }
+  .mtp.vD .cp.open { border-color: var(--ink); box-shadow: 0 18px 36px -28px rgba(20,32,42,.6); }
+  .mtp.vD .cp-stub { border-right: 2px dashed var(--line); padding: 14px 12px; display: grid; align-content: start; gap: 4px; position: relative; background: var(--bg2); border-radius: 15px 0 0 15px; }
+  .mtp.vD .cp-stub::before, .mtp.vD .cp-stub::after { content: ""; position: absolute; right: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); }
+  .mtp.vD .cp-stub::before { top: -9px; clip-path: inset(50% 0 0 0); } .mtp.vD .cp-stub::after { bottom: -9px; clip-path: inset(0 0 50% 0); }
+  .mtp.vD .cp-no { font-size: 28px; font-weight: 800; letter-spacing: -.04em; color: var(--pri); line-height: 1; }
+  .mtp.vD .cp-stub small { font-size: 11.5px; font-weight: 700; color: var(--mute); }
+  .mtp.vD .cp.todo[data-cp="bal"] .cp-stub small { color: var(--warn); }
+  .mtp.vD .cp.part .cp-no { color: var(--warn); }
+  .mtp.vD .cp-main { padding: 14px 16px; display: grid; gap: 14px; min-width: 0; }
+  .mtp.vD .cp-hd { display: flex; gap: 12px; align-items: center; }
+  .mtp.vD .cp-tx { flex: 1; min-width: 0; display: grid; }
+  .mtp.vD .cp-tx b { font-size: 15.5px; }
+  .mtp.vD .cp-tx small { color: var(--mute); font-size: 13px; font-weight: 500; }
+  .mtp.vD .cp-tg { flex: none; }
+  .mtp.vD .cp-tg .ic { transition: transform .3s var(--ease); }
+  .mtp.vD .cp-tg[aria-expanded="true"] .ic { transform: rotate(180deg); }
+  .mtp.vD .cp-b { display: grid; gap: 12px; }
+  .mtp.vD .cp-b[hidden] { display: none; }
+  .mtp.vD .cp-b > .card { border: 0; padding: 0; background: none; }
+  .mtp.vD .cp.locked .cp-no { color: var(--mute); }
+  .mtp.vD .cp.done { background: transparent; border-style: dashed; }
+  .mtp.vD .cp.done .cp-stub { background: transparent; }
+  .mtp.vD .cp.done .cp-no { color: var(--ok); }
+  .mtp.vD .cp.done .cp-tx b { color: var(--ink2); }
+  .mtp.vD .stamp { flex: none; border: 2px solid var(--ok); color: var(--ok); border-radius: 8px; padding: 3px 8px; font: 800 10.5px/1.15 "DM Sans", sans-serif; text-transform: uppercase; letter-spacing: .1em; transform: rotate(-7deg); text-align: center; }
+  .mtp.vD .cp.just { animation: dTear .7s var(--ease) both; }
+  .mtp.vD .cp.just .stamp { animation: dStamp .5s var(--ease) .25s both; }
+  @keyframes dTear { 35% { transform: translate(8px, -4px) rotate(1.2deg); } }
+  @keyframes dStamp { from { transform: rotate(-7deg) scale(1.9); opacity: 0; } }
+  .mtp.vD .drail { display: grid; gap: 14px; min-width: 0; }
+  .mtp.vD .dlog { background: #FFFDF6; border-style: dashed; }
+  .mtp.vD .dlog ol { list-style: none; margin: 0; padding: 0; display: grid; }
+  .mtp.vD .dlog li { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px dashed #D9D2BF; font-size: 13px; }
+  .mtp.vD .dlog li > span { color: var(--mute); font-weight: 700; font-size: 12px; }
+  .mtp.vD .dlog li small { display: block; color: var(--mute); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+  /* ===== E · One thing next ===== */
+  .mtp.vE .es { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; margin-top: 12px; align-items: start; }
+  .mtp.vE .eph { position: sticky; top: 16px; height: 640px; border-radius: 26px; overflow: hidden; color: #fff; display: grid; align-content: space-between; background: var(--ink); }
+  .mtp.vE .eph .ph { position: absolute; inset: 0; }
+  .mtp.vE .eph.intro .ph img { animation: eZoom 2.6s var(--ease) both; }
+  @keyframes eZoom { from { transform: scale(1.1); } }
+  .mtp.vE .eshade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(20,32,42,.95) 6%, rgba(20,32,42,.45) 48%, rgba(20,32,42,0) 70%), linear-gradient(to bottom, rgba(20,32,42,.5), rgba(20,32,42,0) 22%); }
+  .mtp.vE .etop, .mtp.vE .ebot { position: relative; padding: 22px 26px; }
+  .mtp.vE .ebot { display: grid; gap: 8px; }
+  .mtp.vE .ecd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .mtp.vE .ecd b { font-size: 112px; line-height: .85; letter-spacing: -.06em; color: var(--act); }
+  .mtp.vE .ecd span { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+  .mtp.vE .eph.intro .ecd b { animation: mtpIn .8s var(--ease) .2s both; }
+  .mtp.vE .eph h1 { font-size: clamp(24px, 2.8cqi, 34px); color: #fff; }
+  .mtp.vE .erd { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #D6DEE6; margin-top: 6px; }
+  .mtp.vE .erd .seg .s { background: rgba(255,255,255,.2); }
+  .mtp.vE .erd .seg .s.locked { background: repeating-linear-gradient(-45deg, rgba(255,255,255,.2) 0 4px, rgba(255,255,255,.06) 4px 8px); }
+  .mtp.vE .ein { display: grid; gap: 22px; min-width: 0; align-content: start; }
+  .mtp.vE .etitle { font-size: clamp(24px, 2.6cqi, 32px); font-weight: 800; letter-spacing: -.03em; line-height: 1.15; margin-top: 4px; }
+  .mtp.vE .enow { border: 2px solid var(--ink); border-radius: 22px; padding: 22px; display: grid; gap: 16px; background: #fff; box-shadow: 0 30px 50px -40px rgba(20,32,42,.8); animation: eDeal .5s var(--ease) both; min-width: 0; }
+  .mtp.vE .enow.isdone { border-color: var(--ok); }
+  @keyframes eDeal { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+  .mtp.vE .enow-hd { display: grid; gap: 4px; }
+  .mtp.vE .enow-hd h2 { font-size: 26px; letter-spacing: -.03em; }
+  .mtp.vE .enow-hd p { color: var(--ink2); font-size: 14.5px; }
+  .mtp.vE .enow h2:focus { outline: none; }
+  .mtp.vE .enow h2:focus-visible { outline: 2px solid var(--pri); outline-offset: 4px; border-radius: 6px; }
+  .mtp.vE .eb { display: grid; gap: 12px; min-width: 0; }
+  .mtp.vE .eb > .card { border: 0; padding: 0; background: none; }
+  .mtp.vE .etools { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 10px; }
+  .mtp.vE .eown { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; }
+  .mtp.vE .eown .etick { grid-column: 1 / -1; justify-self: start; font-size: 15px; padding: 10px 18px 10px 10px; }
+  .mtp.vE .eclear { display: grid; justify-items: start; gap: 8px; }
+  .mtp.vE .eclear h2 { font-size: 26px; letter-spacing: -.03em; }
+  .mtp.vE .bigok { width: 56px; height: 56px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; animation: ePop .55s var(--ease) both; }
+  .mtp.vE .bigok .ic { width: 28px; height: 28px; }
+  @keyframes ePop { from { transform: scale(.3); opacity: 0; } 60% { transform: scale(1.12); } }
+  .mtp.vE .eq h3, .mtp.vE .edone summary { display: flex; gap: 8px; align-items: center; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); font-weight: 800; }
+  .mtp.vE .eq .ck-list { margin-top: 4px; }
+  .mtp.vE .eq .st .ic { color: var(--mute); }
+  .mtp.vE details > summary { list-style: none; cursor: pointer; }
+  .mtp.vE details > summary::-webkit-details-marker { display: none; }
+  .mtp.vE details > summary > .ic { width: 16px; height: 16px; transition: transform .3s var(--ease); flex: none; }
+  .mtp.vE details[open] > summary > .ic { transform: rotate(180deg); }
+  .mtp.vE .edone { border-top: 1.5px solid var(--line); padding-top: 12px; }
+  .mtp.vE .edone summary { padding: 4px 0; }
+  .mtp.vE .edone .ck-list { margin-top: 4px; }
+  .mtp.vE .ecal { margin-top: 8px; }
+  .mtp.vE .emini { margin-top: 6px; }
+  .mtp.vE .emini > summary { display: inline-flex; gap: 6px; align-items: center; font: 700 13px "DM Sans", sans-serif; color: var(--pri); padding: 4px 0; }
+  .mtp.vE .emini > summary .tav { border-radius: 50%; margin-right: -10px; box-shadow: 0 0 0 2px #fff; font-size: 11px; }
+  .mtp.vE .emini > summary .tav + span, .mtp.vE .emini > summary .tav:last-of-type { margin-right: 4px; }
+  .mtp.vE .emini[open] > .tvs, .mtp.vE .emini[open] > .demo { margin-top: 10px; }
+  .mtp.vE .emore { display: grid; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .mtp.vE .exd + .exd { border-top: 1px solid var(--line); }
+  .mtp.vE .exd > summary { display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px; gap: 12px; align-items: center; padding: 14px 16px; }
+  .mtp.vE .exd > summary:hover { background: var(--bg2); }
+  .mtp.vE .exd > summary:focus-visible { outline: 2px solid var(--pri); outline-offset: -2px; }
+  .mtp.vE .exi { width: 36px; height: 36px; border-radius: 10px; background: var(--bg2); color: var(--ink2); display: grid; place-items: center; }
+  .mtp.vE .exi .ic { width: 17px; height: 17px; }
+  .mtp.vE .exd .tx { display: grid; min-width: 0; } .mtp.vE .exd .tx b { font-size: 14.5px; } .mtp.vE .exd .tx small { color: var(--mute); font-size: 12.5px; }
+  .mtp.vE .exb { padding: 0 16px 14px; }
+  .mtp.vE .exb > .card { border: 0; padding: 0; }
+  .mtp.vE .exb > .card > h3:first-child, .mtp.vE .exb .ex-hd h3 { display: none; }
+  .mtp.vE .eact { display: grid; gap: 8px; }
+
+  @container site (max-width: 700px) {
+    .mtp .dtick, .mtp .etick { white-space: normal; }
+    .mtp.vD .bp { grid-template-columns: 1fr; border-radius: 20px; }
+    .mtp.vD .bp-ph { min-height: 0; height: 130px; }
+    .mtp.vD .bp-main { padding: 18px; }
+    .mtp.vD .route { gap: 6px; grid-template-columns: auto minmax(12px, 1fr) auto minmax(12px, 1fr) auto; }
+    .mtp.vD .stop b { font-size: 21px; }
+    .mtp.vD .leg small { display: none; }
+    .mtp.vD .leg { padding-top: 12px; }
+    .mtp.vD .bp-meta { grid-template-columns: 1fr 1fr; }
+    .mtp.vD .bp-stub { border-left: 0; border-top: 2px dashed rgba(255,255,255,.3); padding: 18px; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px 18px; }
+    .mtp.vD .bp-stub::before { left: -12px; top: -13px; } .mtp.vD .bp-stub::after { left: auto; right: -12px; top: -13px; bottom: auto; }
+    .mtp.vD .cd b { font-size: 56px; }
+    .mtp.vD .bars { grid-column: 1 / -1; height: 30px; }
+    .mtp.vD .dgrid { grid-template-columns: 1fr; gap: 24px; }
+    .mtp.vD .cp { grid-template-columns: 1fr; }
+    .mtp.vD .cp-stub { border-right: 0; border-bottom: 2px dashed var(--line); border-radius: 15px 15px 0 0; display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; }
+    .mtp.vD .cp-stub::before { right: auto; left: -9px; top: auto; bottom: -9px; clip-path: inset(0 0 0 50%); }
+    .mtp.vD .cp-stub::after { right: -9px; bottom: -9px; clip-path: inset(0 50% 0 0); }
+    .mtp.vD .cp-no { font-size: 20px; }
+    .mtp.vD .cp-main { padding: 12px 14px; }
+    .mtp.vD .cp-hd { flex-wrap: wrap; }
+    .mtp.vD .cp-tx { flex-basis: 70%; }
+    .mtp.vD .dlog li { grid-template-columns: 1fr; gap: 2px; }
+    .mtp.vE .es { grid-template-columns: 1fr; gap: 20px; }
+    .mtp.vE .eph { position: relative; top: auto; height: 380px; border-radius: 20px; }
+    .mtp.vE .etop, .mtp.vE .ebot { padding: 18px; }
+    .mtp.vE .ecd b { font-size: 80px; }
+    .mtp.vE .enow { padding: 16px; border-radius: 18px; }
+    .mtp.vE .enow-hd h2, .mtp.vE .eclear h2 { font-size: 22px; }
+    .mtp.vE .etools { justify-content: flex-start; }
+    .mtp.vE .exd > summary { padding: 12px 14px; }
+    .mtp.vE .exb { padding: 0 14px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mtp.vD .bp.intro, .mtp.vD .bp.intro .hole, .mtp.vD .cp.just, .mtp.vD .cp.just .stamp, .mtp.vE .eph.intro .ph img, .mtp.vE .eph.intro .ecd b, .mtp.vE .enow, .mtp.vE .bigok { animation: none !important; }
+    .mtp .tbox, .mtp.vD .cp, .mtp.vD .cp-tg .ic, .mtp.vE details > summary > .ic { transition: none !important; }
+  }
   `;
 
   TS.register({
@@ -672,6 +1034,12 @@
       { id: 'C', name: 'Tabbed booking', render: renderC, mount: mount('C'),
         note: 'A compact header with the countdown, a labelled 7-segment readiness strip that fills segment by segment on load, then tabs: Overview (checklist with “Pay / Finish” jumps, calendar, extras, change of plans), Travellers, Payments (pay in parts + history + price), Trip pack (lock icon until 6 Nov) and Activity. Tabs carry live counts (2/3, balance due) and support arrow keys. On phone the tabs scroll sideways and every panel stacks to one column.',
         tradeoff: 'Short and tidy, but the balance and missing ID hide behind tabs unless the checklist sends you there.' },
+      { id: 'D', name: 'Boarding pass', render: renderD, mount: mountX('D'),
+        note: 'The booking as a holiday pass. A wide dark pass carries the route (Kochi → Munnar → Alleppey with drive times), depart and return, travellers, leader, where the meeting point will appear and the balance due; its perforated stub holds a big countdown, seven punch holes for readiness (punched one by one on load) and a barcode of the booking ref. Below, every task is a numbered tear-off coupon with the date it matters by on its stub: open the balance coupon to pay in parts, the traveller coupon for the ID cards, the trip-pack coupon for the locked pack and its preview; Anjali’s items tick straight from the coupon. Finishing a task tears the coupon off with a stamp and drops it into the “Torn off” pile. Extras, change of plans, voucher and a receipt-style ticket log sit in the right rail. On phone the pass stacks, the stub’s perforation turns horizontal, and each coupon’s stub becomes a strip across its top.',
+        tradeoff: 'The most memorable page and very easy to scan, but coupons open one at a time and the pass header costs a full screen on phone before the first coupon.' },
+      { id: 'E', name: 'One thing next', render: renderE, mount: mountX('E'),
+        note: 'Photo-led focus mode. The houseboat photo fills a tall sticky panel with a huge countdown and the readiness bar over it; beside it the page shows one task, the next one, as a big card with its real controls (Mira’s ID form, pay in parts, Anjali’s tick items, the locked trip pack with its preview). Finish it and the card flips to a done state with “Next: …”; “Not now” moves to the next one. Up next and Coming up (pack unlocks 6 Nov, extras close, details lock) are one-line rows with “Do now” or “Look inside”, Done folds away with the calendar links, and extras, change date or cancel, voucher and Activity sit in folded rows below. On phone the photo becomes a 380px band and the one task follows straight after it.',
+        tradeoff: 'Calmest and most phone-friendly, but it hides the full picture: someone who wants to see every traveller and payment at once has to unfold sections.' },
     ],
   });
 })();
