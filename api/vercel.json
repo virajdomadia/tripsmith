@@ -7,5 +7,5 @@
   },
   "regions": ["bom1"],
   "crons": [{ "path": "/cron/daily", "schedule": "30 19 * * *" }],
-  "ignoreCommand": "git diff --quiet \"${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}\" HEAD -- ."
+  "ignoreCommand": "[ \"$VERCEL_GIT_PREVIOUS_SHA\" != \"$VERCEL_GIT_COMMIT_SHA\" ] && git diff --quiet \"${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}\" HEAD -- ."
 }
