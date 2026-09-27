@@ -71,7 +71,11 @@ export interface DeskFilters {
   to?: string;
   q?: string;
   page: number;
+  /** P20 desk A: the booking open in the side panel — page state only, never sent to the api. */
+  sel?: string;
 }
+
+const REF = /^TB-[A-Z0-9]{6}$/;
 
 /** The URL is the filter state, exactly as on the enquiry inbox: unknown values are dropped. */
 export function parseDeskFilters(params: RawParams): DeskFilters {
@@ -88,6 +92,7 @@ export function parseDeskFilters(params: RawParams): DeskFilters {
     to,
     q: one(params.q)?.slice(0, SEARCH_MAX),
     page: Number.isInteger(page) && page > 1 ? Math.min(page, MAX_PAGE) : 1,
+    sel: oneRef(one(params.sel)),
   };
 }
 
@@ -109,6 +114,7 @@ export function deskHref(f: DeskFilters, patch: Partial<DeskFilters>, path = DES
   const next: DeskFilters = { ...f, ...patch, page: patch.page ?? 1 };
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(deskQuery(next))) if (value) search.append(key, value);
+  if (next.sel && path === DESK_PATH) search.append('sel', next.sel);
   const qs = search.toString();
   return qs ? `${path}?${qs}` : path;
 }
@@ -119,3 +125,7 @@ export function clampDeskPage(f: DeskFilters, totalPages: number): string | null
 }
 
 export const deskCsvHref = (f: DeskFilters) => deskHref(f, { page: 1 }, CSV_PATH);
+
+function oneRef(value: string | undefined): string | undefined {
+  return value && REF.test(value) ? value : undefined;
+}

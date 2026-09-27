@@ -2,6 +2,7 @@ import { Download } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { BookingsTable } from '@/components/admin/bookings/BookingsTable';
+import { DeskPanel } from '@/components/admin/bookings/DeskPanel';
 import { DeskFilters } from '@/components/admin/bookings/DeskFilters';
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { Pager } from '@/components/admin/enquiries/Pager';
@@ -13,23 +14,25 @@ import {
   deskQuery,
   parseDeskFilters,
 } from '@/lib/admin/booking-filters';
-import { api } from '@/lib/api';
+import { api, ApiRequestError } from '@/lib/api';
 
 export const metadata = { title: 'Bookings' };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-/** The bookings desk (R22). Built on the enquiry inbox: the URL is the filter state, the api
- *  filters, counts and pages; nothing here is client state. */
+/** The bookings desk (R22), laid out as mockup A (R59, P20): attention tiles, status tabs, live
+ *  filters, and a side panel for the row picked (`?sel=`). Built on the enquiry inbox: the URL is
+ *  the state, the api filters, counts and pages. */
 export default async function BookingsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const filters = parseDeskFilters(await searchParams);
-  const [desk, catalogue] = await Promise.all([
+  const [desk, catalogue, selected] = await Promise.all([
     api('/admin/bookings', { auth: true, searchParams: deskQuery(filters) }),
     api('/admin/packages', { auth: true }),
+    filters.sel ? loadBooking(filters.sel) : Promise.resolve(null),
   ]);
   const clamped = clampDeskPage(filters, desk.totalPages);
   if (clamped) redirect(clamped);
@@ -61,15 +64,37 @@ export default async function BookingsPage({
         departures={desk.departures}
       />
       {desk.seats && <SeatStrip seats={desk.seats} />}
-      <BookingsTable items={desk.items} />
-      <Pager
-        href={(page) => deskHref(filters, { page })}
-        noun={['booking', 'bookings']}
-        page={desk.page}
-        totalPages={desk.totalPages}
-        total={desk.total}
-        shown={desk.items.length}
-      />
+      <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-3">
+          <BookingsTable
+            items={desk.items}
+            selected={filters.sel}
+            selectHref={(ref) => deskHref(filters, { sel: ref, page: filters.page })}
+          />
+          <Pager
+            href={(page) => deskHref(filters, { page })}
+            noun={['booking', 'bookings']}
+            page={desk.page}
+            totalPages={desk.totalPages}
+            total={desk.total}
+            shown={desk.items.length}
+          />
+        </div>
+        <DeskPanel
+          b={selected}
+          closeHref={deskHref(filters, { sel: undefined, page: filters.page })}
+        />
+      </div>
     </>
   );
+}
+
+/** The panel's booking; a stale `?sel=` (a ref that no longer exists) just leaves it empty. */
+async function loadBooking(ref: string) {
+  try {
+    return await api('/admin/bookings/{ref}', { auth: true, params: { ref } });
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) return null;
+    throw e;
+  }
 }

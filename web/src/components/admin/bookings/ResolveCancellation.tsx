@@ -66,7 +66,7 @@ export function ResolveCancellation({
   );
 }
 
-function ResolveDialog({
+export function ResolveDialog({
   bookingRef,
   c,
   decision,

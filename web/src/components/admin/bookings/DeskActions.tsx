@@ -22,7 +22,8 @@ import { inr } from '@/lib/format';
 
 const NOTE_MAX = 80; // api schemas/admin_bookings.py NOTE_MAX
 
-type Action = 'mark-paid' | 'release' | 'refund-made';
+export type DeskAction = 'mark-paid' | 'release' | 'refund-made';
+type Action = DeskAction;
 
 /**
  * The desk's three writes, each behind a confirm dialog. The api re-checks everything under the
@@ -30,8 +31,13 @@ type Action = 'mark-paid' | 'release' | 'refund-made';
  * pending), which lands as a toast; `router.refresh()` then re-renders the page and the
  * sidebar badge from the server.
  */
-export function DeskActions({ booking }: { booking: AdminBooking }) {
-  const { ref, canMarkPaid, canRelease, refundNeeded } = booking;
+export function DeskActions({ booking, only }: { booking: AdminBooking; only?: DeskAction }) {
+  const { ref } = booking;
+  // P20: `only` shows one action (a Lifecycle move); unset shows every one that applies.
+  const canMarkPaid = booking.canMarkPaid && (!only || only === 'mark-paid');
+  const canRelease = booking.canRelease && (!only || only === 'release');
+  const refundNeeded = booking.refundNeeded && (!only || only === 'refund-made');
+  if (only && !canMarkPaid && !canRelease && !refundNeeded) return null;
   if (!canMarkPaid && !canRelease && !refundNeeded) {
     return (
       <p className="text-sm text-mute">
