@@ -37,7 +37,8 @@
       b.setAttribute('aria-pressed', x.id === vid);
       vars.appendChild(b);
     });
-    dirs.hidden = !s.admin;
+    dirs.hidden = true; // admin style locked to A (picked 2026-09-27)
+    TS.adminDir = 'A';
     dirs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.d === TS.adminDir));
     scr.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.s === cur));
     const dirName = { A: 'Ink rail', B: 'Command', C: 'Operator', D: 'Studio', E: 'Night desk' }[TS.adminDir];

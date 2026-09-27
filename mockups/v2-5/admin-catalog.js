@@ -988,7 +988,7 @@
   /* ---------- register ---------- */
   const reg = (id, label, note, render, mount, withCss) => TS.register({
     id, label, group: 'Admin redesign', admin: true, css: withCss ? css : undefined,
-    variants: [{ id: 'A', name: 'Redesign', note, tradeoff: '', render, mount }],
+    variants: [{ id: 'A', name: 'First pass', note, tradeoff: '', render, mount }],
   });
 
   reg('packages', 'Packages',

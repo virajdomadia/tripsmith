@@ -7,9 +7,9 @@ const noop = () => {};
 const el = () => ({ appendChild: noop, set textContent(v) {}, style: {}, dataset: {}, setAttribute: noop, querySelectorAll: () => [] });
 const ctx = { window: {}, document: { createElement: el, head: { appendChild: noop }, querySelector: () => null }, localStorage: { getItem: () => null, setItem: noop }, location: { hash: '' }, console, matchMedia: () => ({ matches: false }), requestAnimationFrame: noop, performance: { now: () => 0 }, setTimeout, clearTimeout };
 ctx.window = ctx; vm.createContext(ctx);
-for (const f of ['lib.js', 'admin.js', mod]) vm.runInContext(fs.readFileSync(path.resolve(dir, f), 'utf8'), ctx, { filename: f });
+for (const f of ['lib.js', 'admin.js', ...process.argv.slice(3), mod]) vm.runInContext(fs.readFileSync(path.resolve(dir, f), 'utf8'), ctx, { filename: f });
 const TS = ctx.TS; let bad = 0, n = 0;
-for (const s of TS.SCREENS) for (const v of s.variants) for (const d of s.admin ? ['A', 'B', 'C', 'D', 'E'] : ['A']) {
+for (const s of TS.SCREENS) for (const v of s.variants) for (const d of ['A']) {
   TS.adminDir = d; let html;
   try { html = v.render(); } catch (e) { console.error(`✗ ${s.id}/${v.id}/${d} threw: ${e.stack}`); bad++; continue; }
   n++;

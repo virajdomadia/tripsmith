@@ -716,15 +716,15 @@
 
   /* ---------- register ---------- */
   TS.register({ id: 'dash', label: 'Dashboard', group: 'Admin redesign', admin: true, css,
-    variants: [{ id: 'A', name: 'Redesign', tradeoff: '', render: renderDash, mount: mountDash,
+    variants: [{ id: 'A', name: 'First pass', tradeoff: '', render: renderDash, mount: mountDash,
       note: 'Today the dashboard opens on four enquiry tiles and leaves bookings to the desk, so a cancellation request or a refund only shows up if you go looking. The redesign leads with one <b>Needs you now</b> queue that merges cancellation requests, refunds, lapsed holds, the longest-waiting enquiry and reviews, each with its one action, so the owner clears the day from the home page. Money sits beside it (v2.5 balances due in 7 days, refunds to record, live holds), departures gain a booked/held seat bar and a details-missing column, and the two top-package panels collapse into one with an Enquiries/Views switch.' }] });
   TS.register({ id: 'bookings', label: 'Bookings desk', group: 'Admin redesign', admin: true,
-    variants: [{ id: 'A', name: 'Redesign', tradeoff: '', render: renderDesk, mount: mountDesk,
+    variants: [{ id: 'A', name: 'First pass', tradeoff: '', render: renderDesk, mount: mountDesk,
       note: 'Today the desk is two rows of tab links, a five-field form with an Apply button, and a table where every booking needs <b>Open</b> before you can see anything. The redesign turns the two waiting-on-you flags into counted attention tiles (plus v2.5 balance due and details missing), keeps status as tabs, filters live as you type, and fills a side panel when you click a row: the next step with its button, seats, money and recent history. Most bookings get handled without leaving the list. Try a tile, a tab, the package filter (Munnar shows the seat strip) or any row.' }] });
   TS.register({ id: 'booking', label: 'Booking detail', group: 'Admin redesign', admin: true,
-    variants: [{ id: 'A', name: 'Redesign', tradeoff: '', render: renderBooking, mount: mountBooking,
+    variants: [{ id: 'A', name: 'First pass', tradeoff: '', render: renderBooking, mount: mountBooking,
       note: 'Today the action sits in a narrow right column behind confirm dialogs, under the seat strip, travellers and price. The redesign puts a <b>Next step</b> card first with the decision inline: the refund pre-filled from the policy tier, the note with its counter, and what happens after, so answering a cancellation is one screen instead of a dialog. Status, price, trip and lead move to the right rail; the payment timeline becomes the v2.5 merged history (payments, emails, changes) with filter chips; travellers show whose details are in. Switch the preview state to see a lapsed hold and a refund.' }] });
   TS.register({ id: 'enquiries', label: 'Enquiries', group: 'Admin redesign', admin: true,
-    variants: [{ id: 'A', name: 'Redesign', tradeoff: '', render: renderEnq, mount: mountEnq,
+    variants: [{ id: 'A', name: 'First pass', tradeoff: '', render: renderEnq, mount: mountEnq,
       note: 'Today the inbox is a table with an <b>Open</b> link per row, and reply, notes and status live on a separate page. The redesign keeps the status tabs and filters but opens the enquiry in a panel beside the list: what they sent, one-click status, the reply with an itinerary attached, notes and related enquiries, plus the v2.5 <b>Convert to booking</b>. New enquiries show how long they have waited and sort longest-waiting first, so the first call goes to whoever has waited longest.' }] });
 })();

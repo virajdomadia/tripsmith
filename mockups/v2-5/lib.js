@@ -104,6 +104,13 @@
     }
     SCREENS.push(screen);
   };
+  // Round 3: add layout variants to a screen another module registered (load order: after it).
+  const addVariants = (id, variants, css) => {
+    const s = SCREENS.find((x) => x.id === id);
+    if (!s) throw new Error('addVariants: no screen ' + id);
+    if (css) { const el = document.createElement('style'); el.textContent = css; document.head.appendChild(el); }
+    s.variants.push(...variants);
+  };
 
   const baseCss = `
     .ts-av { width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; flex: none;
@@ -114,5 +121,5 @@
   s.textContent = baseCss;
   document.head.appendChild(s);
 
-  window.TS = { inr, lakh, esc, ICON, stars, PKGS, LEADERS, avatar, header, register, SCREENS, TODAY: '27 Sep 2026' };
+  window.TS = { inr, lakh, esc, ICON, stars, PKGS, LEADERS, avatar, header, register, addVariants, SCREENS, TODAY: '27 Sep 2026' };
 })();
