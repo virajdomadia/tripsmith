@@ -4547,6 +4547,325 @@
         "title": "Meta",
         "type": "object"
       },
+      "MoneyDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "inPaise": {
+            "title": "Inpaise",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "outPaise": {
+            "title": "Outpaise",
+            "type": "integer"
+          },
+          "owePaise": {
+            "description": "Refunds still to record — only ever on today",
+            "title": "Owepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "inPaise",
+          "outPaise",
+          "owePaise",
+          "lines"
+        ],
+        "title": "MoneyDay",
+        "type": "object"
+      },
+      "MoneyDesk": {
+        "properties": {
+          "atRisk": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyRisk"
+            },
+            "title": "Atrisk",
+            "type": "array"
+          },
+          "collectedCount": {
+            "title": "Collectedcount",
+            "type": "integer"
+          },
+          "collectedPaise": {
+            "description": "Captured this month, refunded later or not",
+            "title": "Collectedpaise",
+            "type": "integer"
+          },
+          "days": {
+            "description": "The window, oldest first, one entry per day",
+            "items": {
+              "$ref": "#/components/schemas/MoneyDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyHold"
+            },
+            "title": "Holds",
+            "type": "array"
+          },
+          "holdsPaise": {
+            "description": "Live checkout holds, not money yet",
+            "title": "Holdspaise",
+            "type": "integer"
+          },
+          "monthStart": {
+            "format": "date",
+            "title": "Monthstart",
+            "type": "string"
+          },
+          "owed": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyOwed"
+            },
+            "title": "Owed",
+            "type": "array"
+          },
+          "refunded": {
+            "description": "This month, newest first",
+            "items": {
+              "$ref": "#/components/schemas/MoneyRefund"
+            },
+            "title": "Refunded",
+            "type": "array"
+          },
+          "refundedPaise": {
+            "description": "Refunds recorded this month",
+            "title": "Refundedpaise",
+            "type": "integer"
+          },
+          "toRecordPaise": {
+            "description": "Refunds owed and not yet recorded",
+            "title": "Torecordpaise",
+            "type": "integer"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "windowStart": {
+            "format": "date",
+            "title": "Windowstart",
+            "type": "string"
+          }
+        },
+        "required": [
+          "today",
+          "monthStart",
+          "windowStart",
+          "collectedPaise",
+          "collectedCount",
+          "refundedPaise",
+          "toRecordPaise",
+          "holdsPaise",
+          "days",
+          "holds",
+          "owed",
+          "refunded",
+          "atRisk"
+        ],
+        "title": "MoneyDesk",
+        "type": "object"
+      },
+      "MoneyHold": {
+        "properties": {
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "holdExpiresAt": {
+            "format": "date-time",
+            "title": "Holdexpiresat",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "totalPaise",
+          "holdExpiresAt",
+          "packageName",
+          "departs"
+        ],
+        "title": "MoneyHold",
+        "type": "object"
+      },
+      "MoneyLine": {
+        "properties": {
+          "amountPaise": {
+            "description": "Always positive; `kind` says the direction",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "`in` collected · `out` refund recorded · `owe` to record",
+            "enum": [
+              "in",
+              "out",
+              "owe"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "How the money moved, e.g. `Razorpay` or `Offline · UTR 44`",
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "description": "The booking's lead",
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "kind",
+          "label",
+          "amountPaise"
+        ],
+        "title": "MoneyLine",
+        "type": "object"
+      },
+      "MoneyOwed": {
+        "properties": {
+          "amountPaise": {
+            "description": "What 'Refund made' would give back now",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "amountPaise",
+          "why"
+        ],
+        "title": "MoneyOwed",
+        "type": "object"
+      },
+      "MoneyRefund": {
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "amountPaise",
+          "at"
+        ],
+        "title": "MoneyRefund",
+        "type": "object"
+      },
+      "MoneyRisk": {
+        "properties": {
+          "amountPaise": {
+            "description": "`cancellation`: the refund the policy suggests; `lapsed`: the unpaid total",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "cancellation",
+              "lapsed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "kind",
+          "amountPaise",
+          "text",
+          "departs"
+        ],
+        "title": "MoneyRisk",
+        "type": "object"
+      },
       "Occupancy": {
         "enum": [
           "double",
@@ -8147,6 +8466,54 @@
           }
         },
         "summary": "Set Status Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/money": {
+      "get": {
+        "description": "P20 · Dashboard C: the month's cash equation, cash by day, and what is coming in, going\nout and at risk. Read-only.",
+        "operationId": "getMoneyDesk",
+        "parameters": [
+          {
+            "description": "Days of cash-by-day, ending today",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 40,
+              "description": "Days of cash-by-day, ending today",
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyDesk"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Money Route",
         "tags": [
           "admin"
         ]

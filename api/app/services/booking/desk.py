@@ -585,6 +585,42 @@ async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> 
     return await get_booking(db, ref)
 
 
+async def refund_owed(db: AsyncSession, booking: Booking) -> int:
+    """What 'Refund made' would give back now (B10/B11). A cancellation the owner approved owes
+    the refund agreed then (a policy tier may keep part) plus any money beyond the price in full;
+    any other cancelled booking everything captured; a live one only what it holds beyond its
+    total (a second payment). The Money desk shows the same number before the owner acts."""
+    agreed = (
+        await db.execute(
+            select(BookingCancellation.refund_paise).where(
+                BookingCancellation.booking_id == booking.id,
+                BookingCancellation.status == CancellationStatus.APPROVED,
+            )
+        )
+    ).one_or_none()
+    if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
+        # Everything owed since the approval, less what was already given back: the refund
+        # agreed, plus in full any money captured beyond the booking's price (a second
+        # payment has no seat behind it, whenever it landed). Amounts, not timestamps: a
+        # capture racing the approval is stamped with its transaction's start, which can
+        # fall on either side of the approval's.
+        ever = (
+            await db.execute(
+                select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
+                    Payment.booking_id == booking.id,
+                    Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
+                )
+            )
+        ).scalar_one()
+        given_back = ever - booking.paid_paise
+        surplus = max(0, ever - booking.total_paise)
+        return min(booking.paid_paise, max(0, (agreed[0] or 0) + surplus - given_back))
+    elif booking.status == BookingStatus.CANCELLED:
+        return booking.paid_paise
+    else:
+        return booking.paid_paise - booking.total_paise
+
+
 async def record_refund(
     db: AsyncSession, ref: str, note: str | None, *, by: str | None = None
 ) -> AdminBooking:
@@ -611,35 +647,7 @@ async def record_refund(
                 )
             ).scalars()
         )
-        agreed = (
-            await db.execute(
-                select(BookingCancellation.refund_paise).where(
-                    BookingCancellation.booking_id == booking.id,
-                    BookingCancellation.status == CancellationStatus.APPROVED,
-                )
-            )
-        ).one_or_none()
-        if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
-            # Everything owed since the approval, less what was already given back: the refund
-            # agreed, plus in full any money captured beyond the booking's price (a second
-            # payment has no seat behind it, whenever it landed). Amounts, not timestamps: a
-            # capture racing the approval is stamped with its transaction's start, which can
-            # fall on either side of the approval's.
-            ever = (
-                await db.execute(
-                    select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
-                        Payment.booking_id == booking.id,
-                        Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
-                    )
-                )
-            ).scalar_one()
-            given_back = ever - booking.paid_paise
-            surplus = max(0, ever - booking.total_paise)
-            owed = min(booking.paid_paise, max(0, (agreed[0] or 0) + surplus - given_back))
-        elif booking.status == BookingStatus.CANCELLED:
-            owed = booking.paid_paise
-        else:
-            owed = booking.paid_paise - booking.total_paise
+        owed = await refund_owed(db, booking)
         now = dt.datetime.now(dt.UTC)
         refunded = 0
         for p in captured:

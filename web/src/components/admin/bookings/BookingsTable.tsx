@@ -1,3 +1,4 @@
+import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { phoneLabel, receivedLabel } from '@/components/admin/enquiries/EnquiriesTable';
 import {
@@ -11,10 +12,21 @@ import {
 import type { BookingRow } from '@/lib/admin/booking-filters';
 import { travellersLabel } from '@/lib/account';
 import { formatDate, inr } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { CancelRequested, RefundFlag, StateBadge } from './StateBadge';
 
-/** A server component, like the inbox's table: rows arrive filtered and paged by the api. */
-export function BookingsTable({ items }: { items: BookingRow[] }) {
+/** A server component, like the inbox's table: rows arrive filtered and paged by the api.
+ *  P20 desk A: a click anywhere on a row opens it in the side panel (`selectHref`, a URL so it
+ *  works without JavaScript and survives a reload); the arrow opens the full booking. */
+export function BookingsTable({
+  items,
+  selected,
+  selectHref,
+}: {
+  items: BookingRow[];
+  selected?: string;
+  selectHref?: (ref: string) => string;
+}) {
   if (items.length === 0) {
     return (
       <div className="rounded-card border border-line bg-bg p-6 text-center text-mute">
@@ -29,22 +41,49 @@ export function BookingsTable({ items }: { items: BookingRow[] }) {
           <TableRow>
             <TableHead>Ref</TableHead>
             <TableHead>Lead</TableHead>
-            <TableHead>Trip</TableHead>
+            <TableHead className="hidden 2xl:table-cell">Trip</TableHead>
             <TableHead>Paid</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Booked</TableHead>
+            <TableHead className="hidden 2xl:table-cell">Booked</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((b) => (
-            <TableRow key={b.ref}>
-              <TableCell className="num font-bold">{b.ref}</TableCell>
+            <TableRow
+              key={b.ref}
+              aria-selected={selected === b.ref}
+              className={cn(
+                'relative',
+                selectHref && 'cursor-pointer',
+                selected === b.ref &&
+                  'bg-primary-soft/60 shadow-[inset_3px_0_0_var(--color-primary)]',
+                b.status === 'cancelled' && !b.refundNeeded && 'text-mute',
+              )}
+            >
+              <TableCell className="num font-bold">
+                {selectHref ? (
+                  <Link
+                    href={selectHref(b.ref)}
+                    scroll={false}
+                    aria-current={selected === b.ref ? 'true' : undefined}
+                    className="text-ink no-underline after:absolute after:inset-0 hover:text-primary"
+                  >
+                    {b.ref}
+                  </Link>
+                ) : (
+                  b.ref
+                )}
+                {/* Beside the desk's side panel the Trip and Booked columns fold in here. */}
+                <span className="block text-xs font-normal text-mute 2xl:hidden">
+                  {b.packageName} · {formatDate(b.departs)}
+                </span>
+              </TableCell>
               <TableCell>
                 <b className="block">{b.leadName}</b>
                 <span className="text-xs text-mute">{phoneLabel(b.leadPhone)}</span>
               </TableCell>
-              <TableCell className="text-ink2">
+              <TableCell className="hidden text-ink2 2xl:table-cell">
                 <span className="block">{b.packageName}</span>
                 <span className="text-xs text-mute">
                   {formatDate(b.departs)} · {travellersLabel(b.travellers)}
@@ -58,7 +97,7 @@ export function BookingsTable({ items }: { items: BookingRow[] }) {
                   </span>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className="min-w-[150px] whitespace-normal">
                 <div className="flex flex-wrap gap-1">
                   <StateBadge
                     status={b.status}
@@ -69,16 +108,17 @@ export function BookingsTable({ items }: { items: BookingRow[] }) {
                   {b.cancellation === 'requested' && <CancelRequested />}
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-mute">
+              <TableCell className="hidden whitespace-nowrap text-mute 2xl:table-cell">
                 {receivedLabel(b.bookedAt)}
               </TableCell>
               <TableCell className="text-right text-[13px] font-bold">
                 <Link
                   href={`/admin/bookings/${b.ref}`}
-                  className="text-primary"
+                  className="relative z-[1] inline-flex rounded-md p-1 text-primary hover:bg-bg2"
                   aria-label={`Open ${b.ref}`}
+                  title="Open the booking"
                 >
-                  Open
+                  <ArrowUpRight className="size-4" aria-hidden />
                 </Link>
               </TableCell>
             </TableRow>
