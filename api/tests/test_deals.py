@@ -30,8 +30,14 @@ from tests.test_admin_packages import revalidated as revalidated  # fixture
 from tests.test_search import GQE, KER, NGB
 from tests.test_search import catalog as catalog  # fixture
 
+# Pure tests pass NOW in explicitly, so a value fixed at import is safe there. Anything the
+# services compare with their own clock uses today(), read when the test runs: a module-level
+# date goes stale when a run crosses IST midnight.
 NOW = dt.datetime.now(dt.UTC)
-TODAY = ist_today(NOW)
+
+
+def today() -> dt.date:
+    return ist_today()
 
 
 def pkg(deal: int | None, ends: dt.datetime | None, starting: int = 20_000_00) -> Package:
@@ -89,7 +95,7 @@ async def set_deal(
     days: int = 5,
     label: str | None = None,
 ) -> None:
-    ends = deals.end_of_ist_day(TODAY + dt.timedelta(days=days)) if deal else None
+    ends = deals.end_of_ist_day(today() + dt.timedelta(days=days)) if deal else None
     await db.execute(
         update(Package)
         .where(Package.slug == slug)
@@ -99,7 +105,7 @@ async def set_deal(
 
 
 async def base(db: AsyncSession, slug: str) -> int:
-    return (await deals.bases(db, TODAY))[(await package_by_slug(db, slug)).id]
+    return (await deals.bases(db, today()))[(await package_by_slug(db, slug)).id]
 
 
 @pytest.mark.db
@@ -118,7 +124,7 @@ async def test_search_sorts_filters_and_facets_by_the_price_the_card_shows(
     deal = after.items[0].deal
     assert deal is not None
     assert (deal.label, deal.price_paise, deal.off_paise) == ("Monsoon offer", 9_999_00, 15_000_00)
-    assert deal.ends_on == TODAY + dt.timedelta(days=5)
+    assert deal.ends_on == today() + dt.timedelta(days=5)
     assert after.items[0].starting_price_paise == 24_999_00, "struck through, unchanged"
     assert after.facets.budget.min == 9_000
     within = await search_packages(db, SearchParams(max_budget=10_000))
@@ -132,7 +138,7 @@ async def test_an_ended_deal_is_gone_from_every_read_without_a_write(
     catalog: None, db: AsyncSession
 ) -> None:
     await set_deal(db, KER, 9_999_00)
-    later = deals.end_of_ist_day(TODAY + dt.timedelta(days=5))
+    later = deals.end_of_ist_day(today() + dt.timedelta(days=5))
 
     assert (await get_package(db, KER, now=later - dt.timedelta(seconds=1))).deal is not None  # type: ignore[union-attr]
     detail = await get_package(db, KER, now=later)
@@ -187,7 +193,7 @@ async def test_owner_sets_edits_and_clears_a_deal(
     await seeded(db)
     p = await package_by_slug(db, NGB)
     b = await base(db, NGB)
-    ends = TODAY + dt.timedelta(days=10)
+    ends = today() + dt.timedelta(days=10)
 
     out = await svc.update_package(
         db,
@@ -239,7 +245,11 @@ async def test_the_deal_fields_are_validated_on_the_field_that_is_wrong(
     p = await package_by_slug(db, NGB)
     b = await base(db, NGB)
     values = {
-        k: b if v == "base" else TODAY + dt.timedelta(days=int(str(v))) if k == "dealEndsOn" else v
+        k: b
+        if v == "base"
+        else today() + dt.timedelta(days=int(str(v)))
+        if k == "dealEndsOn"
+        else v
         for k, v in fields.items()
     }
     with pytest.raises(ApiError) as exc:
@@ -260,7 +270,7 @@ async def test_a_price_change_that_lifts_the_deal_to_its_base_switches_it_off_no
     p = await package_by_slug(db, NGB)
     b = await base(db, NGB)
     body = await as_payload(
-        db, p.id, dealPricePaise=b - 500_00, dealEndsOn=TODAY + dt.timedelta(days=4)
+        db, p.id, dealPricePaise=b - 500_00, dealEndsOn=today() + dt.timedelta(days=4)
     )
     await svc.update_package(db, p.id, body)
 
@@ -294,7 +304,7 @@ async def test_an_ended_deal_saves_untouched_and_can_be_extended(
         .where(Package.id == p.id)
         .values(
             deal_price_paise=b - 500_00,
-            deal_ends_at=deals.end_of_ist_day(TODAY - dt.timedelta(days=3)),
+            deal_ends_at=deals.end_of_ist_day(today() - dt.timedelta(days=3)),
         )
     )
     await db.commit()
@@ -302,7 +312,7 @@ async def test_an_ended_deal_saves_untouched_and_can_be_extended(
     out = await svc.update_package(db, p.id, await as_payload(db, p.id, name="Renamed"))
     assert out.deal_state is DealState.ENDED
 
-    extended = await svc.update_package(db, p.id, await as_payload(db, p.id, dealEndsOn=TODAY))
+    extended = await svc.update_package(db, p.id, await as_payload(db, p.id, dealEndsOn=today()))
     assert extended.deal_state is DealState.ACTIVE, "today is the last day, still running"
 
 
@@ -317,7 +327,7 @@ async def test_a_new_draft_can_carry_a_deal(
         p.id,
         slug="north-goa-deal",
         dealPricePaise=1_00,
-        dealEndsOn=TODAY + dt.timedelta(days=1),
+        dealEndsOn=today() + dt.timedelta(days=1),
     )
     out = await svc.create_package(db, body)  # incoming departure ids are ignored on create
     assert out.deal_price_paise == 1_00 and out.deal_state is DealState.ACTIVE
@@ -362,7 +372,7 @@ def test_the_label_is_capped_to_fit_the_stamp() -> None:
 async def test_daily_revalidates_pages_of_deals_that_ended_since_the_last_run(
     catalog: None, db: AsyncSession, revalidated: RecordingRevalidate
 ) -> None:
-    now = NOW
+    now = dt.datetime.now(dt.UTC)
     for slug, ended_ago in ((KER, dt.timedelta(hours=1)), (GQE, dt.timedelta(days=5))):
         await db.execute(
             update(Package)
