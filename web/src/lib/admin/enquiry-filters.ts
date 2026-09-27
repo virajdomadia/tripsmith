@@ -66,7 +66,17 @@ export interface Filters {
   to?: string;
   q?: string;
   page: number;
+  /** P20 · A2's job-of-the-day views and order (api `view`, `sort`). */
+  view?: InboxView;
+  sort?: InboxSort;
+  /** The enquiry open in the panel — page state only, never sent to the api. */
+  sel?: string;
 }
+
+export const VIEWS = ['reply', 'followup'] as const;
+export type InboxView = (typeof VIEWS)[number];
+export const SORTS = ['waiting', 'newest'] as const;
+export type InboxSort = (typeof SORTS)[number];
 
 export type RawParams = Record<string, string | string[] | undefined>;
 
@@ -115,6 +125,9 @@ export function parseFilters(params: RawParams): Filters {
     to,
     q: one(params.q)?.slice(0, SEARCH_MAX),
     page: Number.isInteger(page) && page > 1 ? Math.min(page, MAX_PAGE) : 1,
+    view: oneOf(VIEWS, one(params.view)),
+    sort: oneOf(SORTS, one(params.sort)),
+    sel: bounded(one(params.sel), ID_MAX),
   };
 }
 
@@ -128,6 +141,8 @@ export function toQuery(f: Filters): Record<string, string | undefined> {
     to: f.to,
     q: f.q,
     page: f.page > 1 ? String(f.page) : undefined,
+    view: f.view,
+    sort: f.sort,
   };
 }
 
@@ -139,6 +154,7 @@ export function filterHref(f: Filters, patch: Partial<Filters>, path = INBOX_PAT
   const next: Filters = { ...f, ...patch, page: patch.page ?? 1 };
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(toQuery(next))) if (value) search.append(key, value);
+  if (next.sel && path === INBOX_PATH) search.append('sel', next.sel);
   const qs = search.toString();
   return qs ? `${path}?${qs}` : path;
 }
