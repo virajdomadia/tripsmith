@@ -320,6 +320,13 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - Same data and endpoints as today. Parts that belong to later rows (balances, readiness, channel, Quoted stage) appear when those rows ship.
 - Built right after P16, so later rows land on the new pages.
 - **Accept:** each page matches its mockup at desktop and 390 px, and the existing admin tests pass.
+- **Settled at row start (2026-09-27):**
+  - Read-only api additions are allowed where a picked mockup needs numbers that aren't served yet: `GET /admin/money` for the Money desk, and per-coupon results for the Campaign board. Existing endpoints don't change.
+  - Enquiries A2's follow-up date and Lost reason come with migration 0011 (`follow_up_on`, `lost_reason`). It is expand-first: Viraj runs it on prod before that PR merges. The Quoted stage waits for its own row.
+  - P20 ships as three PRs:
+    - **P20a:** money and bookings (Dashboard C, Bookings desk A, Booking detail C).
+    - **P20b:** inbox (Enquiries A2, Reviews A, Coupons B).
+    - **P20c:** catalogue (Packages B, Package editor B, Destinations A, Sign in B).
 
 ### R57. Groundwork (P0)
 - **Mockups** of the signature v2.5 screens, using real photos:
