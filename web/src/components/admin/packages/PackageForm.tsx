@@ -2,8 +2,9 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
-import { useForm, type FieldPath } from 'react-hook-form';
+import { ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useForm, useFormState, useWatch, type FieldPath } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
@@ -19,6 +20,7 @@ import {
   type PackageFormValues,
 } from '@/lib/admin/package-schema';
 import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
+import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { BasicsPanel } from './BasicsPanel';
@@ -30,6 +32,7 @@ import { GalleryUploader } from './GalleryUploader';
 import { HotelsEditor } from './HotelsEditor';
 import { ItineraryEditor } from './ItineraryEditor';
 import { ListEditor } from './ListEditor';
+import { LABEL, PackagePreview, type SectionKey } from './PackagePreview';
 import { StatusPanel } from './StatusPanel';
 
 type AdminPackage = components['schemas']['AdminPackage'];
@@ -39,8 +42,133 @@ type Props = { destinations: AdminDestination[] } & (
   { mode: 'create' } | { mode: 'edit'; pkg: AdminPackage }
 );
 
-const panel = 'grid gap-4 rounded-card border border-line bg-bg p-5';
-const h3 = 'text-base font-extrabold';
+type Key = SectionKey | 'status' | 'danger';
+const ALL: Key[] = [
+  'status',
+  'photos',
+  'title',
+  'highlights',
+  'itinerary',
+  'prices',
+  'deal',
+  'stays',
+  'included',
+  'danger',
+];
+
+/** The fields each section edits: its subtitle and its error count read only these. */
+const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
+  title: [
+    'name',
+    'slug',
+    'destinationId',
+    'summary',
+    'themes',
+    'nights',
+    'departureCity',
+    'featured',
+  ],
+  highlights: ['highlights'],
+  itinerary: ['itinerary'],
+  prices: ['departures'],
+  deal: ['dealPricePaise', 'dealLabel', 'dealEndsOn'],
+  stays: ['hotels'],
+  included: ['inclusions', 'exclusions', 'faq'],
+};
+
+const count = (xs: unknown) =>
+  Array.isArray(xs) ? xs.filter((x) => (typeof x === 'string' ? x.trim() : x)).length : 0;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * A section's live subtitle and error count. It subscribes to its own fields only, so typing in
+ * one section re-renders this line, not the whole form and its field arrays.
+ */
+function LiveSub({
+  k,
+  destinations,
+}: {
+  k: Key;
+  destinations: readonly { id: string; name: string }[];
+}) {
+  const names = FIELDS_OF[k] ?? [];
+  const values = useWatch<PackageFieldValues>({ name: names }) as unknown[];
+  const { errors } = useFormState<PackageFieldValues>({ name: names });
+  const v = Object.fromEntries(names.map((n, i) => [n, values[i]])) as Record<string, unknown>;
+  const bad = names.filter((n) => n in errors).length;
+  let text = '';
+  if (k === 'title') {
+    const dest = destinations.find((d) => d.id === v.destinationId)?.name ?? 'No destination';
+    text = `${dest} · ${String(v.nights || '…')} nights · ${String(v.departureCity || '…')}${v.featured ? ' · Featured' : ''}`;
+  } else if (k === 'highlights') text = plural(count(v.highlights), 'line');
+  else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
+  else if (k === 'prices') text = plural(count(v.departures), 'date');
+  else if (k === 'deal') text = v.dealPricePaise ? 'Deal set' : 'No deal';
+  else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
+  else if (k === 'included')
+    text = `${count(v.inclusions)} in · ${count(v.exclusions)} out · ${plural(count(v.faq), 'question')}`;
+  return (
+    <>
+      {text}
+      {bad > 0 && (
+        <b className="ml-1.5 rounded-chip bg-bad-soft px-1.5 text-[11.5px] text-bad">
+          {plural(bad, 'error')}
+        </b>
+      )}
+    </>
+  );
+}
+
+/**
+ * One editor section: a header button that opens and closes it, the body kept mounted either
+ * way so every field still validates and submits. Opening one from the preview scrolls to it.
+ */
+function Section({
+  k,
+  title,
+  sub,
+  open,
+  onToggle,
+  children,
+}: {
+  k: Key;
+  title: string;
+  sub?: React.ReactNode;
+  open: boolean;
+  onToggle: (k: Key) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={`pk-${k}`}
+      data-section={k}
+      className={cn(
+        'scroll-mt-4 overflow-hidden rounded-card border bg-bg transition-colors',
+        open ? 'border-primary/40' : 'border-line',
+      )}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`pk-${k}-body`}
+        onClick={() => onToggle(k)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="grid min-w-0 flex-1">
+          <b className="text-[14.5px] font-extrabold">{title}</b>
+          {sub && <small className="truncate text-[12.5px] text-mute">{sub}</small>}
+        </span>
+        <ChevronDown
+          className={cn('size-4 shrink-0 text-mute transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
+      <div id={`pk-${k}-body`} hidden={!open} className="grid gap-4 border-t border-line p-4">
+        {children}
+      </div>
+    </section>
+  );
+}
 
 /** Top-level keys the api can pin an error on (`itinerary.2.title` pins under `itinerary`);
  *  anything else falls through to the toast. */
@@ -114,6 +242,10 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
 }
 
 /**
+ * Package editor B · Live preview (R59, P20): short sections in the order the page reads, beside
+ * the customer page updating as the owner types; clicking the preview opens the matching section.
+ * On a phone an Edit / Preview switch shows one side. The save bar turns amber on the first edit.
+ *
  * Mockup A4 as one form. The gallery, status panel and danger zone sit outside the `<form>`
  * element — they issue their own requests the moment the owner acts, and nesting them would
  * risk a stray submit.
@@ -130,6 +262,8 @@ export function PackageForm(props: Props) {
     defaultValues: pkg ? toFieldValues(pkg) : emptyPackage(props.destinations[0]?.id ?? ''),
   });
   const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState<Set<Key>>(() => new Set<Key>(['title']));
+  const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const { release } = useUnsavedChangesGuard(form.formState.isDirty);
 
   /* Optimistic concurrency. `expected` is the version (`editedAt`) this form edits against,
@@ -171,7 +305,9 @@ export function PackageForm(props: Props) {
 
   function onInvalid() {
     toast.error('Could not save — fix the highlighted fields');
-    focusFirstError(root.current);
+    // Open every section so the first highlighted field can take focus.
+    setOpen(new Set(ALL));
+    setTimeout(() => focusFirstError(root.current), 0);
   }
 
   /** Another tab or device saved first. Reloading shows theirs; the owner's own edits are
@@ -244,7 +380,10 @@ export function PackageForm(props: Props) {
           // Always say what went wrong: a message no field can show goes in the toast word
           // for word; when every message found its field, the toast points at them.
           toast.error(unpinned.length ? unpinned.join(' · ') : e.body.message);
-          if (pinnedCount) focusFirstError(root.current);
+          if (pinnedCount) {
+            setOpen(new Set(ALL)); // the field may sit in a closed section
+            setTimeout(() => focusFirstError(root.current), 0);
+          }
           return;
         }
       }
@@ -261,84 +400,85 @@ export function PackageForm(props: Props) {
   }
 
   const busy = form.formState.isSubmitting;
+  const dirty = form.formState.isDirty;
+  const rules = pkg?.publishRules ?? [];
+  const photos = pkg
+    ? [...pkg.images]
+        .sort((a, b) => Number(b.id === pkg.coverImageId) - Number(a.id === pkg.coverImageId))
+        .map((i) => i.url)
+    : [];
+  const sub: Partial<Record<Key, React.ReactNode>> = {
+    status: rules.length
+      ? `${pkg?.status === 'live' ? 'Live' : 'Draft'} · ${rules.filter((r) => r.ok).length} of 4 checks`
+      : undefined,
+    photos: pkg
+      ? `${pkg.images.length} ${pkg.images.length === 1 ? 'photo' : 'photos'}`
+      : 'After the first save',
+  };
+  const toggle = (k: Key) =>
+    setOpen((was) => {
+      const next = new Set(was);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  const pick = (k: SectionKey) => {
+    setPane('edit');
+    setOpen((was) => new Set(was).add(k));
+    requestAnimationFrame(() =>
+      document.getElementById(`pk-${k}`)?.scrollIntoView({
+        block: 'start',
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      }),
+    );
+  };
+  const section = (k: Key, children: React.ReactNode, title = LABEL[k as SectionKey]) => (
+    <Section
+      k={k}
+      title={title}
+      sub={sub[k] ?? <LiveSub k={k} destinations={props.destinations} />}
+      open={open.has(k)}
+      onToggle={toggle}
+    >
+      {children}
+    </Section>
+  );
 
   return (
     /* One provider over both columns: the hotels editor lives in the right column but its
        values belong to the same form, and react-hook-form tracks state in JS rather than
        through the DOM, so a field outside the <form> element still submits with it. */
     <Form {...form}>
-      <div ref={root} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="grid gap-4" noValidate>
-          <section className={panel}>
-            <h3 className={h3}>Basics</h3>
-            <BasicsPanel
-              destinations={props.destinations}
-              editing={editing}
-              slugLocked={pkg?.slugLocked ?? false}
-            />
-          </section>
-
-          <section className={panel}>
-            <ItineraryEditor />
-          </section>
-
-          <section className={panel}>
-            <DeparturesEditor />
-          </section>
-
-          <section className={panel}>
-            <DealPanel saved={pkg} />
-          </section>
-
-          <section className={panel}>
-            <h3 className={h3}>Inclusions, exclusions and FAQ</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ListEditor
-                name="inclusions"
-                label="Included · one per line"
-                description="What the price covers"
-              />
-              <ListEditor
-                name="exclusions"
-                label="Not included · one per line"
-                description="What it does not"
-              />
-            </div>
-            <ListEditor
-              name="highlights"
-              label="Highlights · one per line"
-              description="Shown on the card and the page"
-              rows={4}
-            />
-            <FaqEditor />
-          </section>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={busy}>
-              {busy ? 'Saving…' : editing ? 'Save changes' : 'Create draft'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => confirmLeave(() => router.push('/admin/packages'))}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-
-        <div className="grid content-start gap-4">
-          {pkg && (
-            <section className={panel}>
-              <h3 className={h3}>Status</h3>
-              <StatusPanel pkg={pkg} />
-            </section>
-          )}
-
-          <section className={panel}>
-            <h3 className={h3}>Gallery</h3>
-            {pkg ? (
+      <div role="group" aria-label="Show" className="flex gap-1 rounded-lg bg-bg2 p-1 lg:hidden">
+        {(
+          [
+            ['edit', 'Edit'],
+            ['preview', 'Preview'],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={pane === k}
+            onClick={() => setPane(k)}
+            className={cn(
+              'flex-1 rounded-md py-1.5 text-[13px] font-bold',
+              pane === k ? 'bg-bg text-ink shadow-sm' : 'text-mute',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div
+        ref={root}
+        className="grid items-start gap-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]"
+      >
+        <div className={cn('grid min-w-0 gap-3', pane !== 'edit' && 'max-lg:hidden')}>
+          {pkg && section('status', <StatusPanel pkg={pkg} />, 'Publish checks')}
+          {section(
+            'photos',
+            pkg ? (
               <GalleryUploader
                 packageId={pkg.id}
                 images={pkg.images}
@@ -346,20 +486,91 @@ export function PackageForm(props: Props) {
               />
             ) : (
               <GalleryUploader packageId="" images={[]} coverImageId={null} disabled />
-            )}
-          </section>
-
-          <section className={panel}>
-            <h3 className={h3}>Hotels</h3>
-            <HotelsEditor />
-          </section>
-
-          {pkg && (
-            <section className={panel}>
-              <h3 className={h3}>Danger zone</h3>
-              <DeletePackage id={pkg.id} name={pkg.name} enquiryCount={pkg.enquiryCount} />
-            </section>
+            ),
           )}
+          {/* The gallery, status and danger zone sit outside the <form> element — they issue
+              their own requests the moment the owner acts, and nesting them would risk a stray
+              submit. react-hook-form tracks values in JS, so the sections still share one form. */}
+          <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="grid gap-3" noValidate>
+            {section(
+              'title',
+              <BasicsPanel
+                destinations={props.destinations}
+                editing={editing}
+                slugLocked={pkg?.slugLocked ?? false}
+              />,
+            )}
+            {section(
+              'highlights',
+              <ListEditor
+                name="highlights"
+                label="Highlights · one per line"
+                description="Shown on the card and the page"
+                rows={4}
+              />,
+            )}
+            {section('itinerary', <ItineraryEditor />)}
+            {section('prices', <DeparturesEditor />)}
+            {section('deal', <DealPanel saved={pkg} />)}
+            {section('stays', <HotelsEditor />)}
+            {section(
+              'included',
+              <>
+                <ListEditor
+                  name="inclusions"
+                  label="Included · one per line"
+                  description="What the price covers"
+                />
+                <ListEditor
+                  name="exclusions"
+                  label="Not included · one per line"
+                  description="What it does not"
+                />
+                <FaqEditor />
+              </>,
+            )}
+            <div
+              className={cn(
+                'sticky bottom-0 z-10 flex flex-wrap items-center gap-2 rounded-card border px-3 py-2.5 shadow-[0_-10px_30px_-24px_rgba(20,32,42,.5)] transition-colors',
+                dirty ? 'border-action bg-warn-soft' : 'border-line bg-bg',
+              )}
+            >
+              <span
+                role="status"
+                className={cn('text-[13px] font-bold', dirty ? 'text-warn' : 'text-mute')}
+              >
+                {dirty ? 'Unsaved changes' : editing ? 'All changes saved' : 'New package'}
+              </span>
+              <span className="ml-auto flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => confirmLeave(() => router.push('/admin/packages'))}
+                  disabled={busy}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={busy}>
+                  {busy ? 'Saving…' : editing ? 'Save changes' : 'Create draft'}
+                </Button>
+              </span>
+            </div>
+          </form>
+          {pkg &&
+            section(
+              'danger',
+              <DeletePackage id={pkg.id} name={pkg.name} enquiryCount={pkg.enquiryCount} />,
+              'Delete',
+            )}
+        </div>
+        <div className={cn('min-w-0 lg:sticky lg:top-4', pane !== 'preview' && 'max-lg:hidden')}>
+          <PackagePreview
+            destinations={props.destinations}
+            coverUrl={photos[0] ?? null}
+            photos={photos}
+            onPick={pick}
+          />
         </div>
       </div>
     </Form>

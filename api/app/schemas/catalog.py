@@ -315,6 +315,10 @@ class AdminDestination(ApiModel):
     position: int
     package_count: int = Field(description="All packages, draft or live")
     live_package_count: int
+    next_departure_on: dt.date | None = Field(
+        default=None,
+        description="The first date from today on a live package here; the list only (P20)",
+    )
     slug_locked: bool = Field(
         description="True once any package here has been published; the slug is then fixed"
     )
@@ -509,6 +513,14 @@ class PublishRule(ApiModel):
     detail: str
 
 
+class NextDeparture(ApiModel):
+    """A package card's seat fill (R59, P20 · Packages B)."""
+
+    date: dt.date
+    seats: int
+    taken: int = Field(description="Booked or held in checkout: seats − seats left")
+
+
 class AdminPackage(ApiModel):
     id: str
     slug: str
@@ -568,6 +580,9 @@ class AdminPackageRow(ApiModel):
     status: PackageStatus
     featured: bool
     updated_at: dt.datetime
+    image_count: int
+    publish_rules: list[PublishRule] = Field(description="The four publish checks, evaluated")
+    next_departure: NextDeparture | None = Field(description="The first date from today on")
 
 
 class AdminPackageList(ApiModel):

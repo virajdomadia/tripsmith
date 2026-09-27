@@ -1025,6 +1025,19 @@
             "title": "Name",
             "type": "string"
           },
+          "nextDepartureOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first date from today on a live package here; the list only (P20)",
+            "title": "Nextdepartureon"
+          },
           "packageCount": {
             "description": "All packages, draft or live",
             "title": "Packagecount",
@@ -1650,13 +1663,36 @@
             "title": "Id",
             "type": "string"
           },
+          "imageCount": {
+            "title": "Imagecount",
+            "type": "integer"
+          },
           "name": {
             "title": "Name",
             "type": "string"
           },
+          "nextDeparture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NextDeparture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first date from today on"
+          },
           "nights": {
             "title": "Nights",
             "type": "integer"
+          },
+          "publishRules": {
+            "description": "The four publish checks, evaluated",
+            "items": {
+              "$ref": "#/components/schemas/PublishRule"
+            },
+            "title": "Publishrules",
+            "type": "array"
           },
           "recentEnquiryCount": {
             "description": "Enquiries in the last 30 days",
@@ -1697,7 +1733,10 @@
           "recentEnquiryCount",
           "status",
           "featured",
-          "updatedAt"
+          "updatedAt",
+          "imageCount",
+          "publishRules",
+          "nextDeparture"
         ],
         "title": "AdminPackageRow",
         "type": "object"
@@ -4864,6 +4903,32 @@
           "departs"
         ],
         "title": "MoneyRisk",
+        "type": "object"
+      },
+      "NextDeparture": {
+        "description": "A package card's seat fill (R59, P20 · Packages B).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "seats": {
+            "title": "Seats",
+            "type": "integer"
+          },
+          "taken": {
+            "description": "Booked or held in checkout: seats − seats left",
+            "title": "Taken",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "seats",
+          "taken"
+        ],
+        "title": "NextDeparture",
         "type": "object"
       },
       "Occupancy": {

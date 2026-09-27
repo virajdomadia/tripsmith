@@ -1,5 +1,6 @@
 """Owner-side destination CRUD (F17, 06 §A3). Every write revalidates the public pages."""
 
+import datetime as dt
 from collections.abc import Sequence
 
 from sqlalchemy import Select, func, select
@@ -8,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
-from app.models import Destination, Package
+from app.models import Departure, Destination, Package
 from app.models.enums import PackageStatus
 from app.schemas.catalog import AdminDestination, DestinationInput
+from app.services.analytics import ist_today
 from app.services.catalog.slug_lock import SLUG_LOCKED
 
 DUPLICATE_SLUG = "A destination with this slug already exists"
@@ -68,8 +70,23 @@ def _to_admin(row: Destination, package_count: int, live_package_count: int) -> 
 
 
 async def list_destinations(db: AsyncSession) -> list[AdminDestination]:
+    """With each destination's next date on a live package (P20 · Destinations A cards)."""
     rows = await db.execute(_counts_query().order_by(Destination.position, Destination.name))
-    return [_to_admin(d, total, live) for d, total, live in rows.all()]
+    firsts: dict[str, dt.date] = {
+        dest: day
+        for dest, day in (
+            await db.execute(
+                select(Package.destination_id, func.min(Departure.date))
+                .join(Departure, Departure.package_id == Package.id)
+                .where(Package.status == PackageStatus.LIVE, Departure.date >= ist_today())
+                .group_by(Package.destination_id)
+            )
+        ).all()
+    }
+    return [
+        _to_admin(d, total, live).model_copy(update={"next_departure_on": firsts.get(d.id)})
+        for d, total, live in rows.all()
+    ]
 
 
 async def _load(db: AsyncSession, id: str) -> _Counts:

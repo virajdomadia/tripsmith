@@ -116,6 +116,25 @@ describe('DestinationForm — edit', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/admin/destinations'));
   });
 
+  it('in the panel, stays on the card and takes the saved values as its clean baseline', async () => {
+    const user = userEvent.setup();
+    adminRequest.mockResolvedValue(undefined);
+    render(<DestinationForm mode="edit" layout="panel" destination={fixture} />);
+    // Retyping the same order leaves the form dirty ('3' vs 3) though nothing changes.
+    const order = screen.getByLabelText('Order');
+    await user.clear(order);
+    await user.type(order, '3');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith('/admin/destinations?sel=d1', { scroll: false }),
+    );
+    // Clean again: a new edit is dirty once more, so the unsaved guard is armed for it.
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    await user.type(screen.getByLabelText('Region'), ' coast');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect((screen.getByLabelText('Region') as HTMLInputElement).value).toBe('West India');
+  });
+
   it('pins a 409 fieldErrors.slug message under the Slug field, does not navigate, and focuses it', async () => {
     const user = userEvent.setup();
     adminRequest.mockRejectedValue(
