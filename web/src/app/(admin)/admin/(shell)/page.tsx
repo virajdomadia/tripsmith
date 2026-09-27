@@ -1,164 +1,194 @@
-import { MessageSquareQuote, Plus } from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { Children, type ReactNode } from 'react';
 import { PageHead } from '@/components/admin/PageHead';
-import { BarList } from '@/components/admin/dashboard/BarList';
+import { istTime } from '@/components/admin/enquiries/ist-date';
 import { Panel } from '@/components/admin/dashboard/Panel';
-import { StatTile } from '@/components/admin/dashboard/StatTile';
-import { UpcomingDepartures } from '@/components/admin/dashboard/UpcomingDepartures';
+import { CashDesk } from '@/components/admin/money/CashDesk';
+import { RefundMadeButton } from '@/components/admin/money/RefundMadeButton';
 import { buttonVariants } from '@/components/ui/button';
-import { greeting, trend, waited } from '@/lib/admin/dashboard';
+import { greeting, waited } from '@/lib/admin/dashboard';
 import { api } from '@/lib/api';
 import { getSession } from '@/lib/auth/session';
-import { formatDate } from '@/lib/format';
+import { formatDate, inr, MONTHS } from '@/lib/format';
 
 export const metadata = { title: 'Dashboard' };
 
-const STATUS_TONE = {
-  new: 'bg-primary',
-  contacted: 'bg-action',
-  converted: 'bg-ok',
-  closed: 'bg-mute',
-} as const;
+const booking = (ref: string) => `/admin/bookings/${ref}`;
 
 /**
- * Mockup A2. Every number on this page comes from one `GET /admin/dashboard`, which measures
- * its windows in IST and counts enquiries by the day they arrived — the same rule the inbox
- * filters by, so the two screens reconcile (R12).
+ * Dashboard C · Money desk (R59, P20): the month's cash equation, cash by day, then what is
+ * coming in, going out and at risk — from `GET /admin/money`. The enquiry pipeline and
+ * moderation queue stay one tap away in the strip at the top (`GET /admin/dashboard`).
+ * v2.5 adds balances due (P5) to "Coming in" and channels (P18) when those rows ship.
  */
 export default async function AdminHome() {
-  const [session, data] = await Promise.all([
+  const [session, data, money] = await Promise.all([
     getSession(),
     api('/admin/dashboard', { auth: true }),
+    api('/admin/money', { auth: true }),
   ]);
   const firstName = (session?.user.name ?? 'there').split(' ')[0];
-  const { byStatus } = data;
+  const month = MONTHS[Number(money.monthStart.slice(5, 7)) - 1];
 
   return (
     <>
       <PageHead
         title={`${greeting()}, ${firstName}.`}
-        subtitle={`${formatDate(data.today)} · ${data.awaitingFirstCall} awaiting a first call`}
+        subtitle={`Money · ${month} so far, in rupees and IST · ${formatDate(data.today)}`}
         actions={
-          <>
-            <Link
-              href="/admin/enquiries"
-              className={buttonVariants({ size: 'sm', variant: 'outline' })}
-            >
-              Open inbox
-            </Link>
-            <Link href="/admin/packages/new" className={buttonVariants({ size: 'sm' })}>
-              <Plus className="size-4" aria-hidden />
-              New package
-            </Link>
-          </>
+          <Link href="/admin/packages/new" className={buttonVariants({ size: 'sm' })}>
+            <Plus className="size-4" aria-hidden />
+            New package
+          </Link>
         }
       />
 
-      {data.reviewsPending > 0 && (
-        // B13: a strip rather than a fifth tile — it only shows while something waits.
-        <Link
-          href="/admin/reviews"
-          className="flex items-center gap-3 rounded-card border border-warn/30 bg-warn-soft px-4 py-3 text-sm font-semibold text-warn no-underline hover:border-warn"
-        >
-          <MessageSquareQuote className="size-4.5" aria-hidden />
-          {data.reviewsPending === 1
-            ? '1 review waiting to be published or hidden'
-            : `${data.reviewsPending} reviews waiting to be published or hidden`}
-          <span className="ml-auto">Moderate →</span>
-        </Link>
-      )}
+      <nav aria-label="Also waiting" className="flex flex-wrap gap-2">
+        <Waiting href="/admin/enquiries?status=new" n={data.awaitingFirstCall}>
+          {data.awaitingFirstCall === 1 ? 'enquiry' : 'enquiries'} awaiting a first call
+          {data.oldestNewAt && ` · oldest ${waited(data.oldestNewAt)}`}
+        </Waiting>
+        <Waiting href="/admin/reviews" n={data.reviewsPending}>
+          {data.reviewsPending === 1 ? 'review' : 'reviews'} to moderate
+        </Waiting>
+        <Waiting href="/admin/bookings" n={data.upcomingDeparturesTotal}>
+          {data.upcomingDeparturesTotal === 1 ? 'departure' : 'departures'} in the next 30 days
+        </Waiting>
+      </nav>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="New enquiries · this week"
-          value={data.enquiriesThisWeek}
-          hint={trend(data.enquiriesThisWeek, data.enquiriesLastWeekToDate, 'last week to date')}
-        />
-        <StatTile
-          label="Awaiting first call"
-          value={data.awaitingFirstCall}
-          hint={
-            data.oldestNewAt ? `Oldest waiting ${waited(data.oldestNewAt)}` : 'Inbox is clear 🎉'
-          }
-        />
-        <StatTile
-          label="Converted · 30 days"
-          value={data.convertedLast30Days}
-          hint={`of ${data.enquiriesLast30Days} received`}
-        />
-        <StatTile
-          label="Package views · 7 days"
-          value={data.viewsLast7Days}
-          hint={trend(data.viewsLast7Days, data.viewsPrevious7Days, 'the previous 7 days')}
-        />
-      </div>
+      <CashDesk money={money} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel
-          title="Top packages by enquiries"
-          sub="· 30 days"
-          action={
-            <Link
-              href="/admin/packages"
-              className={buttonVariants({ size: 'sm', variant: 'outline' })}
-            >
-              All packages
-            </Link>
-          }
-        >
-          <BarList
-            rows={data.topByEnquiries.map((p) => ({
-              key: p.id,
-              label: p.name,
-              count: p.count,
-              // `from` carries the panel's own window into the inbox, so the row that reads 6
-              // opens an inbox holding those six and not every enquiry the package ever had.
-              href: `/admin/enquiries?packageId=${p.id}&from=${data.windowStart}`,
-            }))}
-            empty="No enquiries in the last 30 days."
+      <div className="grid items-start gap-3.5 lg:grid-cols-3">
+        <Panel title="Coming in" sub="· live checkouts">
+          <List empty="No checkout is open right now.">
+            {money.holds.map((h) => (
+              <Row
+                key={h.ref}
+                href={booking(h.ref)}
+                who={h.name}
+                what={`Checkout open till ${istTime(h.holdExpiresAt)} · ${h.packageName} · ${formatDate(h.departs)}`}
+                amount={<span className="text-mute">{inr(h.totalPaise)}</span>}
+              />
+            ))}
+          </List>
+          <Foot label="Held, not yet paid" value={inr(money.holdsPaise)} />
+        </Panel>
+
+        <Panel title="Going out" sub="· refunds">
+          <List empty="No refund to record.">
+            {money.owed.map((o) => (
+              <Row
+                key={o.ref}
+                href={booking(o.ref)}
+                who={o.name}
+                what={`${o.ref} · ${o.why}`}
+                amount={<span className="text-bad">{inr(o.amountPaise)}</span>}
+                action={
+                  <>
+                    <RefundMadeButton bookingRef={o.ref} amountPaise={o.amountPaise} />
+                    <span className="self-center text-[12px] text-mute">
+                      Refund in Razorpay first
+                    </span>
+                  </>
+                }
+              />
+            ))}
+            {money.refunded.slice(0, 3).map((r) => (
+              <Row
+                key={`${r.ref}-${r.at}`}
+                href={booking(r.ref)}
+                who={r.name}
+                what={`Refunded ${formatDate(r.at.slice(0, 10))} · ${r.ref}`}
+                amount={<span className="text-mute">{inr(r.amountPaise)}</span>}
+              />
+            ))}
+          </List>
+          <Foot
+            label="Still to record"
+            value={money.toRecordPaise ? inr(money.toRecordPaise) : 'Nothing'}
+            tone={money.toRecordPaise ? 'text-bad' : 'text-ok'}
           />
         </Panel>
 
-        <Panel
-          title="Top packages by views"
-          sub="· 30 days"
-          action={
-            <Link href="/packages" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-              View site
-            </Link>
-          }
-        >
-          <BarList
-            rows={data.topByViews.map((p) => ({
-              key: p.id,
-              label: p.name,
-              count: p.count,
-              href: `/packages/${p.slug}`,
-            }))}
-            empty="No page views recorded yet."
-          />
+        <Panel title="At risk">
+          <List empty="Nothing at risk — no open requests, no lapsed holds.">
+            {money.atRisk.map((r) => (
+              <Row
+                key={`${r.kind}-${r.ref}`}
+                href={booking(r.ref)}
+                who={`${r.name} · ${r.kind === 'cancellation' ? 'cancel request' : 'hold lapsed'}`}
+                what={`${r.text} · departs ${formatDate(r.departs)}`}
+                amount={
+                  <span className={r.kind === 'cancellation' ? 'text-warn' : 'text-mute'}>
+                    {r.kind === 'cancellation' ? '−' : ''}
+                    {inr(r.amountPaise)}
+                  </span>
+                }
+              />
+            ))}
+          </List>
         </Panel>
       </div>
-
-      <Panel title="Enquiries by status" sub={`· ${byStatus.all} in total`}>
-        <BarList
-          rows={(['new', 'contacted', 'converted', 'closed'] as const).map((status) => ({
-            key: status,
-            label: status[0]!.toUpperCase() + status.slice(1),
-            count: byStatus[status],
-            href: `/admin/enquiries?status=${status}`,
-            tone: STATUS_TONE[status],
-          }))}
-          empty="No enquiries yet."
-        />
-      </Panel>
-
-      <Panel title="Upcoming departures" sub="· next 30 days">
-        <UpcomingDepartures
-          departures={data.upcomingDepartures}
-          total={data.upcomingDeparturesTotal}
-        />
-      </Panel>
     </>
+  );
+}
+
+function Waiting({ href, n, children }: { href: string; n: number; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-2 rounded-card border border-line bg-bg px-3.5 py-2 text-[13px] font-semibold text-ink2 no-underline transition-colors hover:border-ink"
+    >
+      <b className={`num text-[15px] ${n ? 'text-ink' : 'text-mute'}`}>{n}</b>
+      <span>{children}</span>
+      <ArrowRight
+        className="size-3.5 text-mute transition-transform group-hover:translate-x-0.5"
+        aria-hidden
+      />
+    </Link>
+  );
+}
+
+function List({ empty, children }: { empty: string; children: ReactNode }) {
+  const rows = Children.toArray(children);
+  return (
+    <div className="grid px-4 pt-1">
+      {rows.length ? rows : <p className="py-3 text-[13px] text-mute">{empty}</p>}
+    </div>
+  );
+}
+
+function Row({
+  href,
+  who,
+  what,
+  amount,
+  action,
+}: {
+  href: string;
+  who: string;
+  what: string;
+  amount: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2.5 gap-y-1 border-t border-line py-3 text-[13.5px] first:border-0">
+      <Link href={href} className="min-w-0 text-ink no-underline hover:text-primary">
+        <b className="block">{who}</b>
+        <small className="block text-[12px] break-words text-mute">{what}</small>
+      </Link>
+      <b className="num self-center text-right">{amount}</b>
+      {action && <div className="col-span-2 flex flex-wrap gap-1.5">{action}</div>}
+    </div>
+  );
+}
+
+function Foot({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="mx-4 mt-1 mb-4 flex justify-between border-t-2 border-ink pt-2.5 font-extrabold">
+      <span>{label}</span>
+      <span className={`num ${tone ?? ''}`}>{value}</span>
+    </div>
   );
 }

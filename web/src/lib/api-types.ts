@@ -505,6 +505,27 @@ export interface paths {
         patch: operations["setEnquiryStatus"];
         trace?: never;
     };
+    "/admin/money": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Money Route
+         * @description P20 · Dashboard C: the month's cash equation, cash by day, and what is coming in, going
+         *     out and at risk. Read-only.
+         */
+        get: operations["getMoneyDesk"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/packages": {
         parameters: {
             query?: never;
@@ -3078,6 +3099,180 @@ export interface components {
             /** Themes */
             themes: components["schemas"]["ThemeOption"][];
         };
+        /** MoneyDay */
+        MoneyDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Inpaise */
+            inPaise: number;
+            /** Lines */
+            lines: components["schemas"]["MoneyLine"][];
+            /** Outpaise */
+            outPaise: number;
+            /**
+             * Owepaise
+             * @description Refunds still to record — only ever on today
+             */
+            owePaise: number;
+        };
+        /** MoneyDesk */
+        MoneyDesk: {
+            /** Atrisk */
+            atRisk: components["schemas"]["MoneyRisk"][];
+            /** Collectedcount */
+            collectedCount: number;
+            /**
+             * Collectedpaise
+             * @description Captured this month, refunded later or not
+             */
+            collectedPaise: number;
+            /**
+             * Days
+             * @description The window, oldest first, one entry per day
+             */
+            days: components["schemas"]["MoneyDay"][];
+            /** Holds */
+            holds: components["schemas"]["MoneyHold"][];
+            /**
+             * Holdspaise
+             * @description Live checkout holds, not money yet
+             */
+            holdsPaise: number;
+            /**
+             * Monthstart
+             * Format: date
+             */
+            monthStart: string;
+            /** Owed */
+            owed: components["schemas"]["MoneyOwed"][];
+            /**
+             * Refunded
+             * @description This month, newest first
+             */
+            refunded: components["schemas"]["MoneyRefund"][];
+            /**
+             * Refundedpaise
+             * @description Refunds recorded this month
+             */
+            refundedPaise: number;
+            /**
+             * Torecordpaise
+             * @description Refunds owed and not yet recorded
+             */
+            toRecordPaise: number;
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /**
+             * Windowstart
+             * Format: date
+             */
+            windowStart: string;
+        };
+        /** MoneyHold */
+        MoneyHold: {
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /**
+             * Holdexpiresat
+             * Format: date-time
+             */
+            holdExpiresAt: string;
+            /** Name */
+            name: string;
+            /** Packagename */
+            packageName: string;
+            /** Ref */
+            ref: string;
+            /** Totalpaise */
+            totalPaise: number;
+        };
+        /** MoneyLine */
+        MoneyLine: {
+            /**
+             * Amountpaise
+             * @description Always positive; `kind` says the direction
+             */
+            amountPaise: number;
+            /**
+             * Kind
+             * @description `in` collected · `out` refund recorded · `owe` to record
+             * @enum {string}
+             */
+            kind: "in" | "out" | "owe";
+            /**
+             * Label
+             * @description How the money moved, e.g. `Razorpay` or `Offline · UTR 44`
+             */
+            label: string;
+            /**
+             * Name
+             * @description The booking's lead
+             */
+            name: string;
+            /** Ref */
+            ref: string;
+        };
+        /** MoneyOwed */
+        MoneyOwed: {
+            /**
+             * Amountpaise
+             * @description What 'Refund made' would give back now
+             */
+            amountPaise: number;
+            /** Name */
+            name: string;
+            /** Ref */
+            ref: string;
+            /** Why */
+            why: string;
+        };
+        /** MoneyRefund */
+        MoneyRefund: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Name */
+            name: string;
+            /** Ref */
+            ref: string;
+        };
+        /** MoneyRisk */
+        MoneyRisk: {
+            /**
+             * Amountpaise
+             * @description `cancellation`: the refund the policy suggests; `lapsed`: the unpaid total
+             */
+            amountPaise: number;
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cancellation" | "lapsed";
+            /** Name */
+            name: string;
+            /** Ref */
+            ref: string;
+            /** Text */
+            text: string;
+        };
         /**
          * Occupancy
          * @enum {string}
@@ -4903,6 +5098,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getMoneyDesk: {
+        parameters: {
+            query?: {
+                /** @description Days of cash-by-day, ending today */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoneyDesk"];
                 };
             };
             /** @description Error envelope (06 C0) */
