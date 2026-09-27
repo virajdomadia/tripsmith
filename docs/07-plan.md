@@ -150,11 +150,12 @@ Goal: the owner runs the business from `/admin` without touching the database.
 - Every booking change writes history (P16).
 - Tests only where a failure would embarrass a demo, plus a concurrency test on every new lock path.
 
-### Milestone 2.5.0 — Groundwork (≈ 5.75 h)
+### Milestone 2.5.0 — Groundwork (≈ 12.75 h)
 | # | Task | Est. | Done when |
 |---|---|---|---|
 | P0 | **Groundwork:** mockups of the signature v2.5 screens with real photos (compare, sheet with add-ons + deposit + price ladder, My trips checklist + trip pack, calendar, counter booking, reports); fix the `test_deals.py` `TODAY` flake; concurrency tests for a coupon's last use and cancel-vs-late-capture; **real email**: Viraj creates a Tripsmith Gmail, the api sends over Gmail SMTP (app password), demo mode switches off itself, `@example.com` accounts keep the on-screen code | 3.75 h | mockups approved; CI green with no flake; a real customer email arrives |
 | P16 | **History log:** append-only `booking_events` (trigger refuses UPDATE/DELETE), writes from every v2 path, backfill from v2 data, merged desk timeline with chips, customer "Activity" | 2 h | every existing write path logs; the trigger is tested |
+| P20 | **Admin redesign** (added 2026-09-27, R59): rebuild the interiors of the ten existing admin pages to the picked mockups, on today's Ink-rail nav: Dashboard C Money desk · Bookings desk A · Booking detail C Lifecycle · Enquiries A2 · Packages B Photo catalogue · Package editor B Live preview · Destinations A · Reviews A · Coupons B Campaign board · Sign in B Postcard. Same data and endpoints; v2.5-only parts appear when their rows ship | 7 h | every admin page matches its picked mockup at desktop and 390 px; existing admin tests pass |
 
 ### Milestone 2.5.1 — Money (≈ 20.5 h)
 | # | Task | Est. | Done when |
@@ -192,7 +193,9 @@ Goal: the owner runs the business from `/admin` without touching the database.
 | P12 | **Reports:** Money, Packages, Occupancy, Funnel, Cancellations, Discounts, Add-ons, Channels, Customers; table + CSV each; seed a year of history | 3.5 h | totals reconcile with the desk CSV |
 | P19 | **v2.5 close:** security pass (payment links, refunds, documents, traveller data, waitlist claims), PSI on `/compare` + a package page with Book now open (≥ 85), docs/12, docs/17 v2.5 section, README, portfolio card | 1.5 h | v2.5 signed off; v3 may start |
 
-**v2.5 total: ≈ 56 h** (5.75 + 20.5 + 7 + 9.5 + 4.25 + 8.5 = 55.5, rounded). P14 (phone bookings) was merged into P18.
+**v2.5 total: ≈ 63 h** (12.75 + 20.5 + 7 + 9.5 + 4.25 + 8.5 = 62.5, rounded). P14 (phone bookings) was merged into P18. P20 (admin redesign) was added after the P0 mockups.
+
+**Mockups picked in P0 (2026-09-27)** — `mockups/v2-5-screens.html`, deep link `#screen-letter`: Compare A (P1) · Book now B (P5, P8, P17) · My trip D (P5, P9, P10) · Calendar A (P11) · Counter booking C (P18) · Reports B (P12) · admin nav style A (all) · admin interiors as listed in P20.
 
 ---
 

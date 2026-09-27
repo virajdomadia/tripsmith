@@ -293,6 +293,27 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 
 ## Platform
 
+### R59. Admin redesign (P20)
+- Added 2026-09-27 after the P0 mockups; it doesn't follow the R(38+n) numbering because R58 was taken.
+- The sidebar stays as it is today (the Ink rail). The inside of each existing admin page is rebuilt to the mockup Viraj picked:
+
+  | Page | Picked layout |
+  |---|---|
+  | Dashboard | C · Money desk: cash coming in, going out and at risk, with a 40-day cash chart |
+  | Bookings desk | A · attention tiles, status tabs, live filters, row click fills a side panel |
+  | Booking detail | C · Lifecycle: status stepper and only the valid next actions |
+  | Enquiries | A2 · rows with waiting time against a 2 h target, filter chips, conversation thread with snippets, stages, follow-up dates, Convert to booking |
+  | Packages | B · Photo catalogue with health checks |
+  | Package editor | B · form beside a live preview of the customer page |
+  | Destinations | A · cover cards with the editor beside them |
+  | Reviews | A · queue with a reading pane |
+  | Coupons | B · Campaign board: what each code brought in |
+  | Sign in | B · Postcard: photo with the form card |
+
+- Same data and endpoints as today. Parts that belong to later rows (balances, readiness, channel, Quoted stage) appear when those rows ship.
+- Built right after P16, so later rows land on the new pages.
+- **Accept:** each page matches its mockup at desktop and 390 px, and the existing admin tests pass.
+
 ### R57. Groundwork (P0)
 - **Mockups** of the signature v2.5 screens, using real photos:
   - compare;
@@ -326,4 +347,4 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - AI dynamic pricing (v3 is the AI version).
 
 ## Budget
-≈ 56 h across rows P0–P19 (see [07-plan.md](07-plan.md)). That's more than twice v2 (20.5 h) by design: the rule is "overdo the feature, not the setup", and v1 and v2 should hold up next to real operators before the AI versions begin. v3 starts only after P19 closes.
+≈ 63 h across rows P0–P20 (see [07-plan.md](07-plan.md)); P20, the admin redesign, was added after the P0 mockups. That's more than twice v2 (20.5 h) by design: the rule is "overdo the feature, not the setup", and v1 and v2 should hold up next to real operators before the AI versions begin. v3 starts only after P19 closes.

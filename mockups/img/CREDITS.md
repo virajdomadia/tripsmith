@@ -22,3 +22,7 @@ All photos in `mockups/img/` are from Wikimedia Commons under CC BY / CC BY-SA l
 | `rajasthan-1.jpg` | Fort Jaisalmer at sunset.jpg | CC BY-SA 3.0 | [source](https://commons.wikimedia.org/wiki/File:Fort_Jaisalmer_at_sunset.jpg) |
 | `rajasthan-2.jpg` | Jaiselmer Fort or the Sonar Killa from sunset point.jpg | CC BY-SA 4.0 | [source](https://commons.wikimedia.org/wiki/File:Jaiselmer_Fort_or_the_Sonar_Killa_from_sunset_point.jpg) |
 | `udaipur-1.jpg` | 20191207 City Palace, Mohan Temple and Lake Pichola, Udaipur, 1523 7262.jpg | CC BY-SA 4.0 | [source](https://commons.wikimedia.org/wiki/File:20191207_City_Palace,_Mohan_Temple_and_Lake_Pichola,_Udaipur,_1523_7262.jpg) |
+| `kasol-1.jpg` | Parvati River At Kasol (197732809).jpeg | CC BY-SA 3.0 | [source](https://commons.wikimedia.org/wiki/File:Parvati_River_At_Kasol_(197732809).jpeg) |
+| `nubra-1.jpg` | Diskit Gompa Nubra valley India.jpg | CC BY-SA 4.0 | [source](https://commons.wikimedia.org/wiki/File:Diskit_Gompa_Nubra_valley_India.jpg) |
+| `jaipur-1.jpg` | East facade Hawa Mahal Jaipur from ground level (July 2022) - img 01.jpg | CC BY-SA 4.0 | [source](https://commons.wikimedia.org/wiki/File:East_facade_Hawa_Mahal_Jaipur_from_ground_level_(July_2022)_-_img_01.jpg) |
+| `goa-6.jpg` | Side Elevation of Basilica of Bom Jesus.jpg | CC BY-SA 4.0 | [source](https://commons.wikimedia.org/wiki/File:Side_Elevation_of_Basilica_of_Bom_Jesus.jpg) |
