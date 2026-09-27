@@ -161,7 +161,7 @@ export function CouponInsight({
                         ) : (
                           <>
                             {' '}
-                            · <b className="num">−{inr(u.offPaise)}</b>
+                            · <b className="num whitespace-nowrap">−{inr(u.offPaise)}</b>
                           </>
                         )}
                       </span>
