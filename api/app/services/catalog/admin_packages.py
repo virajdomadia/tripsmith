@@ -29,6 +29,7 @@ from app.schemas.catalog import (
     HotelOut,
     ItineraryDayOut,
     Meals,
+    NextDeparture,
     PackageInput,
     PublishRule,
 )
@@ -401,7 +402,9 @@ async def get_package(db: AsyncSession, id: str) -> AdminPackage:
 
 async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
     """One aggregate subquery per count — the A3 table shows upcoming departures and 30-day
-    enquiries next to every row, and there are a dozen packages, not a million."""
+    enquiries next to every row, and there are a dozen packages, not a million. Each row also
+    carries its publish checks and its next date's seat fill (P20 · Packages B), so itinerary
+    and departures are loaded per package."""
     now = dt.datetime.now(dt.UTC)
     today = ist_today(now)
     since = now - dt.timedelta(days=ENQUIRY_WINDOW_DAYS)
@@ -418,6 +421,11 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
         .group_by(Enquiry.package_id)
         .subquery()
     )
+    photos = (
+        select(PackageImage.package_id, func.count(PackageImage.id).label("n"))
+        .group_by(PackageImage.package_id)
+        .subquery()
+    )
     cover = PackageImage.__table__.alias("cover")
     rows = await db.execute(
         select(
@@ -427,13 +435,17 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             cover.c.url,
             func.coalesce(upcoming.c.n, 0),
             func.coalesce(recent.c.n, 0),
+            func.coalesce(photos.c.n, 0),
         )
         .join(Destination, Destination.id == Package.destination_id)
         .outerjoin(cover, cover.c.id == Package.cover_image_id)
         .outerjoin(upcoming, upcoming.c.package_id == Package.id)
         .outerjoin(recent, recent.c.package_id == Package.id)
+        .outerjoin(photos, photos.c.package_id == Package.id)
+        .options(selectinload(Package.itinerary), selectinload(Package.departures))
         .order_by(Package.status, Package.name)
     )
+    firsts = await _next_departures(db, today)
     return [
         AdminPackageRow(
             id=p.id,
@@ -453,9 +465,32 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             status=p.status,
             featured=p.featured,
             updated_at=p.updated_at,
+            image_count=int(images),
+            publish_rules=publish_rules(p, image_count=int(images), today=today),
+            next_departure=firsts.get(p.id),
         )
-        for p, dest_slug, dest_name, cover_url, departures, enquiries in rows.all()
+        for p, dest_slug, dest_name, cover_url, departures, enquiries, images in rows.all()
     ]
+
+
+async def _next_departures(db: AsyncSession, today: dt.date) -> dict[str, NextDeparture]:
+    """Each package's first date from `today`, with seats taken from the availability view."""
+    rows = await db.execute(
+        select(
+            Departure.package_id,
+            Departure.date,
+            Departure.seats_total,
+            departure_availability.c.seats_left,
+        )
+        .join(departure_availability, departure_availability.c.departure_id == Departure.id)
+        .where(Departure.date >= today)
+        .order_by(Departure.package_id, Departure.date, Departure.id)
+        .distinct(Departure.package_id)
+    )
+    return {
+        pid: NextDeparture(date=day, seats=seats, taken=max(0, seats - int(left)))
+        for pid, day, seats, left in rows.all()
+    }
 
 
 async def _assert_slug_free(db: AsyncSession, slug: str, *, except_id: str | None) -> None:

@@ -1546,6 +1546,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Nextdepartureon
+             * @description The first date from today on a live package here; the list only (P20)
+             */
+            nextDepartureOn?: string | null;
+            /**
              * Packagecount
              * @description All packages, draft or live
              */
@@ -1787,10 +1792,19 @@ export interface components {
             featured: boolean;
             /** Id */
             id: string;
+            /** Imagecount */
+            imageCount: number;
             /** Name */
             name: string;
+            /** @description The first date from today on */
+            nextDeparture: components["schemas"]["NextDeparture"] | null;
             /** Nights */
             nights: number;
+            /**
+             * Publishrules
+             * @description The four publish checks, evaluated
+             */
+            publishRules: components["schemas"]["PublishRule"][];
             /**
              * Recentenquirycount
              * @description Enquiries in the last 30 days
@@ -3272,6 +3286,24 @@ export interface components {
             ref: string;
             /** Text */
             text: string;
+        };
+        /**
+         * NextDeparture
+         * @description A package card's seat fill (R59, P20 · Packages B).
+         */
+        NextDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Seats */
+            seats: number;
+            /**
+             * Taken
+             * @description Booked or held in checkout: seats − seats left
+             */
+            taken: number;
         };
         /**
          * Occupancy
