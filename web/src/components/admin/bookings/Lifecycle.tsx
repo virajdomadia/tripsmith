@@ -174,7 +174,11 @@ export function Lifecycle({ b }: { b: AdminBooking }) {
             <Money k="Paid" v={inr(b.paidPaise)} />
             <Money
               k={b.refundNeeded ? 'To refund' : 'Balance'}
-              v={b.refundNeeded ? 'Flagged' : inr(Math.max(0, b.totalPaise - b.paidPaise))}
+              v={
+                b.refundNeeded
+                  ? inr(b.refundToSendPaise + b.refundOfflinePaise)
+                  : inr(Math.max(0, b.totalPaise - b.paidPaise))
+              }
             />
           </dl>
         </section>
@@ -232,6 +236,8 @@ function MoveCard({
               c={b.cancellation}
               decision={m.key}
               paidPaise={b.paidPaise}
+              totalPaise={b.totalPaise}
+              payments={b.payments}
             />
           ) : (
             <DeskActions booking={b} only={m.key as 'mark-paid' | 'release' | 'refund-made'} />
@@ -323,7 +329,8 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
     Completed: 'Marked by the daily tidy the day after departure; then the customer can review.',
     'Checkout open': `The seats are held until ${istTime(b.holdExpiresAt)}.`,
     'Hold lapsed': `The hold lapsed at ${istTime(b.holdExpiresAt)}, ${istFullDate(b.holdExpiresAt)}; its seats are free for others.`,
-    Refunded: 'Reached when you record the refund made in Razorpay.',
+    Refunded: 'Reached when Razorpay processes the refund, or you record an offline one.',
+    Refunding: 'Razorpay has the refund and is processing it; it reports back when done.',
     Closed: 'Nothing owed either way. The booking stays in the desk and in the history.',
   };
   return <p className="text-ink2">{AHEAD[step.name] ?? 'Nothing recorded at this step yet.'}</p>;

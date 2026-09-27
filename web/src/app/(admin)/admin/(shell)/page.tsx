@@ -2,7 +2,7 @@ import { ArrowRight, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Children, type ReactNode } from 'react';
 import { PageHead } from '@/components/admin/PageHead';
-import { istTime } from '@/components/admin/enquiries/ist-date';
+import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { Panel } from '@/components/admin/dashboard/Panel';
 import { CashDesk } from '@/components/admin/money/CashDesk';
 import { RefundMadeButton } from '@/components/admin/money/RefundMadeButton';
@@ -76,7 +76,7 @@ export default async function AdminHome() {
         </Panel>
 
         <Panel title="Going out" sub="· refunds">
-          <List empty="No refund to record.">
+          <List empty="No refund to send.">
             {money.owed.map((o) => (
               <Row
                 key={o.ref}
@@ -86,9 +86,13 @@ export default async function AdminHome() {
                 amount={<span className="text-bad">{inr(o.amountPaise)}</span>}
                 action={
                   <>
-                    <RefundMadeButton bookingRef={o.ref} amountPaise={o.amountPaise} />
+                    <RefundMadeButton
+                      bookingRef={o.ref}
+                      amountPaise={o.offline ? o.amountPaise : o.amountPaise - o.offlinePaise}
+                      offline={o.offline}
+                    />
                     <span className="self-center text-[12px] text-mute">
-                      Refund in Razorpay first
+                      {o.offline ? 'Hand it back first' : 'Goes back through Razorpay'}
                     </span>
                   </>
                 }
@@ -99,13 +103,13 @@ export default async function AdminHome() {
                 key={`${r.ref}-${r.at}`}
                 href={booking(r.ref)}
                 who={r.name}
-                what={`Refunded ${formatDate(r.at.slice(0, 10))} · ${r.ref}`}
+                what={`Refunded ${istFullDate(r.at)} · ${r.ref}`}
                 amount={<span className="text-mute">{inr(r.amountPaise)}</span>}
               />
             ))}
           </List>
           <Foot
-            label="Still to record"
+            label="Still to send"
             value={money.toRecordPaise ? inr(money.toRecordPaise) : 'Nothing'}
             tone={money.toRecordPaise ? 'text-bad' : 'text-ok'}
           />

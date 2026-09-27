@@ -15,7 +15,7 @@ export function lakh(paise: number): string {
   return `${rupees < 0 ? '−' : ''}₹${digits} L`;
 }
 
-/** Collected − refunds (recorded and still to record) [+ live holds] = kept. */
+/** Collected − refunds (sent and still to send) [+ live holds] = kept. */
 export function equation(m: MoneyDesk, countHolds: boolean) {
   const refunds = m.refundedPaise + m.toRecordPaise;
   const holds = countHolds ? m.holdsPaise : 0;
@@ -43,7 +43,7 @@ export function tick(iso: string, today: string): string {
   return d % 5 === 0 ? String(d) : '';
 }
 
-export const LINE_WORD = { in: 'Collected', out: 'Refunded', owe: 'To record' } as const;
+export const LINE_WORD = { in: 'Collected', out: 'Refunded', owe: 'To send' } as const;
 
 export function net(lines: readonly MoneyLine[]): number {
   return lines.reduce((s, l) => s + (l.kind === 'in' ? l.amountPaise : -l.amountPaise), 0);

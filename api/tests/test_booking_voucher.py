@@ -208,7 +208,7 @@ def test_seats_gone_tells_both_about_the_refund_and_never_says_confirmed() -> No
     assert "couldn't hold your seat" in customer.subject
     assert "Your ₹11,998 will be refunded within 5–7 days" in customer.text
     assert customer.attachments == ()
-    assert owner.subject.startswith("Refund needed on TB-7F3K2Q — ₹11,998")
+    assert owner.subject.startswith("Refunding ₹11,998 on TB-7F3K2Q")
     assert "pay_Late" in owner.text
     assert not says_confirmed(customer) and not says_confirmed(owner)
 
@@ -218,7 +218,8 @@ def test_money_on_a_booking_no_longer_pending() -> None:
     # A second payment on a confirmed booking: the owner refunds it; the customer is not told
     # their trip is off.
     twice = by_role(render_booking_emails(facts(), capture, settings=LIVE))
-    assert list(twice) == ["owner"] and "Refund ₹5,000 by hand" in twice["owner"].html
+    assert list(twice) == ["owner"]
+    assert "Refunding ₹5,000 through Razorpay automatically" in twice["owner"].html
     # A payment on a cancelled booking: the customer hears about the refund too.
     gone = by_role(render_booking_emails(facts(BookingStatus.CANCELLED), capture, settings=LIVE))
     assert list(gone) == ["customer", "owner"]

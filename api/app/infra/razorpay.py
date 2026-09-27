@@ -1,6 +1,6 @@
 """Razorpay over its REST API (04 v2 §5): create an order, verify a Checkout payment signature,
 list an order's payments (B5's sync, when Checkout closes without calling back), verify a
-webhook's signature (B6).
+webhook's signature (B6), refund a payment (P13).
 
 The official `razorpay` SDK is synchronous (requests); creating an order is one POST, so it goes
 through httpx like infra/email.py. Test mode forever. When the keys are unset (dev, CI)
@@ -27,6 +27,17 @@ CURRENCY = "INR"
 
 class RazorpayError(Exception):
     """An order that was not created — HTTP error, transport error, or an unexpected body."""
+
+
+class RefundRefused(RazorpayError):
+    """Razorpay answered a refund with a 4xx: it definitely made no refund (below ₹1, more than
+    is left, already fully refunded…). `description` is Razorpay's own words. Any other
+    `RazorpayError` from `refund` means the outcome is unknown — retry with the same key."""
+
+    def __init__(self, status: int, description: str) -> None:
+        super().__init__(f"Razorpay refused the refund ({status}): {description}")
+        self.status = status
+        self.description = description
 
 
 class Razorpay:
@@ -95,6 +106,69 @@ class Razorpay:
             raise RazorpayError(f"Razorpay {res.status_code}: {res.text[:300]}")
         status = res.json().get("status")
         return status if isinstance(status, str) else ""
+
+    async def refund(
+        self, payment_id: str, *, amount_paise: int, key: str, notes: dict[str, str]
+    ) -> dict[str, Any]:
+        """Refund part or all of a captured payment; returns Razorpay's refund entity (`id`,
+        `status`: processed | pending | failed). `key` goes in `X-Refund-Idempotency`: the same
+        key with the same body returns the refund already made (checked in test mode, P13), so a
+        retry after a lost answer never refunds twice. Always `speed: normal` — instant costs a
+        fee in live mode and test mode ignores it."""
+        body = {
+            "amount": amount_paise,
+            "speed": "normal",
+            "receipt": key[:40],
+            "notes": notes,
+        }
+        try:
+            res = await self._client.post(
+                f"{PAYMENTS_URL}/{payment_id}/refund",
+                json=body,
+                headers={"X-Refund-Idempotency": key},
+            )
+        except httpx.HTTPError as exc:
+            raise RazorpayError(f"Razorpay unreachable: {exc}") from exc
+        # 409 = this key already made a refund with another body (ours never changes), 429 =
+        # slow down: neither says no refund exists, so both stay "unknown — retry".
+        if res.status_code // 100 == 4 and res.status_code not in (409, 429):
+            try:
+                error = res.json().get("error") or {}
+                description = str(error.get("description") or res.text[:300])
+            except ValueError:
+                description = res.text[:300]
+            raise RefundRefused(res.status_code, description)
+        if res.status_code // 100 != 2:
+            raise RazorpayError(f"Razorpay {res.status_code}: {res.text[:300]}")
+        try:
+            entity = res.json()
+        except ValueError as exc:
+            raise RazorpayError(f"Razorpay answered with no JSON: {res.text[:300]}") from exc
+        refund_id = entity.get("id") if isinstance(entity, dict) else None
+        if not isinstance(refund_id, str) or not refund_id.startswith("rfnd_"):
+            raise RazorpayError(f"Razorpay returned no refund id: {res.text[:300]}")
+        return entity
+
+    async def find_refund(self, payment_id: str, key: str) -> dict[str, Any] | None:
+        """The payment's refund made under our `key` (sent as `notes.refund_id` and the receipt),
+        or None. Asked before a refusal is believed: "fully refunded already" may mean our own
+        earlier call landed (its answer lost, or its idempotency key since expired)."""
+        try:
+            res = await self._client.get(f"{PAYMENTS_URL}/{payment_id}/refunds")
+            items = res.json().get("items") if res.status_code // 100 == 2 else None
+        except (httpx.HTTPError, ValueError) as exc:
+            raise RazorpayError(f"Razorpay unreachable: {exc}") from exc
+        if not isinstance(items, list):
+            raise RazorpayError(f"Razorpay {res.status_code}: {res.text[:300]}")
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            notes = item.get("notes")
+            if (isinstance(notes, dict) and notes.get("refund_id") == key) or item.get(
+                "receipt"
+            ) == key[:40]:
+                return item
+        return None
 
     def verify_payment_signature(self, *, order_id: str, payment_id: str, signature: str) -> bool:
         """Checkout's success handler signs `order_id|payment_id` with the key secret."""

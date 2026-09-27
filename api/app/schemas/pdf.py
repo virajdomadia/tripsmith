@@ -23,3 +23,6 @@ class DailyReport(ApiModel):
     deals_ended: int = Field(
         default=0, description="Live packages whose deal ended in the last 48 h, revalidated (B12)"
     )
+    refunds_resent: int = Field(
+        default=0, description="Bookings whose stuck Razorpay refunds were sent again (P13)"
+    )

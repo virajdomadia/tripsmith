@@ -7,7 +7,7 @@
 <p style="margin:0 0 4px;font-size:13px;color:#5e6b76;">Booked {{ booked_at }}</p>
 <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;">{{ heading }}</h1>
 {% if refund %}
-<p style="margin:0 0 16px;background:#fff1dd;color:#9a4516;border-radius:10px;padding:10px 12px;"><b>Refund {{ refund }} by hand in the Razorpay dashboard</b> — payment {{ payment_id }}. {{ refund_why }}</p>
+<p style="margin:0 0 16px;background:#fff1dd;color:#9a4516;border-radius:10px;padding:10px 12px;"><b>Refunding {{ refund }} through Razorpay automatically</b> — payment {{ payment_id }}. {{ refund_why }} If it doesn’t go through, the booking shows Send refund on the desk.</p>
 {% endif %}
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;">
 {% call row("Trip") %}<a href="{{ package_url }}" style="color:#1b4fd8;">{{ b.package_name }}</a> · {{ duration }}{% endcall %}

@@ -225,6 +225,20 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - The business's GSTIN is a clearly labelled fake demo number.
   - Documents download from My trips and the desk. The invoice is attached to the fully-paid email.
 - **Accept:** replays and double clicks never refund twice; invoice numbers stay gap-free under concurrency (tested); the invoice total equals the amount paid.
+- **Decided at row start (2026-09-27):**
+  - **Test mode, checked on our account:**
+    - Refunds come back `processed` in the API response itself.
+    - The same `X-Refund-Idempotency` key returns the same refund; the same key with a different body gets a 409.
+    - The minimum is ₹1. Asking for more than is left is refused, and so is refunding a payment that was already fully refunded.
+    - `speed: optimum` is processed as normal, so we always send `normal`.
+  - **The refund row's id is the idempotency key.** A retry after a lost answer gets the same refund back.
+  - **Webhooks:** `refund.processed` and `refund.failed` are ticked on the prod webhook. The failed path is tested with signed fake events, because test mode never fails a refund.
+  - **Approve has a confirm step.** It shows the amount (pre-filled from the tier, still editable) and how it splits across payments. Money leaves only on Confirm.
+  - **Late money is refunded automatically.** A late capture with no seats gets a full refund, and so does money landing on a booking that no longer takes it: the second-payment surplus, or a payment on a cancelled booking.
+  - **Offline payments:** their share becomes a refund waiting for the owner's "Refund made (offline)".
+  - **Documents** show "Tripsmith (demo business) · Bengaluru, Karnataka 560038" and GSTIN `29AABCT1234F1Z5`, printed with "Demo GSTIN, not registered".
+  - **Bookings from before this row** have no State, so they are treated as Karnataka: the place of supply falls back to the supplier's.
+  - **Two PRs:** P13a refunds (migration 0012), then P13b GST documents (migration 0013).
 
 ### R53. Automatic trip emails (P15)
 - **Sent by the daily cron:**

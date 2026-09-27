@@ -24,7 +24,7 @@ from app.services.format import inr
 
 log = logging.getLogger(__name__)
 
-RESOLUTION_DEMO_NOTE = "Demo site: no money moves and no refund is made."
+RESOLUTION_DEMO_NOTE = "Demo site: the refund is a Razorpay test-mode refund — no real money moves."
 
 
 def render_cancellation_emails(

@@ -205,9 +205,11 @@ async def test_late_capture_with_no_seats_left_never_confirms(
         "voucherUrl": None,  # no voucher for a booking that never happened
     }
     late = await booking(db, first["bookingRef"])
-    assert late.cancel_reason == CancelReason.SEATS_GONE and late.paid_paise == late.total_paise
+    # P13: refunded in full through Razorpay on its own — off paid_paise, flag down.
+    assert late.cancel_reason == CancelReason.SEATS_GONE and late.paid_paise == 0
+    assert late.refund_needed is False and len(rzp.refund_calls()) == 1
     [captured] = await payments(db, first["bookingRef"])
-    assert captured.status == PaymentStatus.CAPTURED  # the money is on record for the refund
+    assert captured.status == PaymentStatus.CAPTURED  # the money is on record; the refund row too
     # The second party keeps its seats.
     assert (await booking(db, second.json()["bookingRef"])).status == BookingStatus.PENDING
     assert await seats_left(db, dep_id) == 0

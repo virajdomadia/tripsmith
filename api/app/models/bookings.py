@@ -1,5 +1,5 @@
 """Booking engine tables (06 A6, v2): bookings, their travellers, payments, cancellations, reviews,
-and (v2.5 P16) each booking's append-only history.
+and (v2.5) each booking's append-only history (P16) and its refunds (P13).
 
 Seats are never stored: the `departure_availability` view (0004_v2) subtracts confirmed
 travellers and live pending holds from `departures.seats_total`. Add-on D's `split` column is here
@@ -35,6 +35,7 @@ from app.models.enums import (
     Occupancy,
     PaymentProvider,
     PaymentStatus,
+    RefundStatus,
 )
 
 
@@ -135,6 +136,47 @@ class Payment(IdMixin, TimestampsMixin, Base):
     raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # last webhook payload
 
     booking: Mapped[Booking] = relationship(back_populates="payments")
+    refunds: Mapped[list["Refund"]] = relationship(
+        back_populates="payment", order_by="Refund.created_at"
+    )
+
+
+class Refund(IdMixin, TimestampsMixin, Base):
+    """Money going back from one payment (R51, P13, 0012) — written through
+    `services/booking/refunds.py`, never directly.
+
+    The row is committed before Razorpay is called, and its `id` is the call's idempotency key.
+    Until it fails, its amount is already off `bookings.paid_paise`, so what is owed never counts
+    it twice; a failure puts it back. `by_hand` = made outside the API: an offline payment's
+    (`requested` until the owner records it) or one recorded by hand before P13.
+    """
+
+    __tablename__ = "refunds"
+    __table_args__ = (
+        Index("ix_refunds_booking_id", "booking_id"),
+        Index("ix_refunds_payment_id", "payment_id"),
+        CheckConstraint("amount_paise > 0", name="amount_positive"),
+    )
+
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
+    payment_id: Mapped[str] = mapped_column(ForeignKey("payments.id"), nullable=False)
+    amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[RefundStatus] = mapped_column(
+        pg_enum(RefundStatus, "refund_status"),
+        nullable=False,
+        server_default=RefundStatus.REQUESTED.value,
+    )
+    # cancellation | seats_gone | surplus | owner — and, from later rows, date_change | balance
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    by_hand: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    razorpay_refund_id: Mapped[str | None] = mapped_column(Text, unique=True)
+    error: Mapped[str | None] = mapped_column(Text)  # why the last try did not go through
+    note: Mapped[str | None] = mapped_column(Text)  # the owner's, on a by-hand refund
+    requested_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # Razorpay's last refund entity
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    payment: Mapped[Payment] = relationship(back_populates="refunds")
 
 
 class BookingCancellation(IdMixin, CreatedMixin, Base):

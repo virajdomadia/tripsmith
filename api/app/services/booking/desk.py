@@ -1,5 +1,5 @@
 """The owner's bookings desk (R22, B10): list, one booking, mark paid (offline), release a
-hold, record a refund, CSV, and a departure's manifest.
+hold, CSV, and a departure's manifest. Refunds (P13) live in refunds.py.
 
 Built on the enquiry inbox's patterns (services/admin_enquiries.py): URL filters, status tabs
 counted with the other filters applied, server-side paging, a CSV materialised before it
@@ -31,6 +31,7 @@ from app.models import (
     Departure,
     Package,
     Payment,
+    Refund,
 )
 from app.models.catalog import departure_availability
 from app.models.enums import (
@@ -40,12 +41,14 @@ from app.models.enums import (
     CancelReason,
     PaymentProvider,
     PaymentStatus,
+    RefundStatus,
 )
 from app.schemas.account import AccountTraveller
 from app.schemas.admin_bookings import (
     AdminBooking,
     AdminCancellation,
     AdminPayment,
+    AdminRefund,
     BookingCounts,
     BookingFilters,
     BookingList,
@@ -72,6 +75,7 @@ from app.services.booking.payments import (
     seats_short,
     settle_capture,
 )
+from app.services.booking.refunds import refund_owed, refundable_by_payment
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import (
     HAS_VOUCHER,
@@ -90,7 +94,6 @@ NOT_FOUND = "Booking not found"
 SEAT_HOLDING = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
 NOT_PAYABLE = "Only a booking still waiting for payment can be marked paid"
 NOT_PENDING = "Only a pending booking's hold can be released"
-NO_REFUND = "This booking has no refund to record"
 
 
 def hold_live() -> ColumnElement[bool]:
@@ -358,11 +361,6 @@ def payment_via(p: Payment) -> PaymentVia | None:
     return "checkout"
 
 
-def _refund_info(p: Payment) -> dict[str, Any]:
-    info = (p.raw or {}).get("refund")
-    return info if isinstance(info, dict) else {}
-
-
 async def _load(db: AsyncSession, ref: str) -> Booking:
     booking = (
         await db.execute(
@@ -370,7 +368,7 @@ async def _load(db: AsyncSession, ref: str) -> Booking:
             .where(Booking.ref == ref)
             .options(
                 selectinload(Booking.travellers),
-                selectinload(Booking.payments),
+                selectinload(Booking.payments).selectinload(Payment.refunds),
                 selectinload(Booking.cancellation),
             )
             .execution_options(populate_existing=True)
@@ -381,7 +379,8 @@ async def _load(db: AsyncSession, ref: str) -> Booking:
     return booking
 
 
-def _payment_out(p: Payment) -> AdminPayment:
+def _payment_out(p: Payment, refundable: dict[str, int]) -> AdminPayment:
+    given = sum(r.amount_paise for r in p.refunds if r.status != RefundStatus.FAILED)
     return AdminPayment(
         id=p.id,
         provider=p.provider,
@@ -391,18 +390,27 @@ def _payment_out(p: Payment) -> AdminPayment:
         payment_id=p.razorpay_payment_id,
         reference=offline_reference(p) if p.provider == PaymentProvider.OFFLINE else None,
         via=payment_via(p),
-        refunded_paise=_refunded_paise(p),
+        refunded_paise=given or None,
+        refundable_paise=refundable.get(p.id, 0),
         created_at=p.created_at,
         updated_at=p.updated_at,
     )
 
 
-def _refunded_paise(p: Payment) -> int | None:
-    """B10 refunds gave back whole payments and did not store an amount; B11's may be part."""
-    if p.status != PaymentStatus.REFUNDED:
-        return None
-    back = _refund_info(p).get("amountPaise")
-    return back if isinstance(back, int) else p.amount_paise
+def _refund_out(r: Refund) -> AdminRefund:
+    return AdminRefund(
+        id=r.id,
+        payment_id=r.payment_id,
+        amount_paise=r.amount_paise,
+        status=r.status,
+        reason=r.reason,
+        by_hand=r.by_hand,
+        razorpay_refund_id=r.razorpay_refund_id,
+        error=r.error,
+        note=r.note,
+        created_at=r.created_at,
+        processed_at=r.processed_at,
+    )
 
 
 def _admin_cancellation(
@@ -434,8 +442,12 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
     assert seats is not None  # bookings.departure_id is ON DELETE RESTRICT
     live = bool((await db.execute(select(hold_live()).where(Booking.id == b.id))).scalar_one())
     payable = awaiting_payment(b)
+    refundable = await refundable_by_payment(db, b.id)
     short = await seats_short(db, b, hold_live=live) if payable else 0
     asked = b.cancellation
+    refunds = sorted((r for p in b.payments for r in p.refunds), key=lambda r: (r.created_at, r.id))
+    waiting = [r for r in refunds if r.status == RefundStatus.REQUESTED]
+    stuck = sum(r.amount_paise for r in waiting if not r.by_hand and r.razorpay_refund_id is None)
     return AdminBooking(
         ref=b.ref,
         status=b.status,
@@ -464,7 +476,10 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         lead_name=b.contact_name,
         lead_phone=b.contact_phone,
         lead_email=b.contact_email,
-        payments=[_payment_out(p) for p in b.payments],
+        payments=[_payment_out(p, refundable) for p in b.payments],
+        refunds=[_refund_out(r) for r in refunds],
+        refund_to_send_paise=await refund_owed(db, b) + stuck,
+        refund_offline_paise=sum(r.amount_paise for r in waiting if r.by_hand),
         history=await booking_history(db, b.id),
         cancellation=_admin_cancellation(asked, b, seats.date) if asked else None,
         has_voucher=b.status in HAS_VOUCHER,
@@ -582,119 +597,6 @@ async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> 
         raise
     if live:  # the seats just came back: "from ₹" and the page may change
         await refresh_quietly(db, {package_id}, after=f"releasing {ref}")
-    return await get_booking(db, ref)
-
-
-async def refund_owed(db: AsyncSession, booking: Booking) -> int:
-    """What 'Refund made' would give back now (B10/B11). A cancellation the owner approved owes
-    the refund agreed then (a policy tier may keep part) plus any money beyond the price in full;
-    any other cancelled booking everything captured; a live one only what it holds beyond its
-    total (a second payment). The Money desk shows the same number before the owner acts."""
-    agreed = (
-        await db.execute(
-            select(BookingCancellation.refund_paise).where(
-                BookingCancellation.booking_id == booking.id,
-                BookingCancellation.status == CancellationStatus.APPROVED,
-            )
-        )
-    ).one_or_none()
-    if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
-        # Everything owed since the approval, less what was already given back: the refund
-        # agreed, plus in full any money captured beyond the booking's price (a second
-        # payment has no seat behind it, whenever it landed). Amounts, not timestamps: a
-        # capture racing the approval is stamped with its transaction's start, which can
-        # fall on either side of the approval's.
-        ever = (
-            await db.execute(
-                select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
-                    Payment.booking_id == booking.id,
-                    Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
-                )
-            )
-        ).scalar_one()
-        given_back = ever - booking.paid_paise
-        surplus = max(0, ever - booking.total_paise)
-        return min(booking.paid_paise, max(0, (agreed[0] or 0) + surplus - given_back))
-    elif booking.status == BookingStatus.CANCELLED:
-        return booking.paid_paise
-    else:
-        return booking.paid_paise - booking.total_paise
-
-
-async def record_refund(
-    db: AsyncSession, ref: str, note: str | None, *, by: str | None = None
-) -> AdminBooking:
-    """'Refund made': the owner refunded by hand in the Razorpay dashboard. A cancellation the
-    owner approved gives back the refund agreed then (B11 — a policy tier may keep part) plus any
-    money beyond the price in full; any
-    other cancelled booking everything captured; a live one only what it holds beyond its total
-    (a second payment). Payments are taken newest first and become `refunded` — the last one
-    possibly only in part, its `raw.refund.amountPaise` saying how much — `paid_paise` drops by
-    the amount given back, and `refund_needed` clears. No email and no Razorpay call."""
-    try:
-        booking, _ = await lock_booking(db, ref)
-        if not booking.refund_needed:
-            raise ApiError("conflict", NO_REFUND, reason="no_refund")
-        captured = list(
-            (
-                await db.execute(
-                    select(Payment)
-                    .where(
-                        Payment.booking_id == booking.id, Payment.status == PaymentStatus.CAPTURED
-                    )
-                    .order_by(Payment.created_at.desc())
-                    .with_for_update()
-                )
-            ).scalars()
-        )
-        owed = await refund_owed(db, booking)
-        now = dt.datetime.now(dt.UTC)
-        refunded = 0
-        for p in captured:
-            if refunded >= owed:
-                break
-            back = min(p.amount_paise, owed - refunded)
-            p.raw = {
-                **(p.raw or {}),
-                "refund": {
-                    "at": now.isoformat(),
-                    "note": note,
-                    "capturedAt": p.updated_at.isoformat(),
-                    "amountPaise": back,
-                },
-            }
-            p.status = PaymentStatus.REFUNDED
-            refunded += back
-        record(
-            db,
-            booking.id,
-            "refund.recorded",
-            actor=BookingActor.OWNER,
-            by=by,
-            text=(
-                f"Refund of {money(refunded)} recorded"
-                if refunded
-                else "Refund flag cleared — nothing left to give back"
-            )
-            + (f" · {note}" if note else ""),
-            customer=f"Refund of {money(refunded)} made" if refunded else None,
-            before={"paidPaise": booking.paid_paise, "refundNeeded": True},
-            after={"paidPaise": booking.paid_paise - refunded, "refundNeeded": False},
-        )
-        await db.execute(
-            update(Booking)
-            .where(Booking.id == booking.id)
-            .values(
-                paid_paise=Booking.paid_paise - refunded,
-                refund_needed=False,
-                updated_at=func.now(),
-            )
-            .execution_options(synchronize_session=False)
-        )
-        await db.commit()
-    except BaseException:
-        await db.rollback()
-        raise
     return await get_booking(db, ref)
 
 

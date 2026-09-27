@@ -35,6 +35,10 @@ const booking = (over: Partial<AdminBooking> = {}): AdminBooking =>
     ],
     totalPaise: 59_397_00,
     paidPaise: 0,
+    payments: [],
+    refunds: [],
+    refundToSendPaise: 0,
+    refundOfflinePaise: 0,
     canMarkPaid: true,
     canRelease: true,
     seatsShort: 0,
@@ -66,7 +70,7 @@ describe('lifecycle', () => {
     ]);
     expect(moves(b).map((m) => m.key)).toEqual(['mark-paid', 'release']);
     expect(nextStep(b).title).toBe('Never paid');
-    expect(blocked(b).map(([what]) => what)).toEqual(['Record a refund', 'Answer a cancellation']);
+    expect(blocked(b).map(([what]) => what)).toEqual(['Send a refund', 'Answer a cancellation']);
   });
 
   it('a confirmed booking with an open request waits on the owner', () => {
@@ -111,6 +115,7 @@ describe('lifecycle', () => {
       cancelReason: 'seats_gone',
       refundNeeded: true,
       paidPaise: 57_996_00,
+      refundToSendPaise: 57_996_00,
       canMarkPaid: false,
       canRelease: false,
     });
@@ -174,6 +179,7 @@ describe('lifecycle edge cases', () => {
       status: 'confirmed',
       paidPaise: 2 * 59_397_00,
       refundNeeded: true,
+      refundToSendPaise: 59_397_00,
       canMarkPaid: false,
       canRelease: false,
     });
@@ -214,5 +220,78 @@ describe('the desk remembers the open booking in the URL', () => {
       '/api/admin/bookings.csv?status=pending',
     );
     expect(parseDeskFilters({ sel: 'nope' }).sel).toBeUndefined();
+  });
+});
+
+describe('P13 refunds', () => {
+  type Refund = AdminBooking['refunds'][number];
+  const refund = (over: Partial<Refund>): Refund => ({
+    id: 'r1',
+    paymentId: 'p1',
+    amountPaise: 57_996_00,
+    status: 'processed',
+    reason: 'seats_gone',
+    byHand: false,
+    razorpayRefundId: 'rfnd_1',
+    error: null,
+    note: null,
+    createdAt: '2026-09-27T10:00:00Z',
+    processedAt: '2026-09-27T10:00:01Z',
+    ...over,
+  });
+  const seatsGone = (over: Partial<AdminBooking>) =>
+    booking({
+      status: 'cancelled',
+      cancelReason: 'seats_gone',
+      canMarkPaid: false,
+      canRelease: false,
+      ...over,
+    });
+
+  it('a refund Razorpay refused asks to be sent again, naming why', () => {
+    const b = seatsGone({
+      refundNeeded: true,
+      paidPaise: 57_996_00,
+      refundToSendPaise: 57_996_00,
+      refunds: [refund({ status: 'failed', error: 'Bank account closed', processedAt: null })],
+    });
+    expect(nextStep(b)).toMatchObject({ tone: 'bad', title: 'Refund to send' });
+    expect(nextStep(b).text).toContain('Bank account closed');
+    expect(moves(b)[0]).toMatchObject({ key: 'refund-made', title: 'Send the refund' });
+  });
+
+  it('a flag with nothing to send or hand back only offers clearing it', () => {
+    const b = seatsGone({ refundNeeded: true });
+    expect(nextStep(b)).toMatchObject({ tone: 'warn', title: 'Refund flag to clear' });
+    expect(moves(b)[0]!.title).toBe('Clear the refund flag');
+  });
+
+  it('an offline share waits for the owner to hand it back', () => {
+    const b = seatsGone({
+      refundNeeded: true,
+      refundOfflinePaise: 10_000_00,
+      refunds: [refund({ status: 'requested', byHand: true, razorpayRefundId: null })],
+    });
+    expect(nextStep(b).title).toBe('Offline refund to hand back');
+    expect(moves(b)[0]!.title).toBe('Record the offline refund');
+  });
+
+  it('a refund Razorpay is still processing stands at "Refunding", then "Refunded"', () => {
+    const pending = seatsGone({
+      refunds: [refund({ status: 'requested', processedAt: null })],
+    });
+    expect(names(pending).slice(-2)).toEqual(['Refunding:now', 'Closed:todo']);
+    expect(moves(pending)).toEqual([]);
+    const done = seatsGone({
+      refunds: [refund({})],
+      history: {
+        entries: [
+          entry('booked', '2026-09-26T10:30:00Z'),
+          entry('refund.processed', '2026-09-27T10:00:01Z', 2),
+        ],
+        rebuiltOn: null,
+      },
+    });
+    expect(names(done).slice(-2)).toEqual(['Refunded:done', 'Closed:now']);
   });
 });

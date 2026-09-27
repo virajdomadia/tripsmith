@@ -13,6 +13,7 @@ from app.models.bookings import (
     BookingEvent,
     BookingTraveller,
     Payment,
+    Refund,
     Review,
 )
 from app.models.catalog import (
@@ -43,6 +44,7 @@ __all__ = [
     "PackageImage",
     "PackageView",
     "Payment",
+    "Refund",
     "Review",
     "Session",
     "Testimonial",

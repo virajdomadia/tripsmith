@@ -10,7 +10,9 @@ IST midnight, so `ist_today()` is the new day:
 4. (B10) cancel checkouts abandoned over an hour ago (`hold_expired`) and complete departed
    confirmed bookings (services/booking/sweep.py);
 5. (B12) revalidate the pages of packages whose deal ended (at IST midnight), so the
-   strikethrough leaves the prerendered pages without a deploy.
+   strikethrough leaves the prerendered pages without a deploy;
+6. (P13) send again any Razorpay refund stuck `requested` for over an hour without a Razorpay
+   id (a process that died mid-call) — under the same idempotency key, so never twice.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -27,6 +29,7 @@ from app.schemas.pdf import DailyReport
 from app.services.analytics import ist_today
 from app.services.auth.otp import prune_codes
 from app.services.auth.sessions import prune_sessions
+from app.services.booking.refunds import resend_stale
 from app.services.booking.sweep import sweep_bookings
 from app.services.catalog.admin_packages import (
     recompute_all_starting_prices,
@@ -56,4 +59,5 @@ async def daily(
         holds_expired=swept.holds_expired,
         bookings_completed=swept.completed,
         deals_ended=ended,
+        refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
     )

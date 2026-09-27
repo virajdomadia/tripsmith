@@ -16,9 +16,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { SplitList } from '@/components/admin/bookings/DeskActions';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
+import { splitNewestFirst } from '@/lib/admin/refunds';
 import { ApiRequestError } from '@/lib/api-errors';
 import { inr } from '@/lib/format';
 
@@ -71,11 +73,16 @@ export function ResolveDialog({
   c,
   decision,
   paidPaise,
+  totalPaise = paidPaise,
+  payments = [],
 }: {
   bookingRef: string;
   c: Cancellation;
   decision: Decision;
   paidPaise: number;
+  /** P13: with the payments, the approve confirm previews the refund's newest-first split. */
+  totalPaise?: number;
+  payments?: AdminBooking['payments'];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,8 +95,13 @@ export function ResolveDialog({
   const [note, setNote] = useState('');
   const [rupees, setRupees] = useState(suggested);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // P13: approving with a refund shows a confirm step first — money leaves only on Confirm.
+  const [confirming, setConfirming] = useState(false);
   const [, startTransition] = useTransition();
   const length = [...note.trim()].length;
+  // What the api will send: the refund agreed plus, in full, anything paid beyond the price.
+  const surplus = Math.max(0, paidPaise - totalPaise);
+  const refundTotal = Number(rupees) * 100 + surplus;
 
   function check(): Record<string, string> {
     const found: Record<string, string> = {};
@@ -107,6 +119,10 @@ export function ResolveDialog({
     const found = check();
     setErrors(found);
     if (Object.keys(found).length > 0) return;
+    if (approve && refundTotal > 0 && !confirming) {
+      setConfirming(true);
+      return;
+    }
     setBusy(true);
     try {
       await adminRequest(`/admin/cancellations/${c.id}/resolve`, {
@@ -119,7 +135,9 @@ export function ResolveDialog({
       });
       toast.success(
         approve
-          ? `${bookingRef} cancelled — the customer is emailed`
+          ? refundTotal > 0
+            ? `${bookingRef} cancelled — ${inr(refundTotal)} refund sent, the customer is emailed`
+            : `${bookingRef} cancelled — the customer is emailed`
           : 'Request rejected — the customer is emailed',
       );
       setOpen(false);
@@ -127,6 +145,7 @@ export function ResolveDialog({
     } catch (e) {
       if (e instanceof ApiRequestError && e.body.fieldErrors) {
         setErrors(e.body.fieldErrors);
+        setConfirming(false);
       } else {
         reportAdminError(e, { router, pathname, fallback: 'Could not save — try again' });
       }
@@ -143,6 +162,7 @@ export function ResolveDialog({
         if (next) {
           setErrors({});
           setRupees(suggested);
+          setConfirming(false);
         }
       }}
     >
@@ -152,83 +172,134 @@ export function ResolveDialog({
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {approve ? `Cancel ${bookingRef}?` : `Reject the request on ${bookingRef}?`}
-          </DialogTitle>
-          <DialogDescription>
-            {approve
-              ? 'The booking is cancelled and its seats go back on sale at once. A refund above ₹0 is flagged on the desk until you record it with “Refund made” — make it by hand in the Razorpay dashboard.'
-              : 'The booking stays confirmed and keeps its seats. The customer can’t ask again.'}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4">
-          {approve && (
-            <div className="grid gap-1.5">
-              <Label htmlFor={`${id}-refund`}>Refund (₹)</Label>
-              <Input
-                id={`${id}-refund`}
-                inputMode="numeric"
-                value={rupees}
-                onChange={(e) => setRupees(e.target.value.replace(/[^0-9]/g, ''))}
-                aria-invalid={errors.refundPaise ? true : undefined}
-                aria-describedby={`${id}-refund-hint`}
-                className="num"
-              />
-              <p
-                id={`${id}-refund-hint`}
-                className={`text-xs ${errors.refundPaise ? 'font-semibold text-bad' : 'text-mute'}`}
-                role={errors.refundPaise ? 'alert' : undefined}
+        {confirming ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                Refund {inr(refundTotal)} and cancel {bookingRef}?
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div>
+                  The refund goes back through Razorpay to the way they paid, newest payment first:
+                  <SplitList parts={splitNewestFirst(payments, refundTotal)} />
+                  {surplus > 0 && (
+                    <span className="mb-2 block">
+                      That is the {inr(Number(rupees) * 100)} you agreed plus {inr(surplus)} paid
+                      beyond the price, which always goes back in full.
+                    </span>
+                  )}
+                  Money leaves as soon as you confirm, once — banks take 5–7 working days. The seats
+                  go back on sale and the customer is emailed.
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirming(false)}
+                disabled={busy}
               >
-                {errors.refundPaise ??
-                  `Paid ${inr(paidPaise)} · the tier suggests ${inr(c.suggestedRefundPaise)}. Take off any non-refundable tickets.`}
-              </p>
+                Change amount
+              </Button>
+              <Button type="button" autoFocus onClick={() => void submit()} disabled={busy}>
+                {busy ? 'Refunding…' : `Confirm — refund ${inr(refundTotal)}`}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {approve ? `Cancel ${bookingRef}?` : `Reject the request on ${bookingRef}?`}
+              </DialogTitle>
+              <DialogDescription>
+                {approve
+                  ? 'The booking is cancelled and its seats go back on sale at once. The refund goes back through Razorpay — you confirm the amount on the next step.'
+                  : 'The booking stays confirmed and keeps its seats. The customer can’t ask again.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              {approve && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`${id}-refund`}>Refund (₹)</Label>
+                  <Input
+                    id={`${id}-refund`}
+                    autoFocus
+                    inputMode="numeric"
+                    value={rupees}
+                    onChange={(e) => setRupees(e.target.value.replace(/[^0-9]/g, ''))}
+                    aria-invalid={errors.refundPaise ? true : undefined}
+                    aria-describedby={`${id}-refund-hint`}
+                    className="num"
+                  />
+                  <p
+                    id={`${id}-refund-hint`}
+                    className={`text-xs ${errors.refundPaise ? 'font-semibold text-bad' : 'text-mute'}`}
+                    role={errors.refundPaise ? 'alert' : undefined}
+                  >
+                    {errors.refundPaise ??
+                      `Paid ${inr(paidPaise)} · the tier suggests ${inr(c.suggestedRefundPaise)}. Take off any non-refundable tickets.`}
+                  </p>
+                </div>
+              )}
+              <div className="grid gap-1.5">
+                <Label htmlFor={`${id}-note`}>
+                  {approve ? 'Note to the customer' : 'Why — to the customer'}
+                </Label>
+                <Textarea
+                  id={`${id}-note`}
+                  rows={4}
+                  maxLength={NOTE_MAX}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  aria-invalid={errors.note ? true : undefined}
+                  aria-describedby={`${id}-note-hint`}
+                  placeholder={
+                    approve
+                      ? 'The refund goes back to your card within 5–7 working days.'
+                      : 'The hotel is already paid for these dates — we can move you to a later one.'
+                  }
+                />
+                <p id={`${id}-note-hint`} className="flex justify-between gap-3 text-xs text-mute">
+                  <span
+                    className={errors.note ? 'font-semibold text-bad' : ''}
+                    role={errors.note ? 'alert' : undefined}
+                  >
+                    {errors.note ?? 'Shown in the email and on their booking page.'}
+                  </span>
+                  <span className="num shrink-0">
+                    {length}/{NOTE_MAX}
+                  </span>
+                </p>
+              </div>
             </div>
-          )}
-          <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-note`}>
-              {approve ? 'Note to the customer' : 'Why — to the customer'}
-            </Label>
-            <Textarea
-              id={`${id}-note`}
-              rows={4}
-              maxLength={NOTE_MAX}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              aria-invalid={errors.note ? true : undefined}
-              aria-describedby={`${id}-note-hint`}
-              placeholder={
-                approve
-                  ? 'The refund goes back to your card within 5–7 working days.'
-                  : 'The hotel is already paid for these dates — we can move you to a later one.'
-              }
-            />
-            <p id={`${id}-note-hint`} className="flex justify-between gap-3 text-xs text-mute">
-              <span
-                className={errors.note ? 'font-semibold text-bad' : ''}
-                role={errors.note ? 'alert' : undefined}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={busy}
               >
-                {errors.note ?? 'Shown in the email and on their booking page.'}
-              </span>
-              <span className="num shrink-0">
-                {length}/{NOTE_MAX}
-              </span>
-            </p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={busy}>
-            Back
-          </Button>
-          <Button
-            type="button"
-            variant={approve ? 'default' : 'destructive'}
-            onClick={() => void submit()}
-            disabled={busy}
-          >
-            {busy ? 'Saving…' : approve ? 'Cancel booking and email' : 'Reject and email'}
-          </Button>
-        </DialogFooter>
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant={approve ? 'default' : 'destructive'}
+                onClick={() => void submit()}
+                disabled={busy}
+              >
+                {busy
+                  ? 'Saving…'
+                  : approve
+                    ? refundTotal > 0
+                      ? 'Review the refund'
+                      : 'Cancel booking and email'
+                    : 'Reject and email'}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

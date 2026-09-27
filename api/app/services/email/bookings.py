@@ -3,10 +3,11 @@
 - confirmed → the customer's confirmation with the voucher attached, and the owner's
   new-booking email;
 - a late capture with no seats (`seats_gone`) → the customer hears "we couldn't hold your seat;
-  your ₹X will be refunded", the owner gets the refund to make — neither says "confirmed";
-- money on a booking that was no longer pending → the owner gets the refund to make; the
+  your ₹X will be refunded", the owner hears it is being refunded (P13 sends it on its own) —
+  neither says "confirmed";
+- money on a booking that was no longer pending → the owner hears it is being refunded; the
   customer also hears "we couldn't hold your seat" when the booking was cancelled (a second
-  payment on a confirmed booking is the owner's to sort out by hand);
+  payment on a confirmed booking goes back on its own, and the history says so);
 - marked paid offline on the desk (B10) → the customer's confirmation only, its demo note
   saying so; the owner did it and gets no email about it.
 
@@ -129,7 +130,7 @@ def render_booking_emails(
         heading = (
             f"New booking {facts.ref} — {facts.lead_name} · {facts.package_name}"
             if refund is None
-            else f"Refund needed on {facts.ref} — {refund} · {facts.package_name}"
+            else f"Refunding {refund} on {facts.ref} · {facts.package_name}"
         )
         owner = _message(
             settings.owner_notify_email,
