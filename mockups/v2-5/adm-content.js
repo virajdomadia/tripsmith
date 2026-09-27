@@ -764,7 +764,7 @@
   .ad-ds-map .land { fill: color-mix(in srgb, var(--pri) 7%, var(--bg2)); stroke: color-mix(in srgb, var(--pri) 25%, var(--a-line)); stroke-width: 1.2; stroke-linejoin: round; }
   .ad-ds-map .isl circle { fill: color-mix(in srgb, var(--pri) 25%, var(--a-line)); }
   .ad-ds-map .nd { cursor: pointer; outline: none; }
-  .ad-ds-map .nd .dot { fill: #fff; stroke-width: 3; transition: stroke-width .2s; }
+  .ad-ds-map .nd .dot { fill: #fff; stroke-width: 3; }
   .ad-ds-map .nd.in .dot { stroke: var(--ok); } .ad-ds-map .nd.off .dot { stroke: #8A96A1; }
   .ad-ds-map .nd.on .dot { fill: var(--pri); stroke: var(--pri); }
   .ad-ds-map .nd:hover .dot, .ad-ds-map .nd:focus-visible .dot { stroke-width: 5; }
