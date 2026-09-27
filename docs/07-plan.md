@@ -136,12 +136,68 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 **v2 total: ≈ 20.5 h** (8.25 + 2.25 + 4 + 6).
 
-**v2 add-ons** (optional, only after v4): split payment (D, 8 h) · trip hub (C, 6 h) · departure-city pricing (3 h) · auto-link enquiry → booking (0.5 h) · review photos (1 h).
+**v2 add-ons** (optional, only after v4): split payment (D, 8 h) · trip hub (C, 6 h) · departure-city pricing (3 h) · ~~auto-link enquiry → booking (0.5 h)~~ delivered by v2.5 P18 ("Convert to booking") · review photos (1 h).
+
+---
+
+## v2.5 — Strengthen (≈ 56 h) — requirements: [03-requirements-v2-5.md](03-requirements-v2-5.md)
+**Locked 2026-09-27.** After v2 closed, Tripsmith was compared with 14 live package sites and 8 operator tools. Viraj approved 17 items plus a full admin counter-booking screen, each agreed one by one in chat. The full scope of each row is in 03-requirements-v2-5 (R(38+n) = row Pn). Everything is built **before v3**. Rows are listed in **build order**: each row depends on the ones above it.
+
+**Rules for every row:**
+- Same as v2: own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`, and a **new chat per row**.
+- Migrations are expand-first. Viraj runs each on prod before the code merges.
+- Every payment goes through the one capture function, and every refund through the one refund function (P13).
+- Every booking change writes history (P16).
+- Tests only where a failure would embarrass a demo, plus a concurrency test on every new lock path.
+
+### Milestone 2.5.0 — Groundwork (≈ 5.75 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P0 | **Groundwork:** mockups of the signature v2.5 screens with real photos (compare, sheet with add-ons + deposit + price ladder, My trips checklist + trip pack, calendar, counter booking, reports); fix the `test_deals.py` `TODAY` flake; concurrency tests for a coupon's last use and cancel-vs-late-capture; **real email**: Viraj creates a Tripsmith Gmail, the api sends over Gmail SMTP (app password), demo mode switches off itself, `@example.com` accounts keep the on-screen code | 3.75 h | mockups approved; CI green with no flake; a real customer email arrives |
+| P16 | **History log:** append-only `booking_events` (trigger refuses UPDATE/DELETE), writes from every v2 path, backfill from v2 data, merged desk timeline with chips, customer "Activity" | 2 h | every existing write path logs; the trigger is tested |
+
+### Milestone 2.5.1 — Money (≈ 20.5 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P13 | **Refunds + GST documents:** one refund function over the Razorpay refund API (verify test mode first) + refund webhooks; auto refunds (late capture with no seats, cheaper date change, unpaid balance), cancellation approval = real refund; receipts / tax invoices / credit notes with FY numbering; checkout State + optional GSTIN | 4.5 h | a refund lands in the Razorpay test dashboard once under replay; invoice numbers gap-free under concurrency |
+| P8 | **Add-ons:** package panel (per booking / traveller / traveller-night), the "Make it yours" sheet step, quote lines, "Add extras" in My trips until −7 days, voucher/manifest/CSV | 3.5 h | quote to the paisa with add-ons; discounts never touch them |
+| P17 | **Early-bird:** up to 2 tiers per package, departure labels, card tag, quote line, price ladder, cron revalidation | 2 h | the discount flips exactly at the threshold in IST |
+| P5 | **Deposit + balance:** 25 % deposit, due −30 days, part payments ≥ ₹1,000, reminders, 2-day grace → `balance_unpaid` cancel, desk filter/extend/mark paid, voucher "Balance due" | 5.5 h | deposit + parts = quote; an unpaid booking is cancelled by the cron and its seats freed |
+| P18 | **Counter booking:** `/admin/bookings/new` + Convert enquiry + from the calendar; live quote, manual discount with reason, customer search, Razorpay Payment Links (24 h hold, WhatsApp/email/copy), paid offline, deposit; channel + created-by | 5 h | counter and web quotes match; a paid link confirms once under replay |
+
+### Milestone 2.5.2 — Seats (≈ 7 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P6 | **Waitlist:** join on sold-out dates, in-order offers on freed seats, 24 h claim holds, My trips offers, owner list + offer by hand | 3 h | two offers never share a seat (concurrency test) |
+| P7 | **Change date:** instant self-serve with the fee table, discounts kept in ₹, pay/refund the difference, atomic two-departure swap, owner move from the desk | 4 h | seat counts on both departures exact under concurrency |
+
+### Milestone 2.5.3 — The trip (≈ 9.5 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P3 | **Trip leader:** admin page, package default + departure override, package card + row avatars, `/leaders/[slug]`, "Led by" on reviews, 4 demo leaders with illustrated avatars | 2 h | changing a departure's leader updates the page and the voucher |
+| P9 | **Traveller details + checklist:** per-traveller details after payment, per-package required fields, lock at −3 days, countdown + readiness bar + owner tick items, manifest fields, masking, ID purge at +30 days | 3.5 h | the manifest prints every field; IDs never unmasked outside it |
+| P10 | **Calendar + trip pack:** Google link + `.ics` (stable UID), trip-pack tab + PDF unlocking at −7 days and when fully paid, meeting point + Know-before-you-go fields, seed notes | 1.5 h | `.ics` imports into Google and Apple Calendar |
+| P15 | **Automatic emails:** cron sends (balance, details missing, trip pack, review request, still-thinking), once per booking and type, Emails list, unsubscribe on the two promotional emails, `/admin/settings/emails` with preview + test send | 2.5 h | a cron re-run sends nothing twice |
+
+### Milestone 2.5.4 — Browse (≈ 4.25 h)
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P1 | **Wishlist + compare:** ♡ saves (browser → account), Saved tab, `/compare?p=` up to 3 with differences highlighted, most-saved line on the dashboard | 3 h | saves survive sign-in; compare renders from the URL at 360 px |
+| P2 + P4 | **Urgency + verified labels:** exact seat counts, Booked N×, Likely to sell out, Last booked; Verified traveller + travel month + party on reviews; seed a few past bookings | 1.25 h | every label traces to a query |
+
+### Milestone 2.5.5 — Owner insight & close (≈ 8.5 h) — closes lifecycle 10–12, 17 for v2.5
+| # | Task | Est. | Done when |
+|---|---|---|---|
+| P11 | **Departure calendar:** month grid with fill bars, month strip, filters, side panel, add a departure from a day, mobile agenda, motion | 3.5 h | numbers match `departure_availability` and the desk |
+| P12 | **Reports:** Money, Packages, Occupancy, Funnel, Cancellations, Discounts, Add-ons, Channels, Customers; table + CSV each; seed a year of history | 3.5 h | totals reconcile with the desk CSV |
+| P19 | **v2.5 close:** security pass (payment links, refunds, documents, traveller data, waitlist claims), PSI on `/compare` + a package page with Book now open (≥ 85), docs/12, docs/17 v2.5 section, README, portfolio card | 1.5 h | v2.5 signed off; v3 may start |
+
+**v2.5 total: ≈ 56 h** (5.75 + 20.5 + 7 + 9.5 + 4.25 + 8.5 = 55.5, rounded). P14 (phone bookings) was merged into P18.
 
 ---
 
 ## v3 — AI concierge (≈ 15 h) — requirements: [03-requirements-v3.md](03-requirements-v3.md)
-Starts with a step-3 re-validation (30 min): confirm the provider/free-tier situation and R26–R33 against v1+v2 as shipped.
+Starts **after v2.5 closes (P19)**, with a step-3 re-validation (30 min): confirm the provider/free-tier situation and R26–R33 against v1+v2 as shipped.
 
 ### Milestone 3.0 — Chat with search (≈ 6 h)
 | # | Task | Est. | Done when |
@@ -195,10 +251,11 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | Version | Milestones | Hours | Cumulative |
 |---|---|---|---|
 | v1 | 1.0 – 1.4 | 35 | 35 |
-| v2 | 2.0 – 2.3 | 17 | 52 |
-| v3 | 3.0 – 3.3 | 15 | 67 |
-| v4 | 4.0 | 6 | 73 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 104 |
+| v2 | 2.0 – 2.3 | 20.5 | 55.5 |
+| v2.5 | 2.5.0 – 2.5.5 | 56 | 111.5 |
+| v3 | 3.0 – 3.3 | 15 | 126.5 |
+| v4 | 4.0 | 6 | 132.5 |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 164.5 |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 
