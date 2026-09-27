@@ -29,7 +29,13 @@ from app.infra.db import constraint_name
 from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import Booking, BookingTraveller, Departure, Package, Payment
 from app.models.catalog import departure_availability
-from app.models.enums import BookingStatus, PackageStatus, PaymentProvider, PaymentStatus
+from app.models.enums import (
+    BookingActor,
+    BookingStatus,
+    PackageStatus,
+    PaymentProvider,
+    PaymentStatus,
+)
 from app.schemas.bookings import (
     BookingContact,
     BookingOrder,
@@ -39,7 +45,7 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.services.analytics import ist_today
-from app.services.booking import coupons
+from app.services.booking import coupons, history
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
 from app.services.booking.pricing import apply_coupon, build_quote, unbookable_reason
@@ -170,6 +176,14 @@ async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Relea
             .values(hold_expires_at=func.now(), updated_at=func.now())
             .execution_options(synchronize_session=False)
         )
+        history.record_each(
+            db,
+            [r.id for r in rows],
+            "hold.replaced",
+            actor=BookingActor.CUSTOMER,
+            text="Hold ended early — the same email or phone started a new booking",
+            customer="You started a new booking, so the seats held here were released",
+        )
     return [Released(r.ref, str(r.package_id), r.hold_expires_at) for r in rows]
 
 
@@ -182,11 +196,21 @@ async def _undo_hold(
     try:
         await _lock_contact(db, contact.email, contact.phone)
         await lock_booking(db, booking.ref)  # departure first, as everywhere else
-        await db.execute(
+        undone = await db.execute(
             update(Booking)
             .where(Booking.id == booking.id, Booking.status == BookingStatus.PENDING)
             .values(hold_expires_at=func.now(), updated_at=func.now())
+            .returning(Booking.id)
             .execution_options(synchronize_session=False)
+        )
+        history.record_each(
+            db,
+            undone.scalars(),
+            "hold.undone",
+            actor=BookingActor.SYSTEM,
+            text="Razorpay couldn't open a payment order — the hold ended at once",
+            customer="We couldn't reach the payment provider, so the seats were released — "
+            "please try again",
         )
         for prev in released:
             held, live = await lock_booking(db, prev.ref)
@@ -203,6 +227,15 @@ async def _undo_hold(
                 .where(Booking.id == held.id, Booking.status == BookingStatus.PENDING)
                 .values(hold_expires_at=prev.hold_expires_at, updated_at=func.now())
                 .execution_options(synchronize_session=False)
+            )
+            history.record(
+                db,
+                held.id,
+                "hold.restored",
+                actor=BookingActor.SYSTEM,
+                text=f"Hold given back — the newer booking {booking.ref} couldn't open a payment "
+                "order",
+                customer="Your held seats are back — the newer booking couldn't start",
             )
         await db.commit()
     except BaseException:
@@ -276,6 +309,22 @@ async def create_booking_order(
             break
         if booking is None:
             raise RuntimeError("Could not draw a unique booking ref")
+        coupon_text = (
+            f" · coupon {quote.coupon.code} (−{history.money(quote.coupon.off_paise)})"
+            if quote.coupon
+            else ""
+        )
+        history.record(
+            db,
+            booking.id,
+            "booked",
+            actor=BookingActor.CUSTOMER,
+            text=f"Booked online · {history.travellers(party)} · "
+            f"{history.money(booking.total_paise)}{coupon_text} · seats held 10 minutes",
+            customer=f"You booked {history.travellers(party)} · "
+            f"{history.money(booking.total_paise)} — seats held for 10 minutes while you pay",
+            after={"status": BookingStatus.PENDING.value, "totalPaise": booking.total_paise},
+        )
         await db.commit()
     except BaseException:
         await db.rollback()
@@ -300,6 +349,13 @@ async def create_booking_order(
             amount_paise=booking.total_paise,
             status=PaymentStatus.CREATED,
         )
+    )
+    history.record(
+        db,
+        booking.id,
+        "order.opened",
+        actor=BookingActor.SYSTEM,
+        text=f"Razorpay order {order_id} opened · {history.money(booking.total_paise)}",
     )
     await db.commit()
     await refresh_quietly(db, touched, after=f"booking {booking.ref}")

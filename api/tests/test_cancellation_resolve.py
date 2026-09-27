@@ -129,8 +129,8 @@ async def test_approve_frees_the_seats_flags_the_refund_and_emails_only_the_cust
     c = out["cancellation"]
     assert (c["status"], c["refundNote"], c["refundPaise"]) == ("approved", NOTE, paid)
     assert c["resolvedAt"] and c["canApprove"] is False
-    kinds = [e["kind"] for e in out["timeline"]]
-    assert kinds[-1] == "resolved" and "cancelled" not in kinds
+    kinds = [e["kind"] for e in out["history"]["entries"]]
+    assert kinds.count("cancellation.approved") == 1
 
     await db.rollback()  # now() is frozen at the transaction start
     assert await seats_left(db, departure_id) == before + 1
@@ -188,7 +188,7 @@ async def test_a_part_refund_is_recorded_to_the_rupee(
     assert out["paidPaise"] == total // 2  # what the policy keeps
     [p] = out["payments"]
     assert (p["status"], p["amountPaise"], p["refundedPaise"]) == ("refunded", paid, half)
-    refunded = next(e for e in out["timeline"] if e["kind"] == "refunded")
+    refunded = next(e for e in out["history"]["entries"] if e["kind"] == "refund.recorded")
     assert refunded["text"].startswith(f"Refund of {inr(half // 100)} recorded")
 
 
@@ -222,7 +222,7 @@ async def test_reject_keeps_the_booking_and_its_seats_and_tells_the_customer_why
     assert (out["status"], out["refundNeeded"]) == ("confirmed", False)
     assert (out["cancellation"]["status"], out["cancellation"]["refundNote"]) == ("rejected", why)
     assert out["cancellation"]["refundPaise"] is None
-    assert any(e["kind"] == "resolved" and "rejected" in e["text"] for e in out["timeline"])
+    assert any(e["kind"] == "cancellation.rejected" for e in out["history"]["entries"])
     await db.rollback()
     assert await seats_left(db, departure_id) == before
     [mail] = sender.sent

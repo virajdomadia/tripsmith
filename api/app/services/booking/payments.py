@@ -18,7 +18,7 @@ and any replay of either apply a payment once. Refunds are made in the Razorpay 
 """
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,12 +27,21 @@ from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import Booking, BookingTraveller, Departure, Payment
 from app.models.catalog import departure_availability
-from app.models.enums import BookingStatus, CancelReason, PaymentProvider, PaymentStatus
+from app.models.enums import (
+    BookingActor,
+    BookingStatus,
+    CancelReason,
+    PaymentProvider,
+    PaymentStatus,
+)
 from app.schemas.bookings import PaymentCallback, PaymentResult
+from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.history import PaymentLog, money
 from app.services.booking.settled import Capture, Settled
 
 NOT_FOUND = "We could not find that booking"
+CaptureVia = Literal["checkout", "sync", "webhook"]
 # A payment in either state has been applied once; neither is ever applied or failed again.
 SETTLED_PAYMENT = (PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)
 NOT_VERIFIED = "We could not verify that payment — if money left your account, WhatsApp us"
@@ -97,10 +106,12 @@ def awaiting_payment(booking: Booking) -> bool:
 
 
 async def settle_capture(
-    db: AsyncSession, booking: Booking, *, hold_live: bool, amount_paise: int
+    db: AsyncSession, booking: Booking, *, hold_live: bool, amount_paise: int, entry: PaymentLog
 ) -> Settled:
-    """Apply newly captured money to a booking locked by `lock_booking`. The caller has recorded
-    the payment row and commits; call once per payment, never on a replay."""
+    """Apply newly captured money to a booking locked by `lock_booking`, and write it to the
+    booking's history (`entry` + what the money did). The caller has recorded the payment row and
+    commits; call once per payment, never on a replay."""
+    before = {"status": booking.status.value, "paidPaise": booking.paid_paise}
     paid = booking.paid_paise + amount_paise
     values: dict[str, object] = {"paid_paise": paid, "updated_at": func.now()}
     expected = booking.status
@@ -135,11 +146,66 @@ async def settle_capture(
         .execution_options(synchronize_session=False)
     )
     await db.refresh(booking)
+    _log_capture(db, booking, settled, entry, amount_paise=amount_paise, before=before)
     return settled
 
 
+def _log_capture(
+    db: AsyncSession,
+    booking: Booking,
+    settled: Settled,
+    entry: PaymentLog,
+    *,
+    amount_paise: int,
+    before: dict[str, Any],
+) -> None:
+    amount = money(amount_paise)
+    confirmed = settled == Settled.CONFIRMED
+    outcome = {
+        Settled.CONFIRMED: " — booking confirmed"
+        + (f" · coupon {booking.coupon_code} used" if booking.coupon_code else ""),
+        Settled.PART_PAID: " — part paid",
+    }.get(settled, "")
+    history.record(
+        db,
+        booking.id,
+        entry.kind,
+        actor=entry.actor,
+        by=entry.by,
+        text=entry.text + outcome,
+        customer=f"Payment of {amount} received" + (" — booking confirmed" if confirmed else ""),
+        before=before,
+        after={"status": booking.status.value, "paidPaise": booking.paid_paise},
+    )
+    if settled == Settled.SEATS_GONE:
+        history.record(
+            db,
+            booking.id,
+            "cancelled.seats_gone",
+            actor=BookingActor.SYSTEM,
+            text="Cancelled — paid after the hold lapsed and the seats had gone · refund of "
+            f"{amount} needed",
+            customer="Your payment arrived after the hold ended and the seats had gone — the "
+            f"booking is cancelled and {amount} will be refunded in full",
+        )
+    elif settled == Settled.NOT_PENDING:
+        history.record(
+            db,
+            booking.id,
+            "refund.flagged",
+            actor=BookingActor.SYSTEM,
+            text=f"Money arrived on a {before['status']} booking — refund of {amount} needed",
+        )
+
+
 async def capture_razorpay_payment(
-    db: AsyncSession, ref: str, *, order_id: str, payment_id: str, raw: dict[str, Any] | None = None
+    db: AsyncSession,
+    ref: str,
+    *,
+    order_id: str,
+    payment_id: str,
+    via: CaptureVia,
+    raw: dict[str, Any] | None = None,
 ) -> tuple[Booking, Capture | None]:
     """Record a verified Razorpay capture on the booking and apply it. Returns the booking and
     what the new capture did — None on a replay, so the after-capture hook (emails included)
@@ -185,7 +251,11 @@ async def capture_razorpay_payment(
         payment.raw = raw
     await db.flush()
     settled = await settle_capture(
-        db, booking, hold_live=hold_live, amount_paise=payment.amount_paise
+        db,
+        booking,
+        hold_live=hold_live,
+        amount_paise=payment.amount_paise,
+        entry=PaymentLog.razorpay(payment_id, payment.amount_paise, via),
     )
     return booking, Capture(settled, payment_id, payment.amount_paise)
 
@@ -213,7 +283,11 @@ async def confirm_payment(
         raise ApiError("validation", NOT_VERIFIED)
     try:
         booking, capture = await capture_razorpay_payment(
-            db, ref, order_id=callback.razorpay_order_id, payment_id=callback.razorpay_payment_id
+            db,
+            ref,
+            order_id=callback.razorpay_order_id,
+            payment_id=callback.razorpay_payment_id,
+            via="checkout",
         )
         result = PaymentResult(
             booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
@@ -294,7 +368,7 @@ async def sync_payment(
     order_id, payment_id, raw = found
     try:
         booking, capture = await capture_razorpay_payment(
-            db, ref, order_id=order_id, payment_id=payment_id, raw=raw
+            db, ref, order_id=order_id, payment_id=payment_id, via="sync", raw=raw
         )
         result = PaymentResult(
             booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed

@@ -31,7 +31,7 @@ from app.models import (
     Review,
     User,
 )
-from app.models.enums import BookingStatus, PaymentStatus
+from app.models.enums import BookingActor, BookingStatus, PaymentStatus
 from app.schemas.account import (
     AccountBooking,
     AccountBookingDetail,
@@ -41,6 +41,7 @@ from app.schemas.account import (
 )
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
+from app.services.booking import history
 from app.services.booking.voucher import HAS_VOUCHER
 
 CANCELLABLE = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
@@ -227,6 +228,7 @@ async def get_booking(
         ),
         review=account_review(review) if review else None,
         can_review=can_review(booking.status, reviewed=review is not None),
+        activity=await history.customer_activity(db, booking.id),
     )
 
 
@@ -267,6 +269,15 @@ async def request_cancellation(
         raise ApiError("conflict", message, reason=code)
     row = BookingCancellation(booking_id=booking.id, reason=reason)
     db.add(row)
+    history.record(
+        db,
+        booking.id,
+        "cancellation.requested",
+        actor=BookingActor.CUSTOMER,
+        by=user.id,
+        text=f"Customer asked to cancel: “{reason}”",
+        customer=f"You asked to cancel: “{reason}”",
+    )
     try:
         await db.commit()
     except IntegrityError:  # a request from another session got in first

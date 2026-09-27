@@ -71,6 +71,7 @@ from app.models import (  # noqa: E402
     coupon_packages,
 )
 from app.models.enums import (  # noqa: E402
+    BookingActor,
     BookingStatus,
     CouponKind,
     Occupancy,
@@ -83,6 +84,7 @@ from app.schemas.bookings import QuoteTraveller  # noqa: E402
 from app.services.admin_coupons import start_of_ist_day  # noqa: E402
 from app.services.analytics import ist_today  # noqa: E402
 from app.services.auth.passwords import hash_password  # noqa: E402
+from app.services.booking import history  # noqa: E402
 from app.services.booking.pricing import build_quote  # noqa: E402
 from app.services.catalog.deals import end_of_ist_day  # noqa: E402
 from app.services.catalog.pricing import starting_price  # noqa: E402
@@ -393,9 +395,30 @@ async def seed_demo_traveller(
         booking = (
             await db.execute(select(Booking).where(Booking.ref == trip.ref))
         ).scalar_one_or_none()
+        created = booking is None
         if booking is None:
             booking = await _demo_booking(db, pkg, user, trip, today=today, now=now)
-        await db.execute(delete(Review).where(Review.booking_id == booking.id))
+        removed = await db.execute(
+            delete(Review).where(Review.booking_id == booking.id).returning(Review.id)
+        )
+        if not created and trip.review is None and removed.first() is not None:
+            history.record(
+                db,
+                booking.id,
+                "review.reset",
+                actor=BookingActor.SYSTEM,
+                text="Demo reset — the visitor's review was removed so the next one can write it",
+                customer="Demo reset — the review was cleared so you can write one again",
+            )
+        if created and trip.review is not None:
+            history.record(
+                db,
+                booking.id,
+                "review.sent",
+                actor=BookingActor.SYSTEM,
+                text=f"Demo review seeded · ★{trip.review[0]} · published",
+                customer=f"You reviewed the trip · ★{trip.review[0]}",
+            )
         if trip.review is not None:
             rating, text = trip.review
             db.add(
@@ -539,6 +562,33 @@ async def _demo_booking(
             updated_at=booked_at + dt.timedelta(minutes=4),
         )
     )
+    total = history.money(quote.total_paise)
+    party = history.travellers(len(DEMO_PARTY))
+    for at, kind, text, customer in (
+        (
+            booked_at,
+            "booked",
+            f"Demo booking seeded · {party} · {total}",
+            f"You booked {party} · {total}",
+        ),
+        (
+            booked_at + dt.timedelta(minutes=4),
+            "payment.offline",
+            f"Demo payment seeded · {total} — booking confirmed",
+            f"Payment of {total} received — booking confirmed",
+        ),
+        (
+            dt.datetime.combine(
+                date + dt.timedelta(days=pkg.nights + 1), dt.time(20), tzinfo=dt.UTC
+            ),
+            "trip.completed",
+            "Demo trip seeded as completed",
+            "Trip completed — welcome back",
+        ),
+    ):
+        history.record(
+            db, booking.id, kind, actor=BookingActor.SYSTEM, text=text, customer=customer, at=at
+        )
     await db.flush()
     return booking
 

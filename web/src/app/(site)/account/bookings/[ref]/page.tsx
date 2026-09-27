@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { Activity } from '@/components/site/account/Activity';
 import { CancelPanel } from '@/components/site/account/CancelPanel';
 import { ReviewPanel } from '@/components/site/account/ReviewPanel';
 import { PILL } from '@/components/site/account/TripRow';
@@ -27,7 +28,8 @@ const REF = /^TB-[A-Z0-9]{6}$/;
 /**
  * One booking on My trips (R18, R19): the trip, when, who, what was paid for what, the voucher,
  * and the cancellation block — the policy tier that applies today, and the request form while
- * a request can still be made. A completed trip leads with its review (R21, B13).
+ * a request can still be made. A completed trip leads with its review (R21, B13), and the
+ * booking's customer-safe history closes the page as "Activity" (R54, P16).
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -180,6 +182,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               </ul>
             )}
           </section>
+          <Activity entries={b.activity} />
         </div>
 
         <aside className="grid gap-4 lg:sticky lg:top-24">

@@ -1,6 +1,7 @@
 """My trips contract (R18, R19): the list, one booking's detail, and a cancellation request."""
 
 import datetime as dt
+from typing import Literal
 
 from pydantic import Field, field_validator
 
@@ -54,6 +55,16 @@ class AccountPayment(ApiModel):
     paid_at: dt.datetime
 
 
+class ActivityEntry(ApiModel):
+    """One line of the booking's history the customer may see (R54, P16), in their words."""
+
+    at: dt.datetime
+    kind: str
+    group: Literal["booking", "payment", "email"]
+    text: str
+    approx: bool = Field(description="A time rebuilt from records, read off a row's last update")
+
+
 class AccountCancellation(ApiModel):
     status: CancellationStatus
     reason: str
@@ -95,6 +106,7 @@ class AccountBookingDetail(ApiModel):
     )
     review: AccountReview | None = Field(description="The customer's review of this trip (B13)")
     can_review: bool = Field(description="Completed and not reviewed yet")
+    activity: list[ActivityEntry] = Field(description="The customer-safe history, oldest first")
 
 
 class CancellationRequest(ApiModel):

@@ -197,7 +197,9 @@ async def test_mark_paid_confirms_a_lapsed_hold_and_mails_only_the_customer(
     assert [(p["status"], p["reference"], p["via"]) for p in offline] == [
         ("captured", "UTR 4471", "desk")
     ]
-    assert "Marked paid offline" in [e["text"] for e in b["timeline"]][-1]
+    [paid] = [e for e in b["history"]["entries"] if e["kind"] == "payment.offline"]
+    assert paid["text"].startswith("Marked paid offline · ") and "UTR 4471" in paid["text"]
+    assert (paid["actor"], paid["after"]["status"]) == ("owner", "confirmed")
 
     # The customer's confirmation with the voucher; no "New booking" email to the owner.
     [mail] = sender.sent
@@ -259,7 +261,7 @@ async def test_release_hold_frees_the_seats_at_once_without_email(
         "owner_released",
         False,
     )
-    assert b["timeline"][-1]["text"].startswith("Hold released by the owner")
+    assert b["history"]["entries"][-1]["kind"] == "hold.released"
     await db.rollback()
     assert await seats_left(db, dep_id) == 5
     assert sender.sent == []
@@ -298,8 +300,8 @@ async def test_refund_made_clears_the_flag_and_the_badge(
     assert (b["refundNeeded"], b["paidPaise"]) == (False, 0)
     [p] = b["payments"]
     assert (p["status"], p["via"]) == ("refunded", "checkout")
-    kinds = [e["kind"] for e in b["timeline"]]
-    assert kinds.index("captured") < kinds.index("refunded")
+    kinds = [e["kind"] for e in b["history"]["entries"]]
+    assert kinds.index("payment.captured") < kinds.index("refund.recorded")
     assert (await db_client.get("/auth/session", headers=owner)).json()["bookingsAttention"] == 0
     # Razorpay retries the capture (or Checkout posts again): the refund must stand.
     res = await db_client.post(

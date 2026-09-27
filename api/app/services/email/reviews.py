@@ -8,6 +8,7 @@ import logging
 from dataclasses import replace
 
 import sentry_sdk
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.infra.email import EmailMessage, EmailSender
@@ -41,7 +42,13 @@ def render_review_email(
 
 
 async def send_review_email(
-    sender: EmailSender, settings: Settings, facts: BookingFacts, *, rating: int, text: str
+    sender: EmailSender,
+    settings: Settings,
+    facts: BookingFacts,
+    *,
+    rating: int,
+    text: str,
+    db: AsyncSession | None = None,
 ) -> None:
     try:
         labelled = render_review_email(facts, rating=rating, text=text, settings=settings)
@@ -49,4 +56,4 @@ async def send_review_email(
         log.exception("Could not render the review email for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="review")
+    await deliver(sender, settings, labelled, ref=facts.ref, what="review", db=db)

@@ -20,7 +20,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Booking, Payment
-from app.models.enums import PaymentProvider, PaymentStatus
+from app.models.enums import BookingActor, PaymentProvider, PaymentStatus
+from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.payments import (
     SETTLED_PAYMENT,
@@ -80,7 +81,7 @@ async def handle_razorpay_event(
             await db.commit()
             return "failed"
         booking, capture = await capture_razorpay_payment(
-            db, ref, order_id=order_id, payment_id=payment_id, raw=event
+            db, ref, order_id=order_id, payment_id=payment_id, via="webhook", raw=event
         )
         package_id = booking.package_id
         await db.commit()
@@ -118,6 +119,15 @@ async def record_failed_payment(
     if payment is not None and payment.status in SETTLED_PAYMENT:
         log.warning("payment.failed for %s after it was captured — kept as it is", payment_id)
         return
+    if payment is None or payment.status != PaymentStatus.FAILED:  # a replay is logged once
+        history.record(
+            db,
+            booking.id,
+            "payment.failed",
+            actor=BookingActor.WEBHOOK,
+            text=f"Payment {payment_id} failed",
+            customer="A payment attempt didn't go through",
+        )
     payment = payment or next((p for p in rows if p.razorpay_payment_id is None), None)
     if payment is None:
         payment = Payment(

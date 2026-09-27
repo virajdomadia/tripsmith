@@ -118,6 +118,14 @@
       "AccountBookingDetail": {
         "description": "`GET /account/bookings/{ref}`: everything the customer's booking page shows.",
         "properties": {
+          "activity": {
+            "description": "The customer-safe history, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            },
+            "title": "Activity",
+            "type": "array"
+          },
           "bookedAt": {
             "format": "date-time",
             "title": "Bookedat",
@@ -286,7 +294,8 @@
           "hasVoucher",
           "canRequestCancellation",
           "review",
-          "canReview"
+          "canReview",
+          "activity"
         ],
         "title": "AccountBookingDetail",
         "type": "object"
@@ -469,6 +478,47 @@
         "title": "AccountTraveller",
         "type": "object"
       },
+      "ActivityEntry": {
+        "description": "One line of the booking's history the customer may see (R54, P16), in their words.",
+        "properties": {
+          "approx": {
+            "description": "A time rebuilt from records, read off a row's last update",
+            "title": "Approx",
+            "type": "boolean"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "group": {
+            "enum": [
+              "booking",
+              "payment",
+              "email"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "group",
+          "text",
+          "approx"
+        ],
+        "title": "ActivityEntry",
+        "type": "object"
+      },
       "AdminBooking": {
         "description": "`GET /admin/bookings/{ref}` and every desk action's answer.",
         "properties": {
@@ -518,6 +568,10 @@
           "hasVoucher": {
             "title": "Hasvoucher",
             "type": "boolean"
+          },
+          "history": {
+            "$ref": "#/components/schemas/BookingHistory",
+            "description": "Every change, payment and email, oldest first (R54)"
           },
           "holdExpiresAt": {
             "format": "date-time",
@@ -590,14 +644,6 @@
           "status": {
             "$ref": "#/components/schemas/BookingStatus"
           },
-          "timeline": {
-            "description": "Derived from the booking and its payments, oldest first",
-            "items": {
-              "$ref": "#/components/schemas/TimelineEvent"
-            },
-            "title": "Timeline",
-            "type": "array"
-          },
           "totalPaise": {
             "title": "Totalpaise",
             "type": "integer"
@@ -631,7 +677,7 @@
           "leadPhone",
           "leadEmail",
           "payments",
-          "timeline",
+          "history",
           "cancellation",
           "hasVoucher",
           "canMarkPaid",
@@ -1982,6 +2028,18 @@
         "title": "Body_uploadPackageImage",
         "type": "object"
       },
+      "BookingActor": {
+        "description": "Who made a change in a booking's history (R54, P16).",
+        "enum": [
+          "owner",
+          "customer",
+          "webhook",
+          "cron",
+          "system"
+        ],
+        "title": "BookingActor",
+        "type": "string"
+      },
       "BookingContact": {
         "properties": {
           "email": {
@@ -2052,6 +2110,37 @@
           "cancellation"
         ],
         "title": "BookingCounts",
+        "type": "object"
+      },
+      "BookingHistory": {
+        "properties": {
+          "entries": {
+            "description": "Oldest first",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "rebuiltOn": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When entries were rebuilt from v2 records; null when none were",
+            "title": "Rebuilton"
+          }
+        },
+        "required": [
+          "entries",
+          "rebuiltOn"
+        ],
+        "title": "BookingHistory",
         "type": "object"
       },
       "BookingList": {
@@ -3832,6 +3921,100 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "description": "One line of the booking's history (R54, P16), in the owner's words.",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/BookingActor"
+          },
+          "actorLabel": {
+            "description": "Who, as the desk shows it (the owner by name)",
+            "title": "Actorlabel",
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "approx": {
+            "description": "A rebuilt time read off a row's last update",
+            "title": "Approx",
+            "type": "boolean"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "customerVisible": {
+            "description": "Shown on the customer's Activity too",
+            "title": "Customervisible",
+            "type": "boolean"
+          },
+          "group": {
+            "description": "The desk's filter chip",
+            "enum": [
+              "booking",
+              "payment",
+              "email"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "What happened, e.g. `payment.captured`, `email.sent`",
+            "title": "Kind",
+            "type": "string"
+          },
+          "rebuilt": {
+            "description": "Rebuilt from v2 records when the log started",
+            "title": "Rebuilt",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "group",
+          "actor",
+          "actorLabel",
+          "text",
+          "customerVisible",
+          "rebuilt",
+          "approx"
+        ],
+        "title": "HistoryEntry",
         "type": "object"
       },
       "HomeData": {
@@ -5909,43 +6092,6 @@
           "label"
         ],
         "title": "ThemeOption",
-        "type": "object"
-      },
-      "TimelineEvent": {
-        "properties": {
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "booked",
-              "order",
-              "captured",
-              "failed",
-              "refunded",
-              "offline",
-              "lapsed",
-              "cancelled",
-              "completed",
-              "cancellation",
-              "resolved"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "at",
-          "kind",
-          "text"
-        ],
-        "title": "TimelineEvent",
         "type": "object"
       },
       "UpcomingDeparture": {

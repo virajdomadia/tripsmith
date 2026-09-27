@@ -59,3 +59,12 @@ def seats_label(seats_left: int) -> str:
     if seats_left <= 0:
         return "Sold out"
     return f"{seats_left} seat{'s' if seats_left != 1 else ''}"
+
+
+def short_name(full: str) -> str:
+    """'asha  bhat' → 'Asha B.'; a single name stays as it is (reviews, the history's owner)."""
+    parts = full.split()
+    if not parts:
+        return "A traveller"
+    first = parts[0][:1].upper() + parts[0][1:]
+    return f"{first} {parts[-1][:1].upper()}." if len(parts) > 1 else first

@@ -1,4 +1,5 @@
-"""Booking engine tables (06 A6, v2): bookings, their travellers, payments, cancellations, reviews.
+"""Booking engine tables (06 A6, v2): bookings, their travellers, payments, cancellations, reviews,
+and (v2.5 P16) each booking's append-only history.
 
 Seats are never stored: the `departure_availability` view (0004_v2) subtracts confirmed
 travellers and live pending holds from `departures.seats_total`. Add-on D's `split` column is here
@@ -9,14 +10,17 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     SmallInteger,
     Text,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,6 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedMixin, IdMixin, TimestampsMixin, pg_enum
 from app.models.enums import (
+    BookingActor,
     BookingStatus,
     CancellationStatus,
     CancelReason,
@@ -168,3 +173,40 @@ class Review(IdMixin, CreatedMixin, Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 0008
+
+
+class BookingEvent(Base):
+    """One line of a booking's history (R54, P16) — append-only: a trigger (0010) refuses any
+    UPDATE or DELETE, so an entry once written can never be edited or removed.
+
+    `text` is the owner's wording; `customer_text` the customer's, or null when the entry is
+    not theirs to see. `id` orders entries written in the same instant. `source` is `backfill`
+    for entries 0010 rebuilt from v2 rows, where `approx` marks a time read off `updated_at`.
+    Write through `services/booking/history.py`, never directly.
+    """
+
+    __tablename__ = "booking_events"
+    __table_args__ = (
+        Index("ix_booking_events_booking_id_id", "booking_id", "id"),
+        CheckConstraint("source IN ('live', 'backfill')", name="source"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
+    )
+    actor: Mapped[BookingActor] = mapped_column(
+        pg_enum(BookingActor, "booking_actor"), nullable=False
+    )
+    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # `payment.captured`, …
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    customer_text: Mapped[str | None] = mapped_column(Text)
+    before: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    after: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    source: Mapped[str] = mapped_column(Text, nullable=False, server_default="live")
+    approx: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    logged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
+    )

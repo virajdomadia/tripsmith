@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.models.catalog import departure_availability
 from app.models.enums import (
+    BookingActor,
     BookingStatus,
     CancellationStatus,
     CancelReason,
@@ -55,7 +56,6 @@ from app.schemas.admin_bookings import (
     Manifest,
     ManifestBooking,
     PaymentVia,
-    TimelineEvent,
 )
 from app.schemas.admin_enquiries import PAGE_SIZE
 from app.schemas.bookings import Quote
@@ -65,6 +65,7 @@ from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, li
 from app.services.analytics import ist_today
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
+from app.services.booking.history import PaymentLog, booking_history, money, record
 from app.services.booking.payments import (
     awaiting_payment,
     lock_booking,
@@ -80,7 +81,6 @@ from app.services.booking.voucher import (
     payment_label,
 )
 from app.services.email.render import IST
-from app.services.format import inr
 from app.services.reviews import review_for_booking
 
 log = logging.getLogger(__name__)
@@ -363,137 +363,6 @@ def _refund_info(p: Payment) -> dict[str, Any]:
     return info if isinstance(info, dict) else {}
 
 
-def _at(value: object, fallback: dt.datetime) -> dt.datetime:
-    if isinstance(value, str):
-        try:
-            return dt.datetime.fromisoformat(value)
-        except ValueError:
-            pass
-    return fallback
-
-
-VIA_TEXT = {"checkout": "Checkout", "sync": "the payment check", "webhook": "Razorpay's webhook"}
-CANCEL_TEXT = {
-    CancelReason.HOLD_EXPIRED: "Cancelled by the daily tidy — the checkout was abandoned",
-    CancelReason.PAYMENT_FAILED: "Cancelled — the payment failed",
-    CancelReason.SEATS_GONE: "Cancelled — paid after the hold lapsed and the seats had gone",
-    CancelReason.CANCELLATION_APPROVED: "Cancelled — the customer's request was approved",
-    CancelReason.OWNER_RELEASED: "Hold released by the owner — cancelled, seats freed",
-}
-
-
-def timeline(
-    b: Booking, departs: dt.date, cancellation: BookingCancellation | None, *, live: bool
-) -> list[TimelineEvent]:
-    """R22's payment timeline, derived: there is no event log (decided 2026-09-26), so each
-    payment row gives its opening and its final state — a failed try later captured on the same
-    row shows only the capture — and a status change is dated by `updated_at`."""
-    party = len(b.travellers)
-    events = [
-        TimelineEvent(
-            at=b.created_at,
-            kind="booked",
-            text=f"Booked online · {party} traveller{'s' if party != 1 else ''} · "
-            f"{inr(b.total_paise // 100)}",
-        )
-    ]
-    for p in b.payments:
-        amount = inr(p.amount_paise // 100)
-        if p.provider == PaymentProvider.OFFLINE:
-            ref = offline_reference(p)
-            events.append(
-                TimelineEvent(
-                    at=p.created_at,
-                    kind="offline",
-                    text=f"Marked paid offline · {amount}" + (f" · {ref}" if ref else ""),
-                )
-            )
-        else:
-            events.append(
-                TimelineEvent(
-                    at=p.created_at,
-                    kind="order",
-                    text=f"Razorpay order {p.razorpay_order_id} opened · {amount}",
-                )
-            )
-        refund = _refund_info(p)
-        if p.status == PaymentStatus.FAILED:
-            events.append(
-                TimelineEvent(
-                    at=p.updated_at,
-                    kind="failed",
-                    text=f"Payment {p.razorpay_payment_id} failed",
-                )
-            )
-        elif p.provider == PaymentProvider.RAZORPAY and p.status in (
-            PaymentStatus.CAPTURED,
-            PaymentStatus.REFUNDED,
-        ):
-            via = payment_via(p) or "checkout"
-            events.append(
-                TimelineEvent(
-                    at=_at(refund.get("capturedAt"), p.updated_at),
-                    kind="captured",
-                    text=f"Payment {p.razorpay_payment_id} captured · {amount} · via "
-                    f"{VIA_TEXT.get(via, via)}",
-                )
-            )
-        if p.status == PaymentStatus.REFUNDED:
-            note = refund.get("note")
-            back = inr((_refunded_paise(p) or 0) // 100)  # B11: may be part of the payment
-            events.append(
-                TimelineEvent(
-                    at=_at(refund.get("at"), p.updated_at),
-                    kind="refunded",
-                    text=f"Refund of {back} recorded by the owner"
-                    + (f" · {note}" if isinstance(note, str) and note else ""),
-                )
-            )
-    if cancellation is not None:
-        events.append(
-            TimelineEvent(
-                at=cancellation.created_at,
-                kind="cancellation",
-                text=f"Customer asked to cancel: “{cancellation.reason}”",
-            )
-        )
-        if cancellation.resolved_at is not None:
-            if cancellation.status == CancellationStatus.APPROVED:
-                refund = cancellation.refund_paise or 0
-                text = "Cancellation approved — seats freed · " + (
-                    f"refund {inr(refund // 100)} agreed" if refund else "no refund"
-                )
-            else:
-                text = "Cancellation request rejected — the booking stands"
-            events.append(TimelineEvent(at=cancellation.resolved_at, kind="resolved", text=text))
-    if b.status == BookingStatus.CANCELLED:
-        if b.cancel_reason in (CancelReason.HOLD_EXPIRED, None):
-            events.append(
-                TimelineEvent(
-                    at=b.hold_expires_at, kind="lapsed", text="Hold lapsed — seats released"
-                )
-            )
-        reason = b.cancel_reason
-        # An approved request is already the "resolved" event, dated when it was decided —
-        # `updated_at` moves again when the refund is recorded.
-        if reason != CancelReason.CANCELLATION_APPROVED:
-            events.append(
-                TimelineEvent(
-                    at=b.updated_at,
-                    kind="cancelled",
-                    text=CANCEL_TEXT.get(reason, "Cancelled") if reason else "Cancelled",
-                )
-            )
-    elif b.status == BookingStatus.PENDING and not live:
-        events.append(
-            TimelineEvent(at=b.hold_expires_at, kind="lapsed", text="Hold lapsed — seats released")
-        )
-    elif b.status == BookingStatus.COMPLETED:
-        start = dt.datetime.combine(departs, dt.time.min, tzinfo=IST)
-        events.append(TimelineEvent(at=start, kind="completed", text="Departed — completed"))
-    return sorted(events, key=lambda e: e.at)
-
-
 async def _load(db: AsyncSession, ref: str) -> Booking:
     booking = (
         await db.execute(
@@ -596,7 +465,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         lead_phone=b.contact_phone,
         lead_email=b.contact_email,
         payments=[_payment_out(p) for p in b.payments],
-        timeline=timeline(b, seats.date, asked, live=live),
+        history=await booking_history(db, b.id),
         cancellation=_admin_cancellation(asked, b, seats.date) if asked else None,
         has_voucher=b.status in HAS_VOUCHER,
         can_mark_paid=payable,
@@ -610,7 +479,12 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
 
 
 async def mark_paid(
-    db: AsyncSession, ref: str, reference: str | None, notify: Notify | None
+    db: AsyncSession,
+    ref: str,
+    reference: str | None,
+    notify: Notify | None,
+    *,
+    by: str | None = None,
 ) -> AdminBooking:
     """Mark paid (offline), full total only: a pending booking (hold live or lapsed) or one the
     sweep cancelled as `hold_expired`. The seats are re-checked under the departure lock — the
@@ -649,7 +523,15 @@ async def mark_paid(
             )
         )
         await db.flush()
-        settled = await settle_capture(db, booking, hold_live=live, amount_paise=amount)
+        entry = PaymentLog(
+            "payment.offline",
+            BookingActor.OWNER,
+            f"Marked paid offline · {money(amount)}" + (f" · {reference}" if reference else ""),
+            by=by,
+        )
+        settled = await settle_capture(
+            db, booking, hold_live=live, amount_paise=amount, entry=entry
+        )
         if settled != Settled.CONFIRMED:  # unreachable: seats checked under the same lock
             raise RuntimeError(f"Offline payment on {ref} settled as {settled}")
         package_id = booking.package_id
@@ -664,7 +546,7 @@ async def mark_paid(
     return await get_booking(db, ref)
 
 
-async def release_hold(db: AsyncSession, ref: str) -> AdminBooking:
+async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> AdminBooking:
     """Cancel a pending booking as `owner_released`: its seats free at once, no email. A payment
     that still lands on it is a refund (`settle_capture`'s not-pending path)."""
     try:
@@ -682,6 +564,17 @@ async def release_hold(db: AsyncSession, ref: str) -> AdminBooking:
             )
             .execution_options(synchronize_session=False)
         )
+        record(
+            db,
+            booking.id,
+            "hold.released",
+            actor=BookingActor.OWNER,
+            by=by,
+            text="Hold released — cancelled, seats freed"
+            + ("" if live else " (the hold had already lapsed)"),
+            before={"status": BookingStatus.PENDING.value},
+            after={"status": BookingStatus.CANCELLED.value, "cancelReason": "owner_released"},
+        )
         package_id = booking.package_id
         await db.commit()
     except BaseException:
@@ -692,7 +585,9 @@ async def release_hold(db: AsyncSession, ref: str) -> AdminBooking:
     return await get_booking(db, ref)
 
 
-async def record_refund(db: AsyncSession, ref: str, note: str | None) -> AdminBooking:
+async def record_refund(
+    db: AsyncSession, ref: str, note: str | None, *, by: str | None = None
+) -> AdminBooking:
     """'Refund made': the owner refunded by hand in the Razorpay dashboard. A cancellation the
     owner approved gives back the refund agreed then (B11 — a policy tier may keep part) plus any
     money beyond the price in full; any
@@ -762,6 +657,22 @@ async def record_refund(db: AsyncSession, ref: str, note: str | None) -> AdminBo
             }
             p.status = PaymentStatus.REFUNDED
             refunded += back
+        record(
+            db,
+            booking.id,
+            "refund.recorded",
+            actor=BookingActor.OWNER,
+            by=by,
+            text=(
+                f"Refund of {money(refunded)} recorded"
+                if refunded
+                else "Refund flag cleared — nothing left to give back"
+            )
+            + (f" · {note}" if note else ""),
+            customer=f"Refund of {money(refunded)} made" if refunded else None,
+            before={"paidPaise": booking.paid_paise, "refundNeeded": True},
+            after={"paidPaise": booking.paid_paise - refunded, "refundNeeded": False},
+        )
         await db.execute(
             update(Booking)
             .where(Booking.id == booking.id)
