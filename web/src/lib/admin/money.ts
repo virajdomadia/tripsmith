@@ -10,8 +10,9 @@ export type MoneyLine = components['schemas']['MoneyLine'];
 export function lakh(paise: number): string {
   const rupees = Math.round(paise / 100);
   if (Math.abs(rupees) < 1_00_000) return inr(paise);
-  const l = rupees / 1_00_000;
-  return `₹${l.toFixed(l >= 100 ? 0 : 2).replace(/\.?0+$/, '')} L`;
+  const l = Math.abs(rupees) / 1_00_000;
+  const digits = l >= 100 ? l.toFixed(0) : l.toFixed(2).replace(/\.?0+$/, '');
+  return `${rupees < 0 ? '−' : ''}₹${digits} L`;
 }
 
 /** Collected − refunds (recorded and still to record) [+ live holds] = kept. */

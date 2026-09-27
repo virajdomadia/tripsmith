@@ -14,10 +14,13 @@ export function LiveFilterForm({
   action,
   children,
   submit,
+  clear,
 }: {
   action: string;
   children: ReactNode;
   submit: ReactNode;
+  /** The no-JS Clear link; once live, Clear empties the visible fields and applies. */
+  clear: ReactNode;
 }) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
@@ -46,6 +49,7 @@ export function LiveFilterForm({
       className="flex flex-wrap items-end gap-2"
       onSubmit={(e) => {
         e.preventDefault();
+        clearTimeout(timer.current);
         apply();
       }}
       onChange={(e) => {
@@ -55,7 +59,29 @@ export function LiveFilterForm({
       }}
     >
       {children}
-      <span className={live ? 'sr-only' : undefined}>{submit}</span>
+      <span hidden={live}>{submit}</span>
+      {live ? (
+        <button
+          type="button"
+          onClick={() => {
+            clearTimeout(timer.current);
+            for (const el of Array.from(form.current?.elements ?? [])) {
+              if (
+                (el instanceof HTMLInputElement && el.type !== 'hidden') ||
+                el instanceof HTMLSelectElement
+              ) {
+                el.value = '';
+              }
+            }
+            apply();
+          }}
+          className="px-2 py-1.5 text-sm font-bold text-mute hover:text-ink"
+        >
+          Clear
+        </button>
+      ) : (
+        clear
+      )}
     </form>
   );
 }

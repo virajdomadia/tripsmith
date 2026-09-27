@@ -112,6 +112,20 @@ export function DeskFilters({
             Apply
           </Button>
         }
+        clear={
+          <Link
+            href={deskHref(filters, {
+              q: undefined,
+              packageId: undefined,
+              departureId: undefined,
+              from: undefined,
+              to: undefined,
+            })}
+            className="px-2 py-1.5 text-sm font-bold text-mute hover:text-ink"
+          >
+            Clear
+          </Link>
+        }
       >
         <div className="relative min-w-[200px] flex-1">
           <label htmlFor="q" className="sr-only">
@@ -176,18 +190,6 @@ export function DeskFilters({
         {filters.status && <input type="hidden" name="status" value={filters.status} />}
         {filters.flag && <input type="hidden" name="flag" value={filters.flag} />}
         {filters.sel && <input type="hidden" name="sel" value={filters.sel} />}
-        <Link
-          href={deskHref(filters, {
-            q: undefined,
-            packageId: undefined,
-            departureId: undefined,
-            from: undefined,
-            to: undefined,
-          })}
-          className="px-2 py-1.5 text-sm font-bold text-mute hover:text-ink"
-        >
-          Clear
-        </Link>
       </LiveFilterForm>
     </div>
   );

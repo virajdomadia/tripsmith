@@ -87,7 +87,11 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
         {b.cancellation?.status === 'requested' && <CancelRequested />}
       </div>
 
-      <Lifecycle b={b} />
+      {/* Keyed on the state, so the stepper re-opens on the new "now" after a move. */}
+      <Lifecycle
+        key={`${b.status}-${b.cancelReason}-${b.refundNeeded}-${b.cancellation?.status}`}
+        b={b}
+      />
 
       <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className={panel} aria-labelledby="history">

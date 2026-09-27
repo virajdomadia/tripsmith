@@ -15,6 +15,9 @@ describe('money helpers', () => {
     expect(lakh(6_84_250_00)).toBe('₹6.84 L');
     expect(lakh(1_00_000_00)).toBe('₹1 L');
     expect(lakh(84_250_00)).toBe('₹84,250');
+    expect(lakh(1_00_00_000_00)).toBe('₹100 L');
+    expect(lakh(1_20_00_000_00)).toBe('₹120 L');
+    expect(lakh(-1_50_000_00)).toBe('−₹1.5 L');
   });
 
   it('balances the equation, counting holds only when asked', () => {

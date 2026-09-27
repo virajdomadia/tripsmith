@@ -84,6 +84,9 @@ export function lifecycle(b: AdminBooking): Step[] {
     },
     { name: 'Closed', state: b.refundNeeded ? 'todo' : 'now', at: null, kinds: [] },
   ];
+  const owesOrRefunded = b.refundNeeded || h.some((e) => e.kind === 'refund.recorded');
+  // A second payment on a live or finished booking: the refund owed is the step that stands.
+  const surplus = b.refundNeeded ? refunded().slice(0, 1) : [];
 
   if (b.status === 'pending') {
     return [
@@ -113,18 +116,22 @@ export function lifecycle(b: AdminBooking): Step[] {
             },
           ]
         : []),
-      departs(open ? 'todo' : 'now'),
+      ...surplus,
+      departs(open || b.refundNeeded ? 'todo' : 'now'),
       { name: 'Completed', state: 'todo', at: null, kinds: ['trip.completed'] },
     ];
   }
   if (b.status === 'completed') {
+    const openAsk = asked?.status === 'requested';
     return [
       booked,
       paid(),
       departs('done'),
+      ...(openAsk ? [askedStep('now')] : []),
+      ...surplus,
       {
         name: 'Completed',
-        state: b.review ? 'done' : 'now',
+        state: openAsk || b.refundNeeded ? 'done' : b.review ? 'done' : 'now',
         at: at(h, 'trip.completed'),
         kinds: ['trip.completed'],
       },
@@ -158,15 +165,16 @@ export function lifecycle(b: AdminBooking): Step[] {
     case 'cancellation_approved':
       return [
         booked,
-        paid(),
+        paid(b.paidPaise < b.totalPaise && !owesOrRefunded ? 'Part paid' : 'Paid in full'),
         askedStep('done'),
         {
           name: 'Cancelled · approved',
-          state: 'done',
+          state: owesOrRefunded ? 'done' : 'now',
           at: asked?.resolvedAt ?? null,
           kinds: ['cancellation.approved'],
         },
-        ...refunded(),
+        // A ₹0 refund was agreed: nothing to refund, so no Refunded step.
+        ...(owesOrRefunded ? refunded() : []),
       ];
     case 'hold_expired':
       return [
@@ -190,7 +198,7 @@ export function lifecycle(b: AdminBooking): Step[] {
           at: at(h, 'hold.released'),
           kinds: ['hold.released'],
         },
-        ...(b.refundNeeded || at(h, 'refund.recorded') ? refunded() : []),
+        ...(owesOrRefunded ? refunded() : []),
       ];
     default:
       return [booked, ...failed, { name: 'Cancelled', state: 'now', at: null, kinds: [] }];
@@ -226,7 +234,9 @@ export function nextStep(b: AdminBooking): NextStep {
       title: 'Never paid',
       text: b.seatsShort
         ? `The hold lapsed and the party is ${b.seatsShort} short now — release it, or wait for seats.`
-        : 'The hold lapsed. If they paid by UPI or bank, mark it paid; otherwise release it.',
+        : b.canRelease
+          ? 'The hold lapsed. If they paid by UPI or bank, mark it paid; otherwise release it.'
+          : 'The checkout was abandoned. If they paid by UPI or bank, you can still mark it paid.',
     };
   }
   if (b.status === 'confirmed') {
@@ -260,7 +270,10 @@ export function moves(b: AdminBooking): Move[] {
     out.push({
       key: 'reject',
       title: 'Reject the request',
-      becomes: b.status === 'completed' ? 'Completed' : 'Confirmed',
+      becomes:
+        ({ confirmed: 'Confirmed', partially_paid: 'Part paid', completed: 'Completed' } as const)[
+          b.status as 'confirmed' | 'partially_paid' | 'completed'
+        ] ?? 'Unchanged',
       tone: 'ok',
       effects: [
         ['Seats', 'Stay booked'],

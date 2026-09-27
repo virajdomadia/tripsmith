@@ -139,6 +139,72 @@ describe('lifecycle', () => {
   });
 });
 
+describe('lifecycle edge cases', () => {
+  const request = (
+    status: 'requested' | 'approved' | 'rejected',
+    refundPaise: number | null = null,
+  ) =>
+    ({
+      id: 'c1',
+      status,
+      reason: 'Change of plans',
+      requestedAt: '2026-09-26T12:00:00Z',
+      resolvedAt: status === 'requested' ? null : '2026-09-27T09:00:00Z',
+      refundPaise,
+      daysOut: 10,
+      tier: 'No refund',
+      suggestedRefundPaise: 0,
+      canApprove: status === 'requested',
+    }) as AdminBooking['cancellation'];
+
+  it('an approved cancellation with no refund ends there, with no Refunded step', () => {
+    const b = booking({
+      status: 'cancelled',
+      cancelReason: 'cancellation_approved',
+      paidPaise: 59_397_00,
+      canMarkPaid: false,
+      canRelease: false,
+      cancellation: request('approved', 0),
+    });
+    expect(names(b).slice(-2)).toEqual(['Cancel requested:done', 'Cancelled · approved:now']);
+  });
+
+  it('a confirmed booking paid twice stands at the refund it owes', () => {
+    const b = booking({
+      status: 'confirmed',
+      paidPaise: 2 * 59_397_00,
+      refundNeeded: true,
+      canMarkPaid: false,
+      canRelease: false,
+    });
+    expect(names(b)).toContain('Refunded:now');
+    expect(moves(b).map((m) => m.key)).toEqual(['refund-made']);
+  });
+
+  it('a completed trip with an open request stands at the request, and reject keeps it completed', () => {
+    const b = booking({
+      status: 'completed',
+      paidPaise: 59_397_00,
+      canMarkPaid: false,
+      canRelease: false,
+      cancellation: request('requested'),
+    });
+    expect(names(b)).toContain('Cancel requested:now');
+    expect(moves(b).find((m) => m.key === 'reject')?.becomes).toBe('Completed');
+  });
+
+  it('an abandoned checkout is only offered Mark paid, and the advice says so', () => {
+    const b = booking({
+      status: 'cancelled',
+      cancelReason: 'hold_expired',
+      canMarkPaid: true,
+      canRelease: false,
+    });
+    expect(moves(b).map((m) => m.key)).toEqual(['mark-paid']);
+    expect(nextStep(b).text).not.toContain('release');
+  });
+});
+
 describe('the desk remembers the open booking in the URL', () => {
   it('keeps ?sel= on the desk, drops a malformed one, never sends it to the CSV', () => {
     const f = parseDeskFilters({ status: 'pending', sel: 'TB-7K2M9Q' });
