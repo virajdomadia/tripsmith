@@ -16,7 +16,7 @@ export function PageHead({
         <h1 className="text-[26px]">{title}</h1>
         {subtitle && <p className="mt-0.5 text-sm text-mute">{subtitle}</p>}
       </div>
-      {actions && <div className="flex gap-2 sm:ml-auto">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2 sm:ml-auto">{actions}</div>}
     </header>
   );
 }

@@ -41,10 +41,10 @@ export function BookingsTable({
           <TableRow>
             <TableHead>Ref</TableHead>
             <TableHead>Lead</TableHead>
-            <TableHead>Trip</TableHead>
+            <TableHead className="hidden 2xl:table-cell">Trip</TableHead>
             <TableHead>Paid</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Booked</TableHead>
+            <TableHead className="hidden 2xl:table-cell">Booked</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -74,12 +74,16 @@ export function BookingsTable({
                 ) : (
                   b.ref
                 )}
+                {/* Beside the desk's side panel the Trip and Booked columns fold in here. */}
+                <span className="block text-xs font-normal text-mute 2xl:hidden">
+                  {b.packageName} · {formatDate(b.departs)}
+                </span>
               </TableCell>
               <TableCell>
                 <b className="block">{b.leadName}</b>
                 <span className="text-xs text-mute">{phoneLabel(b.leadPhone)}</span>
               </TableCell>
-              <TableCell className="text-ink2">
+              <TableCell className="hidden text-ink2 2xl:table-cell">
                 <span className="block">{b.packageName}</span>
                 <span className="text-xs text-mute">
                   {formatDate(b.departs)} · {travellersLabel(b.travellers)}
@@ -93,7 +97,7 @@ export function BookingsTable({
                   </span>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className="min-w-[150px] whitespace-normal">
                 <div className="flex flex-wrap gap-1">
                   <StateBadge
                     status={b.status}
@@ -104,7 +108,7 @@ export function BookingsTable({
                   {b.cancellation === 'requested' && <CancelRequested />}
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap text-mute">
+              <TableCell className="hidden whitespace-nowrap text-mute 2xl:table-cell">
                 {receivedLabel(b.bookedAt)}
               </TableCell>
               <TableCell className="text-right text-[13px] font-bold">

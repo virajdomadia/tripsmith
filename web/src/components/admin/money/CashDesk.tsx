@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { equation, lakh, LINE_WORD, net, scale, tick, type MoneyDesk } from '@/lib/admin/money';
 import { formatDate, inr, MONTHS } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,12 @@ const CHIP = {
 export function CashDesk({ money }: { money: MoneyDesk }) {
   const [holds, setHolds] = useState(false);
   const [sel, setSel] = useState(money.today);
+  const scroller = useRef<HTMLDivElement>(null);
+  // On a phone the chart scrolls sideways: open it on today, not on the oldest day.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, []);
   const eq = equation(money, holds);
   const month = MONTHS[Number(money.monthStart.slice(5, 7)) - 1];
   const bar = scale(money.days, UP, DOWN);
@@ -31,7 +37,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
   const dayNet = net(day.lines);
 
   return (
-    <div className="grid gap-3.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5">
       <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] font-bold">
         <input
           type="checkbox"
@@ -47,7 +53,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
 
       <div
         aria-label="Cash equation"
-        className="grid grid-cols-2 overflow-hidden rounded-card border border-line bg-bg sm:grid-cols-4"
+        className="grid grid-cols-[repeat(2,minmax(0,1fr))] overflow-hidden rounded-card border border-line bg-bg sm:grid-cols-[repeat(4,minmax(0,1fr))]"
       >
         <Term
           k={`Collected in ${month}`}
@@ -92,7 +98,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
           </ul>
         </header>
         <div className="px-4 pt-2 pb-4">
-          <div className="overflow-x-auto">
+          <div ref={scroller} className="overflow-x-auto">
             <div
               className="grid min-w-[640px] gap-[3px]"
               style={{ gridTemplateColumns: `repeat(${money.days.length}, minmax(12px, 1fr))` }}
@@ -134,7 +140,9 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
                     <span
                       className={cn(
                         'num pt-1 text-center text-[10px] font-bold whitespace-nowrap',
-                        isToday ? 'rounded bg-bad text-white' : 'text-mute',
+                        isToday
+                          ? 'w-max justify-self-end rounded bg-bad px-1 text-white'
+                          : 'text-mute',
                       )}
                     >
                       {tick(d.date, money.today)}

@@ -43,7 +43,7 @@ export function Lifecycle({ b }: { b: AdminBooking }) {
   const current = steps[stage] ?? steps[nowIndex]!;
 
   return (
-    <div className="grid gap-3.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5">
       <ol
         aria-label="Lifecycle"
         className="grid auto-cols-[minmax(104px,1fr)] grid-flow-col overflow-x-auto rounded-card border border-line bg-bg px-2 py-3"
@@ -313,7 +313,6 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
           Asked {istFullDate(c.requestedAt)}, <b>{c.daysOut} days</b> before departure. Policy:{' '}
           <b>{c.tier}</b> — {inr(c.suggestedRefundPaise)} of {inr(b.paidPaise)} would go back.
         </p>
-        {list}
       </>
     );
   }

@@ -19,7 +19,9 @@ export default async function ShellLayout({ children }: { children: React.ReactN
     <UnsavedChangesProvider>
       <div className="grid min-h-dvh bg-bg2 lg:grid-cols-[240px_1fr]">
         <Sidebar session={session} />
-        <div className="grid content-start gap-5 px-4 py-5 sm:px-7 sm:py-6">{children}</div>
+        <div className="grid min-w-0 content-start gap-5 px-4 py-5 sm:px-7 sm:py-6 [&>*]:min-w-0">
+          {children}
+        </div>
         <Toaster position="bottom-right" richColors />
       </div>
     </UnsavedChangesProvider>
