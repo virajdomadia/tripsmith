@@ -15,17 +15,26 @@ import io
 import math
 import re
 from collections.abc import Iterator, Sequence
-from typing import Any, cast
+from typing import Any
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Select, case, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
-from app.models import Enquiry, EnquiryMessage, EnquiryNote, Package, PackageImage
+from app.models import (
+    Booking,
+    Departure,
+    Enquiry,
+    EnquiryMessage,
+    EnquiryNote,
+    Package,
+    PackageImage,
+)
 from app.models.enums import EmailStatus, EnquiryStatus
 from app.models.enums import EnquiryType as OrmEnquiryType
 from app.schemas.admin_enquiries import (
+    FIRST_REPLY_TARGET_MIN,
     PAGE_SIZE,
     AdminEnquiry,
     Device,
@@ -35,6 +44,8 @@ from app.schemas.admin_enquiries import (
     EnquiryNoteOut,
     EnquiryPackage,
     EnquiryRow,
+    InboxAttention,
+    RelatedBooking,
     RelatedEnquiry,
     StatusCounts,
 )
@@ -74,10 +85,38 @@ def search_clause(q: str) -> ColumnElement[bool]:
     return Enquiry.name.ilike(f"%{like_escape(text)}%")
 
 
-def _filtered[S: Select[Any]](stmt: S, filters: EnquiryFilters, *, with_status: bool) -> S:
-    """Every filter except `status`, which the tab counts deliberately leave out (A6)."""
+OPEN = (EnquiryStatus.NEW, EnquiryStatus.CONTACTED)
+
+
+def replied() -> ColumnElement[bool]:
+    """A reply has gone out from the inbox (R23) — a failed try does not count."""
+    return (
+        exists()
+        .where(EnquiryMessage.enquiry_id == Enquiry.id, EnquiryMessage.resend_id.is_not(None))
+        .correlate(Enquiry)
+    )
+
+
+def needs_reply() -> ColumnElement[bool]:
+    """P20 · A2: new and unanswered. Replies from customers are not captured, so the owner's
+    first reply (or moving it on) is what answers an enquiry."""
+    return (Enquiry.status == EnquiryStatus.NEW) & ~replied()
+
+
+def follow_up_due(today: dt.date) -> ColumnElement[bool]:
+    return Enquiry.status.in_(OPEN) & (Enquiry.follow_up_on <= today)
+
+
+def _filtered[S: Select[Any]](
+    stmt: S, filters: EnquiryFilters, *, with_status: bool, with_view: bool = True
+) -> S:
+    """Every filter except `status` (and A2's `view`), which the counts deliberately leave out."""
     if with_status and filters.status is not None:
         stmt = stmt.where(Enquiry.status == filters.status)
+    if with_view and filters.view == "reply":
+        stmt = stmt.where(needs_reply())
+    elif with_view and filters.view == "followup":
+        stmt = stmt.where(follow_up_due(ist_today()))
     if filters.type is not None:
         stmt = stmt.where(Enquiry.type == filters.type)
     if filters.package_id is not None:
@@ -92,7 +131,13 @@ def _filtered[S: Select[Any]](stmt: S, filters: EnquiryFilters, *, with_status: 
     return stmt
 
 
-def _row(row: Enquiry, package_slug: str | None, package_name: str | None) -> EnquiryRow:
+def _row(
+    row: Enquiry,
+    package_slug: str | None,
+    package_name: str | None,
+    price: int | None = None,
+    was_replied: bool = False,
+) -> EnquiryRow:
     package = (
         PackageRef(slug=package_slug, name=package_name) if package_slug and package_name else None
     )
@@ -109,6 +154,35 @@ def _row(row: Enquiry, package_slug: str | None, package_name: str | None) -> En
         adults=row.adults,
         children=row.children,
         created_at=row.created_at,
+        replied=bool(was_replied),
+        follow_up_on=row.follow_up_on,
+        lost_reason=row.lost_reason,
+        estimate_paise=price * (row.adults + row.children) if price else None,
+    )
+
+
+async def attention(db: AsyncSession, filters: EnquiryFilters) -> InboxAttention:
+    """A2's chip counts and subtitle, with the list's other filters applied."""
+    today = ist_today()
+    base = _filtered(
+        select(Enquiry.id).select_from(Enquiry), filters, with_status=False, with_view=False
+    ).subquery()
+    target = func.now() - dt.timedelta(minutes=FIRST_REPLY_TARGET_MIN)
+    row = (
+        await db.execute(
+            select(
+                func.count().filter(needs_reply()),
+                func.count().filter(needs_reply() & (Enquiry.created_at < target)),
+                func.count().filter(follow_up_due(today)),
+                func.min(Enquiry.created_at).filter(needs_reply()),
+            ).where(Enquiry.id.in_(select(base.c.id)))
+        )
+    ).one()
+    return InboxAttention(
+        needs_reply=int(row[0]),
+        over_target=int(row[1]),
+        follow_up_due=int(row[2]),
+        oldest_waiting_since=row[3],
     )
 
 
@@ -130,19 +204,27 @@ async def status_counts(db: AsyncSession, filters: EnquiryFilters) -> StatusCoun
     )
 
 
-def _with_package(filters: EnquiryFilters) -> Select[tuple[Enquiry, str | None, str | None]]:
+def _with_package(filters: EnquiryFilters) -> Select[Any]:
     """`package_id` is `ON DELETE SET NULL` and contact enquiries never have one, so the join
     to `packages` is always an outer one — SQLAlchemy's column typing doesn't track that
     nullability, so the cast just tells pyright what the outer join actually returns."""
-    stmt = cast(
-        "Select[tuple[Enquiry, str | None, str | None]]",
-        select(Enquiry, Package.slug, Package.name).outerjoin(
-            Package, Package.id == Enquiry.package_id
-        ),
-    )
-    return _filtered(stmt, filters, with_status=True).order_by(
-        Enquiry.created_at.desc(), Enquiry.id.desc()
-    )
+    stmt = select(
+        Enquiry, Package.slug, Package.name, Package.starting_price_paise, replied()
+    ).outerjoin(Package, Package.id == Enquiry.package_id)
+    stmt = _filtered(stmt, filters, with_status=True)
+    if filters.sort == "waiting":
+        # A2: who owes a reply first (longest waiting at the top), then follow-ups due (the
+        # earliest first), then everything else newest first.
+        today = ist_today()
+        rank = case((needs_reply(), 0), (follow_up_due(today), 1), else_=2)
+        return stmt.order_by(
+            rank,
+            case((needs_reply(), Enquiry.created_at)).asc(),
+            case((follow_up_due(today), Enquiry.follow_up_on)).asc(),
+            Enquiry.created_at.desc(),
+            Enquiry.id.desc(),
+        )
+    return stmt.order_by(Enquiry.created_at.desc(), Enquiry.id.desc())
 
 
 async def list_enquiries(db: AsyncSession, filters: EnquiryFilters) -> EnquiryList:
@@ -155,12 +237,13 @@ async def list_enquiries(db: AsyncSession, filters: EnquiryFilters) -> EnquiryLi
         _with_package(filters).limit(PAGE_SIZE).offset((filters.page - 1) * PAGE_SIZE)
     )
     return EnquiryList(
-        items=[_row(e, slug, name) for e, slug, name in rows.all()],
+        items=[_row(*r) for r in rows.all()],
         page=filters.page,
         page_size=PAGE_SIZE,
         total=total,
         total_pages=max(1, math.ceil(total / PAGE_SIZE)),
         counts=await status_counts(db, filters),
+        attention=await attention(db, filters),
     )
 
 
@@ -244,6 +327,22 @@ async def _related(db: AsyncSession, row: Enquiry) -> list[RelatedEnquiry]:
     ]
 
 
+async def _bookings(db: AsyncSession, row: Enquiry) -> list[RelatedBooking]:
+    """A2's "Same customer · past trips": bookings made with this email or phone."""
+    rows = await db.execute(
+        select(Booking.ref, Package.name, Departure.date, Booking.status)
+        .join(Package, Package.id == Booking.package_id)
+        .join(Departure, Departure.id == Booking.departure_id)
+        .where((Booking.contact_email == row.email.lower()) | (Booking.contact_phone == row.phone))
+        .order_by(Booking.created_at.desc())
+        .limit(RELATED_LIMIT)
+    )
+    return [
+        RelatedBooking(ref=ref, package_name=name, departs=departs, status=status)
+        for ref, name, departs, status in rows.all()
+    ]
+
+
 async def _messages(db: AsyncSession, enquiry_id: str) -> list[EnquiryMessageOut]:
     """R23's thread, oldest first; a failed try sits where it was made until it is sent again."""
     rows = await db.execute(
@@ -294,6 +393,9 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
         notes=[EnquiryNoteOut(id=n.id, body=n.body, created_at=n.created_at) for n in row.notes],
         messages=await _messages(db, row.id),
         related=await _related(db, row),
+        follow_up_on=row.follow_up_on,
+        lost_reason=row.lost_reason,
+        bookings=await _bookings(db, row),
     )
 
 
@@ -330,7 +432,9 @@ def status_note(old: EnquiryStatus, new: EnquiryStatus) -> str:
     return f"Status changed from {STATUS_LABELS[old]} to {STATUS_LABELS[new]}"
 
 
-async def set_status(db: AsyncSession, id: str, status: EnquiryStatus) -> AdminEnquiry:
+async def set_status(
+    db: AsyncSession, id: str, status: EnquiryStatus, *, lost_reason: str | None = None
+) -> AdminEnquiry:
     """One transaction: the new status and the note that records it land together, or not at all.
 
     Re-selecting the same status is a no-op — the owner clicking the tab they are already on
@@ -343,8 +447,15 @@ async def set_status(db: AsyncSession, id: str, status: EnquiryStatus) -> AdminE
             f"An enquiry can't move from {STATUS_LABELS[row.status]} to {STATUS_LABELS[status]}",
         )
     if row.status != status:
-        db.add(EnquiryNote(enquiry_id=row.id, body=status_note(row.status, status)))
+        note = status_note(row.status, status)
+        if status == EnquiryStatus.CLOSED and lost_reason:
+            note += f" · lost: {lost_reason}"
+        db.add(EnquiryNote(enquiry_id=row.id, body=note))
         row.status = status
+        # P20 · A2: a won or lost enquiry has nothing left to chase; a reopened one has no reason.
+        if status not in OPEN:
+            row.follow_up_on = None
+        row.lost_reason = lost_reason if status == EnquiryStatus.CLOSED else None
         await db.commit()
         row = await load_enquiry(db, id)
     return await _detail(db, row)
@@ -468,3 +579,29 @@ def csv_lines(
 
 def csv_filename() -> str:
     return f"tripsmith-enquiries-{ist_today().isoformat()}.csv"
+
+
+PAST_FOLLOW_UP = "Pick today or a later day"
+CLOSED_FOLLOW_UP = "Only an open enquiry can be followed up"
+
+
+async def set_follow_up(db: AsyncSession, id: str, day: dt.date | None) -> AdminEnquiry:
+    """P20 · A2: the day to chase an open enquiry (IST, today or later), or none. The change is
+    noted in the timeline like a status move; setting the same day again is a no-op."""
+    row = await load_enquiry(db, id)
+    if row.status not in OPEN:
+        raise ApiError("conflict", CLOSED_FOLLOW_UP, reason="not_open")
+    if day is not None and day < ist_today():
+        raise ApiError("validation", PAST_FOLLOW_UP, field_errors={"followUpOn": PAST_FOLLOW_UP})
+    if row.follow_up_on != day:
+        label = f"{day.day} {MONTHS[day.month - 1]} {day.year}" if day else None
+        db.add(
+            EnquiryNote(
+                enquiry_id=row.id,
+                body=f"Follow-up set for {label}" if label else "Follow-up cleared",
+            )
+        )
+        row.follow_up_on = day
+        await db.commit()
+        row = await load_enquiry(db, id)
+    return await _detail(db, row)
