@@ -27,6 +27,7 @@ import {
 } from '@/lib/admin/destination-schema';
 import { reportAdminError } from '@/lib/admin/errors';
 import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
+import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { CoverUploader } from './CoverUploader';
@@ -35,7 +36,11 @@ import { MonthPicker } from './MonthPicker';
 
 type AdminDestination = components['schemas']['AdminDestination'];
 
-type Props = { mode: 'create' } | { mode: 'edit'; destination: AdminDestination };
+/** `panel`: Destinations A's editor beside the cards (R59, P20) — one column, cover first,
+ *  and saving stays on the card. */
+type Props = { layout?: 'page' | 'panel' } & (
+  { mode: 'create' } | { mode: 'edit'; destination: AdminDestination }
+);
 
 /** What the inputs hold (`position` may be a string until zod coerces it). */
 type FieldValues = z.input<typeof destinationSchema>;
@@ -63,6 +68,7 @@ export function DestinationForm(props: Props) {
   const pathname = usePathname();
   const monthsLabelId = useId();
   const editing = props.mode === 'edit';
+  const inPanel = props.layout === 'panel';
   const form = useForm<FieldValues, unknown, DestinationFormValues>({
     resolver: zodResolver(destinationSchema),
     defaultValues: editing
@@ -94,7 +100,12 @@ export function DestinationForm(props: Props) {
         toast.success('Destination created');
       }
       release();
-      router.push('/admin/destinations');
+      router.push(
+        inPanel && editing
+          ? `/admin/destinations?sel=${encodeURIComponent(props.destination.id)}`
+          : '/admin/destinations',
+        { scroll: false },
+      );
       router.refresh();
     } catch (e) {
       if (e instanceof ApiRequestError && e.body.fieldErrors) {
@@ -117,13 +128,35 @@ export function DestinationForm(props: Props) {
   }
 
   const busy = form.formState.isSubmitting;
+  const cover = (
+    <section className={panel}>
+      <h3 className={h3}>Cover</h3>
+      <FormField
+        control={form.control}
+        name="coverUrl"
+        render={({ field }) => (
+          <FormItem>
+            <FormControl>
+              <CoverUploader value={field.value} onChange={field.onChange} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </section>
+  );
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid max-w-[860px] gap-4" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn('grid gap-4', inPanel ? 'min-w-0' : 'max-w-[860px]')}
+        noValidate
+      >
+        {inPanel && cover}
         <section className={panel}>
           <h3 className={h3}>Basics</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={cn('grid gap-4', !inPanel && 'sm:grid-cols-2')}>
             <FormField
               control={form.control}
               name="name"
@@ -145,7 +178,7 @@ export function DestinationForm(props: Props) {
               publicPath="/destinations"
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={cn('grid gap-4', !inPanel && 'sm:grid-cols-2')}>
             <FormField
               control={form.control}
               name="tagline"
@@ -189,7 +222,7 @@ export function DestinationForm(props: Props) {
               </FormItem>
             )}
           />
-          <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+          <div className={cn('grid gap-4', !inPanel && 'sm:grid-cols-[1fr_140px]')}>
             <FormField
               control={form.control}
               name="bestMonths"
@@ -229,21 +262,7 @@ export function DestinationForm(props: Props) {
           </div>
         </section>
 
-        <section className={panel}>
-          <h3 className={h3}>Cover</h3>
-          <FormField
-            control={form.control}
-            name="coverUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <CoverUploader value={field.value} onChange={field.onChange} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </section>
+        {!inPanel && cover}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={busy}>
@@ -252,7 +271,9 @@ export function DestinationForm(props: Props) {
           <Button
             type="button"
             variant="outline"
-            onClick={() => confirmLeave(() => router.push('/admin/destinations'))}
+            onClick={() =>
+              inPanel ? form.reset() : confirmLeave(() => router.push('/admin/destinations'))
+            }
             disabled={busy}
           >
             Cancel

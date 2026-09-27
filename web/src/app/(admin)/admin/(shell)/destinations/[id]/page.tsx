@@ -1,28 +1,7 @@
-import { notFound } from 'next/navigation';
-import { PageHead } from '@/components/admin/PageHead';
-import { DestinationForm } from '@/components/admin/destinations/DestinationForm';
-import { api, ApiRequestError } from '@/lib/api';
+import { redirect } from 'next/navigation';
 
-export const metadata = { title: 'Edit destination' };
-
+/** Destinations A (R59, P20) edits beside the cards: the old edit page opens that panel. */
 export default async function EditDestinationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let destination;
-  try {
-    destination = await api('/admin/destinations/{id}', { params: { id }, auth: true });
-  } catch (e) {
-    if (e instanceof ApiRequestError && e.status === 404) notFound();
-    throw e;
-  }
-  const trips =
-    destination.packageCount === 1 ? '1 package' : `${destination.packageCount} packages`;
-  return (
-    <>
-      <PageHead
-        title={destination.name}
-        subtitle={`${trips} · ${destination.livePackageCount ? 'on the public grid' : 'hidden until a package goes live'}`}
-      />
-      <DestinationForm mode="edit" destination={destination} />
-    </>
-  );
+  redirect(`/admin/destinations?sel=${encodeURIComponent(id)}`);
 }
