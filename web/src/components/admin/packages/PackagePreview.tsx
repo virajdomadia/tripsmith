@@ -63,12 +63,12 @@ export function previewPrice<T extends { date: string; priceDoublePaise: unknown
  * a part opens its section in the form. The trip pack and leader arrive with their v2.5 rows.
  */
 export function PackagePreview({
-  destination,
+  destinations,
   coverUrl,
   photos,
   onPick,
 }: {
-  destination: string;
+  destinations: readonly { id: string; name: string }[];
   coverUrl: string | null;
   photos: string[];
   onPick: (s: SectionKey) => void;
@@ -83,6 +83,7 @@ export function PackagePreview({
     seatsTotal: num(d?.seatsTotal),
     guaranteed: !!d?.guaranteed,
   }));
+  const destination = destinations.find((d) => d.id === v.destinationId)?.name ?? 'Destination';
   const price = previewPrice(deps, v.dealPricePaise, v.dealEndsOn ?? '', on);
   const nights = num(v.nights);
   const name = v.name?.trim() || 'Untitled package';
@@ -93,23 +94,28 @@ export function PackagePreview({
   const dealLabel = v.dealLabel?.trim() || 'Deal';
 
   /** A clickable part of the preview: opens its section on the left. */
+  /** A part of the preview. A click anywhere on it opens its section (a mouse shortcut); the
+   *  Edit button inside is the real control, so the content stays readable to screen readers. */
   const part = (s: SectionKey, className = '') => ({
     'data-part': s,
-    role: 'button' as const,
-    tabIndex: 0,
-    'aria-label': `Edit ${LABEL[s]}`,
     onClick: () => onPick(s),
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onPick(s);
-      }
-    },
     className: cn(
-      'cursor-pointer rounded-lg outline-offset-2 transition-[outline-color] hover:outline hover:outline-2 hover:outline-primary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+      'group/part relative cursor-pointer rounded-lg outline-offset-2 hover:outline hover:outline-2 hover:outline-primary/50 focus-within:outline focus-within:outline-2 focus-within:outline-primary',
       className,
     ),
   });
+  const editButton = (s: SectionKey) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onPick(s);
+      }}
+      className="absolute top-1 right-1 z-10 rounded-md bg-bg px-1.5 py-0.5 text-[11px] font-bold text-primary opacity-0 shadow-sm group-hover/part:opacity-100 focus-visible:opacity-100"
+    >
+      Edit {LABEL[s].toLowerCase()}
+    </button>
+  );
 
   const priceBlock = (
     <div className="grid gap-0.5">
@@ -120,7 +126,9 @@ export function PackagePreview({
           {price.from ? inr(price.deal ?? price.from) : '—'}
         </b>
       </span>
-      <small className="text-[11px] text-mute">per person, twin sharing</small>
+      <small className="text-[11px] text-mute">
+        per person, twin sharing · cheapest date from today
+      </small>
       {price.deal !== null && (
         <span className="w-fit rounded-md bg-action px-1.5 py-0.5 text-[11px] font-extrabold text-ink">
           {dealLabel} · ends {shortDate(v.dealEndsOn!)}
@@ -138,6 +146,7 @@ export function PackagePreview({
   const page = (
     <div className={cn('grid gap-3 bg-bg p-4 text-ink', mode === 'phone' && 'p-3')}>
       <div {...part('photos', cn('grid gap-1', mode === 'page' ? 'grid-cols-[2fr_1fr]' : ''))}>
+        {editButton('photos')}
         <span className="relative block aspect-[16/10] overflow-hidden rounded-lg bg-bg2">
           {coverUrl && <Image src={coverUrl} alt="" fill sizes="400px" className="object-cover" />}
         </span>
@@ -152,6 +161,7 @@ export function PackagePreview({
         )}
       </div>
       <div {...part('title', 'grid gap-1 p-1')}>
+        {editButton('title')}
         <small className="text-[11px] text-mute">{destination} / Packages</small>
         <h2 className="text-[20px] leading-tight font-extrabold tracking-tight">{name}</h2>
         <p className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-mute">
@@ -168,6 +178,7 @@ export function PackagePreview({
       >
         <div className="grid min-w-0 gap-3">
           <section {...part('highlights', 'grid gap-1.5 p-1')}>
+            {editButton('highlights')}
             <h3 className="text-[13px] font-extrabold">Highlights</h3>
             {highlights.length ? (
               <ul className="grid gap-1 text-[12px]">
@@ -183,6 +194,7 @@ export function PackagePreview({
             )}
           </section>
           <section {...part('itinerary', 'grid gap-1.5 p-1')}>
+            {editButton('itinerary')}
             <h3 className="text-[13px] font-extrabold">Day by day</h3>
             <ol className="grid gap-1.5">
               {days.map((d, i) => (
@@ -200,6 +212,7 @@ export function PackagePreview({
           </section>
           {hotels.length > 0 && (
             <section {...part('stays', 'grid gap-1.5 p-1')}>
+              {editButton('stays')}
               <h3 className="text-[13px] font-extrabold">Where you stay</h3>
               <ul className="grid gap-1 text-[12px]">
                 {hotels.map((h, i) => (
@@ -215,6 +228,7 @@ export function PackagePreview({
             </section>
           )}
           <section {...part('included', 'grid gap-1.5 p-1')}>
+            {editButton('included')}
             <h3 className="text-[13px] font-extrabold">What’s included</h3>
             <ul className="grid gap-1 text-[12px]">
               {inclusions.slice(0, 4).map((l, i) => (
@@ -235,6 +249,7 @@ export function PackagePreview({
             'grid gap-2.5 rounded-card border border-line p-3 shadow-[0_10px_30px_-20px_rgba(20,32,42,.35)]',
           )}
         >
+          {editButton('prices')}
           {priceBlock}
           <div className="grid gap-1.5">
             {price.upcoming.slice(0, 4).map((d, i) => (
@@ -271,6 +286,7 @@ export function PackagePreview({
         'mx-auto grid w-[280px] overflow-hidden rounded-card border border-line bg-bg',
       )}
     >
+      {editButton('title')}
       <span className="relative block aspect-[4/3] bg-bg2">
         {coverUrl && <Image src={coverUrl} alt="" fill sizes="280px" className="object-cover" />}
         {price.deal !== null && (

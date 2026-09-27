@@ -23,7 +23,9 @@ export default async function DestinationsPage({
   const sp = await searchParams;
   const sel = Array.isArray(sp.sel) ? sp.sel[0] : sp.sel;
   const { items } = await api('/admin/destinations', { auth: true });
-  const selected = items.find((d) => d.id === sel) ?? items[0] ?? null;
+  const asked = sel ? items.find((d) => d.id === sel) : undefined;
+  const stale = !!sel && !asked;
+  const selected = asked ?? items[0] ?? null;
   const live = items.reduce((n, d) => n + d.livePackageCount, 0);
   const hidden = items.filter((d) => d.livePackageCount === 0).length;
   return (
@@ -38,6 +40,14 @@ export default async function DestinationsPage({
           </Link>
         }
       />
+      {stale && (
+        <p
+          role="status"
+          className="rounded-card bg-warn-soft px-4 py-2.5 text-sm font-semibold text-warn"
+        >
+          That destination no longer exists — showing {selected?.name ?? 'the list'} instead.
+        </p>
+      )}
       <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
         <DestinationCards items={items} selected={selected?.id} />
         {selected && (
@@ -62,8 +72,8 @@ export default async function DestinationsPage({
               )}
             </div>
             <DestinationForm
-              // A fresh form per destination, and again after a save refreshes it.
-              key={`${selected.id}:${selected.updatedAt}`}
+              // A fresh form per destination; a refresh never resets a dirty one.
+              key={selected.id}
               mode="edit"
               layout="panel"
               destination={selected}

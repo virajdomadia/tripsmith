@@ -100,6 +100,9 @@ export function DestinationForm(props: Props) {
         toast.success('Destination created');
       }
       release();
+      // In the panel the form stays mounted: the saved values are its new clean baseline, so
+      // the unsaved guard protects the next edit (a no-op save moves no `updatedAt`).
+      if (inPanel) form.reset(values);
       if (inPanel && editing)
         router.push(`/admin/destinations?sel=${encodeURIComponent(props.destination.id)}`, {
           scroll: false,

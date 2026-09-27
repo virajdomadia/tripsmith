@@ -28,6 +28,7 @@ export function PasswordInput({ defaultValue }: { defaultValue: string }) {
         <button
           type="button"
           aria-pressed={shown}
+          aria-label={shown ? 'Hide password' : 'Show password'}
           aria-controls="password"
           onClick={() => setShown(!shown)}
           className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md px-2 py-1 text-[12.5px] font-bold text-primary hover:bg-primary-soft"

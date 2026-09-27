@@ -144,6 +144,19 @@ describe('PackageForm — errors that belong to a whole list', () => {
     expect(adminRequest).not.toHaveBeenCalled();
   });
 
+  it('opens the closed section that holds the error and counts it on its header', async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const dayByDay = screen.getByRole('button', { name: /^Day by day/ });
+    expect(dayByDay.getAttribute('aria-expanded')).toBe('false');
+    const nights = screen.getByLabelText('Nights');
+    await user.clear(nights);
+    await user.type(nights, '2');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(dayByDay.getAttribute('aria-expanded')).toBe('true'));
+    expect(dayByDay.textContent).toContain('1 error');
+  });
+
   it('shows a server DUPLICATE_DEPARTURE on the departures list and toasts', async () => {
     const user = userEvent.setup();
     adminRequest.mockRejectedValue(

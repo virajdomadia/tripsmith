@@ -64,30 +64,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="relative grid min-h-dvh overflow-hidden bg-ink lg:grid-cols-[minmax(0,1fr)_minmax(360px,430px)]">
-      <section className="flex min-h-[340px] min-w-0 flex-col justify-between px-[18px] pt-6 pb-[50px] text-white lg:min-h-0 lg:px-[30px] lg:pt-[26px] lg:pb-[30px]">
-        <Link
-          href="/"
-          className="relative z-[1] flex items-center gap-2 font-extrabold text-white no-underline"
-        >
-          <BrandMark size={28} />
-          Tripsmith
-          <small className="text-[11px] font-extrabold tracking-[0.12em] text-action uppercase">
-            admin
-          </small>
-        </Link>
-        <div className="grid justify-items-start">
-          <Postcard photos={PHOTOS} />
-          <Link
-            href="/"
-            className="relative mt-3.5 inline-flex items-center gap-1 text-[13px] font-bold text-white/85 no-underline hover:text-white"
-          >
-            <ChevronLeft className="size-4" aria-hidden />
-            Back to the site
-          </Link>
-        </div>
-      </section>
-
-      <section className="relative z-[1] mx-3 -mt-[34px] mb-5 self-start rounded-[22px] bg-bg px-[18px] py-6 shadow-[0_40px_80px_-40px_rgba(0,0,0,.7)] motion-safe:animate-rise lg:m-7 lg:mt-[70px] lg:ml-0 lg:self-center lg:px-7 lg:py-[30px]">
+      <section className="relative z-[1] order-2 mx-3 -mt-[34px] mb-5 self-start rounded-[22px] bg-bg px-[18px] py-6 shadow-[0_40px_80px_-40px_rgba(0,0,0,.7)] motion-safe:animate-rise lg:m-7 lg:mt-[70px] lg:ml-0 lg:self-center lg:px-7 lg:py-[30px]">
         <form method="post" action="/api/auth/login" className="grid gap-3.5" noValidate>
           <p className="label-caps text-[11px] text-mute">Owner desk</p>
           <h1 className="-mt-1.5 text-[30px] font-extrabold tracking-[-0.03em]">Sign in</h1>
@@ -152,6 +129,30 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             One owner account. Sign-up is off.
           </p>
         </form>
+      </section>
+      {/* The form comes first in the DOM, so it is first in tab order; the grid puts the photo
+          side first on screen. */}
+      <section className="order-1 flex min-h-[340px] min-w-0 flex-col justify-between px-[18px] pt-6 pb-[50px] text-white lg:min-h-0 lg:px-[30px] lg:pt-[26px] lg:pb-[30px]">
+        <Link
+          href="/"
+          className="relative z-[1] flex items-center gap-2 font-extrabold text-white no-underline"
+        >
+          <BrandMark size={28} />
+          Tripsmith
+          <small className="text-[11px] font-extrabold tracking-[0.12em] text-action uppercase">
+            admin
+          </small>
+        </Link>
+        <div className="grid justify-items-start">
+          <Postcard photos={PHOTOS} />
+          <Link
+            href="/"
+            className="relative mt-3.5 inline-flex items-center gap-1 text-[13px] font-bold text-white/85 no-underline hover:text-white"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+            Back to the site
+          </Link>
+        </div>
       </section>
     </div>
   );

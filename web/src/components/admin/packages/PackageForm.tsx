@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useForm, type FieldPath } from 'react-hook-form';
+import { useForm, useFormState, useWatch, type FieldPath } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
@@ -56,6 +56,69 @@ const ALL: Key[] = [
   'danger',
 ];
 
+/** The fields each section edits: its subtitle and its error count read only these. */
+const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
+  title: [
+    'name',
+    'slug',
+    'destinationId',
+    'summary',
+    'themes',
+    'nights',
+    'departureCity',
+    'featured',
+  ],
+  highlights: ['highlights'],
+  itinerary: ['itinerary'],
+  prices: ['departures'],
+  deal: ['dealPricePaise', 'dealLabel', 'dealEndsOn'],
+  stays: ['hotels'],
+  included: ['inclusions', 'exclusions', 'faq'],
+};
+
+const count = (xs: unknown) =>
+  Array.isArray(xs) ? xs.filter((x) => (typeof x === 'string' ? x.trim() : x)).length : 0;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * A section's live subtitle and error count. It subscribes to its own fields only, so typing in
+ * one section re-renders this line, not the whole form and its field arrays.
+ */
+function LiveSub({
+  k,
+  destinations,
+}: {
+  k: Key;
+  destinations: readonly { id: string; name: string }[];
+}) {
+  const names = FIELDS_OF[k] ?? [];
+  const values = useWatch<PackageFieldValues>({ name: names }) as unknown[];
+  const { errors } = useFormState<PackageFieldValues>({ name: names });
+  const v = Object.fromEntries(names.map((n, i) => [n, values[i]])) as Record<string, unknown>;
+  const bad = names.filter((n) => n in errors).length;
+  let text = '';
+  if (k === 'title') {
+    const dest = destinations.find((d) => d.id === v.destinationId)?.name ?? 'No destination';
+    text = `${dest} · ${String(v.nights || '…')} nights · ${String(v.departureCity || '…')}${v.featured ? ' · Featured' : ''}`;
+  } else if (k === 'highlights') text = plural(count(v.highlights), 'line');
+  else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
+  else if (k === 'prices') text = plural(count(v.departures), 'date');
+  else if (k === 'deal') text = v.dealPricePaise ? 'Deal set' : 'No deal';
+  else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
+  else if (k === 'included')
+    text = `${count(v.inclusions)} in · ${count(v.exclusions)} out · ${plural(count(v.faq), 'question')}`;
+  return (
+    <>
+      {text}
+      {bad > 0 && (
+        <b className="ml-1.5 rounded-chip bg-bad-soft px-1.5 text-[11.5px] text-bad">
+          {plural(bad, 'error')}
+        </b>
+      )}
+    </>
+  );
+}
+
 /**
  * One editor section: a header button that opens and closes it, the body kept mounted either
  * way so every field still validates and submits. Opening one from the preview scrolls to it.
@@ -70,7 +133,7 @@ function Section({
 }: {
   k: Key;
   title: string;
-  sub?: string;
+  sub?: React.ReactNode;
   open: boolean;
   onToggle: (k: Key) => void;
   children: React.ReactNode;
@@ -338,31 +401,19 @@ export function PackageForm(props: Props) {
 
   const busy = form.formState.isSubmitting;
   const dirty = form.formState.isDirty;
-  const values = form.watch();
   const rules = pkg?.publishRules ?? [];
-  const destination =
-    props.destinations.find((d) => d.id === values.destinationId)?.name ?? 'Destination';
   const photos = pkg
     ? [...pkg.images]
         .sort((a, b) => Number(b.id === pkg.coverImageId) - Number(a.id === pkg.coverImageId))
         .map((i) => i.url)
     : [];
-  const days = values.itinerary?.length ?? 0;
-  const dates = values.departures?.length ?? 0;
-  const sub: Partial<Record<Key, string>> = {
+  const sub: Partial<Record<Key, React.ReactNode>> = {
     status: rules.length
       ? `${pkg?.status === 'live' ? 'Live' : 'Draft'} · ${rules.filter((r) => r.ok).length} of 4 checks`
       : undefined,
     photos: pkg
       ? `${pkg.images.length} ${pkg.images.length === 1 ? 'photo' : 'photos'}`
       : 'After the first save',
-    title: `${destination} · ${values.nights || '…'} nights · ${values.departureCity || '…'}${values.featured ? ' · Featured' : ''}`,
-    highlights: `${values.highlights?.filter((l) => l?.trim()).length ?? 0} lines`,
-    itinerary: `${days} ${days === 1 ? 'day' : 'days'} written`,
-    prices: `${dates} ${dates === 1 ? 'date' : 'dates'}`,
-    deal: values.dealPricePaise ? 'Deal set' : 'No deal',
-    stays: `${values.hotels?.length ?? 0} hotels`,
-    included: `${values.inclusions?.filter((l) => l?.trim()).length ?? 0} in · ${values.exclusions?.filter((l) => l?.trim()).length ?? 0} out · ${values.faq?.length ?? 0} questions`,
   };
   const toggle = (k: Key) =>
     setOpen((was) => {
@@ -382,7 +433,13 @@ export function PackageForm(props: Props) {
     );
   };
   const section = (k: Key, children: React.ReactNode, title = LABEL[k as SectionKey]) => (
-    <Section k={k} title={title} sub={sub[k]} open={open.has(k)} onToggle={toggle}>
+    <Section
+      k={k}
+      title={title}
+      sub={sub[k] ?? <LiveSub k={k} destinations={props.destinations} />}
+      open={open.has(k)}
+      onToggle={toggle}
+    >
       {children}
     </Section>
   );
@@ -509,7 +566,7 @@ export function PackageForm(props: Props) {
         </div>
         <div className={cn('min-w-0 lg:sticky lg:top-4', pane !== 'preview' && 'max-lg:hidden')}>
           <PackagePreview
-            destination={destination}
+            destinations={props.destinations}
             coverUrl={photos[0] ?? null}
             photos={photos}
             onPick={pick}

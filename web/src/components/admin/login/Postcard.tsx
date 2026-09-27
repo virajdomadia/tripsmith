@@ -13,26 +13,31 @@ export type PostcardPhoto = { src: StaticImageData; alt: string; place: string; 
  */
 export function Postcard({ photos }: { photos: readonly PostcardPhoto[] }) {
   const [on, setOn] = useState(0);
+  // Only photos already shown are mounted: the hidden three would otherwise download at once
+  // (opacity does not stop a lazy image in the viewport) and compete with the first for LCP.
+  const [seen, setSeen] = useState<ReadonlySet<number>>(() => new Set([0]));
   const shown = photos[on]!;
   return (
     <>
       <div aria-hidden className="absolute inset-0 max-lg:bottom-auto max-lg:h-[340px]">
-        {photos.map((p, i) => (
-          <Image
-            key={p.place}
-            src={p.src}
-            alt=""
-            fill
-            priority={i === 0}
-            fetchPriority={i === 0 ? 'high' : 'auto'}
-            placeholder="blur"
-            sizes="100vw"
-            className={cn(
-              'object-cover transition-[opacity,transform] duration-[900ms] motion-reduce:transition-none',
-              i === on ? 'scale-100 opacity-100' : 'scale-[1.04] opacity-0',
-            )}
-          />
-        ))}
+        {photos.map((p, i) =>
+          seen.has(i) ? (
+            <Image
+              key={p.place}
+              src={p.src}
+              alt=""
+              fill
+              priority={i === 0}
+              fetchPriority={i === 0 ? 'high' : 'auto'}
+              placeholder="blur"
+              sizes="100vw"
+              className={cn(
+                'object-cover transition-[opacity,transform] duration-[900ms] motion-reduce:transition-none',
+                i === on ? 'scale-100 opacity-100' : 'scale-[1.04] opacity-0',
+              )}
+            />
+          ) : null,
+        )}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,20,28,.25),rgba(12,20,28,.2)_45%,rgba(12,20,28,.7)),linear-gradient(transparent_55%,rgba(12,20,28,.75))]" />
       </div>
       <div className="relative grid justify-items-start gap-1">
@@ -47,7 +52,10 @@ export function Postcard({ photos }: { photos: readonly PostcardPhoto[] }) {
               type="button"
               aria-pressed={i === on}
               aria-label={p.alt}
-              onClick={() => setOn(i)}
+              onClick={() => {
+                setSeen((was) => new Set(was).add(i));
+                setOn(i);
+              }}
               className={cn(
                 'relative h-[42px] w-[58px] overflow-hidden rounded-[10px] border-2 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 motion-reduce:transition-none',
                 i === on ? 'border-action' : 'border-white/35',

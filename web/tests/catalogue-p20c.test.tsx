@@ -180,7 +180,12 @@ describe('Package editor B preview', () => {
     return (
       <FormProvider {...form}>
         <input aria-label="Name" {...form.register('name')} />
-        <PackagePreview destination="Kerala" coverUrl={null} photos={[]} onPick={onPick} />
+        <PackagePreview
+          destinations={[{ id: 'd1', name: 'Kerala' }]}
+          coverUrl={null}
+          photos={[]}
+          onPick={onPick}
+        />
       </FormProvider>
     );
   }
@@ -206,7 +211,7 @@ describe('Package editor B preview', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Munnar & Alleppey' } });
     expect(within(preview).getByRole('heading', { name: 'Munnar & Alleppey' })).toBeTruthy();
     expect(preview.textContent).toContain('Tea Valley · Dinner');
-    fireEvent.click(within(preview).getByRole('button', { name: 'Edit Day by day' }));
+    fireEvent.click(within(preview).getByRole('button', { name: 'Edit day by day' }));
     expect(onPick).toHaveBeenCalledWith('itinerary');
     fireEvent.click(screen.getByRole('button', { name: 'Card' }));
     expect(within(preview).queryByRole('heading')).toBeNull();
@@ -265,7 +270,7 @@ describe('Sign in B password', () => {
     render(<PasswordInput defaultValue="secret" />);
     const input = document.getElementById('password') as HTMLInputElement;
     expect(input.type).toBe('password');
-    fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
     expect(input.type).toBe('text');
     fireEvent.keyUp(input, { key: 'A', modifierCapsLock: true });
     expect(screen.getByText('Caps Lock is on.')).toBeTruthy();

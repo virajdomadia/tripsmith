@@ -45,7 +45,6 @@ export function DestinationCards({
           <li key={d.id} className="min-w-0">
             <Link
               href={`/admin/destinations?sel=${encodeURIComponent(d.id)}#edit`}
-              scroll={false}
               aria-current={on ? 'true' : undefined}
               className={cn(
                 'grid h-full overflow-hidden rounded-card border border-line bg-bg text-ink no-underline transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-20px_rgba(20,32,42,.4)] motion-reduce:transition-none motion-reduce:hover:translate-y-0',
