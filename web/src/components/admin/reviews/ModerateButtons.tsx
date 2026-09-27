@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, EyeOff } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
@@ -10,10 +11,18 @@ import type { ReviewState } from '@/lib/admin/reviews';
 
 /**
  * Publish / Hide (R24). No confirm dialog: either move is undone from the other tab. The api
- * recomputes the package's rating and revalidates its pages; `router.refresh()` moves the row
- * to its new tab and updates the sidebar badge.
+ * recomputes the package's rating and revalidates its pages; `router.refresh()` moves the review
+ * to its new tab, opens the next one in the pane and updates the sidebar badge.
  */
-export function ModerateButtons({ id, state }: { id: string; state: ReviewState }) {
+export function ModerateButtons({
+  id,
+  state,
+  name,
+}: {
+  id: string;
+  state: ReviewState;
+  name: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, start] = useTransition();
@@ -22,7 +31,11 @@ export function ModerateButtons({ id, state }: { id: string; state: ReviewState 
     start(async () => {
       try {
         await adminRequest(`/admin/reviews/${encodeURIComponent(id)}/${move}`, { method: 'POST' });
-        toast.success(move === 'publish' ? 'Published on the trip’s page' : 'Hidden from the page');
+        toast.success(
+          move === 'publish'
+            ? `Published on the trip’s page — ${name}’s review moved to Published`
+            : `Hidden from the page — ${name}’s review moved to Hidden`,
+        );
         router.refresh();
       } catch (e) {
         reportAdminError(e, { router, pathname, fallback: 'Could not update the review' });
@@ -31,14 +44,16 @@ export function ModerateButtons({ id, state }: { id: string; state: ReviewState 
   }
 
   return (
-    <div className="flex gap-2 sm:flex-col">
+    <div className="flex flex-wrap gap-2">
       {state !== 'published' && (
         <Button size="sm" disabled={pending} onClick={() => act('publish')}>
+          <Check className="size-4" aria-hidden />
           Publish
         </Button>
       )}
       {state !== 'hidden' && (
         <Button size="sm" variant="outline" disabled={pending} onClick={() => act('hide')}>
+          <EyeOff className="size-4" aria-hidden />
           Hide
         </Button>
       )}

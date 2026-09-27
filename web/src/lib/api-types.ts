@@ -279,6 +279,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/coupons/{id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Results Route */
+        get: operations["getCouponResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dashboard": {
         parameters: {
             query?: never;
@@ -1470,6 +1487,11 @@ export interface components {
             allPackages: boolean;
             /** Amountpaise */
             amountPaise: number | null;
+            /**
+             * Bookedpaise
+             * @description Those bookings' totals, after the discount
+             */
+            bookedPaise: number;
             /** Cappaise */
             capPaise: number | null;
             /** Code */
@@ -1481,6 +1503,11 @@ export interface components {
             createdAt: string;
             /** Endson */
             endsOn: string | null;
+            /**
+             * Givenpaise
+             * @description The coupon's discount summed over its uses
+             */
+            givenPaise: number;
             /** Id */
             id: string;
             kind: components["schemas"]["CouponKind"];
@@ -1513,6 +1540,11 @@ export interface components {
              * @description Bookings with the code and money captured
              */
             uses: number;
+            /**
+             * Weekly
+             * @description Uses per IST week (Monday–Sunday), the last 8 weeks, this week last
+             */
+            weekly: number[];
         };
         /** AdminCouponList */
         AdminCouponList: {
@@ -1909,8 +1941,15 @@ export interface components {
              * @description The booking's lead name, in full
              */
             name: string;
+            /**
+             * Packagecoverurl
+             * @description The package's cover photo, for the queue
+             */
+            packageCoverUrl: string | null;
             /** Packagename */
             packageName: string;
+            /** @description The package's published rating now (the cached aggregate) */
+            packageRating: components["schemas"]["RatingOut"] | null;
             /** Packageslug */
             packageSlug: string;
             /** Rating */
@@ -1934,6 +1973,7 @@ export interface components {
             /** Pagesize */
             pageSize: number;
             state: components["schemas"]["ReviewState"];
+            stats: components["schemas"]["ReviewStats"];
             /** Total */
             total: number;
             /** Totalpages */
@@ -2272,11 +2312,72 @@ export interface components {
             name: string;
         };
         /**
+         * CouponResults
+         * @description `GET /admin/coupons/{id}/results` (R59, P20 · Coupons B): what the code did.
+         */
+        CouponResults: {
+            /**
+             * Latest
+             * @description At most 6
+             */
+            latest: components["schemas"]["CouponUse"][];
+            /**
+             * Othertripuses
+             * @description Uses on the trips past the list
+             */
+            otherTripUses: number;
+            /**
+             * Trips
+             * @description Most uses first, at most 5
+             */
+            trips: components["schemas"]["CouponTrip"][];
+        };
+        /**
          * CouponState
          * @description What the list's badge says, in the order it is decided.
          * @enum {string}
          */
         CouponState: "paused" | "scheduled" | "expired" | "used_up" | "active";
+        /** CouponTrip */
+        CouponTrip: {
+            /** Coverurl */
+            coverUrl: string | null;
+            /** Name */
+            name: string;
+            /** Packageid */
+            packageId: string;
+            /** Uses */
+            uses: number;
+        };
+        /**
+         * CouponUse
+         * @description A use (money captured) or a live hold, newest first.
+         */
+        CouponUse: {
+            /**
+             * At
+             * Format: date-time
+             * @description When the booking was made
+             */
+            at: string;
+            /** Email */
+            email: string;
+            /**
+             * Holding
+             * @description A checkout holding a use now, not yet paid
+             */
+            holding: boolean;
+            /** Name */
+            name: string;
+            /** Offpaise */
+            offPaise: number;
+            /** Packagename */
+            packageName: string;
+            /** Ref */
+            ref: string;
+            /** Travellers */
+            travellers: number;
+        };
         /** Dashboard */
         Dashboard: {
             /**
@@ -3945,6 +4046,32 @@ export interface components {
          */
         ReviewState: "pending" | "published" | "hidden";
         /**
+         * ReviewStats
+         * @description The Reviews page's KPI strip (R59, P20 · Reviews A). Months are IST calendar months, and a
+         *     review counts in the month it was last moved to Published.
+         */
+        ReviewStats: {
+            /**
+             * Oldestpendingat
+             * @description When the oldest waiting review came
+             */
+            oldestPendingAt: string | null;
+            /**
+             * Publishedavg
+             * @description Every published review's mean, one decimal
+             */
+            publishedAvg: number | null;
+            /** Publishedlastmonth */
+            publishedLastMonth: number;
+            /**
+             * Publishedpackages
+             * @description How many trips have a published review
+             */
+            publishedPackages: number;
+            /** Publishedthismonth */
+            publishedThisMonth: number;
+        };
+        /**
          * SearchFacets
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
          */
@@ -4730,6 +4857,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCoupon"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getCouponResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponResults"];
                 };
             };
             /** @description Error envelope (06 C0) */

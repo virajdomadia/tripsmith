@@ -797,6 +797,11 @@
             ],
             "title": "Amountpaise"
           },
+          "bookedPaise": {
+            "description": "Those bookings' totals, after the discount",
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
           "capPaise": {
             "anyOf": [
               {
@@ -828,6 +833,11 @@
               }
             ],
             "title": "Endson"
+          },
+          "givenPaise": {
+            "description": "The coupon's discount summed over its uses",
+            "title": "Givenpaise",
+            "type": "integer"
           },
           "id": {
             "title": "Id",
@@ -898,6 +908,14 @@
             "description": "Bookings with the code and money captured",
             "title": "Uses",
             "type": "integer"
+          },
+          "weekly": {
+            "description": "Uses per IST week (Monday–Sunday), the last 8 weeks, this week last",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Weekly",
+            "type": "array"
           }
         },
         "required": [
@@ -918,7 +936,10 @@
           "uses",
           "liveHolds",
           "locked",
-          "createdAt"
+          "createdAt",
+          "givenPaise",
+          "bookedPaise",
+          "weekly"
         ],
         "title": "AdminCoupon",
         "type": "object"
@@ -1914,9 +1935,32 @@
             "title": "Name",
             "type": "string"
           },
+          "packageCoverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's cover photo, for the queue",
+            "title": "Packagecoverurl"
+          },
           "packageName": {
             "title": "Packagename",
             "type": "string"
+          },
+          "packageRating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's published rating now (the cached aggregate)"
           },
           "packageSlug": {
             "title": "Packageslug",
@@ -1951,7 +1995,9 @@
           "packageSlug",
           "travelled",
           "createdAt",
-          "moderatedAt"
+          "moderatedAt",
+          "packageCoverUrl",
+          "packageRating"
         ],
         "title": "AdminReview",
         "type": "object"
@@ -1979,6 +2025,9 @@
           "state": {
             "$ref": "#/components/schemas/ReviewState"
           },
+          "stats": {
+            "$ref": "#/components/schemas/ReviewStats"
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -1992,6 +2041,7 @@
         "required": [
           "items",
           "counts",
+          "stats",
           "state",
           "page",
           "pageSize",
@@ -2755,6 +2805,39 @@
         "title": "CouponPackage",
         "type": "object"
       },
+      "CouponResults": {
+        "description": "`GET /admin/coupons/{id}/results` (R59, P20 · Coupons B): what the code did.",
+        "properties": {
+          "latest": {
+            "description": "At most 6",
+            "items": {
+              "$ref": "#/components/schemas/CouponUse"
+            },
+            "title": "Latest",
+            "type": "array"
+          },
+          "otherTripUses": {
+            "description": "Uses on the trips past the list",
+            "title": "Othertripuses",
+            "type": "integer"
+          },
+          "trips": {
+            "description": "Most uses first, at most 5",
+            "items": {
+              "$ref": "#/components/schemas/CouponTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "trips",
+          "otherTripUses",
+          "latest"
+        ],
+        "title": "CouponResults",
+        "type": "object"
+      },
       "CouponState": {
         "description": "What the list's badge says, in the order it is decided.",
         "enum": [
@@ -2766,6 +2849,93 @@
         ],
         "title": "CouponState",
         "type": "string"
+      },
+      "CouponTrip": {
+        "properties": {
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "uses": {
+            "title": "Uses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packageId",
+          "name",
+          "coverUrl",
+          "uses"
+        ],
+        "title": "CouponTrip",
+        "type": "object"
+      },
+      "CouponUse": {
+        "description": "A use (money captured) or a live hold, newest first.",
+        "properties": {
+          "at": {
+            "description": "When the booking was made",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "holding": {
+            "description": "A checkout holding a use now, not yet paid",
+            "title": "Holding",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "offPaise": {
+            "title": "Offpaise",
+            "type": "integer"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "ref",
+          "name",
+          "email",
+          "packageName",
+          "travellers",
+          "offPaise",
+          "holding"
+        ],
+        "title": "CouponUse",
+        "type": "object"
       },
       "Dashboard": {
         "properties": {
@@ -6385,6 +6555,58 @@
         "title": "ReviewState",
         "type": "string"
       },
+      "ReviewStats": {
+        "description": "The Reviews page's KPI strip (R59, P20 · Reviews A). Months are IST calendar months, and a\nreview counts in the month it was last moved to Published.",
+        "properties": {
+          "oldestPendingAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the oldest waiting review came",
+            "title": "Oldestpendingat"
+          },
+          "publishedAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Every published review's mean, one decimal",
+            "title": "Publishedavg"
+          },
+          "publishedLastMonth": {
+            "title": "Publishedlastmonth",
+            "type": "integer"
+          },
+          "publishedPackages": {
+            "description": "How many trips have a published review",
+            "title": "Publishedpackages",
+            "type": "integer"
+          },
+          "publishedThisMonth": {
+            "title": "Publishedthismonth",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "oldestPendingAt",
+          "publishedAvg",
+          "publishedPackages",
+          "publishedThisMonth",
+          "publishedLastMonth"
+        ],
+        "title": "ReviewStats",
+        "type": "object"
+      },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
         "properties": {
@@ -7849,6 +8071,48 @@
           }
         },
         "summary": "Active Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/coupons/{id}/results": {
+      "get": {
+        "operationId": "getCouponResults",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CouponResults"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Results Route",
         "tags": [
           "admin"
         ]
