@@ -141,7 +141,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             <h2 id="history" className={heading}>
               History <span className="font-semibold text-mute">· changes, payments, emails</span>
             </h2>
-            <History history={b.history} />
+            {/* Undefined while an older api answers (web and api deploy separately). */}
+            <History history={b.history ?? { entries: [], rebuiltOn: null }} />
           </section>
 
           {b.payments.length > 0 && (

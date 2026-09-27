@@ -32,13 +32,11 @@ describe('adminRequest', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          json(409, {
-            error: { code: 'conflict', message: 'Taken', fieldErrors: { slug: 'Taken' } },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        json(409, {
+          error: { code: 'conflict', message: 'Taken', fieldErrors: { slug: 'Taken' } },
+        }),
+      ),
     );
     const err = await adminRequest('/admin/destinations', { method: 'POST', body: {} }).catch(
       (e) => e,

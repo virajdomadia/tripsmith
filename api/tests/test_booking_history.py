@@ -615,7 +615,7 @@ def test_0010_rebuilds_v2_bookings_and_old_inserts_still_work(
             ("booked", "customer", False, True),
             ("order.opened", "system", False, False),
             ("payment.failed", "webhook", False, True),
-            ("order.opened", "system", False, False),
+            # The retry's row is on the same order: it was opened once.
             ("payment.captured", "customer", False, True),
             ("cancellation.requested", "customer", False, True),
             ("cancellation.approved", "owner", False, True),

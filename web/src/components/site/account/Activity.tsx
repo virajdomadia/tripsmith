@@ -14,8 +14,9 @@ const DOT = {
  * their money, their requests and the emails we sent them. The api sends only entries written
  * with customer wording; ids, internal flags and owner-only notes never reach this page.
  */
-export function Activity({ entries }: { entries: ActivityEntry[] }) {
-  if (entries.length === 0) return null;
+export function Activity({ entries }: { entries: ActivityEntry[] | undefined }) {
+  // Undefined while an older api answers (web and api deploy separately).
+  if (!entries || entries.length === 0) return null;
   return (
     <section className="rounded-card border border-line p-5" aria-labelledby="activity">
       <h2 id="activity" className="text-[18px]">

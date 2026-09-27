@@ -200,7 +200,8 @@ async def deliver(
     lines = list(skipped)
     for (role, _, subject, held), result in zip(redirected, results, strict=True):
         failed = isinstance(result, BaseException)
-        lines.append(EmailLine(role, subject, "failed" if failed else "held" if held else "sent"))
+        outcome = "failed" if failed else "off" if result is None else "held" if held else "sent"
+        lines.append(EmailLine(role, subject, outcome))
         if isinstance(result, BaseException):
             # The role, never the address.
             log.error("%s %s email failed for %s: %s", role, what, ref, result)

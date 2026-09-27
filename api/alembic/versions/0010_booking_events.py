@@ -202,6 +202,7 @@ def _booking_entries(b: Any, pays: list[Any], asked: Any, review: Any) -> list[d
     # The capture that brought the money up to the price is the one that confirmed the booking.
     reached = b.status in ("confirmed", "completed") or b.cancel_reason == "cancellation_approved"
     captured = 0
+    opened: set[str] = set()
     for p in pays:
         amount = inr(p.amount_paise)
         raw = p.raw or {}
@@ -229,15 +230,17 @@ def _booking_entries(b: Any, pays: list[Any], asked: Any, review: Any) -> list[d
                 )
             )
         else:
-            out.append(
-                _entry(
-                    b.id,
-                    p.created_at,
-                    "system",
-                    "order.opened",
-                    f"Razorpay order {p.razorpay_order_id} opened · {amount}",
+            if p.razorpay_order_id not in opened:  # a retry on the same order adds a row
+                opened.add(p.razorpay_order_id)
+                out.append(
+                    _entry(
+                        b.id,
+                        p.created_at,
+                        "system",
+                        "order.opened",
+                        f"Razorpay order {p.razorpay_order_id} opened · {amount}",
+                    )
                 )
-            )
             if p.status == "failed":
                 out.append(
                     _entry(

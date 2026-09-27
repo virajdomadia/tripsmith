@@ -196,15 +196,16 @@ async def _undo_hold(
     try:
         await _lock_contact(db, contact.email, contact.phone)
         await lock_booking(db, booking.ref)  # departure first, as everywhere else
-        await db.execute(
+        undone = await db.execute(
             update(Booking)
             .where(Booking.id == booking.id, Booking.status == BookingStatus.PENDING)
             .values(hold_expires_at=func.now(), updated_at=func.now())
+            .returning(Booking.id)
             .execution_options(synchronize_session=False)
         )
-        history.record(
+        history.record_each(
             db,
-            booking.id,
+            undone.scalars(),
             "hold.undone",
             actor=BookingActor.SYSTEM,
             text="Razorpay couldn't open a payment order — the hold ended at once",

@@ -26,7 +26,9 @@ describe('scrubEvent', () => {
   });
 
   it('leaves an event with no request alone', () => {
-    expect(scrubEvent({ type: 'transaction', request: undefined })).toEqual({ type: 'transaction' });
+    expect(scrubEvent({ type: 'transaction', request: undefined })).toEqual({
+      type: 'transaction',
+    });
   });
 });
 

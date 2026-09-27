@@ -11,6 +11,7 @@ owner's wording and, when the customer may see it, the customer's (`customer`): 
 their asks yes; Razorpay ids, offline references, refund flags, owner emails and moderation no.
 """
 
+import contextlib
 import datetime as dt
 import logging
 from collections.abc import Iterable
@@ -146,7 +147,7 @@ class EmailLine:
 
     role: str  # "customer" | "owner"
     subject: str
-    outcome: Literal["sent", "held", "skipped", "failed"]
+    outcome: Literal["sent", "held", "skipped", "off", "failed"]
 
 
 def _email_entry(line: EmailLine) -> tuple[str, str, str | None]:
@@ -155,12 +156,15 @@ def _email_entry(line: EmailLine) -> tuple[str, str, str | None]:
     subject = f"“{line.subject}”"
     if line.outcome == "failed":
         return "email.failed", f"Email to {who} failed: {subject}", None
+    if line.outcome == "off":
+        return "email.failed", f"Email to {who} not sent — email delivery is off: {subject}", None
     if line.outcome == "skipped":
-        return "email.held", f"Email to the customer not sent (demo address): {subject}", None
+        return "email.held", f"Email to the customer held back (demo or test mode): {subject}", None
     if line.outcome == "held":
         return (
             "email.held",
-            f"Email to the customer held back (demo address) — the owner got the copy: {subject}",
+            f"Email to the customer held back (demo or test mode) — the owner got the copy: "
+            f"{subject}",
             None,
         )
     customer = f"We emailed you: {subject}" if line.role == "customer" else None
@@ -184,7 +188,8 @@ async def record_emails(db: AsyncSession, ref: str, lines: list[EmailLine]) -> N
             record(db, booking_id, kind, actor=BookingActor.SYSTEM, text=text, customer=customer)
         await db.commit()
     except Exception as exc:
-        await db.rollback()
+        with contextlib.suppress(Exception):
+            await db.rollback()
         log.exception("Could not log the emails for booking %s", ref)
         sentry_sdk.capture_exception(exc)
 
