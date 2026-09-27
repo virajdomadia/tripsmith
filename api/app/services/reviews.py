@@ -21,7 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
-from app.models import Booking, Departure, Package, Review, User
+from app.models import Booking, Departure, Package, PackageImage, Review, User
 from app.models.enums import BookingActor, BookingStatus, PackageStatus
 from app.schemas.reviews import (
     ADMIN_PAGE_SIZE,
@@ -35,8 +35,11 @@ from app.schemas.reviews import (
     ReviewCounts,
     ReviewInput,
     ReviewState,
+    ReviewStats,
 )
 from app.services.account import account_review, owned_by
+from app.services.admin_enquiries import ist_day_start
+from app.services.analytics import ist_today
 from app.services.booking import history
 from app.services.catalog.admin_packages import revalidate_tags
 from app.services.format import short_name as public_name
@@ -190,16 +193,20 @@ async def count_pending(db: AsyncSession) -> int:
     ).scalar_one()
 
 
-def _admin_query():  # noqa: ANN202 — a Select of four columns
+def _admin_query():  # noqa: ANN202 — a Select of five columns
+    cover = PackageImage.__table__.alias("cover")
     return (
-        select(Review, Booking, Package.name, Package.slug, Departure.date)
+        select(Review, Booking, Package, Departure.date, cover.c.url)
         .join(Booking, Booking.id == Review.booking_id)
         .join(Package, Package.id == Review.package_id)
         .join(Departure, Departure.id == Booking.departure_id)
+        .outerjoin(cover, cover.c.id == Package.cover_image_id)
     )
 
 
-def _admin_out(r: Review, b: Booking, name: str, slug: str, departs: dt.date) -> AdminReview:
+def _admin_out(
+    r: Review, b: Booking, pkg: Package, departs: dt.date, cover_url: str | None
+) -> AdminReview:
     return AdminReview(
         id=r.id,
         rating=r.rating,
@@ -208,18 +215,62 @@ def _admin_out(r: Review, b: Booking, name: str, slug: str, departs: dt.date) ->
         name=b.contact_name,
         email=b.contact_email,
         booking_ref=b.ref,
-        package_name=name,
-        package_slug=slug,
+        package_name=pkg.name,
+        package_slug=pkg.slug,
         travelled=departs,
         created_at=r.created_at,
         moderated_at=r.moderated_at,
+        package_cover_url=cover_url,
+        package_rating=rating_out(pkg.rating_avg, pkg.rating_count),
+    )
+
+
+def _month_start(day: dt.date, back: int = 0) -> dt.date:
+    """The first of `day`'s month, `back` months earlier."""
+    y, m = divmod(day.year * 12 + day.month - 1 - back, 12)
+    return dt.date(y, m + 1, 1)
+
+
+async def review_stats(db: AsyncSession, *, now: dt.datetime | None = None) -> ReviewStats:
+    """The KPI strip: one query, read-only."""
+    today = ist_today(now)
+    this_month = ist_day_start(_month_start(today))
+    last_month = ist_day_start(_month_start(today, 1))
+    oldest, avg, packages, this, last = (
+        await db.execute(
+            select(
+                func.min(Review.created_at).filter(in_state(ReviewState.PENDING)),
+                func.avg(Review.rating).filter(PUBLISHED),
+                func.count(func.distinct(Review.package_id)).filter(PUBLISHED),
+                func.count().filter(PUBLISHED, Review.moderated_at >= this_month),
+                func.count().filter(
+                    PUBLISHED,
+                    Review.moderated_at >= last_month,
+                    Review.moderated_at < this_month,
+                ),
+            )
+        )
+    ).one()
+    return ReviewStats(
+        oldest_pending_at=oldest,
+        published_avg=float(Decimal(avg).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+        if avg is not None
+        else None,
+        published_packages=packages,
+        published_this_month=this,
+        published_last_month=last,
     )
 
 
 async def list_reviews(
-    db: AsyncSession, state: ReviewState, *, page: int = 1, size: int = ADMIN_PAGE_SIZE
+    db: AsyncSession,
+    state: ReviewState,
+    *,
+    page: int = 1,
+    size: int = ADMIN_PAGE_SIZE,
+    now: dt.datetime | None = None,
 ) -> AdminReviewList:
-    """One tab of the moderation queue, newest first."""
+    """One tab of the moderation queue, newest first, with the page's KPI strip."""
     counts = await review_counts(db)
     total = getattr(counts, state.value)
     rows = await db.execute(
@@ -232,6 +283,7 @@ async def list_reviews(
     return AdminReviewList(
         items=[_admin_out(*row) for row in rows],
         counts=counts,
+        stats=await review_stats(db, now=now),
         state=state,
         page=page,
         page_size=size,

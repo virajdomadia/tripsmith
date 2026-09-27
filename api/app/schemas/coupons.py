@@ -20,6 +20,9 @@ from app.schemas.catalog import PRICE_MAX_PAISE
 CODE_RE = re.compile(r"^[A-Z0-9-]{3,20}$")
 CODE_MESSAGE = "3–20 letters, digits or dashes"
 USE_LIMIT_MAX = 1_000_000
+WEEKS = 8  # the ticket's sparkline
+TOP_TRIPS = 5
+LATEST_USES = 6
 
 
 def whole_rupees(v: int | None) -> int | None:
@@ -106,7 +109,40 @@ class AdminCoupon(ApiModel):
         "and it cannot be deleted"
     )
     created_at: dt.datetime
+    given_paise: int = Field(description="The coupon's discount summed over its uses")
+    booked_paise: int = Field(description="Those bookings' totals, after the discount")
+    weekly: list[int] = Field(
+        description=f"Uses per IST week (Monday–Sunday), the last {WEEKS} weeks, this week last"
+    )
 
 
 class AdminCouponList(ApiModel):
     items: list[AdminCoupon]
+
+
+class CouponTrip(ApiModel):
+    package_id: str
+    name: str
+    cover_url: str | None
+    uses: int
+
+
+class CouponUse(ApiModel):
+    """A use (money captured) or a live hold, newest first."""
+
+    at: dt.datetime = Field(description="When the booking was made")
+    ref: str
+    name: str
+    email: str
+    package_name: str
+    travellers: int
+    off_paise: int
+    holding: bool = Field(description="A checkout holding a use now, not yet paid")
+
+
+class CouponResults(ApiModel):
+    """`GET /admin/coupons/{id}/results` (R59, P20 · Coupons B): what the code did."""
+
+    trips: list[CouponTrip] = Field(description=f"Most uses first, at most {TOP_TRIPS}")
+    other_trip_uses: int = Field(description="Uses on the trips past the list")
+    latest: list[CouponUse] = Field(description=f"At most {LATEST_USES}")

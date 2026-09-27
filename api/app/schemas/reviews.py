@@ -98,6 +98,21 @@ class AdminReview(ApiModel):
     travelled: dt.date
     created_at: dt.datetime
     moderated_at: dt.datetime | None
+    package_cover_url: str | None = Field(description="The package's cover photo, for the queue")
+    package_rating: RatingOut | None = Field(
+        description="The package's published rating now (the cached aggregate)"
+    )
+
+
+class ReviewStats(ApiModel):
+    """The Reviews page's KPI strip (R59, P20 · Reviews A). Months are IST calendar months, and a
+    review counts in the month it was last moved to Published."""
+
+    oldest_pending_at: dt.datetime | None = Field(description="When the oldest waiting review came")
+    published_avg: float | None = Field(description="Every published review's mean, one decimal")
+    published_packages: int = Field(description="How many trips have a published review")
+    published_this_month: int
+    published_last_month: int
 
 
 class ReviewCounts(ApiModel):
@@ -109,6 +124,7 @@ class ReviewCounts(ApiModel):
 class AdminReviewList(ApiModel):
     items: list[AdminReview]
     counts: ReviewCounts
+    stats: ReviewStats
     state: ReviewState
     page: int
     page_size: int
