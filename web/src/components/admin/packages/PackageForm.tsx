@@ -356,7 +356,7 @@ export function PackageForm(props: Props) {
     photos: pkg
       ? `${pkg.images.length} ${pkg.images.length === 1 ? 'photo' : 'photos'}`
       : 'After the first save',
-    title: `${destination} · ${values.nights || '…'} nights · Ex-${values.departureCity || '…'}${values.featured ? ' · Featured' : ''}`,
+    title: `${destination} · ${values.nights || '…'} nights · ${values.departureCity || '…'}${values.featured ? ' · Featured' : ''}`,
     highlights: `${values.highlights?.filter((l) => l?.trim()).length ?? 0} lines`,
     itinerary: `${days} ${days === 1 ? 'day' : 'days'} written`,
     prices: `${dates} ${dates === 1 ? 'date' : 'dates'}`,

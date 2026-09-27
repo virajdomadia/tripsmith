@@ -1,6 +1,9 @@
 import { dealNotice } from '@/components/admin/packages/DealPanel';
 import type { components } from '@/lib/api-types';
+import { daysBetween } from '@/lib/account';
 import { shortDate } from '@/lib/format';
+
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
 /** Packages B · Photo catalogue (R59, P20): pure helpers over `GET /admin/packages`. */
 export type AdminPackageRow = components['schemas']['AdminPackageRow'];
@@ -10,13 +13,15 @@ export type Health = { tone: HealthTone; word: string; why: string; action: stri
 
 /** Seats left on the next date at or under this read as "Almost full". */
 export const ALMOST_FULL = 2;
+/** An empty next date is worth a look only this close: further out, it is just early. */
+export const EMPTY_SOON_DAYS = 30;
 
 /**
  * One word for how a package is doing, decided in order: can't go (or stay) live, a deal the
  * customer can't see, a next date nearly sold out, a next date nobody has booked, else healthy.
  * `action` is the one verb on the "Needs a look" row; every one opens the editor.
  */
-export function health(p: AdminPackageRow): Health {
+export function health(p: AdminPackageRow, on: string = today()): Health {
   const failing = p.publishRules.filter((r) => !r.ok);
   if (failing.length) {
     const why = failing.map((r) => r.detail.toLowerCase()).join(', ');
@@ -49,7 +54,7 @@ export function health(p: AdminPackageRow): Health {
       action: 'Add seats',
     };
   }
-  if (next && next.taken === 0) {
+  if (next && next.taken === 0 && daysBetween(on, next.date) <= EMPTY_SOON_DAYS) {
     return {
       tone: 'info',
       word: 'No bookings yet',

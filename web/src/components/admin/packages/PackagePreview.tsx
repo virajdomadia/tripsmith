@@ -155,7 +155,7 @@ export function PackagePreview({
         <small className="text-[11px] text-mute">{destination} / Packages</small>
         <h2 className="text-[20px] leading-tight font-extrabold tracking-tight">{name}</h2>
         <p className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-mute">
-          {nights} {nights === 1 ? 'night' : 'nights'} · {nights + 1} days · Ex-
+          {nights} {nights === 1 ? 'night' : 'nights'} · {nights + 1} days ·{' '}
           {v.departureCity || '…'}
         </p>
         <p className="text-[12.5px] text-ink2">{v.summary}</p>

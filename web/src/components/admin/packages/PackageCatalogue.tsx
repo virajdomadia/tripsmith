@@ -135,8 +135,9 @@ function Card({ p }: { p: AdminPackageRow }) {
             )}
           </div>
           <div className="grid min-w-0 content-start gap-0.5">
-            <dt className="font-bold text-mute">Enquiries · 30 d</dt>
+            <dt className="font-bold text-mute">Enquiries</dt>
             <dd className="num text-[18px] leading-tight font-extrabold">{p.recentEnquiryCount}</dd>
+            <dd className="text-ink2">in 30 days</dd>
           </div>
         </dl>
         {h.why && (

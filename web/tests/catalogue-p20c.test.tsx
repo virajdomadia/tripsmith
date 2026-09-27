@@ -80,8 +80,16 @@ describe('package health', () => {
       why: '18 Dec: 1 seat left of 4. Add seats or open another date.',
     });
     expect(
-      health(row({ featured: false, nextDeparture: { date: '2026-12-18', seats: 12, taken: 0 } })),
+      health(
+        row({ featured: false, nextDeparture: { date: '2026-12-18', seats: 12, taken: 0 } }),
+        '2026-12-01',
+      ),
     ).toMatchObject({ word: 'No bookings yet', action: 'Feature it' });
+    // Months away, an empty date is just early.
+    expect(
+      health(row({ nextDeparture: { date: '2027-06-12', seats: 12, taken: 0 } }), '2026-12-01')
+        .word,
+    ).toBe('Healthy');
     expect(needsLook(row())).toBe(false);
   });
 
