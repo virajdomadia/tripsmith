@@ -602,8 +602,8 @@
   .bns .po { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; text-align: left; width: 100%; border: 1.5px solid var(--line); background: #fff; border-radius: 12px; padding: 12px; cursor: pointer; font: inherit; color: inherit; transition: border-color .2s, background .2s; }
   .bns .po:hover { border-color: var(--ink); }
   .bns .po[aria-checked="true"] { border-color: var(--pri); background: var(--pri-soft); box-shadow: inset 0 0 0 1px var(--pri); }
-  .bns .po .rd { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #8C99A6; background: #fff; transition: border-width .2s; }
-  .bns .po[aria-checked="true"] .rd { border: 6px solid var(--pri); }
+  .bns .po .rd { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #8C99A6; background: #fff; transition: border-color .2s, box-shadow .2s; }
+  .bns .po[aria-checked="true"] .rd { border-color: var(--pri); box-shadow: inset 0 0 0 4px var(--pri); }
   .bns .po b { font-size: 15px; }
   .bns .po .amt { text-align: right; font-size: 15px; }
   .bns .po small { grid-column: 2 / -1; font-size: 12.5px; color: var(--ink2); font-weight: 500; line-height: 1.45; }

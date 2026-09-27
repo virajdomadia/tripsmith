@@ -763,7 +763,7 @@
   /* ================= styles ================= */
   const css = `
   .rpt { --c1: #1B4FD8; --c2: #C98314; --rg: #EBEEF2; --rbase: #C9D1D9; --rband: #EEF3FF; --rhov: rgba(20,32,42,.05); --rtrack: #EDF0F3;
-    display: grid; gap: 18px; min-width: 0; color: var(--ink); border-radius: var(--a-r); transition: background .3s, padding .3s; }
+    display: grid; gap: 18px; min-width: 0; color: var(--ink); border-radius: var(--a-r); transition: background .3s; }
   .rpt.dark { --a-surf: #141D26; --a-line: #26323D; --bg2: #18222C; --ink: #E6EBF0; --ink2: #C3CCD5; --mute: #98A6B3; --a-th: #98A6B3;
     --pri: #5B84F5; --pri-ink: #B9CBFF; --pri-soft: #1B2A4A; --ok: #5CC08A; --ok-soft: #16301F; --warn: #F0A064; --warn-soft: #3A2616;
     --c1: #5B84F5; --c2: #C0801A; --rg: #202C36; --rbase: #3A4854; --rband: #182439; --rhov: rgba(255,255,255,.05); --rtrack: #22303B;
@@ -883,7 +883,7 @@
   .rpt .rb-say { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--ink2); }
 
   /* C · Monthly review */
-  .rpt .rv-lead { display: grid; gap: 12px; padding: 22px 24px; border-radius: var(--a-r); background: var(--a-surf); border: 1px solid var(--a-line); border-left: 4px solid var(--act); }
+  .rpt .rv-lead { display: grid; gap: 12px; padding: 22px 24px; border-radius: var(--a-r); background: var(--a-surf); border: 1px solid color-mix(in srgb, var(--act) 45%, var(--a-line)); background: color-mix(in srgb, var(--act) 7%, var(--a-surf)); }
   .rpt .rv-h { font-size: 24px; font-weight: 800; letter-spacing: -.03em; line-height: 1.25; max-width: 44ch; text-wrap: balance; }
   .rpt .rfacts.big { margin: 4px 0 0; } .rpt .rfacts.big dd { font-size: 22px; }
   .rpt .rv { display: grid; grid-template-columns: minmax(240px, 330px) minmax(0, 1fr); gap: 24px; align-items: start; scroll-margin-top: 70px; padding-top: 18px; border-top: 1px solid var(--a-line); }
@@ -923,7 +923,6 @@
   .rpt .rd-down { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; align-items: start; }
   .rpt .rd-c.wide { grid-column: 1 / -1; }
   .rpt .rd-say { font-size: 15px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; margin-bottom: 12px; text-wrap: balance; }
-  .rpt .rd-c { border-top: 3px solid color-mix(in srgb, var(--c1) 30%, var(--a-line)); }
 
   /* E · Question explorer */
   .rpt .re { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; align-items: start; }

@@ -584,7 +584,7 @@
   .mtp .pay .payhd small { color: var(--mute); font-size: 12.5px; font-weight: 600; display: block; margin-top: 4px; }
   .mtp .pay .payhd small b { color: var(--ink); }
   .mtp .meter { height: 8px; background: var(--bg2); border-radius: 999px; overflow: hidden; }
-  .mtp .meter i { display: block; height: 100%; width: var(--v); background: linear-gradient(90deg, var(--pri), #4B77EA); border-radius: inherit; transition: width .6s var(--ease); }
+  .mtp .meter i { display: block; height: 100%; width: var(--v); background: linear-gradient(90deg, var(--pri), #4B77EA); border-radius: inherit; }
   .mtp .pay.done .meter i { background: var(--ok); }
   .mtp .pay .okc { width: 44px; height: 44px; border-radius: 14px; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center; }
   .mtp .amtrow { display: grid; gap: 8px; }
@@ -774,7 +774,7 @@
   .mtp.vC .rs-l { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 11px; font-weight: 700; color: var(--mute); line-height: 1.25; }
   .mtp.vC .rs-l .done { color: var(--ok); } .mtp.vC .rs-l .part { color: var(--warn); }
   .mtp.vC .ctabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1.5px solid var(--line); overflow-x: auto; scrollbar-width: none; }
-  .mtp.vC .ctabs button { border: 0; background: none; font: 700 14.5px "DM Sans", sans-serif; color: var(--mute); padding: 12px 14px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1.5px; white-space: nowrap; border-radius: 8px 8px 0 0; }
+  .mtp.vC .ctabs button { border: 0; background: none; font: 700 14.5px "DM Sans", sans-serif; color: var(--mute); padding: 12px 14px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1.5px; white-space: nowrap; }
   .mtp.vC .ctabs button:hover { color: var(--ink); }
   .mtp.vC .ctabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--pri); }
   .mtp.vC .ctabs .ic { width: 14px; height: 14px; }

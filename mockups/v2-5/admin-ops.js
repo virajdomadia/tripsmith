@@ -191,7 +191,7 @@
   .ops-next .eyeb { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--warn); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ops-next.bad .eyeb { color: #B42318; } .ops-next.info .eyeb { color: var(--pri); }
   .ops-next h2 { font-size: 20px; letter-spacing: -.02em; margin: 0; }
-  .ops-next blockquote { margin: 0; border-left: 3px solid var(--a-line); padding: 2px 0 2px 12px; font-size: 14.5px; color: var(--ink2); }
+  .ops-next blockquote { margin: 0; background: var(--bg2); border-radius: 10px; padding: 8px 12px; font-size: 14.5px; color: var(--ink2); }
   .ops-next .policy { font-size: 13px; color: var(--ink2); }
   .ops-next .form { display: grid; gap: 12px; }
   .ops-next .form[hidden] { display: none; }
