@@ -48,8 +48,8 @@ export function ReviewQueue({
         return (
           <li key={r.id} className="border-t border-line first:border-0">
             <Link
+              // No `scroll={false}`: it would also cancel the #review jump a phone needs.
               href={`${hrefFor(r.id)}#review`}
-              scroll={false}
               aria-current={on ? 'true' : undefined}
               className={cn(
                 'grid grid-cols-[56px_minmax(0,1fr)] items-start gap-3 px-4 py-3 text-ink no-underline transition-colors hover:bg-primary-soft/40',

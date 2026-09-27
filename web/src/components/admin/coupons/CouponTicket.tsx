@@ -74,7 +74,8 @@ export function CouponTicket({ c, today, open }: { c: AdminCoupon; today: string
           >
             <Link
               href={open ? boardHref() : `${boardHref(c.id)}#did`}
-              scroll={false}
+              // Opening jumps to #did (under the ticket on a phone); closing stays put.
+              scroll={open ? false : undefined}
               aria-expanded={open}
               className="text-inherit no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none"
             >
