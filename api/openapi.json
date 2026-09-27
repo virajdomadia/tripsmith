@@ -620,6 +620,24 @@
             "title": "Refundneeded",
             "type": "boolean"
           },
+          "refundOfflinePaise": {
+            "description": "Offline payments' refunds waiting for 'Refund made (offline)'",
+            "title": "Refundofflinepaise",
+            "type": "integer"
+          },
+          "refundToSendPaise": {
+            "description": "What 'Send refund' would send now: owed and not yet sent, plus refunds that never reached Razorpay",
+            "title": "Refundtosendpaise",
+            "type": "integer"
+          },
+          "refunds": {
+            "description": "Every refund, oldest first (P13)",
+            "items": {
+              "$ref": "#/components/schemas/AdminRefund"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
           "returns": {
             "format": "date",
             "title": "Returns",
@@ -677,6 +695,9 @@
           "leadPhone",
           "leadEmail",
           "payments",
+          "refunds",
+          "refundToSendPaise",
+          "refundOfflinePaise",
           "history",
           "cancellation",
           "hasVoucher",
@@ -1845,6 +1866,12 @@
             "description": "What the owner typed when marking it paid",
             "title": "Reference"
           },
+          "refundablePaise": {
+            "default": 0,
+            "description": "What can still be refunded from it (P13's newest-first split)",
+            "title": "Refundablepaise",
+            "type": "integer"
+          },
           "refundedPaise": {
             "anyOf": [
               {
@@ -1854,7 +1881,7 @@
                 "type": "null"
               }
             ],
-            "description": "How much of it was given back, once refunded",
+            "description": "How much of it has gone back or is on its way (refunds not failed); null when none",
             "title": "Refundedpaise"
           },
           "status": {
@@ -1897,6 +1924,102 @@
           "updatedAt"
         ],
         "title": "AdminPayment",
+        "type": "object"
+      },
+      "AdminRefund": {
+        "description": "One refund of one payment (R51, P13).",
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "byHand": {
+            "description": "Made outside the API: an offline payment's, or pre-P13",
+            "title": "Byhand",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last try did not go through",
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "paymentId": {
+            "title": "Paymentid",
+            "type": "string"
+          },
+          "processedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processedat"
+          },
+          "razorpayRefundId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Razorpayrefundid"
+          },
+          "reason": {
+            "description": "cancellation | seats_gone | surplus | owner (later: date_change, balance)",
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RefundStatus"
+          }
+        },
+        "required": [
+          "id",
+          "paymentId",
+          "amountPaise",
+          "status",
+          "reason",
+          "byHand",
+          "razorpayRefundId",
+          "error",
+          "note",
+          "createdAt",
+          "processedAt"
+        ],
+        "title": "AdminRefund",
         "type": "object"
       },
       "AdminReview": {
@@ -4934,7 +5057,7 @@
             "type": "integer"
           },
           "owePaise": {
-            "description": "Refunds still to record — only ever on today",
+            "description": "Refunds still to send — only ever on today",
             "title": "Owepaise",
             "type": "integer"
           }
@@ -5094,7 +5217,7 @@
             "type": "integer"
           },
           "kind": {
-            "description": "`in` collected · `out` refund recorded · `owe` to record",
+            "description": "`in` collected · `out` refund started · `owe` to send",
             "enum": [
               "in",
               "out",
@@ -5131,13 +5254,25 @@
       "MoneyOwed": {
         "properties": {
           "amountPaise": {
-            "description": "What 'Refund made' would give back now",
+            "description": "What 'Send refund' would send now, plus offline refunds to hand back",
             "title": "Amountpaise",
             "type": "integer"
           },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "offline": {
+            "default": false,
+            "description": "Only an offline refund is waiting: the action is 'Refund made (offline)'",
+            "title": "Offline",
+            "type": "boolean"
+          },
+          "offlinePaise": {
+            "default": 0,
+            "description": "The offline share of `amount_paise`",
+            "title": "Offlinepaise",
+            "type": "integer"
           },
           "ref": {
             "title": "Ref",
@@ -5919,13 +6054,14 @@
         "type": "string"
       },
       "PaymentResult": {
-        "description": "Where the booking stands once the payment is recorded. A late capture that found no\nseats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.",
+        "description": "Where the booking stands once the payment is recorded. A late capture that found no\nseats is `cancelled` with `refundNeeded` — the payment is kept and refunded through Razorpay\non its own (P13).",
         "properties": {
           "bookingRef": {
             "title": "Bookingref",
             "type": "string"
           },
           "refundNeeded": {
+            "description": "Money is going back to the customer: owed, on its way, or already refunded",
             "title": "Refundneeded",
             "type": "boolean"
           },
@@ -6389,6 +6525,16 @@
         },
         "title": "RefundMadeInput",
         "type": "object"
+      },
+      "RefundStatus": {
+        "description": "A refund's state (R51, P13): written `requested` before the API call; Razorpay's answer\nor its webhook moves it on. A by-hand refund is `requested` until the owner records it.",
+        "enum": [
+          "requested",
+          "processed",
+          "failed"
+        ],
+        "title": "RefundStatus",
+        "type": "string"
       },
       "RelatedBooking": {
         "description": "A2's \"Same customer · past trips\": bookings with this enquiry's email or phone.",
@@ -7682,8 +7828,62 @@
         ]
       }
     },
+    "/admin/bookings/{ref}/refund": {
+      "post": {
+        "description": "\"Send refund\" (P13): refund through Razorpay whatever is owed now, and resend anything\nthat never reached Razorpay (same idempotency key). 409 `no_refund` when there is nothing\nto send. The answer shows where each refund stands.",
+        "operationId": "sendBookingRefund",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundMadeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Send Refund Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/bookings/{ref}/refund-made": {
       "post": {
+        "description": "\"Refund made (offline)\": the owner handed back an offline payment's share. 409\n`no_refund` when no offline refund is waiting.",
         "operationId": "recordBookingRefund",
         "parameters": [
           {
@@ -7778,7 +7978,7 @@
     },
     "/admin/cancellations/{id}/resolve": {
       "post": {
-        "description": "Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject\n(the booking stands). The customer is emailed either way. 409 `resolved` when already\nanswered, `not_active` when approving a booking that no longer holds its seats.",
+        "description": "Approve (the booking is cancelled, its seats freed, the agreed refund sent) or reject\n(the booking stands). The customer is emailed either way. 409 `resolved` when already\nanswered, `not_active` when approving a booking that no longer holds its seats.",
         "operationId": "resolveCancellation",
         "parameters": [
           {

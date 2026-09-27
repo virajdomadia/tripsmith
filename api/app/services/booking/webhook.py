@@ -8,6 +8,10 @@ the raw body before anything here runs.
 - `payment.captured` → the capture path; the whole event is kept on the payment row.
 - `payment.failed` → the attempt is recorded as `failed`; the booking stays pending until its
   hold lapses, so the visitor can pay again from the same Checkout.
+- `refund.processed` / `refund.failed` (P13) → the refund row moves on from `requested`, found by
+  its Razorpay id or, when the call's answer was lost, by the `refund_id` note we sent. A failed
+  refund's money goes back onto the booking, so the desk offers "Send refund" again. A refund
+  made by hand in the Razorpay dashboard is not ours and is ignored.
 - anything else, or an order that is not one of ours (the dev api creates orders with the same
   test keys, but the webhook is registered on production only) → ignored, still a 200, so
   Razorpay does not retry it for a day.
@@ -16,11 +20,11 @@ the raw body before anything here runs.
 import logging
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Booking, Payment
-from app.models.enums import BookingActor, PaymentProvider, PaymentStatus
+from app.models import Booking, Payment, Refund
+from app.models.enums import BookingActor, PaymentProvider, PaymentStatus, RefundStatus
 from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.payments import (
@@ -28,8 +32,10 @@ from app.services.booking.payments import (
     capture_razorpay_payment,
     lock_booking,
 )
+from app.services.booking.refunds import apply_refund, failure_reason
 
-Outcome = Literal["captured", "replayed", "failed", "ignored"]
+Outcome = Literal["captured", "replayed", "failed", "refund", "ignored"]
+REFUND_EVENTS = {"refund.processed": RefundStatus.PROCESSED, "refund.failed": RefundStatus.FAILED}
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +59,8 @@ async def handle_razorpay_event(
     db: AsyncSession, event: dict[str, Any], notify: Notify | None = None
 ) -> Outcome:
     kind = event.get("event")
+    if kind in REFUND_EVENTS:
+        return await _refund_event(db, event, REFUND_EVENTS[kind])
     if kind not in ("payment.captured", "payment.failed"):
         return "ignored"
     ids = _payment_entity(event)
@@ -94,6 +102,42 @@ async def handle_razorpay_event(
         db, ref, capture, package_id=package_id, after=f"webhook payment on {ref}", notify=notify
     )
     return "captured"
+
+
+async def _refund_event(db: AsyncSession, event: dict[str, Any], status: RefundStatus) -> Outcome:
+    payload = event.get("payload")
+    holder = payload.get("refund") if isinstance(payload, dict) else None
+    entity = holder.get("entity") if isinstance(holder, dict) else None
+    if not isinstance(entity, dict):
+        log.warning("Razorpay %s without a refund entity — ignored", event.get("event"))
+        return "ignored"
+    rzp_id = entity.get("id") if isinstance(entity.get("id"), str) else None
+    notes = entity.get("notes")
+    ours = notes.get("refund_id") if isinstance(notes, dict) else None
+    conds = []
+    if rzp_id:
+        conds.append(Refund.razorpay_refund_id == rzp_id)
+    if isinstance(ours, str) and ours:
+        conds.append(Refund.id == ours)
+    refund_id = (
+        (await db.execute(select(Refund.id).where(or_(*conds)).limit(1))).scalar_one_or_none()
+        if conds
+        else None
+    )
+    await db.rollback()
+    if refund_id is None:
+        log.info("Razorpay refund %s is not one of ours — ignored", rzp_id)
+        return "ignored"
+    changed = await apply_refund(
+        db,
+        refund_id,
+        status=status,
+        actor=BookingActor.WEBHOOK,
+        razorpay_refund_id=rzp_id,
+        raw=event,
+        error=failure_reason(entity, failed=status == RefundStatus.FAILED),
+    )
+    return "refund" if changed else "replayed"
 
 
 async def record_failed_payment(

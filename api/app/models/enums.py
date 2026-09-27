@@ -80,6 +80,15 @@ class PaymentStatus(StrEnum):
     REFUNDED = "refunded"
 
 
+class RefundStatus(StrEnum):
+    """A refund's state (R51, P13): written `requested` before the API call; Razorpay's answer
+    or its webhook moves it on. A by-hand refund is `requested` until the owner records it."""
+
+    REQUESTED = "requested"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
 class CancellationStatus(StrEnum):
     REQUESTED = "requested"
     APPROVED = "approved"

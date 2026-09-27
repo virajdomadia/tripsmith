@@ -169,6 +169,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Refund Route
+         * @description "Send refund" (P13): refund through Razorpay whatever is owed now, and resend anything
+         *     that never reached Razorpay (same idempotency key). 409 `no_refund` when there is nothing
+         *     to send. The answer shows where each refund stands.
+         */
+        post: operations["sendBookingRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings/{ref}/refund-made": {
         parameters: {
             query?: never;
@@ -178,7 +200,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refund Route */
+        /**
+         * Refund Route
+         * @description "Refund made (offline)": the owner handed back an offline payment's share. 409
+         *     `no_refund` when no offline refund is waiting.
+         */
         post: operations["recordBookingRefund"];
         delete?: never;
         options?: never;
@@ -214,7 +240,7 @@ export interface paths {
         put?: never;
         /**
          * Resolve Route
-         * @description Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject
+         * @description Approve (the booking is cancelled, its seats freed, the agreed refund sent) or reject
          *     (the booking stands). The customer is emailed either way. 409 `resolved` when already
          *     answered, `not_active` when approving a booking that no longer holds its seats.
          */
@@ -1413,6 +1439,21 @@ export interface components {
             /** Refundneeded */
             refundNeeded: boolean;
             /**
+             * Refundofflinepaise
+             * @description Offline payments' refunds waiting for 'Refund made (offline)'
+             */
+            refundOfflinePaise: number;
+            /**
+             * Refundtosendpaise
+             * @description What 'Send refund' would send now: owed and not yet sent, plus refunds that never reached Razorpay
+             */
+            refundToSendPaise: number;
+            /**
+             * Refunds
+             * @description Every refund, oldest first (P13)
+             */
+            refunds: components["schemas"]["AdminRefund"][];
+            /**
              * Returns
              * Format: date
              */
@@ -1905,8 +1946,14 @@ export interface components {
              */
             reference: string | null;
             /**
+             * Refundablepaise
+             * @description What can still be refunded from it (P13's newest-first split)
+             * @default 0
+             */
+            refundablePaise: number;
+            /**
              * Refundedpaise
-             * @description How much of it was given back, once refunded
+             * @description How much of it has gone back or is on its way (refunds not failed); null when none
              */
             refundedPaise?: number | null;
             status: components["schemas"]["PaymentStatus"];
@@ -1920,6 +1967,45 @@ export interface components {
              * @description How the capture reached us; null while the order is still open
              */
             via: ("checkout" | "sync" | "webhook" | "desk") | null;
+        };
+        /**
+         * AdminRefund
+         * @description One refund of one payment (R51, P13).
+         */
+        AdminRefund: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * Byhand
+             * @description Made outside the API: an offline payment's, or pre-P13
+             */
+            byHand: boolean;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Error
+             * @description Why the last try did not go through
+             */
+            error: string | null;
+            /** Id */
+            id: string;
+            /** Note */
+            note: string | null;
+            /** Paymentid */
+            paymentId: string;
+            /** Processedat */
+            processedAt: string | null;
+            /** Razorpayrefundid */
+            razorpayRefundId: string | null;
+            /**
+             * Reason
+             * @description cancellation | seats_gone | surplus | owner (later: date_change, balance)
+             */
+            reason: string;
+            status: components["schemas"]["RefundStatus"];
         };
         /** AdminReview */
         AdminReview: {
@@ -3313,7 +3399,7 @@ export interface components {
             outPaise: number;
             /**
              * Owepaise
-             * @description Refunds still to record — only ever on today
+             * @description Refunds still to send — only ever on today
              */
             owePaise: number;
         };
@@ -3403,7 +3489,7 @@ export interface components {
             amountPaise: number;
             /**
              * Kind
-             * @description `in` collected · `out` refund recorded · `owe` to record
+             * @description `in` collected · `out` refund started · `owe` to send
              * @enum {string}
              */
             kind: "in" | "out" | "owe";
@@ -3424,11 +3510,23 @@ export interface components {
         MoneyOwed: {
             /**
              * Amountpaise
-             * @description What 'Refund made' would give back now
+             * @description What 'Send refund' would send now, plus offline refunds to hand back
              */
             amountPaise: number;
             /** Name */
             name: string;
+            /**
+             * Offline
+             * @description Only an offline refund is waiting: the action is 'Refund made (offline)'
+             * @default false
+             */
+            offline: boolean;
+            /**
+             * Offlinepaise
+             * @description The offline share of `amount_paise`
+             * @default 0
+             */
+            offlinePaise: number;
             /** Ref */
             ref: string;
             /** Why */
@@ -3749,12 +3847,16 @@ export interface components {
         /**
          * PaymentResult
          * @description Where the booking stands once the payment is recorded. A late capture that found no
-         *     seats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand.
+         *     seats is `cancelled` with `refundNeeded` — the payment is kept and refunded through Razorpay
+         *     on its own (P13).
          */
         PaymentResult: {
             /** Bookingref */
             bookingRef: string;
-            /** Refundneeded */
+            /**
+             * Refundneeded
+             * @description Money is going back to the customer: owed, on its way, or already refunded
+             */
             refundNeeded: boolean;
             status: components["schemas"]["BookingStatus"];
             /**
@@ -3963,6 +4065,13 @@ export interface components {
              */
             note?: string | null;
         };
+        /**
+         * RefundStatus
+         * @description A refund's state (R51, P13): written `requested` before the API call; Razorpay's answer
+         *     or its webhook moves it on. A by-hand refund is `requested` until the owner records it.
+         * @enum {string}
+         */
+        RefundStatus: "requested" | "processed" | "failed";
         /**
          * RelatedBooking
          * @description A2's "Same customer · past trips": bookings with this enquiry's email or phone.
@@ -4554,6 +4663,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MarkPaidInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    sendBookingRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundMadeInput"];
             };
         };
         responses: {

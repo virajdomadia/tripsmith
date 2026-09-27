@@ -242,7 +242,7 @@ async def test_a_failed_attempt_keeps_the_booking_pending_until_a_retry_pays(
 
 
 @pytest.mark.db
-async def test_a_late_capture_by_webhook_with_no_seats_cancels_for_a_refund(
+async def test_a_late_capture_by_webhook_with_no_seats_cancels_and_refunds(
     db: AsyncSession,
     db_app: FastAPI,
     db_client: AsyncClient,
@@ -267,13 +267,18 @@ async def test_a_late_capture_by_webhook_with_no_seats_cancels_for_a_refund(
     res = await deliver(db_client, body)
     assert res.status_code == 200 and res.json() == {"status": "captured"}
     late = await booking(db, first["bookingRef"])
-    assert (late.status, late.cancel_reason, late.refund_needed) == (
+    assert (late.status, late.cancel_reason, late.refund_needed, late.paid_paise) == (
         BookingStatus.CANCELLED,
         CancelReason.SEATS_GONE,
-        True,
+        False,  # P13: refunded through Razorpay on its own
+        0,
     )
+    assert len(rzp.refund_calls()) == 1
+    # A replayed capture refunds nothing more.
+    assert (await deliver(db_client, body)).json() == {"status": "replayed"}
+    assert len(rzp.refund_calls()) == 1
     [captured] = await payments(db, first["bookingRef"])
-    assert captured.status == PaymentStatus.CAPTURED  # the money is on record for the refund
+    assert captured.status == PaymentStatus.CAPTURED  # the money is on record; the refund too
     assert (await booking(db, second["bookingRef"])).status == BookingStatus.PENDING
     await db.rollback()
     assert await seats_left(db, dep_id) == 0

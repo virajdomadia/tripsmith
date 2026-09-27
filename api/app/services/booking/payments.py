@@ -11,10 +11,14 @@ with a guarded single-row UPDATE (§2). The hold decides what the money buys:
   tidies abandoned checkouts, so a payment that lands after it still gets its seats if they are
   free;
 - the booking is otherwise no longer pending (cancelled, or confirmed by an earlier payment) →
-  the payment is kept and flagged `refund_needed`: money with no seat behind it goes back by hand.
+  the payment is kept, and what the booking now owes back is refunded.
+
+Either refund is planned here, in the capture's transaction (P13: `refunds.plan_refund`), and
+sent to Razorpay after the commit (`on_new_capture` → `refunds.send_refunds`), so money with no
+seat behind it goes back on its own — once, however often the capture is replayed.
 
 Recording is idempotent on `razorpay_payment_id` (unique), so the Checkout callback, the webhook
-and any replay of either apply a payment once. Refunds are made in the Razorpay dashboard.
+and any replay of either apply a payment once.
 """
 
 import logging
@@ -25,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
-from app.models import Booking, BookingTraveller, Departure, Payment
+from app.models import Booking, BookingTraveller, Payment
 from app.models.catalog import departure_availability
 from app.models.enums import (
     BookingActor,
@@ -38,39 +42,16 @@ from app.schemas.bookings import PaymentCallback, PaymentResult
 from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.history import PaymentLog, money
+from app.services.booking.locking import NOT_FOUND, lock_booking
+from app.services.booking.refunds import plan_refund, refund_owed, refunding
 from app.services.booking.settled import Capture, Settled
 
-NOT_FOUND = "We could not find that booking"
 CaptureVia = Literal["checkout", "sync", "webhook"]
 # A payment in either state has been applied once; neither is ever applied or failed again.
 SETTLED_PAYMENT = (PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)
 NOT_VERIFIED = "We could not verify that payment — if money left your account, WhatsApp us"
 
 log = logging.getLogger(__name__)
-
-
-async def lock_booking(db: AsyncSession, ref: str) -> tuple[Booking, bool]:
-    """Lock the booking's departure, then the booking, and say whether its hold is still live.
-
-    The departure first — the order `create_booking_order` takes — so a capture and a new hold on
-    the same date serialise, and a seat re-check here sees every hold committed before it. The
-    hold is judged by the database clock, the one `departure_availability` compares against.
-    """
-    departure_id = (
-        await db.execute(select(Booking.departure_id).where(Booking.ref == ref))
-    ).scalar_one_or_none()
-    if departure_id is None:
-        raise ApiError("not_found", NOT_FOUND)
-    await db.execute(select(Departure.id).where(Departure.id == departure_id).with_for_update())
-    booking, live = (
-        await db.execute(
-            select(Booking, Booking.hold_expires_at > func.now())
-            .where(Booking.ref == ref)
-            .with_for_update(of=Booking)
-            .execution_options(populate_existing=True)
-        )
-    ).one()
-    return booking, bool(live)
 
 
 async def seats_short(db: AsyncSession, booking: Booking, *, hold_live: bool) -> int:
@@ -147,6 +128,14 @@ async def settle_capture(
     )
     await db.refresh(booking)
     _log_capture(db, booking, settled, entry, amount_paise=amount_paise, before=before)
+    if settled in (Settled.SEATS_GONE, Settled.NOT_PENDING):
+        await plan_refund(
+            db,
+            booking,
+            await refund_owed(db, booking),
+            reason="seats_gone" if settled == Settled.SEATS_GONE else "surplus",
+            actor=BookingActor.SYSTEM,
+        )
     return settled
 
 
@@ -183,8 +172,8 @@ def _log_capture(
             booking.id,
             "cancelled.seats_gone",
             actor=BookingActor.SYSTEM,
-            text="Cancelled — paid after the hold lapsed and the seats had gone · refund of "
-            f"{amount} needed",
+            text="Cancelled — paid after the hold lapsed and the seats had gone · refunding "
+            f"{amount} in full",
             customer="Your payment arrived after the hold ended and the seats had gone — the "
             f"booking is cancelled and {amount} will be refunded in full",
         )
@@ -194,7 +183,8 @@ def _log_capture(
             booking.id,
             "refund.flagged",
             actor=BookingActor.SYSTEM,
-            text=f"Money arrived on a {before['status']} booking — refund of {amount} needed",
+            text=f"Money arrived on a {before['status']} booking — refunding what it no longer "
+            "needs",
         )
 
 
@@ -290,7 +280,9 @@ async def confirm_payment(
             via="checkout",
         )
         result = PaymentResult(
-            booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
+            booking_ref=booking.ref,
+            status=booking.status,
+            refund_needed=await refunding(db, booking),
         )
         package_id = booking.package_id
         await db.commit()
@@ -326,7 +318,7 @@ async def sync_payment(
     if booking is None:
         raise ApiError("not_found", NOT_FOUND)
     result = PaymentResult(
-        booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
+        booking_ref=booking.ref, status=booking.status, refund_needed=await refunding(db, booking)
     )
     if not awaiting_payment(booking):
         return result
@@ -371,7 +363,9 @@ async def sync_payment(
             db, ref, order_id=order_id, payment_id=payment_id, via="sync", raw=raw
         )
         result = PaymentResult(
-            booking_ref=booking.ref, status=booking.status, refund_needed=booking.refund_needed
+            booking_ref=booking.ref,
+            status=booking.status,
+            refund_needed=await refunding(db, booking),
         )
         package_id = booking.package_id
         await db.commit()

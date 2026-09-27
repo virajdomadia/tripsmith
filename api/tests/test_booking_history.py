@@ -290,7 +290,7 @@ async def test_a_late_capture_with_no_seats_logs_the_cancellation_once(
 
 
 @pytest.mark.db
-async def test_money_on_a_released_booking_flags_a_refund_the_customer_does_not_see(
+async def test_money_on_a_released_booking_is_refunded_and_logged_once(
     db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     owner = await owner_cookie(db)
@@ -311,16 +311,19 @@ async def test_money_on_a_released_booking_flags_a_refund_the_customer_does_not_
     released = await one(db, ref, "hold.released")
     assert released.actor == BookingActor.OWNER and released.actor_user_id is not None
 
-    # Refund made: logged once; a second click is refused and logs nothing.
-    for expected in (200, 409):
-        res = await db_client.post(
-            f"/admin/bookings/{ref}/refund-made", json={"note": "rfnd_H1"}, headers=owner
-        )
-        assert res.status_code == expected
-    refund = await one(db, ref, "refund.recorded")
-    assert refund.text.endswith(" · rfnd_H1") and refund.customer_text
-    assert "rfnd_H1" not in refund.customer_text
-    assert refund.after == {"paidPaise": 0, "refundNeeded": False}
+    # P13: the refund goes out on its own — started and processed, each logged once, the
+    # customer told in their words without a Razorpay id; a second click finds nothing to send.
+    got = await kinds(db, ref)
+    assert (got["refund.requested"], got["refund.processed"]) == (1, 1)
+    started = await one(db, ref, "refund.requested")
+    assert started.actor == BookingActor.SYSTEM and started.customer_text
+    assert started.after == {"paidPaise": 0, "refundNeeded": True}
+    processed = await one(db, ref, "refund.processed")
+    assert "rfnd_" in processed.text and processed.customer_text
+    assert "rfnd_" not in processed.customer_text
+    res = await db_client.post(f"/admin/bookings/{ref}/refund", json={}, headers=owner)
+    assert res.status_code == 409
+    assert (await kinds(db, ref))["refund.requested"] == 1
 
 
 @pytest.mark.db

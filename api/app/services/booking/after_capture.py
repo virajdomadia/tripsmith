@@ -6,7 +6,9 @@ reach it the same way — after their transaction has committed, and only when
 "5 replays → 1 payment, 1 email" hold: the emails live here and nowhere else.
 
 1. Freshness: recompute the package's "from ₹" and revalidate its pages (B3).
-2. Emails (B7): the booking's facts are read in a short transaction and ended before the voucher
+2. Refunds (P13): a late capture with no seats, or money on a booking that no longer takes it,
+   planned its refund in the capture's transaction; it is sent to Razorpay here.
+3. Emails (B7): the booking's facts are read in a short transaction and ended before the voucher
    render and the sends, so no pooled connection waits on Resend.
 
 Never raises: the money is already recorded.
@@ -16,13 +18,16 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import sentry_sdk
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailSender
+from app.infra.razorpay import Razorpay
 from app.services.booking.freshness import refresh_quietly
+from app.services.booking.refunds import send_refunds
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import BookingFacts, load_booking_facts
 from app.services.email.bookings import send_booking_emails
@@ -35,10 +40,17 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Notify:
-    """What the emails need from the app; the routers build it from `app.state`."""
+    """What the after-change steps need from the app — the emails, and (P13) the Razorpay
+    client refunds go through; the routers build it from `app.state`."""
 
     sender: EmailSender
     settings: Settings
+    razorpay: Razorpay | None = None
+
+    @classmethod
+    def of(cls, state: Any) -> "Notify":
+        """From `request.app.state`."""
+        return cls(state.email_sender, state.settings, getattr(state, "razorpay", None))
 
 
 async def voucher_attachment(facts: BookingFacts, settings: Settings) -> EmailAttachment | None:
@@ -72,6 +84,8 @@ async def on_new_capture(
     await refresh_quietly(db, {package_id}, after=after)
     if notify is None or capture.settled == Settled.PART_PAID:
         return
+    if capture.settled in (Settled.SEATS_GONE, Settled.NOT_PENDING):
+        await send_refunds(db, ref, notify.razorpay)
     try:
         facts = await load_booking_facts(db, ref)
     except Exception as exc:

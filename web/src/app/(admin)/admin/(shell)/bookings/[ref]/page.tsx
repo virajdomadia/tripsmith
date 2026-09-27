@@ -12,6 +12,7 @@ import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { buttonVariants } from '@/components/ui/button';
 import { travellersLabel, voucherHref } from '@/lib/account';
 import { DESK_PATH } from '@/lib/admin/booking-filters';
+import { REFUND_REASON, REFUND_STATUS } from '@/lib/admin/refunds';
 import { reviewsHref } from '@/lib/admin/reviews';
 import { api, ApiRequestError } from '@/lib/api';
 import { formatDate, inr } from '@/lib/format';
@@ -27,6 +28,12 @@ const REVIEW_STATE = { pending: 'Waiting', published: 'Published', hidden: 'Hidd
  * valid next moves, and the step it stands at — then its full history (R54), payments, seats and
  * review. Every move is the desk's existing endpoint; the api re-checks each one.
  */
+const REFUND_TONE: Record<string, string> = {
+  requested: 'text-warn',
+  processed: 'text-ok',
+  failed: 'text-bad',
+};
+
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
   if (!REF.test(ref)) notFound();
@@ -131,9 +138,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                     <span className="flex justify-between gap-2">
                       <span>
                         {PROVIDER[p.provider]} · {p.status}
-                        {p.refundedPaise != null && p.refundedPaise !== p.amountPaise && (
-                          <span> · {inr(p.refundedPaise)} back</span>
-                        )}
+                        {p.refundedPaise != null && <span> · {inr(p.refundedPaise)} back</span>}
                       </span>
                       <b className="num text-ink">{inr(p.amountPaise)}</b>
                     </span>
@@ -141,6 +146,38 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                       {p.paymentId ?? p.reference ?? p.orderId} · {istTime(p.updatedAt)},{' '}
                       {istFullDate(p.updatedAt)}
                     </span>
+                    {b.refunds
+                      .filter((r) => r.paymentId === p.id)
+                      .map((r) => (
+                        <span
+                          key={r.id}
+                          className="grid gap-px border-l-2 border-line pl-2 text-[12.5px]"
+                        >
+                          <span className="flex justify-between gap-2">
+                            <span>
+                              ↩ Refund · {REFUND_REASON[r.reason] ?? r.reason} ·{' '}
+                              <b className={REFUND_TONE[r.status]}>
+                                {r.byHand && r.status === 'requested'
+                                  ? 'to hand back'
+                                  : REFUND_STATUS[r.status]}
+                              </b>
+                            </span>
+                            <span className="num">−{inr(r.amountPaise)}</span>
+                          </span>
+                          <span className="text-mute">
+                            <span className="num break-all">
+                              {r.razorpayRefundId ??
+                                (r.byHand
+                                  ? 'by hand'
+                                  : r.status === 'failed'
+                                    ? 'refused by Razorpay'
+                                    : 'not yet at Razorpay')}
+                            </span>
+                            {r.error ? ` · ${r.error}` : ''} · {istTime(r.createdAt)},{' '}
+                            {istFullDate(r.createdAt)}
+                          </span>
+                        </span>
+                      ))}
                   </li>
                 ))}
               </ul>

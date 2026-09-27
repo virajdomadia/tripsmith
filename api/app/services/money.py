@@ -1,9 +1,11 @@
 """The Money desk (R59, P20 · Dashboard C): read-only sums over payments and bookings.
 
 A payment's money is dated by its capture — `updated_at` while it is captured, the capture time
-kept in `raw.refund.capturedAt` once it is refunded (desk.record_refund writes it) — and a refund
-by `raw.refund.at`. Days are IST calendar days. "To record" is `desk.refund_owed`, the exact
-amount 'Refund made' would give back, so the desk and this page cannot disagree.
+kept in `raw.refund.capturedAt` once a pre-P13 hand-recorded refund marked it `refunded` — and a
+refund by its `refunds` row (P13; 0012 turned the hand-recorded ones into rows): every refund
+that has not failed, on the day it was started. Days are IST calendar days. "To send" is what
+the booking's "Send refund" would send plus any offline refund waiting to be handed back — the
+desk's own numbers, so the two cannot disagree.
 """
 
 import datetime as dt
@@ -14,13 +16,14 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.business import suggested_refund_paise
-from app.models import Booking, BookingCancellation, Departure, Package, Payment
+from app.models import Booking, BookingCancellation, Departure, Package, Payment, Refund
 from app.models.enums import (
     BookingStatus,
     CancellationStatus,
     CancelReason,
     PaymentProvider,
     PaymentStatus,
+    RefundStatus,
 )
 from app.schemas.money import (
     WINDOW_DEFAULT,
@@ -34,7 +37,8 @@ from app.schemas.money import (
 )
 from app.services.admin_enquiries import ist_day_start
 from app.services.analytics import ist_today
-from app.services.booking.desk import hold_live, refund_owed
+from app.services.booking.desk import hold_live
+from app.services.booking.refunds import refund_owed
 from app.services.booking.voucher import offline_reference
 from app.services.email.render import IST
 from app.services.format import MONTHS, inr
@@ -63,7 +67,9 @@ def _label(p: Payment) -> str:
     return "Razorpay"
 
 
-def _why(b: Booking, resolved_at: dt.datetime | None) -> str:
+def _why(b: Booking, resolved_at: dt.datetime | None, *, offline: bool = False) -> str:
+    if offline and b.cancel_reason != CancelReason.CANCELLATION_APPROVED:
+        return "Paid offline — hand the refund back by cash, UPI or bank"
     if b.cancel_reason == CancelReason.SEATS_GONE:
         return "Paid after the hold lapsed, and the seats had gone"
     if b.cancel_reason == CancelReason.CANCELLATION_APPROVED:
@@ -94,8 +100,7 @@ async def money_desk(
         )
     )
     by_day: dict[dt.date, list[MoneyLine]] = defaultdict(list)
-    collected = count = refunded = 0
-    refunds: list[MoneyRefund] = []
+    collected = count = 0
     for p, ref, name in rows.all():
         info = _refund(p)
         captured_on = _when(info.get("capturedAt"), p.updated_at).astimezone(IST).date()
@@ -109,20 +114,33 @@ async def money_desk(
         if captured_on >= month_start:
             collected += p.amount_paise
             count += 1
-        if p.status == PaymentStatus.REFUNDED:
-            back = info.get("amountPaise")
-            back = back if isinstance(back, int) else p.amount_paise
-            at = _when(info.get("at"), p.updated_at)
-            on = at.astimezone(IST).date()
-            if on >= window_start:
-                by_day[on].append(
-                    MoneyLine(
-                        ref=ref, name=who, kind="out", label="Refund recorded", amount_paise=back
-                    )
+
+    refunded = 0
+    refunds: list[MoneyRefund] = []
+    going = await db.execute(
+        select(Refund, Booking.ref, Booking.contact_name)
+        .join(Booking, Booking.id == Refund.booking_id)
+        .where(Refund.status != RefundStatus.FAILED, Refund.created_at >= since)
+    )
+    for r, ref, name in going.all():
+        if r.status == RefundStatus.REQUESTED and (r.by_hand or r.razorpay_refund_id is None):
+            continue  # still to hand back, or never reached Razorpay: listed under "owe" below
+        on = r.created_at.astimezone(IST).date()
+        if on >= window_start:
+            by_day[on].append(
+                MoneyLine(
+                    ref=ref,
+                    name=name,
+                    kind="out",
+                    label=_refund_label(r),
+                    amount_paise=r.amount_paise,
                 )
-            if on >= month_start:
-                refunded += back
-                refunds.append(MoneyRefund(ref=ref, name=who, amount_paise=back, at=at))
+            )
+        if on >= month_start:
+            refunded += r.amount_paise
+            refunds.append(
+                MoneyRefund(ref=ref, name=name, amount_paise=r.amount_paise, at=r.created_at)
+            )
 
     owed = await _owed(db)
     for o in owed:
@@ -131,7 +149,7 @@ async def money_desk(
                 ref=o.ref,
                 name=o.name,
                 kind="owe",
-                label="Refund to record",
+                label="Refund to send",
                 amount_paise=o.amount_paise,
             )
         )
@@ -175,14 +193,35 @@ async def _owed(db: AsyncSession) -> list[MoneyOwed]:
     )
     out = []
     for b, resolved_at in rows.all():
-        amount = await refund_owed(db, b)
-        if amount > 0:
+        waiting = (
+            await db.execute(
+                select(Refund.amount_paise, Refund.by_hand).where(
+                    Refund.booking_id == b.id,
+                    Refund.status == RefundStatus.REQUESTED,
+                    or_(Refund.by_hand.is_(True), Refund.razorpay_refund_id.is_(None)),
+                )
+            )
+        ).all()
+        to_send = await refund_owed(db, b) + sum(a for a, hand in waiting if not hand)
+        by_hand = sum(a for a, hand in waiting if hand)
+        if to_send + by_hand > 0:
             out.append(
                 MoneyOwed(
-                    ref=b.ref, name=b.contact_name, amount_paise=amount, why=_why(b, resolved_at)
+                    ref=b.ref,
+                    name=b.contact_name,
+                    amount_paise=to_send + by_hand,
+                    why=_why(b, resolved_at, offline=to_send == 0),
+                    offline=to_send == 0,
+                    offline_paise=by_hand,
                 )
             )
     return out
+
+
+def _refund_label(r: Refund) -> str:
+    if r.by_hand:
+        return "Refund · by hand"
+    return "Refund" if r.status == RefundStatus.PROCESSED else "Refund · processing"
 
 
 async def _holds(db: AsyncSession) -> list[MoneyHold]:

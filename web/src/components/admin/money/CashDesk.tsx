@@ -17,8 +17,8 @@ const CHIP = {
 
 /**
  * Mockup Dashboard C: the cash equation (collected − refunds [+ live holds] = kept) and the
- * cash-by-day chart — solid bars for money in, red below the axis for refunds recorded, hatched
- * red for refunds still to record. Tap a day to read its payments by name. On a phone the
+ * cash-by-day chart — solid bars for money in, red below the axis for refunds sent, hatched
+ * red for refunds still to send. Tap a day to read its payments by name. On a phone the
  * equation becomes 2 × 2 and the chart scrolls sideways.
  */
 export function CashDesk({ money }: { money: MoneyDesk }) {
@@ -65,7 +65,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
           k="Refunds"
           v={lakh(eq.refunds)}
           tone="text-bad"
-          d={`${inr(money.refundedPaise)} recorded · ${inr(money.toRecordPaise)} to record`}
+          d={`${inr(money.refundedPaise)} sent · ${inr(money.toRecordPaise)} to send`}
         />
         <Term
           sign="+"
@@ -94,7 +94,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
           <ul className="ml-auto flex flex-wrap gap-3.5 text-[12px] font-semibold text-mute">
             <Legend swatch="bg-primary">Collected</Legend>
             <Legend swatch="bg-[#d9534a]">Refunded</Legend>
-            <Legend swatch={HATCH_RED}>Refund to record</Legend>
+            <Legend swatch={HATCH_RED}>Refund to send</Legend>
           </ul>
         </header>
         <div className="px-4 pt-2 pb-4">

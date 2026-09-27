@@ -60,7 +60,4 @@ async def post_razorpay_webhook(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, str]:
-    state = request.app.state
-    return {
-        "status": await handle_razorpay_event(db, event, Notify(state.email_sender, state.settings))
-    }
+    return {"status": await handle_razorpay_event(db, event, Notify.of(request.app.state))}

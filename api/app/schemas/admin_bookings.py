@@ -13,6 +13,7 @@ from app.models.enums import (
     CancelReason,
     PaymentProvider,
     PaymentStatus,
+    RefundStatus,
 )
 from app.schemas import ApiModel
 from app.schemas.account import AccountCancellation, AccountTraveller
@@ -142,10 +143,33 @@ class AdminPayment(ApiModel):
         description="How the capture reached us; null while the order is still open"
     )
     refunded_paise: int | None = Field(
-        default=None, description="How much of it was given back, once refunded"
+        default=None,
+        description="How much of it has gone back or is on its way (refunds not failed); "
+        "null when none",
+    )
+    refundable_paise: int = Field(
+        default=0, description="What can still be refunded from it (P13's newest-first split)"
     )
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+class AdminRefund(ApiModel):
+    """One refund of one payment (R51, P13)."""
+
+    id: str
+    payment_id: str
+    amount_paise: int
+    status: RefundStatus
+    reason: str = Field(
+        description="cancellation | seats_gone | surplus | owner (later: date_change, balance)"
+    )
+    by_hand: bool = Field(description="Made outside the API: an offline payment's, or pre-P13")
+    razorpay_refund_id: str | None
+    error: str | None = Field(description="Why the last try did not go through")
+    note: str | None
+    created_at: dt.datetime
+    processed_at: dt.datetime | None
 
 
 class HistoryEntry(ApiModel):
@@ -214,6 +238,14 @@ class AdminBooking(ApiModel):
     lead_phone: str
     lead_email: str
     payments: list[AdminPayment] = Field(description="Every attempt, oldest first")
+    refunds: list[AdminRefund] = Field(description="Every refund, oldest first (P13)")
+    refund_to_send_paise: int = Field(
+        description="What 'Send refund' would send now: owed and not yet sent, plus refunds "
+        "that never reached Razorpay"
+    )
+    refund_offline_paise: int = Field(
+        description="Offline payments' refunds waiting for 'Refund made (offline)'"
+    )
     history: BookingHistory = Field(
         description="Every change, payment and email, oldest first (R54)"
     )

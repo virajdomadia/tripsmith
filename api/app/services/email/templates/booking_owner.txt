@@ -2,8 +2,9 @@
 Booked {{ booked_at }}
 {% if refund %}
 
-REFUND {{ refund }} by hand in the Razorpay dashboard — payment {{ payment_id }}.
+REFUNDING {{ refund }} through Razorpay automatically — payment {{ payment_id }}.
 {{ refund_why }}
+If it doesn’t go through, the booking shows Send refund on the desk.
 {% endif %}
 
 Trip:        {{ b.package_name }} · {{ duration }}

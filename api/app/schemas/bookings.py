@@ -256,11 +256,14 @@ class PaymentCallback(ApiModel):
 
 class PaymentResult(ApiModel):
     """Where the booking stands once the payment is recorded. A late capture that found no
-    seats is `cancelled` with `refundNeeded` — the payment is kept and refunded by hand."""
+    seats is `cancelled` with `refundNeeded` — the payment is kept and refunded through Razorpay
+    on its own (P13)."""
 
     booking_ref: str
     status: BookingStatus
-    refund_needed: bool
+    refund_needed: bool = Field(
+        description="Money is going back to the customer: owed, on its way, or already refunded"
+    )
     voucher_url: str | None = Field(
         default=None,
         description="Confirmed only, and only for a caller who proved the payment: the voucher "

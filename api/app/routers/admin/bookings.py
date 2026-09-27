@@ -3,7 +3,8 @@
 Same shape as the enquiry inbox (routers/admin/enquiries.py): a plain `/admin` prefix so the
 export can sit at `/admin/bookings.csv`, beside the collection. There is no free status change
 (`PATCH …/status` was dropped from 06 on 2026-09-26): every move goes through a guarded path —
-mark paid, release, record a refund, answer a cancellation request (B11), or the daily sweep.
+mark paid, release, send a refund or record an offline one (P13), answer a cancellation request
+(B11), or the daily sweep.
 """
 
 from typing import Annotated
@@ -25,7 +26,7 @@ from app.schemas.admin_bookings import (
     ResolveCancellationInput,
 )
 from app.services.auth.deps import require_owner
-from app.services.booking import desk, resolve
+from app.services.booking import desk, refunds, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -78,7 +79,7 @@ async def mark_paid_route(
 ) -> AdminBooking:
     """409 `seats_short` with the shortfall when the party no longer fits; nothing recorded."""
     response.headers.update(NO_STORE)
-    notify = Notify(request.app.state.email_sender, request.app.state.settings)
+    notify = Notify.of(request.app.state)
     return await desk.mark_paid(db, ref, payload.reference, notify, by=owner.id)
 
 
@@ -91,13 +92,32 @@ async def release_route(ref: str, response: Response, db: Db, owner: Owner) -> A
 
 
 @router.post(
+    "/bookings/{ref}/refund", operation_id="sendBookingRefund", response_model_by_alias=True
+)
+async def send_refund_route(
+    ref: str, payload: RefundMadeInput, request: Request, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
+    """ "Send refund" (P13): refund through Razorpay whatever is owed now, and resend anything
+    that never reached Razorpay (same idempotency key). 409 `no_refund` when there is nothing
+    to send. The answer shows where each refund stands."""
+    response.headers.update(NO_STORE)
+    await refunds.send_owed(
+        db, ref, getattr(request.app.state, "razorpay", None), by=owner.id, note=payload.note
+    )
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
     "/bookings/{ref}/refund-made", operation_id="recordBookingRefund", response_model_by_alias=True
 )
 async def refund_route(
     ref: str, payload: RefundMadeInput, response: Response, db: Db, owner: Owner
 ) -> AdminBooking:
+    """ "Refund made (offline)": the owner handed back an offline payment's share. 409
+    `no_refund` when no offline refund is waiting."""
     response.headers.update(NO_STORE)
-    return await desk.record_refund(db, ref, payload.note, by=owner.id)
+    await refunds.record_by_hand(db, ref, payload.note, by=owner.id)
+    return await desk.get_booking(db, ref)
 
 
 @router.post(
@@ -113,11 +133,11 @@ async def resolve_route(
     db: Db,
     owner: Owner,
 ) -> AdminBooking:
-    """Approve (the booking is cancelled, its seats freed, the agreed refund flagged) or reject
+    """Approve (the booking is cancelled, its seats freed, the agreed refund sent) or reject
     (the booking stands). The customer is emailed either way. 409 `resolved` when already
     answered, `not_active` when approving a booking that no longer holds its seats."""
     response.headers.update(NO_STORE)
-    notify = Notify(request.app.state.email_sender, request.app.state.settings)
+    notify = Notify.of(request.app.state)
     return await resolve.resolve_cancellation(db, id, payload, notify, by=owner.id)
 
 

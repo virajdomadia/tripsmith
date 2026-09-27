@@ -5,6 +5,7 @@ request alone. The db tests need TEST_DATABASE_URL."""
 
 import asyncio
 import datetime as dt
+import json
 import os
 
 import pytest
@@ -105,7 +106,7 @@ def resolve(client: AsyncClient, id: str, owner: dict[str, str], **body: object)
 
 
 @pytest.mark.db
-async def test_approve_frees_the_seats_flags_the_refund_and_emails_only_the_customer(
+async def test_approve_frees_the_seats_sends_the_refund_and_emails_only_the_customer(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     sender, ref, owner, id = await asked(db, db_app, db_client)
@@ -124,13 +125,18 @@ async def test_approve_frees_the_seats_flags_the_refund_and_emails_only_the_cust
     assert (out["status"], out["cancelReason"], out["refundNeeded"]) == (
         "cancelled",
         "cancellation_approved",
-        True,
+        False,  # P13: sent through Razorpay and processed at once (test mode)
     )
+    assert out["paidPaise"] == 0 and len(rzp.refund_calls()) == 1
+    [r] = out["refunds"]
+    assert (r["status"], r["reason"], r["amountPaise"]) == ("processed", "cancellation", paid)
     c = out["cancellation"]
     assert (c["status"], c["refundNote"], c["refundPaise"]) == ("approved", NOTE, paid)
     assert c["resolvedAt"] and c["canApprove"] is False
     kinds = [e["kind"] for e in out["history"]["entries"]]
     assert kinds.count("cancellation.approved") == 1
+    assert kinds.index("cancellation.approved") < kinds.index("refund.requested")
+    assert kinds.count("refund.processed") == 1
 
     await db.rollback()  # now() is frozen at the transaction start
     assert await seats_left(db, departure_id) == before + 1
@@ -146,18 +152,16 @@ async def test_approve_frees_the_seats_flags_the_refund_and_emails_only_the_cust
     assert mine["cancellation"]["status"] == "approved"
     assert (mine["cancellation"]["refundNote"], mine["cancellation"]["refundPaise"]) == (NOTE, paid)
 
-    # It lands in the refund tab until the owner records it.
-    session = (await db_client.get("/auth/session", headers=owner)).json()
-    assert session["bookingsAttention"] == 1
-    again = await resolve(db_client, id, owner, decision="reject", note="Changed my mind.")
-    assert again.status_code == 409 and again.json()["error"]["reason"] == "resolved"
-
-    done = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
-    assert done.status_code == 200, done.text
-    assert (done.json()["paidPaise"], done.json()["refundNeeded"]) == (0, False)
-    [p] = done.json()["payments"]
-    assert (p["status"], p["refundedPaise"]) == ("refunded", paid)
+    # Nothing is left for the owner to do, and a second answer changes nothing.
     assert (await db_client.get("/auth/session", headers=owner)).json()["bookingsAttention"] == 0
+    for decision, extra in (("reject", {}), ("approve", {"refundPaise": paid})):
+        again = await resolve(
+            db_client, id, owner, decision=decision, note="Changed my mind.", **extra
+        )
+        assert again.status_code == 409 and again.json()["error"]["reason"] == "resolved"
+    assert len(rzp.refund_calls()) == 1
+    [p] = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()["payments"]
+    assert (p["status"], p["refundedPaise"], p["refundablePaise"]) == ("captured", paid, 0)
 
 
 @pytest.mark.db
@@ -181,15 +185,14 @@ async def test_a_part_refund_is_recorded_to_the_rupee(
 
     res = await resolve(db_client, id, owner, decision="approve", note=NOTE, refundPaise=half)
     assert res.status_code == 200, res.text
-    done = await db_client.post(
-        f"/admin/bookings/{ref}/refund-made", json={"note": "rfnd_half"}, headers=owner
-    )
-    out = done.json()
+    out = res.json()
     assert out["paidPaise"] == total // 2  # what the policy keeps
     [p] = out["payments"]
-    assert (p["status"], p["amountPaise"], p["refundedPaise"]) == ("refunded", paid, half)
-    refunded = next(e for e in out["history"]["entries"] if e["kind"] == "refund.recorded")
-    assert refunded["text"].startswith(f"Refund of {inr(half // 100)} recorded")
+    assert (p["status"], p["amountPaise"], p["refundedPaise"]) == ("captured", paid, half)
+    [call] = rzp.refund_calls()
+    assert json.loads(call.content)["amount"] == half
+    started = next(e for e in out["history"]["entries"] if e["kind"] == "refund.requested")
+    assert started["text"].startswith(f"Refund of {inr(half // 100)} started")
 
 
 @pytest.mark.db
@@ -343,8 +346,7 @@ async def test_money_arriving_after_approval_is_refunded_in_full_not_the_agreed_
     b = await booking(db, ref)
     paid, total = b.paid_paise, b.total_paise
     half = paid - total // 2
-    await resolve(db_client, id, owner, decision="approve", note=NOTE, refundPaise=half)
-    done = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    done = await resolve(db_client, id, owner, decision="approve", note=NOTE, refundPaise=half)
     assert done.json()["paidPaise"] == total // 2
 
     # A second capture lands on the cancelled booking (settle_capture's not-pending path).
@@ -367,12 +369,16 @@ async def test_money_arriving_after_approval_is_refunded_in_full_not_the_agreed_
         .values(paid_paise=Booking.paid_paise + late, refund_needed=True)
     )
     await db.commit()
-    again = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    detail = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()
+    assert detail["refundToSendPaise"] == late  # the surplus in full, not the agreed half again
+    again = await db_client.post(f"/admin/bookings/{ref}/refund", json={}, headers=owner)
     assert again.status_code == 200, again.text
     out = again.json()
     assert (out["paidPaise"], out["refundNeeded"]) == (total // 2, False)
     late_row = next(p for p in out["payments"] if p["paymentId"] == "pay_Late0B11")
-    assert (late_row["status"], late_row["refundedPaise"]) == ("refunded", late)
+    first = next(p for p in out["payments"] if p["paymentId"] != "pay_Late0B11")
+    assert (late_row["refundedPaise"], first["refundedPaise"]) == (late, half)
+    assert [json.loads(c.content)["amount"] for c in rzp.refund_calls()] == [half, late]
 
 
 @pytest.mark.db

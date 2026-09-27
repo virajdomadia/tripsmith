@@ -9,33 +9,40 @@ import { reportAdminError } from '@/lib/admin/errors';
 import { inr } from '@/lib/format';
 
 /**
- * Money desk "Going out": record a refund already made in the Razorpay dashboard, in two taps —
- * the second one names the amount, so it is never pressed by accident. The same
- * `POST …/refund-made` as the booking page; the page refreshes and the equation moves.
+ * Money desk "Going out" (P13): send an owed refund through Razorpay, or — when only an offline
+ * payment's share is waiting — record it handed back, in two taps; the second names the amount,
+ * so it is never pressed by accident. The same `POST …/refund` and `…/refund-made` as the booking
+ * page; the api refunds each rupee once however often it is pressed.
  */
 export function RefundMadeButton({
   bookingRef,
   amountPaise,
+  offline = false,
 }: {
   bookingRef: string;
   amountPaise: number;
+  offline?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sure, setSure] = useState(false);
   const [pending, start] = useTransition();
 
-  function record() {
+  function go() {
     start(async () => {
       try {
-        await adminRequest(`/admin/bookings/${bookingRef}/refund-made`, {
+        await adminRequest(`/admin/bookings/${bookingRef}/${offline ? 'refund-made' : 'refund'}`, {
           method: 'POST',
           body: {},
         });
-        toast.success(`Refund of ${inr(amountPaise)} recorded on ${bookingRef}`);
+        toast.success(
+          offline
+            ? `Offline refund of ${inr(amountPaise)} recorded on ${bookingRef}`
+            : `Refund of ${inr(amountPaise)} sent on ${bookingRef}`,
+        );
         router.refresh();
       } catch (e) {
-        reportAdminError(e, { router, pathname, fallback: 'Could not record the refund' });
+        reportAdminError(e, { router, pathname, fallback: 'Could not send the refund' });
         setSure(false);
       }
     });
@@ -44,14 +51,20 @@ export function RefundMadeButton({
   if (!sure) {
     return (
       <Button size="sm" onClick={() => setSure(true)}>
-        Refund made
+        {offline ? 'Refund made (offline)' : 'Send refund'}
       </Button>
     );
   }
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Button size="sm" onClick={record} disabled={pending}>
-        {pending ? 'Recording…' : `Yes, ${inr(amountPaise)} refunded`}
+      <Button size="sm" onClick={go} disabled={pending}>
+        {pending
+          ? offline
+            ? 'Recording…'
+            : 'Sending…'
+          : offline
+            ? `Yes, ${inr(amountPaise)} handed back`
+            : `Yes, send ${inr(amountPaise)}`}
       </Button>
       <Button size="sm" variant="ghost" onClick={() => setSure(false)} disabled={pending}>
         Cancel

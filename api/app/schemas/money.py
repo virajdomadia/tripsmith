@@ -23,7 +23,7 @@ LineKind = Literal["in", "out", "owe"]
 class MoneyLine(ApiModel):
     ref: str
     name: str = Field(description="The booking's lead")
-    kind: LineKind = Field(description="`in` collected · `out` refund recorded · `owe` to record")
+    kind: LineKind = Field(description="`in` collected · `out` refund started · `owe` to send")
     label: str = Field(description="How the money moved, e.g. `Razorpay` or `Offline · UTR 44`")
     amount_paise: int = Field(description="Always positive; `kind` says the direction")
 
@@ -32,7 +32,7 @@ class MoneyDay(ApiModel):
     date: dt.date
     in_paise: int
     out_paise: int
-    owe_paise: int = Field(description="Refunds still to record — only ever on today")
+    owe_paise: int = Field(description="Refunds still to send — only ever on today")
     lines: list[MoneyLine]
 
 
@@ -48,8 +48,15 @@ class MoneyHold(ApiModel):
 class MoneyOwed(ApiModel):
     ref: str
     name: str
-    amount_paise: int = Field(description="What 'Refund made' would give back now")
+    amount_paise: int = Field(
+        description="What 'Send refund' would send now, plus offline refunds to hand back"
+    )
     why: str
+    offline: bool = Field(
+        default=False,
+        description="Only an offline refund is waiting: the action is 'Refund made (offline)'",
+    )
+    offline_paise: int = Field(default=0, description="The offline share of `amount_paise`")
 
 
 class MoneyRefund(ApiModel):

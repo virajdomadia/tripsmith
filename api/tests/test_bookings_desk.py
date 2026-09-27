@@ -1,7 +1,7 @@
 """B10 — the bookings desk (R22): the list and its numbers against `departure_availability`,
-mark paid (offline) with the seat re-check, release hold, 'refund made', the manifest, the CSV,
-the daily sweep and a late payment on a swept booking, and travellers in entry order. The db
-tests need TEST_DATABASE_URL."""
+mark paid (offline) with the seat re-check, release hold, the late capture's automatic refund
+(P13), the manifest, the CSV, the daily sweep and a late payment on a swept booking, and
+travellers in entry order. The db tests need TEST_DATABASE_URL."""
 
 import asyncio
 import csv
@@ -272,9 +272,11 @@ async def test_release_hold_frees_the_seats_at_once_without_email(
 # --- refund made --------------------------------------------------------------------------------
 
 
-async def test_refund_made_clears_the_flag_and_the_badge(
+async def test_a_late_capture_with_no_seats_is_refunded_once_and_clears_the_badge(
     db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
+    """P13: a late capture with no seats goes back through Razorpay on its own — no desk step,
+    no flag left, and however often the capture is replayed, one refund."""
     owner = await owner_cookie(db)
     _, departure = await seeded(db, seats=2)
     dep_id = departure.id
@@ -285,34 +287,34 @@ async def test_refund_made_clears_the_flag_and_the_badge(
     res = await db_client.post(
         f"/bookings/{ref}/confirm", json=callback(str(first["orderId"]), "pay_Late0B10")
     )
-    assert res.json()["refundNeeded"] is True
-
-    session = (await db_client.get("/auth/session", headers=owner)).json()
-    assert session["bookingsAttention"] == 1
-    flagged = await db_client.get("/admin/bookings", params={"flag": "refund"}, headers=owner)
-    assert [r["ref"] for r in flagged.json()["items"]] == [ref]
-
-    res = await db_client.post(
-        f"/admin/bookings/{ref}/refund-made", json={"note": "rfnd_991"}, headers=owner
-    )
     assert res.status_code == 200, res.text
-    b = res.json()
-    assert (b["refundNeeded"], b["paidPaise"]) == (False, 0)
+    assert len(rzp.refund_calls()) == 1
+
+    b = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()
+    assert (b["refundNeeded"], b["paidPaise"], b["refundToSendPaise"]) == (False, 0, 0)
+    [r] = b["refunds"]
+    total = b["totalPaise"]
+    assert (r["status"], r["reason"], r["amountPaise"]) == ("processed", "seats_gone", total)
+    assert r["razorpayRefundId"].startswith("rfnd_")
     [p] = b["payments"]
-    assert (p["status"], p["via"]) == ("refunded", "checkout")
+    assert (p["status"], p["refundedPaise"], p["refundablePaise"]) == ("captured", total, 0)
     kinds = [e["kind"] for e in b["history"]["entries"]]
-    assert kinds.index("payment.captured") < kinds.index("refund.recorded")
+    assert kinds.index("payment.captured") < kinds.index("refund.requested")
+    assert kinds.index("refund.requested") < kinds.index("refund.processed")
     assert (await db_client.get("/auth/session", headers=owner)).json()["bookingsAttention"] == 0
-    # Razorpay retries the capture (or Checkout posts again): the refund must stand.
+
+    # Razorpay retries the capture (or Checkout posts again): nothing is refunded twice.
     res = await db_client.post(
         f"/bookings/{ref}/confirm", json=callback(str(first["orderId"]), "pay_Late0B10")
     )
-    assert res.status_code == 200 and res.json()["refundNeeded"] is False
-    [p] = await payments(db, ref)
-    assert p.status.value == "refunded"
+    # The customer still reads "your money comes back" (refundNeeded = money going back).
+    assert res.status_code == 200 and res.json()["refundNeeded"] is True
+    assert len(rzp.refund_calls()) == 1
     assert (await booking(db, ref)).paid_paise == 0
-    again = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    again = await db_client.post(f"/admin/bookings/{ref}/refund", json={}, headers=owner)
     assert again.status_code == 409
+    offline = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    assert offline.status_code == 409
 
 
 # --- sweep + late payment -----------------------------------------------------------------------

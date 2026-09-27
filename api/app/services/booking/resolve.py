@@ -3,9 +3,9 @@
 
 - **Approve** → the booking is `cancelled` with `cancellation_approved` and its seats are free at
   once (the view stops counting a cancelled booking); the request is `approved` with the owner's
-  note and the refund agreed. A refund above ₹0 raises `refund_needed`, so the booking lands in
-  the desk's refund tab until 'Refund made' records exactly that amount. Refunds themselves stay
-  by hand in the Razorpay dashboard.
+  note and the refund agreed. The refund (P13) is planned in the same transaction — the agreed
+  amount plus any money beyond the price — and sent to Razorpay after the commit. The desk's
+  confirm step showed the owner the amount and its split before this call.
 - **Reject** → the booking is untouched; the request is `rejected` with the owner's note.
 
 Either way the customer is emailed (the owner made the decision and gets nothing). The policy
@@ -27,7 +27,8 @@ from app.services.booking.after_capture import Notify
 from app.services.booking.desk import get_booking
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import money, record
-from app.services.booking.payments import lock_booking
+from app.services.booking.locking import lock_booking
+from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_resolution_email
 from app.services.format import inr
@@ -96,7 +97,6 @@ async def resolve_cancellation(
                 .values(
                     status=BookingStatus.CANCELLED,
                     cancel_reason=CancelReason.CANCELLATION_APPROVED,
-                    refund_needed=Booking.refund_needed | (refund > 0),
                     updated_at=func.now(),
                 )
                 .execution_options(synchronize_session=False)
@@ -106,12 +106,25 @@ async def resolve_cancellation(
         row.refund_note = payload.note
         row.refund_paise = refund
         row.resolved_at = func.now()
+        if approve:
+            await db.flush()
+            await db.refresh(booking)
+            await plan_refund(
+                db,
+                booking,
+                await refund_owed(db, booking),
+                reason="cancellation",
+                actor=BookingActor.OWNER,
+                by=by,
+            )
         package_id = booking.package_id
         await db.commit()
     except BaseException:
         await db.rollback()
         raise
-    if approve:  # the seats just came back: "from ₹" and the package page may change
+    if approve:
+        await send_refunds(db, ref, notify.razorpay if notify else None)
+        # the seats just came back: "from ₹" and the package page may change
         await refresh_quietly(db, {package_id}, after=f"approving the cancellation of {ref}")
     if notify is not None:
         try:

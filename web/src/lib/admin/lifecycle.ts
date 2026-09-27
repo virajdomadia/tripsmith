@@ -1,4 +1,5 @@
 import type { AdminBooking } from '@/lib/admin/booking-filters';
+import { inFlight, lastProblem, staleFlag } from '@/lib/admin/refunds';
 import { formatDate, inr } from '@/lib/format';
 
 /**
@@ -32,6 +33,15 @@ export interface NextStep {
 }
 
 const PAID = ['payment.captured', 'payment.offline'];
+// P13: a refund's steps; `refund.recorded` is an offline one handed back (or a pre-P13 one).
+const REFUND = [
+  'refund.requested',
+  'refund.processed',
+  'refund.failed',
+  'refund.error',
+  'refund.recorded',
+];
+const REFUNDED = ['refund.processed', 'refund.recorded'];
 const at = (entries: readonly Entry[], ...kinds: string[]) =>
   entries.find((e) => kinds.includes(e.kind))?.at ?? null;
 const last = (entries: readonly Entry[], ...kinds: string[]) =>
@@ -75,18 +85,20 @@ export function lifecycle(b: AdminBooking): Step[] {
     at: asked?.requestedAt ?? null,
     kinds: ['cancellation.requested'],
   });
+  // Razorpay has the refund but hasn't finished it: nothing for the owner, not closed yet.
+  const waiting = b.refundNeeded || (b.refunds ?? []).some(inFlight);
   const refunded = (): Step[] => [
     {
-      name: 'Refunded',
-      state: b.refundNeeded ? 'now' : 'done',
-      at: b.refundNeeded ? null : last(h, 'refund.recorded'),
-      kinds: ['refund.recorded'],
+      name: !b.refundNeeded && waiting ? 'Refunding' : 'Refunded',
+      state: waiting ? 'now' : 'done',
+      at: waiting ? null : last(h, ...REFUNDED),
+      kinds: REFUND,
     },
-    { name: 'Closed', state: b.refundNeeded ? 'todo' : 'now', at: null, kinds: [] },
+    { name: 'Closed', state: waiting ? 'todo' : 'now', at: null, kinds: [] },
   ];
-  const owesOrRefunded = b.refundNeeded || h.some((e) => e.kind === 'refund.recorded');
+  const owesOrRefunded = waiting || h.some((e) => REFUND.includes(e.kind));
   // A second payment on a live or finished booking: the refund owed is the step that stands.
-  const surplus = b.refundNeeded ? refunded().slice(0, 1) : [];
+  const surplus = waiting ? refunded().slice(0, 1) : [];
 
   if (b.status === 'pending') {
     return [
@@ -207,11 +219,28 @@ export function lifecycle(b: AdminBooking): Step[] {
 
 /** The single most useful thing to do next (desk A's side panel). */
 export function nextStep(b: AdminBooking): NextStep {
+  if (staleFlag(b)) {
+    return {
+      tone: 'warn',
+      title: 'Refund flag to clear',
+      text: 'Nothing is left to give back — clear the flag.',
+    };
+  }
   if (b.refundNeeded) {
+    const problem = lastProblem(b);
+    if (b.refundToSendPaise > 0) {
+      return {
+        tone: 'bad',
+        title: 'Refund to send',
+        text: problem
+          ? `${inr(b.refundToSendPaise)} didn’t go through (${problem}). Send it again.`
+          : `${inr(b.refundToSendPaise)} is owed back. Send it through Razorpay.`,
+      };
+    }
     return {
       tone: 'bad',
-      title: 'Refund to record',
-      text: 'Refund it in the Razorpay dashboard, then press Refund made.',
+      title: 'Offline refund to hand back',
+      text: `Hand back ${inr(b.refundOfflinePaise)} by cash, UPI or bank, then press Refund made (offline).`,
     };
   }
   if (b.cancellation?.status === 'requested') {
@@ -314,15 +343,30 @@ export function moves(b: AdminBooking): Move[] {
     });
   }
   if (b.refundNeeded) {
+    const send = b.refundToSendPaise > 0 || staleFlag(b);
     out.push({
       key: 'refund-made',
-      title: 'Record the refund',
+      title: staleFlag(b)
+        ? 'Clear the refund flag'
+        : send
+          ? 'Send the refund'
+          : 'Record the offline refund',
       becomes: 'Refunded',
       tone: 'mute',
-      effects: [
-        ['Money', 'Refund in the Razorpay dashboard first; this records it and clears the flag'],
-        ['Email', 'None'],
-      ],
+      effects: staleFlag(b)
+        ? [
+            ['Money', 'Nothing left to give back; no money moves'],
+            ['Email', 'None'],
+          ]
+        : send
+          ? [
+              ['Money', `${inr(b.refundToSendPaise)} back through Razorpay, newest payment first`],
+              ['Email', 'None'],
+            ]
+          : [
+              ['Money', `Hand back ${inr(b.refundOfflinePaise)} first; this records it`],
+              ['Email', 'None'],
+            ],
     });
   }
   return out;
@@ -341,7 +385,7 @@ export function blocked(b: AdminBooking): [string, string][] {
   }
   if (!b.canRelease)
     out.push(['Release the hold', 'Only a pending booking holds seats to release']);
-  if (!b.refundNeeded) out.push(['Record a refund', 'Nothing is owed back']);
+  if (!b.refundNeeded) out.push(['Send a refund', 'Nothing is owed back']);
   if (b.cancellation?.status !== 'requested') {
     out.push([
       'Answer a cancellation',

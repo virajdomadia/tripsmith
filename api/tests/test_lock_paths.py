@@ -6,6 +6,7 @@ contenders start and are seen waiting on it in `pg_stat_activity`, then the lock
 Needs TEST_DATABASE_URL."""
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
@@ -16,7 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.errors import ApiError
-from app.models import Booking, Coupon, Departure
+from app.models import Booking, Coupon, Departure, Payment, Refund
 from app.models.enums import BookingStatus, CancelReason
 from app.schemas.admin_bookings import ResolveCancellationInput
 from app.schemas.bookings import BookingOrder
@@ -134,14 +135,17 @@ async def test_approval_and_a_late_capture_on_the_same_booking_settle_the_same_e
 ) -> None:
     """A paid booking with a cancellation request; the owner approves a half refund while a
     second payment on its Razorpay order is captured. Both take departure → booking, so they
-    run one after the other — in either order the booking ends cancelled with the approval, the
-    late money is kept on it and flagged, and 'Refund made' gives back the agreed half plus
-    every rupee of the late payment."""
+    run one after the other — in either order the booking ends cancelled with the approval, and
+    the refunds planned (P13; `notify=None`, so no Razorpay client: each stays queued with a
+    "not set up" error) are the agreed half from the
+    first payment plus every rupee of the late payment from the late one — never more, never a
+    second copy. "Send refund" then sends exactly those two."""
     _, ref, owner, request_id = await asked(db, db_app, db_client, days_out=20)
     b = await booking(db, ref)
     paid, total, departure_id = b.paid_paise, b.total_paise, b.departure_id
     agreed = paid - total // 2
-    order_id = (await payments(db, ref))[0].razorpay_order_id
+    [first_payment] = await payments(db, ref)
+    order_id, b_payment_id = first_payment.razorpay_order_id, first_payment.razorpay_payment_id
     assert order_id is not None
     await db.rollback()
 
@@ -181,12 +185,26 @@ async def test_approval_and_a_late_capture_on_the_same_booking_settle_the_same_e
         BookingStatus.CANCELLED,
         CancelReason.CANCELLATION_APPROVED,
     )
-    assert after.paid_paise == paid + late, "neither update lost the other"
-    assert after.refund_needed
+    assert after.paid_paise == paid - agreed, "neither update lost the other"
+    assert after.refund_needed  # planned, not sent: notify=None
+    planned = {
+        pid: amount
+        for pid, amount in (
+            await db.execute(
+                select(Payment.razorpay_payment_id, Refund.amount_paise)
+                .join(Payment, Payment.id == Refund.payment_id)
+                .where(Refund.booking_id == after.id)
+            )
+        ).all()
+    }
+    assert planned == {"pay_RaceLate01": late, b_payment_id: agreed}
 
-    done = await db_client.post(f"/admin/bookings/{ref}/refund-made", json={}, headers=owner)
+    done = await db_client.post(f"/admin/bookings/{ref}/refund", json={}, headers=owner)
     assert done.status_code == 200, done.text
     out = done.json()
     assert (out["paidPaise"], out["refundNeeded"]) == (paid - agreed, False)
+    assert sorted(json.loads(c.content)["amount"] for c in rzp.refund_calls()) == sorted(
+        [agreed, late]
+    )
     late_row = next(p for p in out["payments"] if p["paymentId"] == "pay_RaceLate01")
-    assert (late_row["status"], late_row["refundedPaise"]) == ("refunded", late)
+    assert (late_row["status"], late_row["refundedPaise"]) == ("captured", late)

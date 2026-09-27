@@ -80,7 +80,7 @@ async def sync_rate_limit(request: Request, ref: BookingRef) -> None:
 
 
 def notify(request: Request) -> Notify:
-    return Notify(request.app.state.email_sender, request.app.state.settings)
+    return Notify.of(request.app.state)
 
 
 def with_voucher(request: Request, result: PaymentResult) -> PaymentResult:

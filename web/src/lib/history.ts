@@ -65,13 +65,15 @@ export function changes(
 
 /** The dot's colour: money in is good news, anything cancelled, failed or owed is not. */
 export function toneOf(kind: string): EntryTone {
-  if (/failed|seats_gone|flagged|expired|released|undone|rejected|hidden/.test(kind)) {
-    return kind === 'payment.failed' || kind === 'email.failed' || kind === 'refund.flagged'
-      ? 'bad'
-      : 'warn';
+  if (/failed|error|seats_gone|flagged|expired|released|undone|rejected|hidden/.test(kind)) {
+    return /^(payment|email|refund)\.(failed|error|flagged)$/.test(kind) ? 'bad' : 'warn';
   }
   if (kind === 'booked') return 'primary';
-  if (/payment\.(captured|offline)|refund\.recorded|approved|published|completed/.test(kind)) {
+  if (
+    /payment\.(captured|offline)|refund\.(recorded|processed)|approved|published|completed/.test(
+      kind,
+    )
+  ) {
     return 'ok';
   }
   return 'mute';

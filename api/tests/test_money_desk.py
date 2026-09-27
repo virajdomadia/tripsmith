@@ -38,6 +38,8 @@ async def test_collected_refunded_and_owed_reconcile_with_the_desk(
     )
     released = await hold(db_client, departure.id, 2)
     await db_client.post(f"/admin/bookings/{released['bookingRef']}/release", headers=owner)
+    # Its automatic refund (P13) is refused, so the money is owed until the owner sends it.
+    rzp.refuse_refunds = "The payment has been fully refunded already"
     await db_client.post(
         f"/bookings/{released['bookingRef']}/confirm",
         json=callback(released["orderId"], "pay_Money0002"),
@@ -59,12 +61,14 @@ async def test_collected_refunded_and_owed_reconcile_with_the_desk(
     assert (today["inPaise"], today["outPaise"], today["owePaise"]) == (first + second, 0, second)
     assert {(x["kind"], x["label"]) for x in today["lines"]} == {
         ("in", "Razorpay"),
-        ("owe", "Refund to record"),
+        ("owe", "Refund to send"),
     }
 
-    # Refund made: the same amount moves from "to record" to "refunded", dated today.
+    # Send refund: the same amount moves from "to send" to "refunded", dated today; the failed
+    # try never counts as money out.
+    rzp.refuse_refunds = None
     res = await db_client.post(
-        f"/admin/bookings/{released['bookingRef']}/refund-made", json={}, headers=owner
+        f"/admin/bookings/{released['bookingRef']}/refund", json={}, headers=owner
     )
     assert res.status_code == 200, res.text
     money = (await db_client.get("/admin/money?days=7", headers=owner)).json()
@@ -73,6 +77,7 @@ async def test_collected_refunded_and_owed_reconcile_with_the_desk(
     assert [r["amountPaise"] for r in money["refunded"]] == [second]
     today = money["days"][-1]
     assert (today["inPaise"], today["outPaise"], today["owePaise"]) == (first + second, second, 0)
+    assert ("out", "Refund") in {(x["kind"], x["label"]) for x in today["lines"]}
 
 
 async def test_at_risk_lists_open_requests_and_recently_lapsed_holds(
