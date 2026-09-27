@@ -100,12 +100,11 @@ export function DestinationForm(props: Props) {
         toast.success('Destination created');
       }
       release();
-      router.push(
-        inPanel && editing
-          ? `/admin/destinations?sel=${encodeURIComponent(props.destination.id)}`
-          : '/admin/destinations',
-        { scroll: false },
-      );
+      if (inPanel && editing)
+        router.push(`/admin/destinations?sel=${encodeURIComponent(props.destination.id)}`, {
+          scroll: false,
+        });
+      else router.push('/admin/destinations');
       router.refresh();
     } catch (e) {
       if (e instanceof ApiRequestError && e.body.fieldErrors) {
