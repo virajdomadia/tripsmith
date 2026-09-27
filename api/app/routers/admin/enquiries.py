@@ -22,6 +22,7 @@ from app.schemas.admin_enquiries import (
     EnquiryNoteInput,
     EnquiryReplyInput,
     EnquiryStatusInput,
+    FollowUpInput,
 )
 from app.services import admin_enquiries as svc
 from app.services import enquiry_reply
@@ -71,7 +72,19 @@ async def set_status_route(
     id: str, payload: EnquiryStatusInput, response: Response, db: Db
 ) -> AdminEnquiry:
     response.headers.update(NO_STORE)
-    return await svc.set_status(db, id, payload.status)
+    return await svc.set_status(db, id, payload.status, lost_reason=payload.lost_reason)
+
+
+@router.patch(
+    "/enquiries/{id}/follow-up", operation_id="setEnquiryFollowUp", response_model_by_alias=True
+)
+async def set_follow_up_route(
+    id: str, payload: FollowUpInput, response: Response, db: Db
+) -> AdminEnquiry:
+    """P20 · A2: when to chase this open enquiry (an IST day from today on), or null to clear.
+    409 `not_open` once it is won or lost."""
+    response.headers.update(NO_STORE)
+    return await svc.set_follow_up(db, id, payload.follow_up_on)
 
 
 @router.post(

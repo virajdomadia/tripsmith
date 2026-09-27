@@ -77,6 +77,9 @@ describe('coupon form schema', () => {
       liveHolds: 0,
       locked: true,
       createdAt: '2026-09-26T10:00:00Z',
+      givenPaise: 3_000_00,
+      bookedPaise: 90_000_00,
+      weekly: [0, 0, 0, 0, 0, 0, 1, 2],
     } satisfies AdminCoupon;
     const fields = fromCoupon(saved);
     expect(fields).toMatchObject({ cap: '1000', min: '20000', useLimit: '1000', endsOn: '' });

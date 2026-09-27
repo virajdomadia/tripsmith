@@ -797,6 +797,11 @@
             ],
             "title": "Amountpaise"
           },
+          "bookedPaise": {
+            "description": "Those bookings' totals, after the discount",
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
           "capPaise": {
             "anyOf": [
               {
@@ -828,6 +833,11 @@
               }
             ],
             "title": "Endson"
+          },
+          "givenPaise": {
+            "description": "The coupon's discount summed over its uses",
+            "title": "Givenpaise",
+            "type": "integer"
           },
           "id": {
             "title": "Id",
@@ -898,6 +908,14 @@
             "description": "Bookings with the code and money captured",
             "title": "Uses",
             "type": "integer"
+          },
+          "weekly": {
+            "description": "Uses per IST week (Monday–Sunday), the last 8 weeks, this week last",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Weekly",
+            "type": "array"
           }
         },
         "required": [
@@ -918,7 +936,10 @@
           "uses",
           "liveHolds",
           "locked",
-          "createdAt"
+          "createdAt",
+          "givenPaise",
+          "bookedPaise",
+          "weekly"
         ],
         "title": "AdminCoupon",
         "type": "object"
@@ -1111,6 +1132,14 @@
             "title": "Adults",
             "type": "integer"
           },
+          "bookings": {
+            "description": "Newest first",
+            "items": {
+              "$ref": "#/components/schemas/RelatedBooking"
+            },
+            "title": "Bookings",
+            "type": "array"
+          },
           "budgetPaise": {
             "anyOf": [
               {
@@ -1161,9 +1190,32 @@
           "emailStatus": {
             "$ref": "#/components/schemas/EmailStatus"
           },
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "lostReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lostreason"
           },
           "message": {
             "anyOf": [
@@ -1883,9 +1935,32 @@
             "title": "Name",
             "type": "string"
           },
+          "packageCoverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's cover photo, for the queue",
+            "title": "Packagecoverurl"
+          },
           "packageName": {
             "title": "Packagename",
             "type": "string"
+          },
+          "packageRating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's published rating now (the cached aggregate)"
           },
           "packageSlug": {
             "title": "Packageslug",
@@ -1920,7 +1995,9 @@
           "packageSlug",
           "travelled",
           "createdAt",
-          "moderatedAt"
+          "moderatedAt",
+          "packageCoverUrl",
+          "packageRating"
         ],
         "title": "AdminReview",
         "type": "object"
@@ -1948,6 +2025,9 @@
           "state": {
             "$ref": "#/components/schemas/ReviewState"
           },
+          "stats": {
+            "$ref": "#/components/schemas/ReviewStats"
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -1961,6 +2041,7 @@
         "required": [
           "items",
           "counts",
+          "stats",
           "state",
           "page",
           "pageSize",
@@ -2724,6 +2805,39 @@
         "title": "CouponPackage",
         "type": "object"
       },
+      "CouponResults": {
+        "description": "`GET /admin/coupons/{id}/results` (R59, P20 · Coupons B): what the code did.",
+        "properties": {
+          "latest": {
+            "description": "At most 6",
+            "items": {
+              "$ref": "#/components/schemas/CouponUse"
+            },
+            "title": "Latest",
+            "type": "array"
+          },
+          "otherTripUses": {
+            "description": "Uses on the trips past the list",
+            "title": "Othertripuses",
+            "type": "integer"
+          },
+          "trips": {
+            "description": "Most uses first, at most 5",
+            "items": {
+              "$ref": "#/components/schemas/CouponTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "trips",
+          "otherTripUses",
+          "latest"
+        ],
+        "title": "CouponResults",
+        "type": "object"
+      },
       "CouponState": {
         "description": "What the list's badge says, in the order it is decided.",
         "enum": [
@@ -2735,6 +2849,93 @@
         ],
         "title": "CouponState",
         "type": "string"
+      },
+      "CouponTrip": {
+        "properties": {
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "uses": {
+            "title": "Uses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packageId",
+          "name",
+          "coverUrl",
+          "uses"
+        ],
+        "title": "CouponTrip",
+        "type": "object"
+      },
+      "CouponUse": {
+        "description": "A use (money captured) or a live hold, newest first.",
+        "properties": {
+          "at": {
+            "description": "When the booking was made",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "holding": {
+            "description": "A checkout holding a use now, not yet paid",
+            "title": "Holding",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "offPaise": {
+            "title": "Offpaise",
+            "type": "integer"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "ref",
+          "name",
+          "email",
+          "packageName",
+          "travellers",
+          "offPaise",
+          "holding"
+        ],
+        "title": "CouponUse",
+        "type": "object"
       },
       "Dashboard": {
         "properties": {
@@ -3540,6 +3741,9 @@
       },
       "EnquiryList": {
         "properties": {
+          "attention": {
+            "$ref": "#/components/schemas/InboxAttention"
+          },
           "counts": {
             "$ref": "#/components/schemas/StatusCounts"
           },
@@ -3575,7 +3779,8 @@
           "pageSize",
           "total",
           "totalPages",
-          "counts"
+          "counts",
+          "attention"
         ],
         "title": "EnquiryList",
         "type": "object"
@@ -3781,9 +3986,44 @@
             "title": "Createdat",
             "type": "string"
           },
+          "estimatePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's starting price × the party; null without a priced package",
+            "title": "Estimatepaise"
+          },
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "lostReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lostreason"
           },
           "name": {
             "title": "Name",
@@ -3806,6 +4046,11 @@
           "ref": {
             "title": "Ref",
             "type": "string"
+          },
+          "replied": {
+            "description": "A reply has been sent from the inbox",
+            "title": "Replied",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/EnquiryStatus"
@@ -3838,7 +4083,11 @@
           "travelMonth",
           "adults",
           "children",
-          "createdAt"
+          "createdAt",
+          "replied",
+          "followUpOn",
+          "lostReason",
+          "estimatePaise"
         ],
         "title": "EnquiryRow",
         "type": "object"
@@ -3855,6 +4104,19 @@
       },
       "EnquiryStatusInput": {
         "properties": {
+          "lostReason": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was lost; kept when moving to `closed`, cleared on reopening",
+            "title": "Lostreason"
+          },
           "status": {
             "$ref": "#/components/schemas/EnquiryStatus"
           }
@@ -3946,6 +4208,28 @@
           "a"
         ],
         "title": "FaqItem",
+        "type": "object"
+      },
+      "FollowUpInput": {
+        "description": "`PATCH /admin/enquiries/{id}/follow-up`: an IST day from today on, or null to clear.",
+        "properties": {
+          "followUpOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followupon"
+          }
+        },
+        "required": [
+          "followUpOn"
+        ],
+        "title": "FollowUpInput",
         "type": "object"
       },
       "Health": {
@@ -4264,6 +4548,47 @@
           "height"
         ],
         "title": "ImageOut",
+        "type": "object"
+      },
+      "InboxAttention": {
+        "description": "A2's chips and subtitle, counted with the list's other filters (not status or view).",
+        "properties": {
+          "followUpDue": {
+            "description": "Open, with a follow-up due today or earlier (IST)",
+            "title": "Followupdue",
+            "type": "integer"
+          },
+          "needsReply": {
+            "description": "New, and no reply sent yet",
+            "title": "Needsreply",
+            "type": "integer"
+          },
+          "oldestWaitingSince": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the longest-waiting unanswered enquiry arrived",
+            "title": "Oldestwaitingsince"
+          },
+          "overTarget": {
+            "description": "Of those, waiting over 120 min",
+            "title": "Overtarget",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "needsReply",
+          "overTarget",
+          "followUpDue",
+          "oldestWaitingSince"
+        ],
+        "title": "InboxAttention",
         "type": "object"
       },
       "ItineraryDayInput": {
@@ -6065,6 +6390,35 @@
         "title": "RefundMadeInput",
         "type": "object"
       },
+      "RelatedBooking": {
+        "description": "A2's \"Same customer · past trips\": bookings with this enquiry's email or phone.",
+        "properties": {
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          }
+        },
+        "required": [
+          "ref",
+          "packageName",
+          "departs",
+          "status"
+        ],
+        "title": "RelatedBooking",
+        "type": "object"
+      },
       "RelatedEnquiry": {
         "description": "A7's \"other enquiries · same phone\" panel.",
         "properties": {
@@ -6200,6 +6554,58 @@
         ],
         "title": "ReviewState",
         "type": "string"
+      },
+      "ReviewStats": {
+        "description": "The Reviews page's KPI strip (R59, P20 · Reviews A). Months are IST calendar months, and a\nreview counts in the month it was last moved to Published.",
+        "properties": {
+          "oldestPendingAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the oldest waiting review came",
+            "title": "Oldestpendingat"
+          },
+          "publishedAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Every published review's mean, one decimal",
+            "title": "Publishedavg"
+          },
+          "publishedLastMonth": {
+            "title": "Publishedlastmonth",
+            "type": "integer"
+          },
+          "publishedPackages": {
+            "description": "How many trips have a published review",
+            "title": "Publishedpackages",
+            "type": "integer"
+          },
+          "publishedThisMonth": {
+            "title": "Publishedthismonth",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "oldestPendingAt",
+          "publishedAvg",
+          "publishedPackages",
+          "publishedThisMonth",
+          "publishedLastMonth"
+        ],
+        "title": "ReviewStats",
+        "type": "object"
       },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
@@ -7670,6 +8076,48 @@
         ]
       }
     },
+    "/admin/coupons/{id}/results": {
+      "get": {
+        "operationId": "getCouponResults",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CouponResults"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Results Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/dashboard": {
       "get": {
         "description": "Never cached: the owner refreshes this page to see the enquiry that just landed.",
@@ -8104,6 +8552,44 @@
               "title": "Page",
               "type": "integer"
             }
+          },
+          {
+            "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "reply",
+                    "followup"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+              "title": "View"
+            }
+          },
+          {
+            "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+              "enum": [
+                "newest",
+                "waiting"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8258,6 +8744,44 @@
               "title": "Page",
               "type": "integer"
             }
+          },
+          {
+            "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "reply",
+                    "followup"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`reply` = new with no reply sent yet; `followup` = open with a follow-up due today or earlier (IST)",
+              "title": "View"
+            }
+          },
+          {
+            "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "description": "`waiting`: needs reply (longest waiting first), then follow-ups due, then the rest newest first",
+              "enum": [
+                "newest",
+                "waiting"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8321,6 +8845,59 @@
           }
         },
         "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/enquiries/{id}/follow-up": {
+      "patch": {
+        "description": "P20 · A2: when to chase this open enquiry (an IST day from today on), or null to clear.\n409 `not_open` once it is won or lost.",
+        "operationId": "setEnquiryFollowUp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminEnquiry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Set Follow Up Route",
         "tags": [
           "admin"
         ]

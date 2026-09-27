@@ -1,6 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
-import { phoneLabel, receivedLabel } from '@/components/admin/enquiries/EnquiriesTable';
+import { phoneLabel, receivedLabel } from '@/lib/admin/labels';
 import {
   Table,
   TableBody,

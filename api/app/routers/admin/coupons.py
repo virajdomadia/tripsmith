@@ -1,5 +1,6 @@
-"""`/admin/coupons*` (R26, B15): the owner's coupon codes — list, create, edit, pause/resume and
-delete (only while unused). The rules are in services/admin_coupons.py."""
+"""`/admin/coupons*` (R26, B15): the owner's coupon codes — list, create, edit, pause/resume,
+delete (only while unused) and what each one did (read-only).
+The rules are in services/admin_coupons.py."""
 
 from typing import Annotated
 
@@ -8,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
-from app.schemas.coupons import AdminCoupon, AdminCouponList, CouponActive, CouponInput
+from app.schemas.coupons import (
+    AdminCoupon,
+    AdminCouponList,
+    CouponActive,
+    CouponInput,
+    CouponResults,
+)
 from app.services import admin_coupons as svc
 from app.services.auth.deps import require_owner
 
@@ -38,6 +45,12 @@ async def create_route(payload: CouponInput, response: Response, db: Db) -> Admi
 async def get_route(id: str, response: Response, db: Db) -> AdminCoupon:
     response.headers.update(NO_STORE)
     return await svc.get_coupon(db, id)
+
+
+@router.get("/coupons/{id}/results", operation_id="getCouponResults", response_model_by_alias=True)
+async def results_route(id: str, response: Response, db: Db) -> CouponResults:
+    response.headers.update(NO_STORE)
+    return await svc.coupon_results(db, id)
 
 
 @router.put("/coupons/{id}", operation_id="updateCoupon", response_model_by_alias=True)

@@ -193,17 +193,17 @@ describe('moderation', () => {
   it('offers only the moves out of the current tab and refreshes after one', async () => {
     adminRequest.mockResolvedValue({});
     const user = userEvent.setup();
-    render(<ModerateButtons id="rev_1" state="pending" />);
+    render(<ModerateButtons id="rev_1" state="pending" name="Asha Rao" />);
     expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Hide' }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(adminRequest).toHaveBeenCalledWith('/admin/reviews/rev_1/hide', { method: 'POST' });
     cleanup();
 
-    render(<ModerateButtons id="rev_1" state="published" />);
+    render(<ModerateButtons id="rev_1" state="published" name="Asha Rao" />);
     expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
     cleanup();
-    render(<ModerateButtons id="rev_1" state="hidden" />);
+    render(<ModerateButtons id="rev_1" state="hidden" name="Asha Rao" />);
     expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
   });
 

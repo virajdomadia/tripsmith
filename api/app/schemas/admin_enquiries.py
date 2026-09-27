@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from app.models.enums import EmailStatus, EnquiryStatus, PackageStatus
+from app.models.enums import BookingStatus, EmailStatus, EnquiryStatus, PackageStatus
 from app.schemas import ApiModel
 from app.schemas.enquiries import CONTROL_RE, PackageRef
 from app.schemas.meta import AdminEnquiryType
@@ -23,6 +23,11 @@ SUBJECT_MAX = 150
 REPLY_MAX = 5000
 
 Device = Literal["Mobile", "Desktop", "Unknown"]
+# P20 · Enquiries A2: the two job-of-the-day views, and the list's order.
+InboxView = Literal["reply", "followup"]
+InboxSort = Literal["newest", "waiting"]
+FIRST_REPLY_TARGET_MIN = 120  # A2's 2-hour first-reply target
+LOST_REASON_MAX = 120
 
 
 class EnquiryFilters(ApiModel):
@@ -41,6 +46,16 @@ class EnquiryFilters(ApiModel):
     to: dt.date | None = Field(default=None, description="Received on or before this IST day")
     q: str | None = Field(default=None, max_length=SEARCH_MAX, description="Name or phone")
     page: int = Field(default=1, ge=1, le=MAX_PAGE, description="1-based; ignored by the CSV")
+    view: InboxView | None = Field(
+        default=None,
+        description="`reply` = new with no reply sent yet; `followup` = open with a follow-up "
+        "due today or earlier (IST)",
+    )
+    sort: InboxSort = Field(
+        default="newest",
+        description="`waiting`: needs reply (longest waiting first), then follow-ups due, then "
+        "the rest newest first",
+    )
 
     @field_validator("to")
     @classmethod
@@ -62,6 +77,17 @@ class StatusCounts(ApiModel):
     all: int
 
 
+class InboxAttention(ApiModel):
+    """A2's chips and subtitle, counted with the list's other filters (not status or view)."""
+
+    needs_reply: int = Field(description="New, and no reply sent yet")
+    over_target: int = Field(description=f"Of those, waiting over {FIRST_REPLY_TARGET_MIN} min")
+    follow_up_due: int = Field(description="Open, with a follow-up due today or earlier (IST)")
+    oldest_waiting_since: dt.datetime | None = Field(
+        description="When the longest-waiting unanswered enquiry arrived"
+    )
+
+
 class EnquiryRow(ApiModel):
     """One line of the A6 table."""
 
@@ -76,6 +102,12 @@ class EnquiryRow(ApiModel):
     adults: int
     children: int
     created_at: dt.datetime
+    replied: bool = Field(description="A reply has been sent from the inbox")
+    follow_up_on: dt.date | None
+    lost_reason: str | None
+    estimate_paise: int | None = Field(
+        description="The package's starting price × the party; null without a priced package"
+    )
 
 
 class EnquiryList(ApiModel):
@@ -85,6 +117,7 @@ class EnquiryList(ApiModel):
     total: int = Field(description="Rows matching every filter, including status")
     total_pages: int = Field(ge=1)
     counts: StatusCounts
+    attention: InboxAttention
 
 
 class EnquiryNoteOut(ApiModel):
@@ -103,6 +136,15 @@ class RelatedEnquiry(ApiModel):
     status: EnquiryStatus
     package_name: str | None
     created_at: dt.datetime
+
+
+class RelatedBooking(ApiModel):
+    """A2's "Same customer · past trips": bookings with this enquiry's email or phone."""
+
+    ref: str
+    package_name: str
+    departs: dt.date
+    status: BookingStatus
 
 
 class EnquiryPackage(ApiModel):
@@ -156,10 +198,36 @@ class AdminEnquiry(ApiModel):
     notes: list[EnquiryNoteOut]
     messages: list[EnquiryMessageOut] = Field(description="Replies sent from the inbox, in order")
     related: list[RelatedEnquiry]
+    follow_up_on: dt.date | None = None
+    lost_reason: str | None = None
+    bookings: list[RelatedBooking] = Field(default_factory=list, description="Newest first")
 
 
 class EnquiryStatusInput(ApiModel):
     status: EnquiryStatus
+    lost_reason: str | None = Field(
+        default=None,
+        max_length=LOST_REASON_MAX,
+        description="Why it was lost; kept when moving to `closed`, cleared on reopening",
+    )
+
+    @field_validator("lost_reason", mode="before")
+    @classmethod
+    def _blank_reason(cls, v: object) -> object:
+        return (v.strip() or None) if isinstance(v, str) else v
+
+    @field_validator("lost_reason")
+    @classmethod
+    def _plain_reason(cls, v: str | None) -> str | None:
+        if v is not None and CONTROL_RE.search(v):
+            raise ValueError("Write it without special characters")
+        return v
+
+
+class FollowUpInput(ApiModel):
+    """`PATCH /admin/enquiries/{id}/follow-up`: an IST day from today on, or null to clear."""
+
+    follow_up_on: dt.date | None
 
 
 class EnquiryNoteInput(ApiModel):

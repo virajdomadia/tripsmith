@@ -44,6 +44,9 @@ class Enquiry(IdMixin, TimestampsMixin, Base):
     conversation_id: Mapped[str | None] = mapped_column(
         Text
     )  # ⏩ v3 handoff (FK with the v3 migration)
+    # 0011 (P20 · Enquiries A2): when to chase next, and why a closed enquiry was lost.
+    follow_up_on: Mapped[date | None] = mapped_column(Date)
+    lost_reason: Mapped[str | None] = mapped_column(Text)
     ip_hash: Mapped[str | None] = mapped_column(Text)
     user_agent: Mapped[str | None] = mapped_column(Text)
 

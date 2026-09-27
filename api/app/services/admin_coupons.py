@@ -7,26 +7,39 @@ the switch stay editable; bookings are never re-priced (each keeps its quote sna
 can be deleted only while it is not in use; after that it can only be paused.
 
 Every write locks the coupon row, the same lock a hold takes to check the limit.
+
+What a coupon did (R59, P20 · Coupons B) is read from the bookings that carry it, by the same
+rule as its uses — money captured — never stored: the discount comes from each booking's quote
+snapshot, and a use is dated by when its booking was made.
 """
 
 import datetime as dt
+from dataclasses import dataclass, field
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import ColumnElement, Integer, and_, cast, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
 from app.infra.db import constraint_name
-from app.models import Booking, Coupon, Package
+from app.models import Booking, BookingTraveller, Coupon, Package, PackageImage
 from app.models.enums import BookingStatus, CouponKind
 from app.schemas.coupons import (
+    LATEST_USES,
+    TOP_TRIPS,
+    WEEKS,
     AdminCoupon,
     AdminCouponList,
     CouponInput,
     CouponPackage,
+    CouponResults,
     CouponState,
+    CouponTrip,
+    CouponUse,
 )
+from app.services.admin_enquiries import ist_day_start
+from app.services.analytics import ist_today
 from app.services.booking.coupons import starts_on
 from app.services.catalog.deals import end_of_ist_day, ends_on
 from app.services.email.render import IST
@@ -42,29 +55,75 @@ def start_of_ist_day(day: dt.date) -> dt.datetime:
     return dt.datetime.combine(day, dt.time(), IST).astimezone(dt.UTC)
 
 
-async def _counts(db: AsyncSession, codes: list[str]) -> dict[str, tuple[int, int]]:
-    """(captured uses, live holds) per code."""
+USED = Booking.paid_paise > 0
+# services/booking/coupons.py's live hold
+HOLDING = and_(
+    Booking.status == BookingStatus.PENDING,
+    Booking.paid_paise == 0,
+    Booking.hold_expires_at > func.now(),
+)
+
+
+def _off() -> ColumnElement[int]:
+    """The coupon's discount in the booking's quote snapshot (voucher.coupon_off_of in SQL)."""
+    return func.coalesce(cast(Booking.quote["coupon"]["offPaise"].astext, Integer), 0)
+
+
+@dataclass
+class _Figures:
+    uses: int = 0
+    holds: int = 0
+    given: int = 0
+    booked: int = 0
+    weekly: list[int] = field(default_factory=lambda: [0] * WEEKS)
+
+
+def _first_week(now: dt.datetime | None) -> dt.date:
+    """The Monday that starts the sparkline's oldest IST week."""
+    today = ist_today(now)
+    return today - dt.timedelta(days=today.weekday(), weeks=WEEKS - 1)
+
+
+async def _counts(
+    db: AsyncSession, codes: list[str], *, now: dt.datetime | None = None
+) -> dict[str, _Figures]:
+    """Uses, live holds, ₹ given back, bookings value and uses per week, per code."""
     if not codes:
         return {}
-    out = {c: (0, 0) for c in codes}
+    out = {c: _Figures() for c in codes}
     rows = (
         await db.execute(
             select(
                 Booking.coupon_code,
-                func.count().filter(Booking.paid_paise > 0),
-                # services/booking/coupons.py's live hold, per code
-                func.count().filter(
-                    Booking.status == BookingStatus.PENDING,
-                    Booking.paid_paise == 0,
-                    Booking.hold_expires_at > func.now(),
-                ),
+                func.count().filter(USED),
+                func.count().filter(HOLDING),
+                func.coalesce(func.sum(_off()).filter(USED), 0),
+                func.coalesce(func.sum(Booking.total_paise).filter(USED), 0),
             )
             .where(Booking.coupon_code.in_(codes))
             .group_by(Booking.coupon_code)
         )
     ).all()
-    for code, uses, holds in rows:
-        out[str(code)] = (int(uses), int(holds))
+    for code, uses, holds, given, booked in rows:
+        f = out[str(code)]
+        f.uses, f.holds, f.given, f.booked = int(uses), int(holds), int(given), int(booked)
+    first = _first_week(now)
+    week = func.date_trunc("week", func.timezone("Asia/Kolkata", Booking.created_at))
+    weeks = (
+        await db.execute(
+            select(Booking.coupon_code, week, func.count())
+            .where(
+                Booking.coupon_code.in_(codes),
+                USED,
+                Booking.created_at >= ist_day_start(first),
+            )
+            .group_by(Booking.coupon_code, week)
+        )
+    ).all()
+    for code, starts, n in weeks:
+        i = (starts.date() - first).days // 7
+        if 0 <= i < WEEKS:
+            out[str(code)].weekly[i] = int(n)
     return out
 
 
@@ -80,8 +139,8 @@ def _state(c: Coupon, uses: int, now: dt.datetime) -> CouponState:
     return CouponState.ACTIVE
 
 
-def _out(c: Coupon, counts: tuple[int, int], now: dt.datetime) -> AdminCoupon:
-    uses, holds = counts
+def _out(c: Coupon, f: _Figures, now: dt.datetime) -> AdminCoupon:
+    uses, holds = f.uses, f.holds
     return AdminCoupon(
         id=c.id,
         code=c.code,
@@ -101,6 +160,9 @@ def _out(c: Coupon, counts: tuple[int, int], now: dt.datetime) -> AdminCoupon:
         live_holds=holds,
         locked=uses + holds > 0,
         created_at=c.created_at,
+        given_paise=f.given,
+        booked_paise=f.booked,
+        weekly=f.weekly,
     )
 
 
@@ -115,7 +177,7 @@ async def list_coupons(db: AsyncSession, *, now: dt.datetime | None = None) -> A
             )
         ).scalars()
     )
-    counts = await _counts(db, [c.code for c in coupons])
+    counts = await _counts(db, [c.code for c in coupons], now=now)
     return AdminCouponList(items=[_out(c, counts[c.code], now) for c in coupons])
 
 
@@ -132,7 +194,58 @@ async def _by_id(db: AsyncSession, id: str, *, lock: bool) -> Coupon:
 async def get_coupon(db: AsyncSession, id: str, *, now: dt.datetime | None = None) -> AdminCoupon:
     now = now or dt.datetime.now(dt.UTC)
     c = await _by_id(db, id, lock=False)
-    return _out(c, (await _counts(db, [c.code]))[c.code], now)
+    return _out(c, (await _counts(db, [c.code], now=now))[c.code], now)
+
+
+async def coupon_results(db: AsyncSession, id: str) -> CouponResults:
+    """What the code did: the trips it sold and its latest uses and live holds. Read-only."""
+    code = (await _by_id(db, id, lock=False)).code
+    cover = PackageImage.__table__.alias("cover")
+    trips = (
+        await db.execute(
+            select(Package.id, Package.name, cover.c.url, func.count())
+            .join(Booking, Booking.package_id == Package.id)
+            .outerjoin(cover, cover.c.id == Package.cover_image_id)
+            .where(Booking.coupon_code == code, USED)
+            .group_by(Package.id, Package.name, cover.c.url)
+            .order_by(func.count().desc(), Package.name)
+        )
+    ).all()
+    travellers = (
+        select(func.count())
+        .select_from(BookingTraveller)
+        .where(BookingTraveller.booking_id == Booking.id)
+        .scalar_subquery()
+    )
+    latest = (
+        await db.execute(
+            select(Booking, Package.name, travellers, _off())
+            .join(Package, Package.id == Booking.package_id)
+            .where(Booking.coupon_code == code, or_(USED, HOLDING))
+            .order_by(Booking.created_at.desc(), Booking.id.desc())
+            .limit(LATEST_USES)
+        )
+    ).all()
+    return CouponResults(
+        trips=[
+            CouponTrip(package_id=i, name=n, cover_url=u, uses=k)
+            for i, n, u, k in trips[:TOP_TRIPS]
+        ],
+        other_trip_uses=sum(k for *_, k in trips[TOP_TRIPS:]),
+        latest=[
+            CouponUse(
+                at=b.created_at,
+                ref=b.ref,
+                name=b.contact_name,
+                email=b.contact_email,
+                package_name=name,
+                travellers=n,
+                off_paise=off,
+                holding=b.paid_paise == 0,
+            )
+            for b, name, n, off in latest
+        ],
+    )
 
 
 async def _packages(db: AsyncSession, payload: CouponInput) -> list[Package]:
@@ -208,7 +321,8 @@ async def update_coupon(
 ) -> AdminCoupon:
     _validate(payload)
     coupon = await _by_id(db, id, lock=True)
-    uses, holds = (await _counts(db, [coupon.code]))[coupon.code]
+    f = (await _counts(db, [coupon.code]))[coupon.code]
+    uses, holds = f.uses, f.holds
     if uses + holds:
         errors = {
             field: LOCKED
@@ -243,7 +357,8 @@ async def set_active(
 
 async def delete_coupon(db: AsyncSession, id: str) -> None:
     coupon = await _by_id(db, id, lock=True)
-    uses, holds = (await _counts(db, [coupon.code]))[coupon.code]
+    f = (await _counts(db, [coupon.code]))[coupon.code]
+    uses, holds = f.uses, f.holds
     if uses + holds:
         await db.rollback()
         raise ApiError("conflict", IN_USE)
