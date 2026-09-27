@@ -79,7 +79,7 @@ def facts(status: BookingStatus = BookingStatus.CONFIRMED, travellers: int = 3) 
         inclusions=("Two nights in riverside tents", "All meals", "Guided Chalal trek"),
         lead_name="Priya Sharma",
         lead_phone="9000000001",
-        lead_email="priya@example.com",
+        lead_email="priya@customer.in",
         total_paise=11_998_00,
         paid_paise=11_998_00,
         payment_ids=("pay_TgNJB4GC0DdPbz",),
@@ -182,13 +182,13 @@ def test_a_confirmation_sends_the_customer_the_voucher_and_the_owner_the_booking
         )
     )
     customer, owner = emails["customer"], emails["owner"]
-    assert customer.to == "priya@example.com"
+    assert customer.to == "priya@customer.in"
     assert (
         customer.subject == "Booking TB-7F3K2Q confirmed — Kasol Riverside Weekend, Fri 9 Oct 2026"
     )
     assert customer.attachments == (VOUCHER,)
     assert "attached as a PDF" in customer.text and "wa.me/" in customer.text
-    assert owner.to == OWNER_INBOX and owner.reply_to == "priya@example.com"
+    assert owner.to == OWNER_INBOX and owner.reply_to == "priya@customer.in"
     assert owner.subject.startswith("New booking TB-7F3K2Q — Priya Sharma")
     assert owner.attachments == () and "Refund" not in owner.text
 
@@ -240,7 +240,7 @@ async def test_demo_mode_sends_the_customer_copy_to_the_owner() -> None:
     capture = Capture(Settled.CONFIRMED, "pay_A", 1)
     await send_booking_emails(sender, TEST_MODE, facts(), capture, voucher=VOUCHER)
     assert [m.to for m in sender.sent] == [OWNER_INBOX, OWNER_INBOX]
-    assert sender.sent[0].subject.startswith("[Test → priya@example.com] Booking TB-7F3K2Q")
+    assert sender.sent[0].subject.startswith("[Test → priya@customer.in] Booking TB-7F3K2Q")
     assert sender.sent[0].attachments == (VOUCHER,)
     # Demo mode with no owner inbox: nothing can be delivered, so nothing is sent.
     silent = FakeSender()
@@ -249,11 +249,11 @@ async def test_demo_mode_sends_the_customer_copy_to_the_owner() -> None:
 
 
 async def test_a_failed_send_is_logged_never_raised(caplog: pytest.LogCaptureFixture) -> None:
-    sender = FakeSender(fail_for=frozenset({"priya@example.com"}))
+    sender = FakeSender(fail_for=frozenset({"priya@customer.in"}))
     await send_booking_emails(sender, LIVE, facts(), Capture(Settled.CONFIRMED, "pay_A", 1))
     assert [m.to for m in sender.sent] == [OWNER_INBOX]
     assert "customer booking email failed for TB-7F3K2Q" in caplog.text
-    assert "priya@example.com" not in caplog.text  # the role, never the address
+    assert "priya@customer.in" not in caplog.text  # the role, never the address
 
 
 # --- db: the journey ---------------------------------------------------------------------------

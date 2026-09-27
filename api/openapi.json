@@ -3453,7 +3453,7 @@
         "type": "object"
       },
       "EnquiryMessageOut": {
-        "description": "One reply in the thread (R23). `sent` is false when Resend refused it or was unreachable;\n`error` then says why, and the owner can send it again.",
+        "description": "One reply in the thread (R23). `sent` is false when the email service refused it or was\nunreachable; `error` then says why, and the owner can send it again.",
         "properties": {
           "attachment": {
             "anyOf": [
@@ -4389,7 +4389,7 @@
         "type": "object"
       },
       "OtpSent": {
-        "description": "`POST /auth/otp/request`. `demoCode` is set only in demo mode (EMAIL_FROM still on\nResend's test domain, which can deliver nowhere but the owner's inbox): the sign-in screen\nprints it, labelled, instead of emailing it.",
+        "description": "`POST /auth/otp/request`. `demoCode` is set only when the code is not emailed: for a\ndemo address (@example.com/.org/.net, e.g. the seeded demo traveller) or while EMAIL_FROM is\nstill Resend's test sender. The sign-in screen prints it, labelled, instead.",
         "properties": {
           "demoCode": {
             "anyOf": [

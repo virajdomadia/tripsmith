@@ -61,9 +61,9 @@ class OtpRequest(ApiModel):
 
 
 class OtpSent(ApiModel):
-    """`POST /auth/otp/request`. `demoCode` is set only in demo mode (EMAIL_FROM still on
-    Resend's test domain, which can deliver nowhere but the owner's inbox): the sign-in screen
-    prints it, labelled, instead of emailing it."""
+    """`POST /auth/otp/request`. `demoCode` is set only when the code is not emailed: for a
+    demo address (@example.com/.org/.net, e.g. the seeded demo traveller) or while EMAIL_FROM is
+    still Resend's test sender. The sign-in screen prints it, labelled, instead."""
 
     email: str
     expires_at: datetime

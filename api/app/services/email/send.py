@@ -1,10 +1,15 @@
 """Send the owner notification and the visitor confirmation; map what happened to
 `email_status` (06 A4). Never raises — a lost email must not cost a saved lead.
 
-Resend test mode (no verified domain; EMAIL_FROM at @resend.dev) can only deliver to the
-account's own inbox, so the visitor's copy is redirected to OWNER_NOTIFY_EMAIL with a
+Demo mode holds a customer's copy back and redirects it to OWNER_NOTIFY_EMAIL with a
 `[Test → visitor]` subject — the owner sees both emails; `visitor_emailed` stays false so the
-thanks page does not claim otherwise. A verified EMAIL_FROM switches this off by itself.
+thanks page does not claim otherwise. It applies (`held_back`) in two cases:
+
+- site-wide while EMAIL_FROM is Resend's test sender (@resend.dev), which can deliver only to
+  the account's own inbox — a real sender (Gmail SMTP since v2.5 P0) switches this off by itself;
+- always for the reserved demo domains (example.com/.org/.net, RFC 2606): the seeded demo
+  traveller and made-up addresses never produce a real send, and their sign-in code shows on
+  screen.
 """
 
 import asyncio
@@ -27,9 +32,24 @@ class EmailOutcome:
     visitor_emailed: bool  # a real send to the visitor's own address succeeded
 
 
+DEMO_DOMAINS = frozenset({"example.com", "example.org", "example.net"})
+
+
+def _address(value: str) -> str:
+    return value.rsplit("<", 1)[-1].rstrip("> ").strip().lower()
+
+
 def is_test_mode(email_from: str) -> bool:
-    address = email_from.rsplit("<", 1)[-1].rstrip("> ").strip().lower()
-    return address.endswith("@resend.dev")
+    return _address(email_from).endswith("@resend.dev")
+
+
+def is_demo_address(email: str) -> bool:
+    return _address(email).rsplit("@", 1)[-1] in DEMO_DOMAINS
+
+
+def held_back(settings: Settings, to: str) -> bool:
+    """True when a customer email to `to` must not be really sent (see the module docstring)."""
+    return is_test_mode(settings.email_from) or is_demo_address(to)
 
 
 async def send_enquiry_emails(
@@ -47,7 +67,7 @@ async def send_enquiry_emails(
         if attachment is not None and visitor is not None:
             visitor = replace(visitor, attachments=(attachment,))  # the owner gets a link instead
         visitor_is_real = True
-        if is_test_mode(settings.email_from) and visitor is not None:
+        if visitor is not None and held_back(settings, visitor.to):
             visitor_is_real = False
             if settings.owner_notify_email:
                 visitor = replace(

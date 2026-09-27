@@ -10,8 +10,9 @@
 - marked paid offline on the desk (B10) → the customer's confirmation only, its demo note
   saying so; the owner did it and gets no email about it.
 
-Demo mode is the enquiry emails' rule (send.py): while `EMAIL_FROM` is @resend.dev, the
-customer's copy goes to `OWNER_NOTIFY_EMAIL` with a `[Test → …]` subject. Never raises — the
+Demo mode is the enquiry emails' rule (send.py `held_back`): while `EMAIL_FROM` is @resend.dev,
+or always for an @example.com/.org/.net customer, the customer's copy goes to
+`OWNER_NOTIFY_EMAIL` with a `[Test → …]` subject. Never raises — the
 payment is already committed; a lost email is logged and sent to Sentry.
 """
 
@@ -28,7 +29,7 @@ from app.models.enums import BookingStatus
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import BookingFacts
 from app.services.email.render import _env, _ist, _one_line
-from app.services.email.send import is_test_mode
+from app.services.email.send import held_back
 from app.services.format import duration, inr, long_date
 
 log = logging.getLogger(__name__)
@@ -171,17 +172,14 @@ async def deliver(
 ) -> None:
     """Send `(role, message)` pairs: in demo mode the customer's copy is redirected to the
     owner's inbox; a failed send is logged by role (never the address) and reported."""
-    if is_test_mode(settings.email_from):
-        redirected = []
-        for role, m in labelled:
-            if role == "customer":
-                if not settings.owner_notify_email:
-                    continue
-                m = replace(
-                    m, to=settings.owner_notify_email, subject=f"[Test → {m.to}] {m.subject}"
-                )
-            redirected.append((role, m))
-        labelled = redirected
+    redirected = []
+    for role, m in labelled:
+        if role == "customer" and held_back(settings, m.to):
+            if not settings.owner_notify_email:
+                continue
+            m = replace(m, to=settings.owner_notify_email, subject=f"[Test → {m.to}] {m.subject}")
+        redirected.append((role, m))
+    labelled = redirected
     if not labelled:
         return
     results = await asyncio.gather(*(sender.send(m) for _, m in labelled), return_exceptions=True)

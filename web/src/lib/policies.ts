@@ -121,6 +121,7 @@ const privacy: PolicyDoc = {
       p: [
         'Tripsmith is a working demonstration built for a developer’s portfolio, not a trading travel agency. Nobody will call you back, and no trip will be booked.',
         'The owner dashboard has a public demo login so that anyone can try it. That means every enquiry sent through this site — name, phone number, email and message included — can be read by anyone who signs in with it. Please do not submit real personal details; made-up ones show the flow just as well.',
+        'Emails are really sent: sign-in codes, booking confirmations and replies go to the address you type. An address ending in @example.com is never emailed — its sign-in code shows on screen instead — so use one of those if you would rather not receive anything.',
       ],
     },
     {

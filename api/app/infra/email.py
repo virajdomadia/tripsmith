@@ -1,15 +1,22 @@
-"""Transactional email over Resend's REST API (04 §6).
+"""Transactional email (04 §6): SMTP when `SMTP_HOST`, `SMTP_USER` and `SMTP_PASSWORD` are set
+(v2.5 P0: Gmail), else Resend's REST API, else nothing.
 
-The official `resend` SDK is synchronous (requests); the API is one POST, so it is called with
-the httpx client the rest of infra/ already uses. When `RESEND_API_KEY` is unset (dev, CI)
-`NullSender` sends nothing and says so once. Sending never swallows: callers decide what a
-failure means (services/email/send.py maps it to `email_status`).
+Gmail is sent with the stdlib `smtplib` in a worker thread (STARTTLS on 587, a Google app
+password) — no new dependency for one blocking call. Resend's official SDK is synchronous
+(requests); its API is one POST, so it is called with the httpx client the rest of infra/
+already uses. With neither configured (dev, CI) `NullSender` sends nothing and says so once.
+Sending never swallows: callers decide what a failure means (services/email/send.py maps it to
+`email_status`).
 """
 
+import asyncio
 import base64
 import logging
 import os
+import smtplib
 from dataclasses import dataclass
+from email.message import EmailMessage as MimeMessage
+from email.utils import formatdate, make_msgid
 from typing import Any, Protocol
 
 import httpx
@@ -53,7 +60,7 @@ class NullSender:
     async def send(self, message: EmailMessage) -> str | None:
         if not NullSender._warned:
             NullSender._warned = True
-            log.warning("RESEND_API_KEY unset — emails are not sent")
+            log.warning("No SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY — emails are not sent")
         return None
 
 
@@ -89,13 +96,72 @@ class ResendSender:
         return str(res.json().get("id", ""))
 
 
+SMTP_TIMEOUT_SECONDS = 15.0
+
+
+class SmtpSender:
+    """Gmail (or any STARTTLS server). The message id is the one we mint, so a failed send
+    still has nothing to store and a sent one always has an id (enquiry_reply relies on it)."""
+
+    def __init__(self, host: str, port: int, user: str, password: str, sender: str) -> None:
+        self._host, self._port = host, port
+        self._user, self._password = user, password
+        self._from = sender
+
+    def _mime(self, message: EmailMessage) -> tuple[MimeMessage, str]:
+        mime = MimeMessage()
+        msg_id = make_msgid(domain=self._user.rsplit("@", 1)[-1])
+        mime["From"] = self._from
+        mime["To"] = message.to
+        mime["Subject"] = message.subject
+        mime["Date"] = formatdate(localtime=False)
+        mime["Message-ID"] = msg_id
+        if message.reply_to:
+            mime["Reply-To"] = message.reply_to
+        mime.set_content(message.text)
+        mime.add_alternative(message.html, subtype="html")
+        for a in message.attachments:
+            maintype, subtype = (
+                ("application", "pdf")
+                if a.filename.lower().endswith(".pdf")
+                else ("application", "octet-stream")
+            )
+            mime.add_attachment(a.content, maintype=maintype, subtype=subtype, filename=a.filename)
+        return mime, msg_id.strip("<>")
+
+    def _send_blocking(self, mime: MimeMessage) -> None:
+        with smtplib.SMTP(self._host, self._port, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
+            smtp.starttls()
+            smtp.login(self._user, self._password)
+            smtp.send_message(mime)
+
+    async def send(self, message: EmailMessage) -> str | None:
+        mime, msg_id = self._mime(message)
+        try:
+            await asyncio.to_thread(self._send_blocking, mime)
+        except smtplib.SMTPException as exc:
+            # Refused: bad login, rejected recipient, over Gmail's daily cap. Never the address.
+            raise EmailSendError(f"SMTP refused: {type(exc).__name__}") from exc
+        except OSError as exc:  # DNS, connect, timeout
+            raise EmailSendError(f"SMTP unreachable: {type(exc).__name__}") from exc
+        return msg_id
+
+
 def build_email_sender(settings: Settings) -> EmailSender:
+    if settings.smtp_host and settings.smtp_user and settings.smtp_password:
+        return SmtpSender(
+            settings.smtp_host,
+            settings.smtp_port,
+            settings.smtp_user,
+            settings.smtp_password.get_secret_value(),
+            settings.email_from,
+        )
     if settings.resend_api_key:
         return ResendSender(settings.resend_api_key.get_secret_value(), settings.email_from)
     if os.environ.get("VERCEL"):
         # Enquiries still save, but nobody hears about them. ERROR so Sentry carries it.
         log.error(
-            "RESEND_API_KEY is unset on a deployment: enquiry emails (owner alert and visitor "
-            "confirmation) are not being sent. Set it on this project."
+            "No SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY on a deployment: no email is being "
+            "sent (enquiries, bookings, sign-in codes). Set them on this project."
         )
     return NullSender()
