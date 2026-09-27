@@ -29,7 +29,7 @@ def ctx(**over: object) -> EnquiryEmailContext:
         name="Priya Sharma",
         first_name="Priya",
         phone="9845022110",
-        email="priya@example.com",
+        email="priya@customer.in",
         travel_month="November 2026",
         adults=2,
         children=1,
@@ -55,13 +55,13 @@ def test_inr_uses_indian_grouping() -> None:
 
 def test_owner_message_has_every_field_and_replies_to_the_visitor() -> None:
     msg = render_owner(ctx(), settings=SETTINGS)
-    assert msg.to == "owner@example.com" and msg.reply_to == "priya@example.com"
+    assert msg.to == "owner@example.com" and msg.reply_to == "priya@customer.in"
     assert msg.subject == "New enquiry TS-ABC234 — Priya Sharma · North Goa Beaches"
     for needle in (
         "TS-ABC234",
         "Priya Sharma",
         "9845022110",
-        "priya@example.com",
+        "priya@customer.in",
         "November 2026",
         "2 adults, 1 child",
         "12–16 Nov",
@@ -110,7 +110,7 @@ def test_owner_subject_is_one_line_whatever_the_name_holds() -> None:
 
 def test_visitor_message_promises_the_call_and_links_whatsapp() -> None:
     msg = render_visitor(ctx(), settings=SETTINGS)
-    assert msg.to == "priya@example.com" and msg.reply_to is None
+    assert msg.to == "priya@customer.in" and msg.reply_to is None
     assert msg.subject == "Your Tripsmith enquiry TS-ABC234 — we'll call you within 2 hours"
     for needle in (
         "Thanks, Priya",
@@ -145,7 +145,7 @@ def test_context_from_the_row() -> None:
         type=EnquiryType.STANDARD,
         name="Priya Sharma",
         phone="9845022110",
-        email="priya@example.com",
+        email="priya@customer.in",
         travel_month=dt.date(2026, 11, 1),
         adults=2,
         children=0,

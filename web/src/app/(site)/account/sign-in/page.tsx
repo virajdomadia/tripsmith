@@ -33,9 +33,9 @@ export default async function AccountSignInPage({
       </section>
 
       <p className="rounded-btn border border-line bg-bg2 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink2">
-        <b className="font-bold text-ink">This is a portfolio demo.</b> While email delivery is off,
-        the code is shown on screen — so anyone can open the trips booked with any email. Book with
-        made-up details.{' '}
+        <b className="font-bold text-ink">This is a portfolio demo.</b> Your code is emailed to you.
+        Addresses ending in <b className="font-bold text-ink">@example.com</b> get it on screen
+        instead, so anyone can open those demo accounts.{' '}
         <Link href="/privacy#demo" className="whitespace-nowrap">
           More in the privacy policy
         </Link>

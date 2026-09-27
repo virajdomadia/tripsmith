@@ -2,7 +2,7 @@
 
 **Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, and — from v3 — have an AI concierge plan the itinerary and start the booking for you.
 
-> **Status: v2** (2026-09-26): the booking engine is live on top of the v1 agency website. Visitors can pick a date, build a party and pay by Razorpay with live seats, deals and coupons, then get a PDF voucher and manage the trip (cancel, review) from an email-code account. The owner runs bookings, refunds, cancellations, deals, coupons and reviews from the admin. Payments are in **Razorpay test mode** (use a test card) and emails are in **demo mode** (sign-in codes show on screen). The honest account of v1 and v2 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2.5 Strengthen**, which brings deposits, a waitlist, date changes, add-ons, real refunds with GST invoices, a trip pack, a departure calendar, reports and counter booking ([requirements](docs/03-requirements-v2-5.md)). **v3**, an AI concierge, comes after it. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
+> **Status: v2** (2026-09-26): the booking engine is live on top of the v1 agency website. Visitors can pick a date, build a party and pay by Razorpay with live seats, deals and coupons, then get a PDF voucher and manage the trip (cancel, review) from an email-code account. The owner runs bookings, refunds, cancellations, deals, coupons and reviews from the admin. Payments are in **Razorpay test mode** (use a test card) and emails are **real** (sent from a Tripsmith Gmail; addresses ending in `@example.com` are never mailed and get their sign-in code on screen). The honest account of v1 and v2 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2.5 Strengthen**, which brings deposits, a waitlist, date changes, add-ons, real refunds with GST invoices, a trip pack, a departure calendar, reports and counter booking ([requirements](docs/03-requirements-v2-5.md)). **v3**, an AI concierge, comes after it. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
 >
 > **Live:** [tripsmith.vercel.app](https://tripsmith.vercel.app) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
 
@@ -31,7 +31,7 @@ A real product, not a CRUD demo. It has a public catalog that is fast and indexa
         │  routers → services → models    │ ◀────  POST /webhooks/razorpay (signed)
         └───┬─────────┬─────────┬─────────┘
             │         │         │
-       PostgreSQL  Vercel    Resend · Upstash · Sentry
+       PostgreSQL  Vercel    Gmail SMTP · Upstash · Sentry
         (Neon)      Blob     email    limits    errors
             │         │
        SQLAlchemy   photos + itinerary PDFs (vouchers are rendered on demand, never stored)
@@ -51,7 +51,7 @@ Four decisions carry most of the design:
 ## Stack
 
 **web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
-**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, signed webhook) · fpdf2 (itinerary PDFs, vouchers) · Jinja2 + Resend (email) · Pillow · httpx · pytest · uv
+**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, signed webhook) · fpdf2 (itinerary PDFs, vouchers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
 **platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract)
 
 After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 security pass and its one PageSpeed Insights run are in [docs/12](docs/12-security-performance.md#b14--v2-close-security--performance).

@@ -17,8 +17,8 @@ function waitCopy(e: SignInError): string {
 
 /**
  * The two-step email-code sign-in (R18, B0 mockup "Sign in"). Step 1 asks for the email the
- * trip was booked with; step 2 takes the 6 digits. In demo mode the api returns the code and it
- * is printed here in a dark strip with "Fill it in" — nothing is emailed. A good code sets the
+ * trip was booked with; step 2 takes the 6 digits. For a demo address (@example.com) the api
+ * returns the code and it is printed here in a dark strip with "Fill it in" — nothing is emailed. A good code sets the
  * session cookie (via the web handler) and the page moves to My trips with a full navigation,
  * so the server reads the new cookie.
  */
@@ -144,7 +144,7 @@ export function SignInForm({ signedOut }: { signedOut: boolean }) {
         <div className="flex items-center justify-between gap-3 rounded-[12px] bg-ink px-4 py-3 text-white">
           <div>
             <small className="block text-[12px] font-semibold text-[#b7c0c8]">
-              Demo mode — email delivery is off. Your code:
+              Demo account — no email is sent. Your code:
             </small>
             <b className="num text-[24px] font-extrabold tracking-[0.18em]">
               {spaced(sent.demoCode)}

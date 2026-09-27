@@ -25,7 +25,11 @@ class Settings(BaseSettings):
     owner_email: str | None = None
     owner_password: SecretStr | None = None
 
-    # --- Email (Resend) ---
+    # --- Email: SMTP when host, user and password are all set (v2.5 P0: Gmail), else Resend ---
+    smtp_host: str | None = None
+    smtp_port: int = 587  # STARTTLS
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
     resend_api_key: SecretStr | None = None
     email_from: str = "Tripsmith <onboarding@resend.dev>"
     owner_notify_email: str | None = None

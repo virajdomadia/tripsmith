@@ -1,6 +1,7 @@
 """The sign-in code email (B8, R18). Sent only outside demo mode: while EMAIL_FROM is on
-Resend's test domain the code is shown on screen instead (`OtpSent.demoCode`), since the
-customer's inbox is unreachable and every visitor's code landing in the owner's is noise."""
+Resend's test domain, or for an @example.com/.org/.net address (the seeded demo traveller), the
+code is shown on screen instead (`OtpSent.demoCode`), since that inbox is unreachable and every
+visitor's code landing in the owner's is noise."""
 
 from app.business import BUSINESS
 from app.config import Settings

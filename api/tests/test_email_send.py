@@ -1,4 +1,5 @@
-"""send_enquiry_emails: both sends, test-mode redirect, and the email_status mapping (04 §6)."""
+"""send_enquiry_emails: both sends, the demo-mode redirect (test sender or a demo address),
+and the email_status mapping (04 §6)."""
 
 import logging
 
@@ -6,7 +7,12 @@ import pytest
 
 from app.infra.email import EmailAttachment, EmailMessage, EmailSendError
 from app.models.enums import EmailStatus
-from app.services.email.send import is_test_mode, send_enquiry_emails
+from app.services.email.send import (
+    held_back,
+    is_demo_address,
+    is_test_mode,
+    send_enquiry_emails,
+)
 from tests.settings import make_settings
 from tests.test_email_render import ctx
 
@@ -34,6 +40,28 @@ class FakeSender:
         return None if self.off else f"em_{len(self.sent)}"
 
 
+def test_demo_addresses_are_the_reserved_example_domains() -> None:
+    assert is_demo_address("traveller.demo@example.com")
+    assert is_demo_address("Asha <ASHA@Example.ORG>")
+    assert is_demo_address("x@example.net")
+    assert not is_demo_address("priya@customer.in")
+    assert not is_demo_address("someone@example.co.in")
+
+
+def test_held_back_by_test_mode_or_a_demo_address() -> None:
+    assert held_back(TEST_MODE, "priya@customer.in")
+    assert held_back(LIVE, "traveller.demo@example.com")
+    assert not held_back(LIVE, "priya@customer.in")
+
+
+async def test_live_sender_still_redirects_a_demo_address_to_the_owner() -> None:
+    sender = FakeSender()
+    out = await send_enquiry_emails(sender, LIVE, ctx(email="priya@example.com"))
+    assert out.status == EmailStatus.SENT and not out.visitor_emailed
+    assert all(m.to == "owner@example.com" for m in sender.sent)
+    assert any(m.subject.startswith("[Test → priya@example.com]") for m in sender.sent)
+
+
 def test_is_test_mode_reads_the_address_part() -> None:
     assert is_test_mode("Tripsmith <onboarding@resend.dev>")
     assert is_test_mode("onboarding@resend.dev")
@@ -44,9 +72,9 @@ async def test_live_sends_both_and_reports_sent() -> None:
     sender = FakeSender()
     out = await send_enquiry_emails(sender, LIVE, ctx())
     assert out.status == EmailStatus.SENT and out.visitor_emailed
-    assert sorted(m.to for m in sender.sent) == ["owner@example.com", "priya@example.com"]
+    assert sorted(m.to for m in sender.sent) == ["owner@example.com", "priya@customer.in"]
     owner = next(m for m in sender.sent if m.to == "owner@example.com")
-    assert owner.reply_to == "priya@example.com"
+    assert owner.reply_to == "priya@customer.in"
 
 
 async def test_test_mode_redirects_the_visitor_copy_to_the_owner() -> None:
@@ -55,7 +83,7 @@ async def test_test_mode_redirects_the_visitor_copy_to_the_owner() -> None:
     assert out.status == EmailStatus.SENT and not out.visitor_emailed
     assert [m.to for m in sender.sent] == ["owner@example.com", "owner@example.com"]
     visitor_copy = sender.sent[1]
-    assert visitor_copy.subject.startswith("[Test → priya@example.com] Your Tripsmith enquiry")
+    assert visitor_copy.subject.startswith("[Test → priya@customer.in] Your Tripsmith enquiry")
 
 
 async def test_test_mode_without_owner_address_sends_nothing() -> None:
@@ -86,11 +114,11 @@ async def test_live_without_owner_address_sends_only_the_visitor() -> None:
     sender = FakeSender()
     out = await send_enquiry_emails(sender, settings, ctx())
     assert out.status == EmailStatus.SENT and out.visitor_emailed is True
-    assert [m.to for m in sender.sent] == ["priya@example.com"]
+    assert [m.to for m in sender.sent] == ["priya@customer.in"]
 
 
 async def test_visitor_failure_is_failed_and_not_emailed() -> None:
-    sender = FakeSender(fail_for=frozenset({"priya@example.com"}))
+    sender = FakeSender(fail_for=frozenset({"priya@customer.in"}))
     out = await send_enquiry_emails(sender, LIVE, ctx())
     assert out.status == EmailStatus.FAILED and not out.visitor_emailed
 
@@ -122,7 +150,7 @@ async def test_attachment_goes_to_the_visitor_only() -> None:
     out = await send_enquiry_emails(sender, settings, ctx(), attachment=att)
     assert out.status == EmailStatus.SENT
     by_to = {m.to: m for m in sender.sent}
-    assert by_to["priya@example.com"].attachments == (att,)
+    assert by_to["priya@customer.in"].attachments == (att,)
     assert by_to["owner@example.com"].attachments == ()
 
 

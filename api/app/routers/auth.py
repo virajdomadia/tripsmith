@@ -5,8 +5,8 @@ Email code limits: `otp-ip:{ip}` 20 / 15 min before the body is read, then `otp:
 min — so one address cannot be flooded with codes and one connection cannot spray addresses.
 Guessing is capped per code (5 wrong tries, services/auth/otp.py) and only the newest code for
 an email is live, so at most 25 guesses per email per 15 minutes reach a million-code space.
-The owner signs in with a password only: an owner email is refused here, since in demo mode the
-code is printed on screen and would otherwise hand anyone the admin."""
+The owner signs in with a password only: an owner email is refused here, since for a demo
+address the code is printed on screen and would otherwise hand anyone the admin."""
 
 import logging
 from typing import Annotated
@@ -28,7 +28,7 @@ from app.services.auth.deps import current_session
 from app.services.auth.otp import check_code, issue_code, role_of, sign_in_customer
 from app.services.auth.sessions import delete_session, login, session_info
 from app.services.booking.desk import count_needing_attention
-from app.services.email.send import is_test_mode
+from app.services.email.send import held_back
 from app.services.email.signin import render_signin_code
 from app.services.enquiries import count_new_enquiries
 from app.services.reviews import count_pending
@@ -166,7 +166,7 @@ async def post_otp_request(
 
     settings = request.app.state.settings
     issued = await issue_code(db, payload.email, secret=_secret(request))
-    if is_test_mode(settings.email_from):
+    if held_back(settings, payload.email):
         return OtpSent(email=payload.email, expires_at=issued.expires_at, demo_code=issued.code)
     try:
         await request.app.state.email_sender.send(

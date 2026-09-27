@@ -163,6 +163,17 @@ async def test_live_mode_emails_the_code_and_never_returns_it(
 
 
 @pytest.mark.db
+async def test_a_demo_address_shows_its_code_even_with_a_live_sender(
+    db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    # v2.5 P0: the seeded demo traveller (@example.com) must stay usable once real email is on.
+    sender = mailing(db_app)
+    res = await ask(db_client, "traveller.demo@example.com")
+    assert res.status_code == 200 and len(res.json()["demoCode"]) == 6
+    assert sender.sent == []
+
+
+@pytest.mark.db
 async def test_a_failed_send_is_a_502_the_visitor_can_retry(
     db_app: FastAPI, db_client: AsyncClient
 ) -> None:

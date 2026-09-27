@@ -32,7 +32,7 @@ BODY = {
     "packageSlug": "north-goa-beaches",
     "name": "Priya Sharma",
     "phone": "+91 98450 22110",
-    "email": "Priya@Example.com",
+    "email": "Priya@Customer.in",
     "travelMonth": "2026-11",
     "adults": 2,
     "children": 1,
@@ -84,7 +84,7 @@ async def test_submit_saves_a_new_enquiry(db: AsyncSession, db_client: AsyncClie
     assert row.ref == body["ref"]
     assert row.type == EnquiryType.STANDARD and row.status == EnquiryStatus.NEW
     assert row.email_status == EmailStatus.SKIPPED
-    assert row.phone == "9845022110" and row.email == "priya@example.com"
+    assert row.phone == "9845022110" and row.email == "priya@customer.in"
     assert row.travel_month == dt.date(2026, 11, 1)
     assert row.adults == 2 and row.children == 1
     assert row.package_id is not None
@@ -248,7 +248,7 @@ async def test_submit_sends_both_emails_and_marks_sent(
     res = await db_client.post("/enquiries", json=BODY)
     assert res.status_code == 201, res.text
     assert res.json()["emailed"] is True
-    assert sorted(m.to for m in sender.sent) == ["owner@example.com", "priya@example.com"]
+    assert sorted(m.to for m in sender.sent) == ["owner@example.com", "priya@customer.in"]
     owner = next(m for m in sender.sent if m.to == "owner@example.com")
     assert res.json()["ref"] in owner.subject and "North Goa Beaches" in owner.subject
     row = (await db.execute(select(Enquiry))).scalar_one()
@@ -261,7 +261,7 @@ async def test_mail_failure_keeps_the_201_and_marks_failed(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
 ) -> None:
     await seeded(db)
-    mailing(db_app, FakeSender(fail_for=frozenset({"priya@example.com"})))
+    mailing(db_app, FakeSender(fail_for=frozenset({"priya@customer.in"})))
     res = await db_client.post("/enquiries", json=BODY)
     assert res.status_code == 201, res.text
     assert res.json()["emailed"] is False
@@ -368,7 +368,7 @@ async def test_submit_attaches_the_itinerary_pdf_to_the_visitor_email(
     assert store is not None
     res = await db_client.post("/enquiries", json=BODY)
     assert res.status_code == 201, res.text
-    visitor = next(m for m in sender.sent if m.to == "priya@example.com")
+    visitor = next(m for m in sender.sent if m.to == "priya@customer.in")
     owner = next(m for m in sender.sent if m.to == "owner@example.com")
     assert len(visitor.attachments) == 1
     assert visitor.attachments[0].filename == "Tripsmith-north-goa-beaches-itinerary.pdf"

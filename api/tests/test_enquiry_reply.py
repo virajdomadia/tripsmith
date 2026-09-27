@@ -19,7 +19,7 @@ from tests.test_email_send import FakeSender
 from tests.test_enquiries import BODY, mailing, seeded, with_pdf
 from tests.test_pdf_service import FakeBlobStore
 
-VISITOR = "priya@example.com"
+VISITOR = "priya@customer.in"
 REPLY = {
     "subject": "Your Goa trip — dates and the itinerary",
     "body": "Hi Priya,\n\nThe 14 Nov departure has room for three. Early check-in is fine."

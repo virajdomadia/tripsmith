@@ -67,6 +67,7 @@
 ## 6. Email
 - Resend over its REST API from `infra/email.py` (`EmailSender` protocol; `ResendSender` with httpx, `NullSender` when `RESEND_API_KEY` is unset — the official SDK is synchronous, and the API is one POST). Jinja2 templates in `services/email/templates/`: `enquiry_owner` (every field, reply-to the visitor, link to the admin detail) and `enquiry_visitor` (thanks, reference, what happens next, WhatsApp link; the PDF attaches in F11), each as HTML + plain text, rendered from a plain `EnquiryEmailContext`.
 - Sent **after** the enquiry commits, both concurrently, inside the request (nothing after the response is guaranteed on Vercel). Any failure → log + `sentry_sdk.capture_exception`, `email_status = 'failed'`; unconfigured → `'skipped'`; the visitor still gets the 201 and the thanks page. `EnquiryCreated.emailed` is true only when the confirmation reached the visitor's own address.
+- **v2.5 P0:** `SmtpSender` (stdlib `smtplib` in a worker thread, STARTTLS 587, a Google app password) is preferred when `SMTP_HOST`, `SMTP_USER` and `SMTP_PASSWORD` are all set; production sends from `tripsmith.work@gmail.com`, so demo mode is off. Customers at the reserved demo domains (`example.com/.org/.net`) are always held back as below and their sign-in code shows on screen (`send.held_back`).
 - **Resend test mode** (`EMAIL_FROM` at `@resend.dev`, no verified domain): Resend delivers only to the account's inbox, so the visitor copy is redirected to `OWNER_NOTIFY_EMAIL` with a `[Test → visitor]` subject and `emailed` stays false. Verifying a domain and changing `EMAIL_FROM` turns real delivery on with no code change.
 - The IST timestamp in emails uses a fixed +05:30 offset (no tzdata dependency).
 
@@ -97,7 +98,7 @@
 - web: `@sentry/nextjs` (client, server, edge), source maps uploaded in CI. api: `sentry-sdk[fastapi]` initialised in `infra/observability.py` (the only place it is imported), request + exception capture, release tagged from the Vercel commit SHA. Vercel Analytics for traffic. UptimeRobot HTTP check on `/` and `/api/health` every 5 min.
 
 ## 12. Environment variables
-**api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `WHATSAPP_NUMBER`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
+**api/** (read by pydantic-settings in `app/config.py`): `DATABASE_URL` (the asyncpg URL, `postgresql+asyncpg://…`, Neon pooled), `SESSION_SECRET`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` (Gmail SMTP, v2.5 P0), `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_NOTIFY_EMAIL`, `WHATSAPP_NUMBER`, `BLOB_READ_WRITE_TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `CRON_SECRET`, `WEB_URL`, `REVALIDATE_SECRET`, `SITE_URL`; dev/CI only: `TEST_DATABASE_URL`.
 **web/**: `API_URL` (server-side base for rewrites/fetch), `REVALIDATE_SECRET`, `SENTRY_DSN` (server + edge), `NEXT_PUBLIC_SENTRY_DSN` (browser; same value), `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_DEMO_EMAIL`, `NEXT_PUBLIC_DEMO_PASSWORD`.
 
 ## 13. Trade-offs accepted

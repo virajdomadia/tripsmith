@@ -505,11 +505,14 @@ write-up. A third is recorded as a precondition. The one PageSpeed Insights run 
   auto-capture is ever switched off, a booking would confirm on an authorised payment that
   Razorpay later auto-refunds. The webhook's `payment.captured` stays the source of truth, and
   sync already captures an `authorized` payment.
-- **Demo mode lets anyone sign in as any customer email.** While `EMAIL_FROM` is `@resend.dev`,
-  the sign-in code is shown on screen, because Resend's test sender can only reach the owner. So
-  anyone can open any customer's trips and request a cancellation. This is the same trade as the
-  public owner login. The demo notices at checkout and sign-in say so, and the risk goes away
-  once a verified sending domain is set.
+- ~~**Demo mode lets anyone sign in as any customer email.**~~ **Closed in v2.5 P0:** production
+  sends real email through Gmail SMTP, so a sign-in code reaches only the inbox it was asked
+  for. What remains is deliberate: addresses at `example.com/.org/.net` (the seeded demo
+  traveller, and any made-up address there) still show their code on screen, so anyone can open
+  those demo accounts — they hold no real person's data. Real customer emails also go to
+  whatever address is typed, so the existing per-email and per-IP limits on codes, enquiries and
+  booking starts are what stops the site being used to mail strangers; Gmail's ~500/day cap is
+  the backstop.
 - **One email can use a coupon twice** by paying two orders (a released hold's order and a new
   one). This is documented in `services/booking/coupons.py`. It costs one extra discount.
 - **A narrower coupon oracle remains in the quote.** When a limited coupon's last use is held, a

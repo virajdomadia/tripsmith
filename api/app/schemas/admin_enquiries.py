@@ -116,8 +116,8 @@ class EnquiryPackage(ApiModel):
 
 
 class EnquiryMessageOut(ApiModel):
-    """One reply in the thread (R23). `sent` is false when Resend refused it or was unreachable;
-    `error` then says why, and the owner can send it again."""
+    """One reply in the thread (R23). `sent` is false when the email service refused it or was
+    unreachable; `error` then says why, and the owner can send it again."""
 
     id: str
     subject: str
