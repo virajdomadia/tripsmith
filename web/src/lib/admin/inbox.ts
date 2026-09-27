@@ -156,7 +156,10 @@ export function thread(e: AdminEnquiry): ThreadItem[] {
         ? {
             kind: 'sys' as const,
             at: n.createdAt,
-            body: n.body.replace('Status changed from ', 'Moved from '),
+            body: n.body
+              .replace('Status changed from ', 'Moved from ')
+              .replace(/\bConverted\b/g, 'Won')
+              .replace(/\bClosed\b/g, 'Lost'),
           }
         : { kind: 'note' as const, at: n.createdAt, id: n.id, body: n.body },
     ),
@@ -198,7 +201,7 @@ export function snippets(e: AdminEnquiry, t: TripFacts | null): { label: string;
     {
       label: 'Itinerary',
       text: t
-        ? `I have attached the day-by-day ${t.name} itinerary.`
+        ? `I can send you the day-by-day ${t.name} itinerary as a PDF.`
         : 'I can send a day-by-day itinerary once you pick a trip.',
     },
   ];

@@ -87,6 +87,7 @@ async def test_needs_reply_follow_ups_and_the_waiting_order(db: AsyncSession) ->
     reply = await svc.list_enquiries(db, EnquiryFilters(view="reply"))
     assert {r.ref for r in reply.items} == {"TS-A2OLD1", "TS-A2TRY1", "TS-A2NEW1"}
     assert reply.attention.needs_reply == 3  # the chips ignore the view they count
+    assert reply.counts == page.counts
     followup = await svc.list_enquiries(db, EnquiryFilters(view="followup"))
     assert [r.ref for r in followup.items] == [due.ref]
     assert fresh.id != due.id
@@ -120,6 +121,9 @@ async def test_lost_keeps_its_reason_and_reopening_clears_it(db: AsyncSession) -
     out = await svc.set_status(db, row.id, S.CLOSED, lost_reason="Price too high")
     assert (out.status, out.lost_reason, out.follow_up_on) == (S.CLOSED, "Price too high", None)
     assert out.notes[-1].body == "Status changed from New to Closed · lost: Price too high"
+    out = await svc.set_status(db, row.id, S.CLOSED, lost_reason="Went with a friend's plan")
+    assert out.lost_reason == "Went with a friend's plan"
+    assert len(out.notes) == 1  # a new reason is kept without another status line
     out = await svc.set_status(db, row.id, S.CONTACTED)
     assert out.lost_reason is None
 

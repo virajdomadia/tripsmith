@@ -9,7 +9,11 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { Composer, StageControl } from '@/components/admin/enquiries/InboxControls';
+import {
+  Composer,
+  FollowUpControl,
+  StageControl,
+} from '@/components/admin/enquiries/InboxControls';
 import { InboxList } from '@/components/admin/enquiries/InboxList';
 import {
   followUp,
@@ -153,6 +157,30 @@ describe('inbox helpers', () => {
     expect(t[2]).toMatchObject({ body: 'Moved from New to Contacted' });
   });
 
+  it('calls the closing moves Won and Lost, in old notes too', () => {
+    const t = thread(
+      enquiry({
+        notes: [
+          {
+            id: 'n1',
+            body: 'Status changed from Contacted to Closed · lost: Price too high',
+            createdAt: '2026-09-27T11:00:00Z',
+          },
+          {
+            id: 'n2',
+            body: 'Status changed from Closed to Converted',
+            createdAt: '2026-09-27T12:00:00Z',
+          },
+        ],
+        messages: [],
+      }),
+    );
+    expect(t.slice(1).map((i) => ('body' in i ? i.body : null))).toEqual([
+      'Moved from Contacted to Lost · lost: Price too high',
+      'Moved from Lost to Won',
+    ]);
+  });
+
   it('drops real trip facts into snippets and templates', () => {
     const e = enquiry();
     const [price, dates] = snippets(e, TRIP);
@@ -240,6 +268,30 @@ describe('StageControl', () => {
       status: 'closed',
       lostReason: 'Price too high',
     });
+  });
+});
+
+describe('FollowUpControl', () => {
+  it('saves a typed date on blur or Enter only, and never a past one', async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    render(<FollowUpControl e={enquiry({ followUpOn: null })} today={TODAY} />);
+    const box = screen.getByLabelText('Pick a follow-up date');
+    fireEvent.change(box, { target: { value: '0002-10-05' } }); // a year half typed
+    fireEvent.change(box, { target: { value: '2026-10-05' } });
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(box, { target: { value: '2026-09-01' } });
+    fireEvent.blur(box);
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(box, { target: { value: '2026-10-05' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/admin/enquiries/enq_1/follow-up');
+    expect(JSON.parse(String(init.body))).toEqual({ followUpOn: '2026-10-05' });
   });
 });
 

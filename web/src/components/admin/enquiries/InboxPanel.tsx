@@ -9,6 +9,7 @@ import {
   party,
   snippets,
   source,
+  STAGE,
   templates,
   thread,
   tripLine,
@@ -143,7 +144,7 @@ export function InboxPanel({
             {bookings[0] ? (
               <>
                 {' '}
-                · latest booking{' '}
+                · their latest booking{' '}
                 <Link
                   href={`/admin/bookings/${bookings[0].ref}`}
                   className="font-mono font-bold text-primary"
@@ -219,10 +220,7 @@ export function InboxPanel({
             notes
           </span>
         </h3>
-        <div
-          aria-live="polite"
-          className="grid max-h-[420px] content-start gap-2.5 overflow-y-auto p-0.5 max-lg:max-h-none"
-        >
+        <div className="grid max-h-[420px] content-start gap-2.5 overflow-y-auto p-0.5 max-lg:max-h-none">
           {items.map((m, i) => {
             if (m.kind === 'sys') {
               return (
@@ -335,7 +333,7 @@ export function InboxPanel({
               </Link>
               <span>{r.packageName ?? 'General enquiry'}</span>
               <span className="text-mute">
-                · {r.status} · {istFullDate(r.createdAt)}
+                · {STAGE[r.status].label} · {istFullDate(r.createdAt)}
               </span>
             </div>
           ))

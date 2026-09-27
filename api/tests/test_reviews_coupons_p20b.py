@@ -81,6 +81,10 @@ async def test_the_reviews_strip_counts_waiting_average_and_months(
     assert waiting["packageCoverUrl"] == "https://img.test/goa.jpg"
     assert waiting["packageRating"] == {"avg": 3.7, "count": 3}
 
+    # The moderate answer carries the rating it just recomputed, not the one before.
+    moved = await db_client.post(f"/admin/reviews/{ids[4]}/publish", headers=owner)
+    assert moved.json()["packageRating"] == {"avg": 4.0, "count": 4}  # (5 + 4 + 2 + 5) / 4
+
     # Once nothing waits and nothing is published, the strip is empty, not an error.
     for review_id in ids:
         await svc.moderate(db, review_id, publish=False)

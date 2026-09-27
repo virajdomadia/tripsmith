@@ -72,7 +72,7 @@ export default async function CouponsPage({
               </span>
               <b className="num text-[28px] font-extrabold tracking-tight">{lakh(band.booked)}</b>
               <small className="text-[12px] font-semibold text-ink-soft">
-                paid, after the discount
+                booked, after the discount
               </small>
             </div>
             <div className="grid w-full gap-1.5 sm:max-w-[320px] sm:justify-self-end">
@@ -83,8 +83,8 @@ export default async function CouponsPage({
                 />
               </span>
               <span className="text-[12.5px] text-ink-soft">
-                Discount is <b className="text-white">{band.share.toFixed(1)} %</b> of what those
-                trips list at
+                Discount is <b className="text-white">{band.share.toFixed(1)} %</b> of those
+                bookings before the code
               </span>
             </div>
           </section>

@@ -249,6 +249,8 @@ export default async function EnquiriesPage({
         </div>
         <div className="lg:sticky lg:top-4">
           <InboxPanel
+            // A fresh panel per enquiry: drafts, the Lost prompt and the date never carry over.
+            key={selected?.id ?? 'none'}
             e={selected}
             today={today}
             trip={trip}

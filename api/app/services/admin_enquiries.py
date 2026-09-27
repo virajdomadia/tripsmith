@@ -191,7 +191,10 @@ async def status_counts(db: AsyncSession, filters: EnquiryFilters) -> StatusCoun
     is what keeps the two screens reconcilable (R12)."""
     rows = await db.execute(
         _filtered(
-            select(Enquiry.status, func.count()).select_from(Enquiry), filters, with_status=False
+            select(Enquiry.status, func.count()).select_from(Enquiry),
+            filters,
+            with_status=False,
+            with_view=False,  # the chips count the whole inbox, whichever view is open
         ).group_by(Enquiry.status)
     )
     by_status = {status: int(n) for status, n in rows.all()}
@@ -456,6 +459,10 @@ async def set_status(
         if status not in OPEN:
             row.follow_up_on = None
         row.lost_reason = lost_reason if status == EnquiryStatus.CLOSED else None
+        await db.commit()
+        row = await load_enquiry(db, id)
+    elif status == EnquiryStatus.CLOSED and lost_reason and lost_reason != row.lost_reason:
+        row.lost_reason = lost_reason
         await db.commit()
         row = await load_enquiry(db, id)
     return await _detail(db, row)

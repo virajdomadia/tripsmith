@@ -185,6 +185,9 @@ export function FollowUpControl({ e, today }: { e: AdminEnquiry; today: string }
         }),
       day ? `Follow up ${followUpLabel(day)}` : 'Follow-up cleared',
     );
+  const commit = (day: string) => {
+    if (day && day >= today && day !== e.followUpOn) set(day);
+  };
   const quick: [string, string][] = [
     [addDays(today, 0), 'Today'],
     [addDays(today, 1), 'Tomorrow'],
@@ -212,11 +215,15 @@ export function FollowUpControl({ e, today }: { e: AdminEnquiry; today: string }
         </button>
       ))}
       <Input
+        // Keyed on the saved day, so a quick pick or Clear shows in the box too.
+        key={e.followUpOn ?? ''}
         type="date"
         aria-label="Pick a follow-up date"
         min={today}
         defaultValue={e.followUpOn ?? ''}
-        onChange={(ev) => ev.target.value && set(ev.target.value)}
+        // Committed on blur or Enter, never per keystroke: a half-typed year is a valid date.
+        onBlur={(ev) => commit(ev.target.value)}
+        onKeyDown={(ev) => ev.key === 'Enter' && commit(ev.currentTarget.value)}
         className="h-8 w-auto rounded-chip text-[12.5px]"
       />
       {e.followUpOn && (

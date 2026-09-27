@@ -146,9 +146,7 @@ export function InboxList({
                 <span className="num ml-auto text-[13.5px] font-extrabold whitespace-nowrap">
                   {e.estimatePaise ? (
                     <>
-                      <small className="mr-1 font-semibold text-mute">
-                        {e.status === 'converted' ? 'booked' : 'est.'}
-                      </small>
+                      <small className="mr-1 font-semibold text-mute">est.</small>
                       {lakh(e.estimatePaise)}
                     </>
                   ) : (

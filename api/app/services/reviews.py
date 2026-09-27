@@ -293,7 +293,14 @@ async def list_reviews(
 
 
 async def review_for_booking(db: AsyncSession, booking_id: str) -> AdminReview | None:
-    row = (await db.execute(_admin_query().where(Review.booking_id == booking_id))).first()
+    row = (
+        await db.execute(
+            _admin_query()
+            .where(Review.booking_id == booking_id)
+            # The package may be in the session from moderate's lock, with the old rating.
+            .execution_options(populate_existing=True)
+        )
+    ).first()
     return _admin_out(*row) if row else None
 
 
