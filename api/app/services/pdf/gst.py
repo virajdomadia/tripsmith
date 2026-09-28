@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from fpdf import XPos, YPos
 
+from app.services.booking.addons import summary
 from app.services.booking.voucher import BookingFacts
 from app.services.format import inr, long_date
 from app.services.gst.documents import DocRef
@@ -199,6 +200,8 @@ class _GstDoc:
         }[f.doc.kind]
         party = f"{len(b.travellers)} traveller{'s' if len(b.travellers) != 1 else ''}"
         desc = f"{what} {b.package_name}, {long_date(b.departs)} to {long_date(b.returns)}, {party}"
+        if f.doc.kind == "invoice" and b.addons:  # P8: one supply, the extras named in it
+            desc += f", with {summary(b.addons)}"
         y = d.get_y() + 2
         d.set_xy(MARGIN, y)
         d.font(10, "", INK)

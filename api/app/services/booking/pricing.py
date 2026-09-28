@@ -12,20 +12,27 @@ ignored. The cached `starting_price_paise` skips sold-out dates, so it rises whi
 the cheap date — reading it would let anyone widen the discount by holding seats and walking
 away (the lapse fires no event, so it would stay wide until the daily cron).
 
-A coupon (B15) comes after the deal and is taken off the whole booking once: a flat ₹ amount,
-or a % of the total after the deal, capped, rounded down to the rupee. It never takes the total
-below ₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
+A coupon (B15) comes after the deal and is taken off the trip fare once: a flat ₹ amount, or a
+% of the fare after the deal, capped, rounded down to the rupee. It never takes the fare below
+₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
 `services/booking/coupons.py`; `apply_coupon` only does the sum.
+
+Add-ons (R46, P8) are priced here from the package's switched-on add-ons and added after every
+discount, at full price: deals, coupons and early-bird never touch them. Per booking = the
+price once; per traveller = × how many take it; per night = × the whole party × the nights.
 """
 
 import datetime as dt
 from collections import Counter
 from collections.abc import Sequence
 
-from app.models import Coupon, Departure, Package
-from app.models.enums import CouponKind, Occupancy
+from app.errors import ApiError
+from app.models import Coupon, Departure, Package, PackageAddon
+from app.models.enums import AddonBasis, CouponKind, Occupancy
 from app.schemas.bookings import (
+    AddonChoice,
     Quote,
+    QuoteAddon,
     QuoteCoupon,
     QuoteDeal,
     QuoteLine,
@@ -74,8 +81,67 @@ def coupon_off(coupon: Coupon, amount_paise: int) -> int:
     return max(0, min(off, amount_paise - MIN_TOTAL_PAISE)) // RUPEE * RUPEE
 
 
+ADDON_GONE_REASON = "addon_unavailable"
+
+
+def addon_gone(index: int, name: str | None = None) -> ApiError:
+    """A picked add-on the package no longer offers (switched off or deleted since the page
+    loaded): 409, with the choice's place in the request (`addons.<index>`) so the sheet drops
+    exactly that one and asks again."""
+    what = f"“{name}”" if name else "One of your add-ons"
+    message = f"{what} is no longer offered — we took it off your booking"
+    return ApiError(
+        "conflict", message, reason=ADDON_GONE_REASON, field_errors={f"addons.{index}": message}
+    )
+
+
+def price_addons(
+    offered: Sequence[PackageAddon], choices: Sequence[AddonChoice], *, party: int
+) -> list[QuoteAddon]:
+    """One line per chosen add-on, in the owner's order. `offered` = the package's add-ons
+    (switched-off ones refuse); the schema already capped travellers at the party."""
+    by_id = {a.id: a for a in offered}
+    for i, c in enumerate(choices):
+        found = by_id.get(c.addon_id)
+        if found is None or not found.active:
+            raise addon_gone(i, found.name if found else None)
+    wanted = {c.addon_id: c for c in choices}
+    lines: list[QuoteAddon] = []
+    for a in offered:
+        c = wanted.get(a.id)
+        if c is None:
+            continue
+        travellers, nights = 1, 1
+        if a.basis == AddonBasis.TRAVELLER:
+            travellers = c.travellers or 0
+            if travellers < 1:
+                raise ApiError(
+                    "validation",
+                    f"Say how many travellers take “{a.name}”",
+                    field_errors={"addons": f"Say how many travellers take “{a.name}”"},
+                )
+        elif a.basis == AddonBasis.NIGHT:
+            travellers, nights = party, c.nights or 0
+            limit = a.max_nights or 0
+            if not 1 <= nights <= limit:
+                message = f"“{a.name}” can be added for 1–{limit} nights"
+                raise ApiError("validation", message, field_errors={"addons": message})
+        lines.append(
+            QuoteAddon(
+                addon_id=a.id,
+                name=a.name,
+                basis=a.basis,
+                unit_paise=a.price_paise,
+                travellers=travellers,
+                nights=nights,
+                amount_paise=a.price_paise * travellers * nights,
+            )
+        )
+    return lines
+
+
 def apply_coupon(quote: Quote, coupon: Coupon) -> Quote:
-    off = coupon_off(coupon, quote.total_paise)
+    off = coupon_off(coupon, quote.fare_paise)
     return quote.model_copy(
         update={
             "coupon": QuoteCoupon(code=coupon.code, off_paise=off),
@@ -106,6 +172,7 @@ def build_quote(
     seats_left: int,
     deal_base: int,
     now: dt.datetime,
+    addons: Sequence[QuoteAddon] = (),
 ) -> Quote:
     counts = Counter(t.occupancy for t in travellers)
     lines: list[QuoteLine] = []
@@ -136,6 +203,7 @@ def build_quote(
             if counts[occ]:
                 line(QuoteLineKind.DEAL, occ, -min(off, unit_price(dep, occ)))
     discount = -sum(li.amount_paise for li in lines if li.kind == QuoteLineKind.DEAL)
+    extras = sum(a.amount_paise for a in addons)
 
     return Quote(
         departure_id=dep.id,
@@ -145,7 +213,9 @@ def build_quote(
         lines=lines,
         deal=deal,
         coupon=None,
+        addons=list(addons),
         subtotal_paise=subtotal,
         discount_paise=discount,
-        total_paise=subtotal - discount,
+        addons_paise=extras,
+        total_paise=subtotal - discount + extras,
     )

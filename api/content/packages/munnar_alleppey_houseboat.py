@@ -151,6 +151,44 @@ PACKAGE = define_package(
             "single_supplement_inr": 9_000,
         },
     ],
+    addons=[
+        {
+            "name": "Premium AC houseboat",
+            "description": (
+                "Swap the standard boat for a premium one: AC bedrooms all night and an "
+                "upper-deck lounge."
+            ),
+            "price_inr": 6_000,
+            "basis": "booking",
+            "photo": "kerala/alleppey-backwaters-1.jpg",
+        },
+        {
+            "name": "Tea factory tour",
+            "description": (
+                "A guided walk through a working Munnar tea factory, with a tasting at the end."
+            ),
+            "price_inr": 400,
+            "basis": "traveller",
+            "photo": "kerala/munnar-tea-gardens.jpg",
+        },
+        {
+            "name": "Shikara canoe ride",
+            "description": (
+                "Two hours at dawn in a country canoe, down canals the houseboat can't enter. Tea "
+                "on board."
+            ),
+            "price_inr": 700,
+            "basis": "traveller",
+            "photo": "kerala/alleppey-backwaters-1.jpg",
+        },
+        {
+            "name": "Ayurvedic massage, 60 min",
+            "description": "A traditional abhyanga at a certified centre in Munnar.",
+            "price_inr": 2_200,
+            "basis": "traveller",
+            "photo": "kerala/munnar-tea-aerial.jpg",
+        },
+    ],
     photos=[
         {"file": "kerala/munnar-tea-aerial.jpg", "alt": "Tea estates of Munnar from above"},
         {"file": "kerala/munnar-tea-gardens.jpg", "alt": "Tea bushes on a Munnar hillside"},

@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errorFromResponse, type ApiRequestError } from '@/lib/api-errors';
 import {
+  type Addon,
+  addonChoices,
+  type AddonChoice,
+  type AddonPicks,
   type BookingOrder,
   type Contact,
   EMPTY_CONTACT,
   type Departure,
   formErrors,
   holdSecondsLeft,
+  isAddonGone,
   isCouponRefusal,
   istToday,
   orderBody,
@@ -32,6 +37,8 @@ export type BookingPackage = {
   destination: string;
   cover: { url: string; alt: string } | null;
   departures: Departure[];
+  /** R46 (P8): the switched-on add-ons, in the owner's order. */
+  addons: Addon[];
 };
 
 /**
@@ -100,6 +107,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [quote, setQuote] = useState<QuoteState>({ status: 'idle' });
   const [coupon, setCoupon] = useState<CouponState>(NO_COUPON);
+  const [picks, setPicks] = useState<AddonPicks>({});
+  /** Add-ons the api said are no longer offered (switched off since the page was built). */
+  const [goneAddons, setGoneAddons] = useState<ReadonlySet<string>>(() => new Set());
+  const [addonNotice, setAddonNotice] = useState<string | null>(null);
   // Sent with a code only, so typing an email never re-asks a quote that has none.
   const couponEmail = coupon.applied ? quoteEmail(contact.email) : null;
   const [phase, setPhase] = useState<Phase>({ kind: 'choose' });
@@ -134,6 +145,12 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   );
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
+  const offered = useMemo(
+    () => pkg.addons.filter((a) => !goneAddons.has(a.id)),
+    [pkg.addons, goneAddons],
+  );
+  const choices = useMemo(() => addonChoices(offered, picks, party), [offered, picks, party]);
+  const choicesKey = JSON.stringify(choices);
   const departure = departures.find((d) => d.id === departureId) ?? null;
   const reason = departure ? unbookableReason(departure, party, today) : null;
   /** The last order and the exact body it was made from: reused only for the same booking. */
@@ -187,17 +204,37 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setDepartureId(null);
   }, [reason, chosenDate]);
 
-  /* ---- the quote: re-asked on every date or party change, never computed here ---- */
+  /** A 409 `addon_unavailable` names the refused choice as `addons.<index>` of what was sent:
+   *  drop that add-on for good, and say so in the Make it yours step. */
+  const dropGoneAddon = useCallback((err: ApiRequestError, sent: AddonChoice[]) => {
+    const key = Object.keys(err.body.fieldErrors ?? {}).find((k) => k.startsWith('addons.'));
+    const id = sent[Number(key?.split('.')[1])]?.addonId;
+    setAddonNotice(err.body.message);
+    if (!id) {
+      setPicks({});
+      return;
+    }
+    setGoneAddons((g) => new Set(g).add(id));
+    setPicks((p) => {
+      const next = { ...p };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  /* ---- the quote: re-asked on every date, party or add-on change, never computed here ---- */
   useEffect(() => {
     if (!departureId || reason) {
       setQuote({ status: 'idle' });
       return;
     }
     const couponCode = coupon.applied;
+    const addons = JSON.parse(choicesKey) as AddonChoice[];
     const quoteKey = JSON.stringify({
       departureId,
       travellers: quoteTravellers(rooms),
       couponCode,
+      addons,
     });
     if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt) > 0) {
       // Asking again would count the visitor's own hold against them: use the order's quote.
@@ -220,6 +257,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
             travellers: quoteTravellers(rooms),
             ...(couponCode ? { couponCode } : {}),
             ...(couponCode && couponEmail ? { email: couponEmail } : {}),
+            ...(addons.length ? { addons } : {}),
           }),
           signal: ctrl.signal,
         });
@@ -231,6 +269,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
         if (res.status === 409 && isCouponRefusal(err.body.reason)) {
           // The code, not the trip: drop it (the effect re-asks without it) and say why.
           setCoupon((c) => ({ ...c, open: true, applied: null, error: err.body.message }));
+          return;
+        }
+        if (res.status === 409 && isAddonGone(err.body.reason)) {
+          dropGoneAddon(err, addons); // the effect re-asks without it
           return;
         }
         if (res.status === 409 || res.status === 404) {
@@ -249,7 +291,17 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [departureId, rooms, reason, refresh, held, coupon.applied, couponEmail]);
+  }, [
+    departureId,
+    rooms,
+    reason,
+    refresh,
+    held,
+    coupon.applied,
+    couponEmail,
+    choicesKey,
+    dropGoneAddon,
+  ]);
 
   /* ---- the form ---- */
   const setTraveller = (key: string, patch: Partial<TravellerInput>) => {
@@ -267,6 +319,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setCoupon((c) => ({ ...c, draft: code, applied: code || null, error: null }));
   };
   const removeCoupon = () => setCoupon({ ...NO_COUPON, open: true });
+  /** How many of an add-on: 1/0 for a per-booking one, travellers or nights for the others. */
+  const setPick = (id: string, n: number) => {
+    setPicks((p) => ({ ...p, [id]: Math.max(0, n) }));
+    setAddonNotice(null);
+  };
   const chooseDeparture = (id: string) => {
     setDepartureId(id);
     setGone(null);
@@ -295,7 +352,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   };
 
   async function startOrder(): Promise<BookingOrder | null> {
-    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied);
+    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied, choices);
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
     if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt) > REUSE_MIN_SECONDS)
@@ -322,6 +379,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
           departureId: body.departureId,
           travellers: body.travellers.map((t) => ({ occupancy: t.occupancy })),
           couponCode: body.couponCode ?? null,
+          addons: body.addons ?? [],
         }),
         quote: order.quote,
       });
@@ -340,6 +398,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       );
     } else if (res.status === 409 && isCouponRefusal(err.body.reason)) {
       setCoupon((c) => ({ ...c, open: true, applied: null, error: err.body.message }));
+      setPhase({ kind: 'choose' });
+      return null;
+    } else if (res.status === 409 && isAddonGone(err.body.reason)) {
+      dropGoneAddon(err, body.addons ?? []);
       setPhase({ kind: 'choose' });
       return null;
     } else if (res.status === 409) unbookable(err.body.message, departure?.date);
@@ -528,6 +590,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setCouponDraft,
     applyCoupon,
     removeCoupon,
+    offered,
+    picks,
+    setPick,
+    addonNotice,
     phase,
     busy,
     canPay,

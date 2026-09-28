@@ -153,6 +153,7 @@ describe('the form schema', () => {
     featured: false,
     itinerary: [],
     departures: [],
+    addons: [],
   };
   const issues = (over: object) => {
     const r = packageSchema.safeParse({ ...base, ...over });

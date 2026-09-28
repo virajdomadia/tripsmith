@@ -140,6 +140,46 @@ PACKAGE = define_package(
             "single_supplement_inr": 9_000,
         },
     ],
+    addons=[
+        {
+            "name": "Airport transfers",
+            "description": (
+                "A private car from Goa airport (Dabolim or Mopa) to Palolem and back, meeting "
+                "your flight."
+            ),
+            "price_inr": 1_800,
+            "basis": "booking",
+            "photo": "goa/cola-bay-sunrise.jpg",
+        },
+        {
+            "name": "Spice-farm lunch",
+            "description": (
+                "Half a day at a Ponda spice plantation: a guided walk through the pepper and "
+                "cardamom, then a Goan thali lunch."
+            ),
+            "price_inr": 1_500,
+            "basis": "traveller",
+            "photo": "goa/palolem-beach.jpg",
+        },
+        {
+            "name": "Sunset river cruise",
+            "description": (
+                "An hour on the Talpona river at dusk, with a chance of dolphins where it meets "
+                "the sea."
+            ),
+            "price_inr": 900,
+            "basis": "traveller",
+            "photo": "goa/agonda-sunset.jpg",
+        },
+        {
+            "name": "Extra night at the resort",
+            "description": "Stay on at the Palolem resort with breakfast, for your whole party.",
+            "price_inr": 2_800,
+            "basis": "night",
+            "max_nights": 3,
+            "photo": "goa/palolem-shack-sunset.jpg",
+        },
+    ],
     photos=[
         {"file": "goa/palolem-beach.jpg", "alt": "Palolem beach and its line of coconut palms"},
         {"file": "goa/palolem-shack-sunset.jpg", "alt": "Beach shack at Palolem at sunset"},

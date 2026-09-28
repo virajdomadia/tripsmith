@@ -169,6 +169,46 @@ PACKAGE = define_package(
             "single_supplement_inr": 9_000,
         },
     ],
+    addons=[
+        {
+            "name": "Hot-air balloon, Jaipur",
+            "description": (
+                "An hour over the Aravallis and Amber fort at sunrise, with hotel pickup at 5:30 "
+                "am, weather permitting."
+            ),
+            "price_inr": 12_000,
+            "basis": "traveller",
+            "photo": "rajasthan/amber-fort-lake.jpg",
+        },
+        {
+            "name": "Flying Fox zipline, Jodhpur",
+            "description": (
+                "Six ziplines over the walls and lakes of Mehrangarh fort, about 90 minutes with "
+                "a guide."
+            ),
+            "price_inr": 2_000,
+            "basis": "traveller",
+            "photo": "rajasthan/mehrangarh-fort.jpg",
+        },
+        {
+            "name": "Lake Pichola sunset boat",
+            "description": "An hour on the lake at dusk, past the Lake Palace and Jag Mandir.",
+            "price_inr": 800,
+            "basis": "traveller",
+            "photo": "rajasthan/pichola-sunset.jpg",
+        },
+        {
+            "name": "Heritage haveli upgrade",
+            "description": (
+                "Swap the standard rooms for a heritage haveli room, per night of the trip you "
+                "choose."
+            ),
+            "price_inr": 1_800,
+            "basis": "night",
+            "max_nights": 5,
+            "photo": "rajasthan/jaipur-city-palace.jpg",
+        },
+    ],
     photos=[
         {"file": "rajasthan/amber-fort-lake.jpg", "alt": "Amber fort above Maota lake"},
         {"file": "rajasthan/mehrangarh-fort.jpg", "alt": "Mehrangarh fort on its cliff, Jodhpur"},

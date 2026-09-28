@@ -35,6 +35,7 @@ from app.models import (
 )
 from app.models.catalog import departure_availability
 from app.models.enums import (
+    AddonBasis,
     BookingActor,
     BookingStatus,
     CancellationStatus,
@@ -57,6 +58,7 @@ from app.schemas.admin_bookings import (
     DepartureOption,
     DepartureSeats,
     Manifest,
+    ManifestAddon,
     ManifestBooking,
     PaymentVia,
 )
@@ -66,6 +68,7 @@ from app.schemas.enquiries import normalise_phone
 from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
 from app.services.analytics import ist_today
+from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, booking_history, money, record
@@ -85,6 +88,7 @@ from app.services.booking.voucher import (
     payment_label,
 )
 from app.services.email.render import IST
+from app.services.format import inr
 from app.services.gst.documents import documents_out
 from app.services.reviews import review_for_booking
 
@@ -615,7 +619,11 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
             await db.execute(
                 select(Booking)
                 .where(Booking.departure_id == departure_id, Booking.status.in_(SEAT_HOLDING))
-                .options(selectinload(Booking.travellers), selectinload(Booking.cancellation))
+                .options(
+                    selectinload(Booking.travellers),
+                    selectinload(Booking.cancellation),
+                    selectinload(Booking.addons),
+                )
                 .order_by(Booking.created_at, Booking.id)
             )
         )
@@ -635,9 +643,17 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
                 AccountTraveller(name=t.name, age=t.age, occupancy=t.occupancy)
                 for t in b.travellers
             ],
+            addons=[a.label for a in addon_facts(b.addons)],
         )
         for b in bookings
     ]
+    totals: dict[str, ManifestAddon] = {}
+    for b in bookings:
+        for a in addon_facts(b.addons):
+            t = totals.setdefault(a.name, ManifestAddon(name=a.name, bookings=0, travellers=0))
+            t.bookings += 1
+            if a.basis != AddonBasis.BOOKING:
+                t.travellers += a.travellers
     return Manifest(
         seats=seats,
         package_slug=pkg.slug,
@@ -647,6 +663,7 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
         returns=seats.date + dt.timedelta(days=pkg.nights),
         bookings=out,
         travellers=sum(len(b.travellers) for b in out),
+        addons=list(totals.values()),
         generated_at=dt.datetime.now(dt.UTC),
     )
 
@@ -672,6 +689,8 @@ CSV_HEADERS = (
     "Paid (₹)",
     "Payments",
     "Coupon",
+    "Add-ons",
+    "Add-ons (₹)",
 )
 STATUS_LABELS = {
     BookingStatus.PENDING: "Pending",
@@ -696,6 +715,7 @@ CANCELLATION_LABELS = {
 
 def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
     """One booking per line; the travellers' names in entry order, each with their room."""
+    addons = addon_facts(b.addons)
     names = "; ".join(f"{t.name} ({t.age}, {OCCUPANCY_LABEL[t.occupancy]})" for t in b.travellers)
     payments = "; ".join(
         f"{label} {p.status.value}"
@@ -720,6 +740,8 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         str(b.paid_paise // 100),
         payments,
         b.coupon_code or "",
+        "; ".join(f"{a.label} {inr(a.amount_paise // 100)}" for a in addons),
+        str(sum(a.amount_paise for a in addons) // 100) if addons else "",
     ]
     return [csv_safe(field) for field in fields]
 
@@ -738,6 +760,7 @@ async def csv_records(db: AsyncSession, f: BookingFilters) -> list[list[str]]:
             selectinload(Booking.travellers),
             selectinload(Booking.payments),
             selectinload(Booking.cancellation),
+            selectinload(Booking.addons),
         )
         .order_by(Booking.created_at.desc(), Booking.id.desc())
         .limit(CSV_MAX_ROWS),

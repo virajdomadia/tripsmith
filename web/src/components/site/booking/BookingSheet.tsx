@@ -2,7 +2,7 @@
 
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { Check, Info, Lock, X } from 'lucide-react';
+import { Check, ChevronDown, Info, Lock, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -27,17 +27,20 @@ import { AnimatedPrice } from './AnimatedPrice';
 import { BookingDone } from './BookingDone';
 import { ContactFields } from './ContactFields';
 import { CouponField } from './CouponField';
+import { MakeItYours } from './MakeItYours';
 import { DeparturePicker } from './DeparturePicker';
 import { PartyBuilder } from './PartyBuilder';
 import { PriceBreakdown } from './PriceBreakdown';
-import { type BookingPackage, useBooking } from './use-booking';
+import { type BookingFlow, type BookingPackage, useBooking } from './use-booking';
 
 gsap.registerPlugin(useGSAP);
 
 /**
- * Book now — B0 variant B: a full-height sheet over the package page (full screen on a phone),
- * the four steps in one scroll, the total and Pay pinned in the footer. Closing it keeps every
- * choice: the flow's state lives here, and this component stays mounted once opened.
+ * Book now — v2.5 mockup B, "wide sheet + live receipt": a full-height sheet over the package
+ * page (full screen on a phone). The steps — date, travellers, Make it yours (P8, when the trip
+ * has add-ons), contact — scroll on the left; the server's price, the coupon and Pay sit in a
+ * receipt beside them, which on a phone is a drawer along the bottom. Closing the sheet keeps
+ * every choice: the flow's state lives here, and this component stays mounted once opened.
  *
  * Motion: the panel slides in on `--ease-out` (sheet.tsx), the steps rise in one after another,
  * each step's number turns into a tick once it is complete, and the total counts to each new
@@ -53,7 +56,7 @@ export function BookingSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const flow = useBooking(pkg, open);
-  const { phase, quote, departure, slots, travellers, contact, party } = flow;
+  const { phase, quote, departure, slots, travellers, contact } = flow;
   const scope = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -88,11 +91,13 @@ export function BookingSheet({
   }, [flow.gone]);
 
   const errs = formErrors(slots, travellers, contact);
+  const extras = flow.offered.length > 0;
+  const picked = quote.status === 'ok' ? quote.quote.addons.length : 0;
   const done = {
     date: !!departure && !flow.reason,
     party:
       !!departure && !flow.reason && !Object.keys(errs).some((k) => k.startsWith('travellers.')),
-    price: quote.status === 'ok',
+    extras: picked > 0,
     contact: !Object.keys(errs).some((k) => k.startsWith('contact.')),
   };
   const adults = adultsIn(flow.rooms);
@@ -115,8 +120,8 @@ export function BookingSheet({
     // none` on <body> and traps focus, which would lock the visitor out of Checkout's iframe.
     // Dismissed or paid, the sheet slides back with every choice intact.
     <Sheet open={open && phase.kind !== 'paying'} onOpenChange={onOpenChange}>
-      <SheetContent>
-        <div ref={scope} className="grid h-full grid-rows-[auto_1fr_auto] overflow-hidden">
+      <SheetContent className="sm:w-[min(920px,100%)]">
+        <div ref={scope} className="grid h-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
           <header className="flex items-center gap-3 border-b border-line px-4.5 py-3.5 pt-[max(14px,env(safe-area-inset-top))]">
             {pkg.cover && (
               <div className="relative size-13 flex-none overflow-hidden rounded-[10px] bg-line">
@@ -139,11 +144,8 @@ export function BookingSheet({
             </SheetClose>
           </header>
 
-          <div
-            data-scroll
-            className="grid content-start gap-6 overflow-y-auto overscroll-contain p-4.5"
-          >
-            {finished ? (
+          {finished ? (
+            <div data-scroll className="grid content-start gap-6 overflow-y-auto p-4.5">
               <BookingDone
                 pkg={pkg}
                 order={phase.order}
@@ -155,8 +157,13 @@ export function BookingSheet({
                 email={contact.email.trim().toLowerCase()}
                 travellers={partyWords}
               />
-            ) : (
-              <>
+            </div>
+          ) : (
+            <div className="relative grid min-h-0 md:grid-cols-[minmax(0,1fr)_340px]">
+              <div
+                data-scroll
+                className="grid min-h-0 content-start gap-6 overflow-y-auto overscroll-contain p-4.5 max-md:pb-44"
+              >
                 {flow.gone && (
                   <div
                     role="alert"
@@ -191,11 +198,21 @@ export function BookingSheet({
                 <Step n={2} title="Who’s travelling" done={done.party}>
                   <PartyBuilder flow={flow} />
                 </Step>
-                <Step n={3} title="Price" done={done.price}>
-                  <PriceBreakdown flow={flow} />
-                  {flow.quote.status !== 'idle' && <CouponField flow={flow} />}
-                </Step>
-                <Step n={4} title="Contact" done={done.contact}>
+                {extras && (
+                  <Step
+                    n={3}
+                    title="Make it yours"
+                    done={done.extras}
+                    aside={
+                      done.extras
+                        ? `${picked} ${picked === 1 ? 'extra' : 'extras'}`
+                        : 'Optional · priced as you tap'
+                    }
+                  >
+                    <MakeItYours flow={flow} />
+                  </Step>
+                )}
+                <Step n={extras ? 4 : 3} title="Contact" done={done.contact}>
                   <ContactFields flow={flow} />
                 </Step>
                 <p
@@ -216,70 +233,9 @@ export function BookingSheet({
                     </Link>
                   </span>
                 </p>
-              </>
-            )}
-          </div>
-
-          {!finished && (
-            <footer className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-              {total !== undefined && total > TEST_MODE_MAX_PAISE && (
-                <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
-                  Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this
-                  payment will stop at Razorpay. For a full test payment, try{' '}
-                  {TEST_MODE_TRIPS.filter((t) => t.slug !== pkg.slug).map((t, i, all) => (
-                    <span key={t.slug}>
-                      <a href={`/packages/${t.slug}#book`} className="underline">
-                        {t.name}
-                      </a>
-                      {i < all.length - 1 ? ' or ' : '.'}
-                    </span>
-                  ))}
-                </p>
-              )}
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 leading-tight">
-                  <span className="block truncate text-[12.5px] text-mute">
-                    {party} {party === 1 ? 'traveller' : 'travellers'}
-                    {departure ? ` · ${formatDate(departure.date)}` : ''}
-                  </span>
-                  {total !== undefined ? (
-                    <AnimatedPrice
-                      paise={total}
-                      className="text-[24px] font-extrabold tracking-tight"
-                    />
-                  ) : (
-                    <b className="text-[24px] font-extrabold tracking-tight text-mute">—</b>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void flow.pay()}
-                  disabled={!flow.canPay}
-                  aria-busy={flow.busy}
-                  className="inline-flex min-w-36 items-center justify-center gap-2 rounded-btn bg-action px-5 py-3.5 text-[15px] font-bold text-ink shadow-[0_8px_20px_-10px_rgb(242_169_59/0.8)] transition-[background-color,transform,opacity] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:bg-action-ink disabled:pointer-events-none disabled:opacity-45"
-                >
-                  {phase.kind === 'starting' ? (
-                    <Spinner label="Holding your seats…" />
-                  ) : phase.kind === 'opening' || phase.kind === 'paying' ? (
-                    <Spinner label="Opening payment…" />
-                  ) : phase.kind === 'checking' ? (
-                    <Spinner label="Checking payment…" />
-                  ) : phase.kind === 'dismissed' ? (
-                    'Pay again'
-                  ) : (
-                    'Pay'
-                  )}
-                </button>
               </div>
-              {phase.kind === 'dismissed' ? (
-                <HoldNote expiresAt={phase.order.holdExpiresAt} failure={phase.failure} />
-              ) : (
-                <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
-                  <Lock className="size-3.5" aria-hidden /> Seats held for 10 minutes once you press
-                  Pay
-                </span>
-              )}
-            </footer>
+              <Receipt flow={flow} pkg={pkg} total={total} />
+            </div>
           )}
         </div>
       </SheetContent>
@@ -287,15 +243,126 @@ export function BookingSheet({
   );
 }
 
+/**
+ * Book now B's live receipt: the server's price, the coupon, and Pay — beside the steps on a
+ * wide screen; on a phone, a drawer along the bottom that shows the total and Pay and opens to
+ * the full breakdown.
+ */
+function Receipt({
+  flow,
+  pkg,
+  total,
+}: {
+  flow: BookingFlow;
+  pkg: BookingPackage;
+  total: number | undefined;
+}) {
+  const [open, setOpen] = useState(false);
+  const { phase, party, departure } = flow;
+  const when = `${party} ${party === 1 ? 'traveller' : 'travellers'}${
+    departure ? ` · ${formatDate(departure.date)}` : ''
+  }`;
+  const price =
+    total !== undefined ? (
+      <AnimatedPrice paise={total} className="text-[22px] font-extrabold tracking-tight" />
+    ) : (
+      <b className="text-[22px] font-extrabold tracking-tight text-mute">—</b>
+    );
+  return (
+    <aside
+      aria-label="Your price"
+      className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-[#fbfcfe] md:border-l md:border-line max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-10 max-md:max-h-[88%] max-md:rounded-t-[18px] max-md:border-t max-md:border-line max-md:bg-bg max-md:shadow-[0_-18px_40px_-22px_rgb(0_0_0/0.4)]"
+    >
+      <div className="flex items-center justify-between gap-2.5 px-4.5 pt-3.5 pb-1 max-md:px-3.5 max-md:pt-3">
+        <div className="min-w-0 leading-tight">
+          <span className="block truncate text-[12.5px] text-mute">{when}</span>
+          <span className="md:hidden">{price}</span>
+          <h3 className="mt-0.5 text-[17px] max-md:hidden">Your price</h3>
+        </div>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="receipt-body"
+          onClick={() => setOpen((o) => !o)}
+          className="inline-flex items-center gap-1 text-[13px] font-bold text-primary md:hidden"
+        >
+          {open ? 'Hide details' : 'Price and payment'}
+          <ChevronDown
+            aria-hidden
+            className={`size-4 transition-transform duration-300 ease-(--ease-out) motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
+      <div
+        id="receipt-body"
+        className={`grid min-h-0 content-start gap-3.5 overflow-y-auto overscroll-contain px-4.5 pt-2 pb-4 max-md:px-3.5 ${open ? '' : 'max-md:hidden'}`}
+      >
+        <PriceBreakdown flow={flow} />
+        {flow.quote.status !== 'idle' && <CouponField flow={flow} />}
+      </div>
+      <div className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] max-md:px-3.5">
+        {total !== undefined && total > TEST_MODE_MAX_PAISE && (
+          <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
+            Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this payment
+            will stop at Razorpay. For a full test payment, try{' '}
+            {TEST_MODE_TRIPS.filter((t) => t.slug !== pkg.slug).map((t, i, all) => (
+              <span key={t.slug}>
+                <a href={`/packages/${t.slug}#book`} className="underline">
+                  {t.name}
+                </a>
+                {i < all.length - 1 ? ' or ' : '.'}
+              </span>
+            ))}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => void flow.pay()}
+          disabled={!flow.canPay}
+          aria-busy={flow.busy}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-action px-5 py-3.5 text-[15px] font-bold text-ink shadow-[0_8px_20px_-10px_rgb(242_169_59/0.8)] transition-[background-color,transform,opacity] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:bg-action-ink disabled:pointer-events-none disabled:opacity-45"
+        >
+          {phase.kind === 'starting' ? (
+            <Spinner label="Holding your seats…" />
+          ) : phase.kind === 'opening' || phase.kind === 'paying' ? (
+            <Spinner label="Opening payment…" />
+          ) : phase.kind === 'checking' ? (
+            <Spinner label="Checking payment…" />
+          ) : (
+            <>
+              {phase.kind === 'dismissed' ? 'Pay again' : 'Pay'}
+              {total !== undefined && flow.canPay && (
+                // The receipt announces the total; the button's accessible name stays "Pay".
+                <span aria-hidden className="num">
+                  {inr(total)}
+                </span>
+              )}
+            </>
+          )}
+        </button>
+        {phase.kind === 'dismissed' ? (
+          <HoldNote expiresAt={phase.order.holdExpiresAt} failure={phase.failure} />
+        ) : (
+          <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
+            <Lock className="size-3.5" aria-hidden /> Seats held for 10 minutes once you press Pay
+          </span>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 function Step({
   n,
   title,
   done,
+  aside,
   children,
 }: {
   n: number;
   title: string;
   done: boolean;
+  aside?: string;
   children: ReactNode;
 }) {
   return (
@@ -315,6 +382,11 @@ function Step({
           {title}
           {done && <span className="sr-only"> (done)</span>}
         </h3>
+        {aside && (
+          <span className="ml-auto text-[12.5px] font-semibold whitespace-nowrap text-mute">
+            {aside}
+          </span>
+        )}
       </header>
       {children}
     </section>

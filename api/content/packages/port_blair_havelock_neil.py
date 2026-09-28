@@ -167,6 +167,48 @@ PACKAGE = define_package(
             "single_supplement_inr": 11_500,
         },
     ],
+    addons=[
+        {
+            "name": "Try-dive at Havelock",
+            "description": (
+                "Your first scuba dive with a PADI instructor: a briefing, then 30 minutes on the "
+                "reef. No experience needed."
+            ),
+            "price_inr": 4_500,
+            "basis": "traveller",
+            "photo": "andaman/elephant-beach.jpg",
+        },
+        {
+            "name": "North Bay sea walk",
+            "description": (
+                "Walk the sea floor at North Bay in a helmet that keeps your head dry — no "
+                "swimming needed."
+            ),
+            "price_inr": 3_800,
+            "basis": "traveller",
+            "photo": "andaman/beach-boat.jpg",
+        },
+        {
+            "name": "Premium ferry upgrade",
+            "description": (
+                "Makruzz or Green Ocean premium seats for both island crossings instead of the "
+                "government ferry."
+            ),
+            "price_inr": 1_200,
+            "basis": "traveller",
+            "photo": "andaman/ross-island-jetty.jpg",
+        },
+        {
+            "name": "Cellular Jail light & sound",
+            "description": (
+                "The evening show in the jail's courtyard, the story of the freedom fighters held "
+                "here."
+            ),
+            "price_inr": 300,
+            "basis": "traveller",
+            "photo": "andaman/cellular-jail.jpg",
+        },
+    ],
     photos=[
         {"file": "andaman/radhanagar-beach.jpg", "alt": "Radhanagar beach, Havelock"},
         {

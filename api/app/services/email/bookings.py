@@ -65,6 +65,7 @@ def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
             if facts.coupon_code
             else None
         ),
+        "addons": [(a.label, inr(a.amount_paise // 100)) for a in facts.addons],
         "booked_at": _ist(facts.booked_at),
         "demo_note": DEMO_NOTE,
         "whatsapp_url": whatsapp_href(

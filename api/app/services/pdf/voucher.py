@@ -57,6 +57,7 @@ class _Voucher:
         self.top()
         self.facts()
         self.travellers()
+        self.addons()
         self.hotels()
         self.inclusions()
         self.contact()
@@ -161,6 +162,32 @@ class _Voucher:
             new_x=XPos.LMARGIN,
             new_y=YPos.NEXT,
         )
+
+    def addons(self) -> None:
+        """P8: the extras this booking has — the lines the operator's team works from."""
+        d, f = self.doc, self.f
+        if not f.addons:
+            return
+        self.section("Your add-ons", keep=8 + 7 * len(f.addons))
+        cols = (("Add-on", 104), ("For", 50), ("Amount", d.epw - 154))
+        x = MARGIN
+        for name, w in cols:
+            d.set_xy(x, d.get_y())
+            d.label(name, w=w, new_line=False)
+            x += w
+        d.set_y(d.get_y() + 5.5)
+        d.hairline(d.get_y())
+        for a in f.addons:
+            y = d.get_y() + 1.5
+            values = (a.name, a.detail, inr(a.amount_paise // 100))
+            x = MARGIN
+            for k, ((_, w), value) in enumerate(zip(cols, values, strict=True)):
+                d.set_xy(x, y)
+                d.font(10.5, "B" if k == 0 else "", INK if k == 0 else INK2)
+                d.cell(w, 5.6, _clip(d, value, w - 2), align="R" if k == 2 else "L")
+                x += w
+            d.set_y(y + 5.6 + 1.5)
+            d.hairline(d.get_y())
 
     def hotels(self) -> None:
         d, f = self.doc, self.f

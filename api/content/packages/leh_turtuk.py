@@ -165,6 +165,37 @@ PACKAGE = define_package(
             "single_supplement_inr": 8_000,
         },
     ],
+    addons=[
+        {
+            "name": "Oxygen + oximeter kit",
+            "description": (
+                "A portable oxygen can and a pulse oximeter in the car for the whole trip."
+            ),
+            "price_inr": 1_500,
+            "basis": "booking",
+            "photo": "ladakh/khardung-la-road.jpg",
+        },
+        {
+            "name": "Turtuk heritage-home lunch",
+            "description": (
+                "Balti home cooking — apricot soup, kisir bread — in a village house, with the "
+                "family who runs it."
+            ),
+            "price_inr": 700,
+            "basis": "traveller",
+            "photo": "ladakh/turtuk-valley.jpg",
+        },
+        {
+            "name": "Extra acclimatisation night",
+            "description": (
+                "One more night in Leh before the high passes, breakfast included, for your party."
+            ),
+            "price_inr": 2_500,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "ladakh/leh-palace.jpg",
+        },
+    ],
     photos=[
         {"file": "ladakh/turtuk-valley.jpg", "alt": "Turtuk village and its green terraces"},
         {"file": "ladakh/turtuk-fields.jpg", "alt": "Buckwheat fields around Turtuk"},

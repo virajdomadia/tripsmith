@@ -107,6 +107,37 @@ PACKAGE = define_package(
             "single_supplement_inr": 2_000,
         },
     ],
+    addons=[
+        {
+            "name": "Kullu river rafting",
+            "description": (
+                "14 km of grade II–III rapids on the Beas from Pirdi, with a guide, helmet and "
+                "jacket. Ages 14+."
+            ),
+            "price_inr": 900,
+            "basis": "traveller",
+            "photo": "himachal/kasol-parvati-river.jpg",
+        },
+        {
+            "name": "Bonfire + BBQ night",
+            "description": (
+                "A riverside bonfire with a grill of paneer and chicken tikka for your group."
+            ),
+            "price_inr": 2_500,
+            "basis": "booking",
+            "photo": "himachal/kheerganga.jpg",
+        },
+        {
+            "name": "Heated tent upgrade",
+            "description": (
+                "A tent with an electric heater and thick bedding, per night of the camp."
+            ),
+            "price_inr": 800,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "himachal/tosh-village.jpg",
+        },
+    ],
     photos=[
         {"file": "himachal/kasol-parvati-river.jpg", "alt": "The Parvati river running past Kasol"},
         {"file": "himachal/manikaran.jpg", "alt": "Gurdwara Manikaran Sahib by the river"},

@@ -28,8 +28,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, CreatedMixin, IdMixin, TimestampsMixin, pg_enum
+from app.models.base import Base, CreatedMixin, IdMixin, TextEnum, TimestampsMixin, pg_enum
 from app.models.enums import (
+    AddonBasis,
     BookingActor,
     BookingStatus,
     CancellationStatus,
@@ -102,6 +103,10 @@ class Booking(IdMixin, TimestampsMixin, Base):
         back_populates="booking", order_by="Payment.created_at"
     )
     cancellation: Mapped["BookingCancellation | None"] = relationship(back_populates="booking")
+    addons: Mapped[list["BookingAddon"]] = relationship(
+        back_populates="booking",
+        order_by="[BookingAddon.created_at, BookingAddon.position, BookingAddon.id]",
+    )
 
 
 class BookingTraveller(IdMixin, Base):
@@ -141,11 +146,46 @@ class Payment(IdMixin, TimestampsMixin, Base):
         server_default=PaymentStatus.CREATED.value,
     )
     raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # last webhook payload
+    # 0014 (P8b): the priced "Add extras" selection this order pays for; null on a booking order.
+    extras: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
 
     booking: Mapped[Booking] = relationship(back_populates="payments")
     refunds: Mapped[list["Refund"]] = relationship(
         back_populates="payment", order_by="Refund.created_at"
     )
+
+
+class BookingAddon(IdMixin, CreatedMixin, Base):
+    """An add-on a booking bought (R46, P8, 0014) — the booking's own copy of the name and the
+    price, so the owner editing or deleting the package's add-on never changes it. `travellers`
+    is 1 for a per-booking add-on; `nights` is 1 unless it is charged per night. `payment_id` is
+    the "Add extras" payment that bought it, null when it came with the booking. An add-on the
+    owner takes off keeps its row, with `removed_at` and the refund that paid it back."""
+
+    __tablename__ = "booking_addons"
+    __table_args__ = (
+        Index("ix_booking_addons_booking_id", "booking_id"),
+        Index("ix_booking_addons_addon_id", "addon_id"),
+        CheckConstraint("basis IN ('booking', 'traveller', 'night')", name="basis"),
+        CheckConstraint("amount_paise > 0", name="amount_positive"),
+    )
+
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
+    addon_id: Mapped[str | None] = mapped_column(
+        ForeignKey("package_addons.id", ondelete="SET NULL")
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    basis: Mapped[AddonBasis] = mapped_column(TextEnum(AddonBasis), nullable=False)
+    unit_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    travellers: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    nights: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
+    amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    payment_id: Mapped[str | None] = mapped_column(ForeignKey("payments.id"))
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    refund_id: Mapped[str | None] = mapped_column(ForeignKey("refunds.id"))
+
+    booking: Mapped[Booking] = relationship(back_populates="addons")
 
 
 class Refund(IdMixin, TimestampsMixin, Base):
@@ -291,7 +331,13 @@ class GstDocument(IdMixin, Base):
             "uq_gst_documents_invoice",
             "booking_id",
             unique=True,
-            postgresql_where=text("kind = 'invoice'"),
+            postgresql_where=text("kind = 'invoice' AND payment_id IS NULL"),
+        ),
+        Index(  # 0014 (P8b): a second invoice for extras bought after the first
+            "uq_gst_documents_extras_invoice",
+            "payment_id",
+            unique=True,
+            postgresql_where=text("kind = 'invoice' AND payment_id IS NOT NULL"),
         ),
         Index(
             "uq_gst_documents_credit_note",

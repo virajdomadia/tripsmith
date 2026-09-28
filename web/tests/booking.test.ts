@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type Addon,
+  addonChoices,
+  addonDetail,
+  addonUnit,
   canAdd,
   canRemove,
   type Departure,
   formErrors,
   holdSecondsLeft,
+  isAddonGone,
   istToday,
   orderBody,
   partySize,
@@ -180,5 +185,76 @@ describe('holdSecondsLeft', () => {
     expect(holdSecondsLeft('2026-12-10T10:09:30Z', now)).toBe(570);
     expect(holdSecondsLeft('2026-12-10T10:20:00Z', now)).toBe(600);
     expect(holdSecondsLeft('2026-12-10T09:59:00Z', now)).toBe(0);
+  });
+});
+
+describe('add-ons (P8)', () => {
+  const offered: Addon[] = [
+    {
+      id: 'car',
+      name: 'Transfers',
+      description: '',
+      pricePaise: 1_800_00,
+      basis: 'booking',
+      maxNights: null,
+      image: null,
+    },
+    {
+      id: 'raft',
+      name: 'Rafting',
+      description: '',
+      pricePaise: 900_00,
+      basis: 'traveller',
+      maxNights: null,
+      image: null,
+    },
+    {
+      id: 'night',
+      name: 'Extra night',
+      description: '',
+      pricePaise: 2_200_00,
+      basis: 'night',
+      maxNights: 2,
+      image: null,
+    },
+  ];
+
+  it('turns picks into the api choices in the owner order, clamped to the party and the nights', () => {
+    const picks = { night: 5, raft: 4, car: 1, gone: 1 };
+    expect(addonChoices(offered, picks, 3)).toEqual([
+      { addonId: 'car' },
+      { addonId: 'raft', travellers: 3 },
+      { addonId: 'night', nights: 2 },
+    ]);
+    expect(addonChoices(offered, { car: 0, raft: 0 }, 2)).toEqual([]);
+  });
+
+  it('words a price and a bought line the way the api does', () => {
+    expect(addonUnit(offered[2]!)).toBe('₹2,200 per traveller, per night · up to 2 nights');
+    expect(addonUnit(offered[0]!)).toBe('₹1,800 per booking');
+    expect(addonDetail({ basis: 'booking', travellers: 1, nights: 1 })).toBe('per booking');
+    expect(addonDetail({ basis: 'traveller', travellers: 1, nights: 1 })).toBe('1 traveller');
+    expect(addonDetail({ basis: 'night', travellers: 4, nights: 2 })).toBe(
+      '2 nights · 4 travellers',
+    );
+    expect(isAddonGone('addon_unavailable')).toBe(true);
+    expect(isAddonGone('coupon_unknown')).toBe(false);
+  });
+
+  it('sends the choices with the order, and nothing when there are none', () => {
+    const slots = slotsFor(rooms({ single: 1 }));
+    const who = { [slots[0]!.key]: { name: 'Asha Rao', age: '30' } };
+    const contact = {
+      name: 'Asha Rao',
+      phone: '9876543210',
+      email: 'a@x.in',
+      state: 'Goa',
+      gstin: '',
+      companyName: '',
+    };
+    expect(orderBody('d', slots, who, contact, null, [{ addonId: 'car' }]).addons).toEqual([
+      { addonId: 'car' },
+    ]);
+    expect(orderBody('d', slots, who, contact)).not.toHaveProperty('addons');
   });
 });

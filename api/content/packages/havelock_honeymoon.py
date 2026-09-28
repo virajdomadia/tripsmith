@@ -140,6 +140,48 @@ PACKAGE = define_package(
             "single_supplement_inr": 14_000,
         },
     ],
+    addons=[
+        {
+            "name": "Try-dive at Elephant Beach",
+            "description": (
+                "Your first scuba dive with a PADI instructor: a pool briefing, then 30 minutes "
+                "on the reef at 6–8 m. No experience needed."
+            ),
+            "price_inr": 4_500,
+            "basis": "traveller",
+            "photo": "andaman/havelock-shore.jpg",
+        },
+        {
+            "name": "Candle-lit beach dinner",
+            "description": (
+                "A table for two on the sand at Kalapathar, a four-course seafood dinner and a "
+                "lantern-lit walk back."
+            ),
+            "price_inr": 4_000,
+            "basis": "booking",
+            "photo": "andaman/andaman-sunset.jpg",
+        },
+        {
+            "name": "Glass-bottom boat ride",
+            "description": (
+                "An hour over the coral off Havelock without getting wet — good for anyone who "
+                "would rather not snorkel."
+            ),
+            "price_inr": 1_200,
+            "basis": "traveller",
+            "photo": "andaman/kalapathar-beach-2.jpg",
+        },
+        {
+            "name": "Extra night on Havelock",
+            "description": (
+                "One more slow day at the Havelock resort, breakfast included, for both of you."
+            ),
+            "price_inr": 3_500,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "andaman/radhanagar-trees.jpg",
+        },
+    ],
     photos=[
         {"file": "andaman/radhanagar-trees.jpg", "alt": "Radhanagar beach under the forest edge"},
         {"file": "andaman/andaman-sunset.jpg", "alt": "Sunset over the sea, Andaman islands"},

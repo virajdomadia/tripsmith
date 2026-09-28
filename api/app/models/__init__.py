@@ -9,6 +9,7 @@ from app.models.auth import Session, User, Verification
 from app.models.base import Base, new_id
 from app.models.bookings import (
     Booking,
+    BookingAddon,
     BookingCancellation,
     BookingEvent,
     BookingTraveller,
@@ -23,6 +24,7 @@ from app.models.catalog import (
     Destination,
     ItineraryDay,
     Package,
+    PackageAddon,
     PackageImage,
     Testimonial,
 )
@@ -32,6 +34,7 @@ from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
 __all__ = [
     "Base",
     "Booking",
+    "BookingAddon",
     "BookingCancellation",
     "BookingEvent",
     "BookingTraveller",
@@ -45,6 +48,7 @@ __all__ = [
     "EnquiryNote",
     "ItineraryDay",
     "Package",
+    "PackageAddon",
     "PackageImage",
     "PackageView",
     "Payment",

@@ -23,6 +23,7 @@ import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
 import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
+import { AddonsEditor } from './AddonsEditor';
 import { BasicsPanel } from './BasicsPanel';
 import { DeletePackage } from './DeletePackage';
 import { DealPanel } from './DealPanel';
@@ -51,6 +52,7 @@ const ALL: Key[] = [
   'itinerary',
   'prices',
   'deal',
+  'addons',
   'stays',
   'included',
   'danger',
@@ -72,6 +74,7 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
   itinerary: ['itinerary'],
   prices: ['departures'],
   deal: ['dealPricePaise', 'dealLabel', 'dealEndsOn'],
+  addons: ['addons'],
   stays: ['hotels'],
   included: ['inclusions', 'exclusions', 'faq'],
 };
@@ -104,7 +107,11 @@ function LiveSub({
   else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
   else if (k === 'prices') text = plural(count(v.departures), 'date');
   else if (k === 'deal') text = v.dealPricePaise ? 'Deal set' : 'No deal';
-  else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
+  else if (k === 'addons') {
+    const all = Array.isArray(v.addons) ? (v.addons as { active?: boolean }[]) : [];
+    const on = all.filter((a) => a?.active).length;
+    text = all.length ? `${plural(all.length, 'add-on')} · ${on} on sale` : 'None yet';
+  } else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
   else if (k === 'included')
     text = `${count(v.inclusions)} in · ${count(v.exclusions)} out · ${plural(count(v.faq), 'question')}`;
   return (
@@ -188,12 +195,13 @@ const FIELDS = new Set<string>([
   'featured',
   'itinerary',
   'departures',
+  'addons',
   'dealPricePaise',
   'dealLabel',
   'dealEndsOn',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
-const ARRAYS = new Set(['itinerary', 'departures']);
+const ARRAYS = new Set(['itinerary', 'departures', 'addons']);
 /** The api's stale-edit 409: another tab or device saved this package first. */
 const STALE_KEY = 'expectedEditedAt';
 
@@ -234,6 +242,16 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
       priceTriplePaise: d.priceTriplePaise,
       priceChildPaise: d.priceChildPaise,
       singleSupplementPaise: d.singleSupplementPaise,
+    })),
+    addons: pkg.addons.map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      pricePaise: a.pricePaise,
+      basis: a.basis,
+      maxNights: a.maxNights ?? '',
+      imageId: a.imageId,
+      active: a.active,
     })),
     dealPricePaise: pkg.dealPricePaise ?? '',
     dealLabel: pkg.dealLabel ?? '',
@@ -512,6 +530,10 @@ export function PackageForm(props: Props) {
             {section('itinerary', <ItineraryEditor />)}
             {section('prices', <DeparturesEditor />)}
             {section('deal', <DealPanel saved={pkg} />)}
+            {section(
+              'addons',
+              <AddonsEditor images={pkg?.images ?? []} saved={pkg?.addons ?? []} />,
+            )}
             {section('stays', <HotelsEditor />)}
             {section(
               'included',

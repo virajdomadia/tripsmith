@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from app.models.enums import PackageStatus, Theme
+from app.models.enums import AddonBasis, PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.meta import Badge
 from app.schemas.reviews import PublicReview, RatingOut
@@ -16,6 +16,11 @@ NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
 PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
 DEAL_LABEL_MAX = 24  # fits the card's corner stamp
+ADDONS_MAX = 12  # per package
+ADDON_NAME_MAX = 60
+ADDON_DESCRIPTION_MAX = 240
+ADDON_NIGHTS_MAX = 14
+ADDON_PRICE_MIN_PAISE = 100  # ₹1
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 # Mirrors web/next.config.ts `images.remotePatterns`: prod Blob storage, or (dev only) the
 # `http://localhost` origin that `scripts/seed.py --local` writes cover URLs against.
@@ -193,6 +198,22 @@ class DepartureList(ApiModel):
     items: list[DepartureOut] = Field(description="Upcoming departures, soonest first")
 
 
+class AddonOut(ApiModel):
+    """An add-on the Book-now sheet offers (R46, P8): switched-on ones only, in the owner's order.
+    The sheet shows these; the price of a choice always comes from `quoteBooking`."""
+
+    id: str
+    name: str
+    description: str
+    price_paise: int
+    basis: AddonBasis = Field(
+        description="booking: once per booking · traveller: per traveller who takes it · night: "
+        "per traveller per night, for the whole party"
+    )
+    max_nights: int | None = Field(description="Set when `basis` is night")
+    image: ImageOut | None
+
+
 class PackageDetail(ApiModel):
     slug: str
     name: str
@@ -215,6 +236,7 @@ class PackageDetail(ApiModel):
     images: list[ImageOut] = Field(description="Gallery order; the cover is first")
     cover: ImageOut | None
     departures: list[DepartureOut] = Field(description="Upcoming only, soonest first")
+    addons: list[AddonOut] = Field(description="Switched-on add-ons, in the owner's order (P8)")
     related: list[PackageCard] = Field(description="Up to 3: same destination, then shared theme")
     rating: RatingOut | None = Field(
         description="Published reviews only, never testimonials; null when none (B13)"
@@ -378,6 +400,35 @@ class DepartureInput(ApiModel):
     single_supplement_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
 
 
+class AddonInput(ApiModel):
+    """One add-on in the package form (R46, P8). `id` present = update that row; absent =
+    insert; rows the payload omits are deleted (bookings keep their own copy). The order sent is
+    the order shown. `max_nights` belongs to a per-night add-on only."""
+
+    id: str | None = None
+    name: str = Field(min_length=2, max_length=ADDON_NAME_MAX)
+    description: str = Field(default="", max_length=ADDON_DESCRIPTION_MAX)
+    price_paise: int = Field(ge=ADDON_PRICE_MIN_PAISE, le=PRICE_MAX_PAISE)
+    basis: AddonBasis
+    max_nights: int | None = Field(default=None, validate_default=True)
+    image_id: str | None = Field(default=None, description="One of the package's photos")
+    active: bool = True
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def _strip(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("max_nights")
+    @classmethod
+    def _nights(cls, v: int | None, info: ValidationInfo) -> int | None:
+        if info.data.get("basis") != AddonBasis.NIGHT:
+            return None  # only a per-night add-on has a limit
+        if v is None or not 1 <= v <= ADDON_NIGHTS_MAX:
+            raise ValueError(f"Set the most nights a party can add, 1–{ADDON_NIGHTS_MAX}")
+        return v
+
+
 class PackageInput(ApiModel):
     """Owner create/update body (06 §C4) — the whole package in one transaction.
 
@@ -401,6 +452,7 @@ class PackageInput(ApiModel):
     featured: bool = False
     itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
     departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+    addons: list[AddonInput] = Field(default_factory=list, max_length=ADDONS_MAX)
     deal_price_paise: int | None = Field(
         default=None,
         gt=0,
@@ -476,6 +528,14 @@ class PackageInput(ApiModel):
             raise ValueError("Two departures cannot share the same date")
         return v
 
+    @field_validator("addons")
+    @classmethod
+    def _unique_addons(cls, v: list[AddonInput]) -> list[AddonInput]:
+        names = [a.name.casefold() for a in v]
+        if len(names) != len(set(names)):
+            raise ValueError("Two add-ons cannot share a name")
+        return v
+
 
 class PackageStatusInput(ApiModel):
     status: PackageStatus
@@ -493,6 +553,18 @@ class AdminDeparture(ApiModel):
     price_triple_paise: int
     price_child_paise: int
     single_supplement_paise: int
+
+
+class AdminAddon(ApiModel):
+    id: str
+    name: str
+    description: str
+    price_paise: int
+    basis: AddonBasis
+    max_nights: int | None
+    image_id: str | None
+    active: bool
+    booked: int = Field(description="Bookings that have it (not removed): a delete keeps theirs")
 
 
 class AdminImage(ApiModel):
@@ -539,6 +611,7 @@ class AdminPackage(ApiModel):
     faq: list[FaqItem]
     itinerary: list[ItineraryDayOut]
     departures: list[AdminDeparture] = Field(description="All departures, soonest first")
+    addons: list[AdminAddon] = Field(description="In the order shown on the sheet (P8)")
     images: list[AdminImage] = Field(description="Gallery order")
     cover_image_id: str | None
     status: PackageStatus

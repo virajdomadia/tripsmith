@@ -63,6 +63,7 @@ from app.models import (  # noqa: E402
     Destination,
     ItineraryDay,
     Package,
+    PackageAddon,
     PackageImage,
     Payment,
     Review,
@@ -252,8 +253,37 @@ async def _seed_package(
         images.append(image)
     await db.flush()
     row.cover_image_id = images[0].id
+    photos = {p.file: i.id for p, i in zip(content.photos, images, strict=True)}
+    await _seed_addons(db, row, content, photos)
     await db.flush()
     return row
+
+
+async def _seed_addons(
+    db: AsyncSession, row: Package, content: PackageContent, image_of: dict[str, str]
+) -> None:
+    """Upsert by name (R46, P8): a re-seed keeps each add-on's id, so bookings that bought
+    one stay linked to it; one no longer in the content is deleted (bookings keep their copy)."""
+    existing = {
+        a.name: a
+        for a in (
+            await db.execute(select(PackageAddon).where(PackageAddon.package_id == row.id))
+        ).scalars()
+    }
+    wanted = {a.name for a in content.addons}
+    for name, addon in existing.items():
+        if name not in wanted:
+            await db.delete(addon)
+    for position, src in enumerate(content.addons):
+        addon = existing.get(src.name) or PackageAddon(package_id=row.id, name=src.name)
+        addon.description = src.description
+        addon.price_paise = src.price_inr * 100
+        addon.basis = src.basis
+        addon.max_nights = src.max_nights
+        addon.image_id = image_of.get(src.photo) if src.photo else None
+        addon.active = True
+        addon.position = position
+        db.add(addon)
 
 
 async def _seed_testimonials(

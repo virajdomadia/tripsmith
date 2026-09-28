@@ -6,6 +6,7 @@ import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { Button } from '@/components/ui/button';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
 import { blocked, lifecycle, moves, type Move, type Step } from '@/lib/admin/lifecycle';
+import { AddonLines } from '@/components/site/booking/AddonLines';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -289,6 +290,7 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
               <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
             </div>
           )}
+          <AddonLines quote={b.quote} />
           <div className="flex justify-between border-t border-ink pt-1.5 font-bold">
             <span>Total</span>
             <span className="num">{inr(b.totalPaise)}</span>

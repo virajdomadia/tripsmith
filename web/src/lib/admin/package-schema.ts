@@ -63,6 +63,39 @@ const faqSchema = z.object({
   a: z.string().trim().min(1, 'Required').max(2000),
 });
 
+/** R46 (P8): the api's limits (schemas/catalog.py `AddonInput`). */
+export const ADDONS_MAX = 12;
+export const ADDON_NAME_MAX = 60;
+export const ADDON_DESCRIPTION_MAX = 240;
+export const ADDON_NIGHTS_MAX = 14;
+export const ADDON_NIGHTS_MESSAGE = `Set the most nights a party can add, 1–${ADDON_NIGHTS_MAX}`;
+
+const addonSchema = z.object({
+  /** The api row this edits; null inserts a new one. */
+  id: z.string().nullish().default(null),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Name it — at least 2 characters')
+    .max(ADDON_NAME_MAX, `${ADDON_NAME_MAX} characters at most`),
+  description: z
+    .string()
+    .trim()
+    .max(ADDON_DESCRIPTION_MAX, `${ADDON_DESCRIPTION_MAX} characters at most`),
+  pricePaise: numberField('Price must be at least ₹1', 100, PRICE_MAX_PAISE),
+  basis: z.enum(['booking', 'traveller', 'night']),
+  /** Blank unless charged per night; the api drops it for the other two. */
+  maxNights: z.preprocess(
+    (v: number | string | null | undefined) => (v === '' || v == null ? null : v),
+    z.coerce.number<number | string>().int(ADDON_NIGHTS_MESSAGE).nullable(),
+  ),
+  imageId: z
+    .string()
+    .nullish()
+    .transform((s) => s || null),
+  active: z.boolean(),
+});
+
 const departureSchema = z.object({
   /** The api row this edits; null inserts a new one. Never invent an id on the client. */
   id: z.string().nullish().default(null),
@@ -98,6 +131,7 @@ export const packageSchema = z
     featured: z.boolean(),
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
+    addons: z.array(addonSchema).max(ADDONS_MAX),
     /** B12. Blank = no deal; the price box holds paise like the departure prices. */
     dealPricePaise: z.preprocess(
       (v: number | string | null | undefined) => (v === '' || v == null ? null : v),
@@ -151,6 +185,28 @@ export const packageSchema = z
       }
       seen.add(d.date);
     });
+    const names = new Set<string>();
+    v.addons.forEach((a, i) => {
+      const key = a.name.toLocaleLowerCase();
+      if (names.has(key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['addons', i, 'name'],
+          message: 'Two add-ons cannot share a name',
+        });
+      }
+      names.add(key);
+      if (
+        a.basis === 'night' &&
+        (a.maxNights === null || a.maxNights < 1 || a.maxNights > ADDON_NIGHTS_MAX)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['addons', i, 'maxNights'],
+          message: ADDON_NIGHTS_MESSAGE,
+        });
+      }
+    });
   });
 
 /** The parsed output — what `onSubmit` receives; the form's field values are `z.input<...>`. */
@@ -185,6 +241,17 @@ export const blankDeparture = (): PackageFieldValues['departures'][number] => ({
   singleSupplementPaise: 0,
 });
 
+export const blankAddon = (): PackageFieldValues['addons'][number] => ({
+  id: null,
+  name: '',
+  description: '',
+  pricePaise: '',
+  basis: 'traveller',
+  maxNights: '',
+  imageId: null,
+  active: true,
+});
+
 export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   slug: '',
   destinationId,
@@ -201,6 +268,7 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   featured: false,
   itinerary: [],
   departures: [],
+  addons: [],
   dealPricePaise: '',
   dealLabel: '',
   dealEndsOn: '',
@@ -224,6 +292,10 @@ export function toInput(v: PackageFormValues): PackageInput {
     featured: v.featured,
     itinerary: v.itinerary,
     departures: v.departures,
+    addons: v.addons.map((a) => ({
+      ...a,
+      maxNights: a.basis === 'night' ? a.maxNights : null,
+    })),
     dealPricePaise: v.dealPricePaise,
     dealLabel: v.dealLabel,
     dealEndsOn: v.dealEndsOn,

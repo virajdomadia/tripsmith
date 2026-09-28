@@ -155,6 +155,45 @@ PACKAGE = define_package(
             "single_supplement_inr": 12_000,
         },
     ],
+    addons=[
+        {
+            "name": "Airport transfers",
+            "description": (
+                "A private car from Kochi airport to your first hotel, and from Kovalam to "
+                "Trivandrum airport at the end."
+            ),
+            "price_inr": 1_500,
+            "basis": "booking",
+            "photo": "kerala/fort-kochi-fishing-nets.jpg",
+        },
+        {
+            "name": "Kathakali show, Kochi",
+            "description": (
+                "An evening performance at a Fort Kochi theatre, with a front-row seat to watch "
+                "the make-up go on first."
+            ),
+            "price_inr": 500,
+            "basis": "traveller",
+            "photo": "kerala/jew-town-mattancherry.jpg",
+        },
+        {
+            "name": "Periyar bamboo rafting",
+            "description": (
+                "A full day in the tiger reserve with forest guards: a trek, then rafting across "
+                "the lake on bamboo."
+            ),
+            "price_inr": 2_000,
+            "basis": "traveller",
+            "photo": "kerala/periyar-lake.jpg",
+        },
+        {
+            "name": "Ayurvedic massage, 60 min",
+            "description": "A traditional abhyanga at a certified centre in Kovalam.",
+            "price_inr": 2_200,
+            "basis": "traveller",
+            "photo": "kerala/kovalam-lighthouse-beach.jpg",
+        },
+    ],
     photos=[
         {"file": "kerala/periyar-lake.jpg", "alt": "Boats on Periyar lake at Thekkady"},
         {

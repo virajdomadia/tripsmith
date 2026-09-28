@@ -73,6 +73,7 @@ const PKG = {
   destination: 'Goa',
   cover: null,
   departures: [DEP, DEC],
+  addons: [] as never[],
 };
 const QUOTE = {
   departureId: 'dep_nov',
@@ -84,8 +85,10 @@ const QUOTE = {
   ],
   deal: null,
   coupon: null,
+  addons: [],
   subtotalPaise: 29_998_00,
   discountPaise: 0,
+  addonsPaise: 0,
   totalPaise: 29_998_00,
 };
 const ORDER = {
@@ -249,6 +252,98 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(calls('/api/bookings')).toHaveLength(1));
     expect(JSON.parse(calls('/api/bookings')[0][1].body).couponCode).toBe('WELCOME10');
+  });
+
+  it('Make it yours: a pick re-asks the server quote, the receipt shows its line, and the order carries it', async () => {
+    const addons = [
+      {
+        id: 'car',
+        name: 'Airport transfers',
+        description: 'A private car from the airport and back.',
+        pricePaise: 1_800_00,
+        basis: 'booking' as const,
+        maxNights: null,
+        image: null,
+      },
+      {
+        id: 'raft',
+        name: 'Kullu rafting',
+        description: '',
+        pricePaise: 900_00,
+        basis: 'traveller' as const,
+        maxNights: null,
+        image: null,
+      },
+    ];
+    api();
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) !== '/api/bookings/quote') return base(url, init);
+      const body = JSON.parse(String(init?.body));
+      const raft = body.addons?.find((a: { addonId: string }) => a.addonId === 'raft');
+      if (raft)
+        return json(409, {
+          error: {
+            code: 'conflict',
+            message: '“Kullu rafting” is no longer offered — we took it off your booking',
+            reason: 'addon_unavailable',
+            fieldErrors: { [`addons.${body.addons.indexOf(raft)}`]: 'gone' },
+          },
+        });
+      if (body.addons?.length)
+        return json(200, {
+          ...QUOTE,
+          addons: [
+            {
+              addonId: 'car',
+              name: 'Airport transfers',
+              basis: 'booking',
+              unitPaise: 1_800_00,
+              travellers: 1,
+              nights: 1,
+              amountPaise: 1_800_00,
+            },
+          ],
+          addonsPaise: 1_800_00,
+          totalPaise: 31_798_00,
+        });
+      return json(200, QUOTE);
+    });
+    const user = userEvent.setup();
+    render(<BookingSheet pkg={{ ...PKG, addons }} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    const sheet = screen.getByRole('dialog');
+    expect(within(sheet).getByRole('heading', { name: 'Make it yours' })).toBeTruthy();
+
+    await user.click(
+      within(sheet).getByRole('switch', { name: 'Airport transfers, ₹1,800 per booking' }),
+    );
+    await waitFor(() =>
+      expect(JSON.parse(calls('/api/bookings/quote').at(-1)![1].body).addons).toEqual([
+        { addonId: 'car' },
+      ]),
+    );
+    const receipt = within(sheet).getByRole('complementary', { name: 'Your price' });
+    expect(await within(receipt).findByText('Trip fare')).toBeTruthy();
+    expect(within(receipt).getByText('Airport transfers · per booking')).toBeTruthy();
+
+    // Switched off since the page was built: the api names it, the sheet drops it and says so.
+    await user.click(
+      within(sheet).getByRole('button', { name: 'One more traveller for Kullu rafting' }),
+    );
+    expect(await within(sheet).findByText(/“Kullu rafting” is no longer offered/)).toBeTruthy();
+    await waitFor(() =>
+      expect(within(sheet).queryByRole('group', { name: 'Kullu rafting: travellers' })).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(JSON.parse(calls('/api/bookings/quote').at(-1)![1].body).addons).toEqual([
+        { addonId: 'car' },
+      ]),
+    );
+
+    await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
+    await waitFor(() => expect(calls('/api/bookings')).toHaveLength(1));
+    expect(JSON.parse(calls('/api/bookings')[0][1].body).addons).toEqual([{ addonId: 'car' }]);
   });
 
   it('says so plainly when the payment landed after the seats had gone', async () => {

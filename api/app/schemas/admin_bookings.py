@@ -336,6 +336,15 @@ class ManifestBooking(ApiModel):
     lead_phone: str
     cancellation_requested: bool
     travellers: list[AccountTraveller]
+    addons: list[str] = Field(description="P8: e.g. 'Kullu river rafting (2 travellers)'")
+
+
+class ManifestAddon(ApiModel):
+    """One add-on across the departure — what the team has to arrange (P8)."""
+
+    name: str
+    bookings: int
+    travellers: int = Field(description="Travellers taking it; 0 for a per-booking add-on")
 
 
 class Manifest(ApiModel):
@@ -351,4 +360,5 @@ class Manifest(ApiModel):
         description="Confirmed, part-paid and completed bookings, oldest first"
     )
     travellers: int
+    addons: list[ManifestAddon] = Field(description="Totals per add-on, in first-booked order")
     generated_at: dt.datetime

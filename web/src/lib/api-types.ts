@@ -1407,6 +1407,109 @@ export interface components {
             text: string;
         };
         /**
+         * AddonBasis
+         * @description How an add-on is charged (R46, P8).
+         * @enum {string}
+         */
+        AddonBasis: "booking" | "traveller" | "night";
+        /**
+         * AddonChoice
+         * @description One add-on the visitor picked (R46, P8). Per booking: nothing else. Per traveller: how
+         *     many of the party take it. Per night: how many nights — the whole party stays on.
+         */
+        AddonChoice: {
+            /** Addonid */
+            addonId: string;
+            /**
+             * Nights
+             * @description Per-night add-ons: how many nights (≤ the add-on's maximum)
+             */
+            nights?: number | null;
+            /**
+             * Travellers
+             * @description Per-traveller add-ons: how many take it (≤ the party)
+             */
+            travellers?: number | null;
+        };
+        /**
+         * AddonInput
+         * @description One add-on in the package form (R46, P8). `id` present = update that row; absent =
+         *     insert; rows the payload omits are deleted (bookings keep their own copy). The order sent is
+         *     the order shown. `max_nights` belongs to a per-night add-on only.
+         */
+        AddonInput: {
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            basis: components["schemas"]["AddonBasis"];
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Id */
+            id?: string | null;
+            /**
+             * Imageid
+             * @description One of the package's photos
+             */
+            imageId?: string | null;
+            /** Maxnights */
+            maxNights?: number | null;
+            /** Name */
+            name: string;
+            /** Pricepaise */
+            pricePaise: number;
+        };
+        /**
+         * AddonOut
+         * @description An add-on the Book-now sheet offers (R46, P8): switched-on ones only, in the owner's order.
+         *     The sheet shows these; the price of a choice always comes from `quoteBooking`.
+         */
+        AddonOut: {
+            /** @description booking: once per booking · traveller: per traveller who takes it · night: per traveller per night, for the whole party */
+            basis: components["schemas"]["AddonBasis"];
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            image: components["schemas"]["ImageOut"] | null;
+            /**
+             * Maxnights
+             * @description Set when `basis` is night
+             */
+            maxNights: number | null;
+            /** Name */
+            name: string;
+            /** Pricepaise */
+            pricePaise: number;
+        };
+        /** AdminAddon */
+        AdminAddon: {
+            /** Active */
+            active: boolean;
+            basis: components["schemas"]["AddonBasis"];
+            /**
+             * Booked
+             * @description Bookings that have it (not removed): a delete keeps theirs
+             */
+            booked: number;
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Imageid */
+            imageId: string | null;
+            /** Maxnights */
+            maxNights: number | null;
+            /** Name */
+            name: string;
+            /** Pricepaise */
+            pricePaise: number;
+        };
+        /**
          * AdminBooking
          * @description `GET /admin/bookings/{ref}` and every desk action's answer.
          */
@@ -1809,6 +1912,11 @@ export interface components {
         };
         /** AdminPackage */
         AdminPackage: {
+            /**
+             * Addons
+             * @description In the order shown on the sheet (P8)
+             */
+            addons: components["schemas"]["AdminAddon"][];
             /** Canpublish */
             canPublish: boolean;
             /** Coverimageid */
@@ -2277,6 +2385,11 @@ export interface components {
          * @description `createBookingOrder`: the quote input with names and ages, plus the contact.
          */
         BookingRequest: {
+            /**
+             * Addons
+             * @description As on the quote
+             */
+            addons?: components["schemas"]["AddonChoice"][];
             contact: components["schemas"]["BookingContact"];
             /**
              * Couponcode
@@ -3395,6 +3508,11 @@ export interface components {
          */
         Manifest: {
             /**
+             * Addons
+             * @description Totals per add-on, in first-booked order
+             */
+            addons: components["schemas"]["ManifestAddon"][];
+            /**
              * Bookings
              * @description Confirmed, part-paid and completed bookings, oldest first
              */
@@ -3421,8 +3539,28 @@ export interface components {
             /** Travellers */
             travellers: number;
         };
+        /**
+         * ManifestAddon
+         * @description One add-on across the departure — what the team has to arrange (P8).
+         */
+        ManifestAddon: {
+            /** Bookings */
+            bookings: number;
+            /** Name */
+            name: string;
+            /**
+             * Travellers
+             * @description Travellers taking it; 0 for a per-booking add-on
+             */
+            travellers: number;
+        };
         /** ManifestBooking */
         ManifestBooking: {
+            /**
+             * Addons
+             * @description P8: e.g. 'Kullu river rafting (2 travellers)'
+             */
+            addons: string[];
             /** Cancellationrequested */
             cancellationRequested: boolean;
             /** Leadname */
@@ -3749,6 +3887,11 @@ export interface components {
         };
         /** PackageDetail */
         PackageDetail: {
+            /**
+             * Addons
+             * @description Switched-on add-ons, in the owner's order (P8)
+             */
+            addons: components["schemas"]["AddonOut"][];
             cover: components["schemas"]["ImageOut"] | null;
             /** Days */
             days: number;
@@ -3821,6 +3964,8 @@ export interface components {
          *     constraint `days_is_nights_plus_one`).
          */
         PackageInput: {
+            /** Addons */
+            addons?: components["schemas"]["AddonInput"][];
             /**
              * Dealendson
              * @description The last day of the deal (IST); today or later when changed
@@ -4010,6 +4155,16 @@ export interface components {
          * @description The server's price for a party on a departure; snapshotted on the booking as-is.
          */
         Quote: {
+            /**
+             * Addons
+             * @description P8: the add-ons, after the trip fare
+             */
+            addons: components["schemas"]["QuoteAddon"][];
+            /**
+             * Addonspaise
+             * @description The add-on lines' total, at full price
+             */
+            addonsPaise: number;
             coupon: components["schemas"]["QuoteCoupon"] | null;
             /**
              * Date
@@ -4021,7 +4176,7 @@ export interface components {
             departureId: string;
             /**
              * Discountpaise
-             * @description The deal lines' total plus the coupon, as a positive number
+             * @description The deal lines' total plus the coupon, as a positive number; never touches the add-ons
              */
             discountPaise: number;
             /** Lines */
@@ -4032,11 +4187,48 @@ export interface components {
             seatsLeft: number;
             /**
              * Subtotalpaise
-             * @description Before the deal and the coupon
+             * @description The trip fare before the deal and the coupon
              */
             subtotalPaise: number;
-            /** Totalpaise */
+            /**
+             * Totalpaise
+             * @description subtotal − discount + add-ons
+             */
             totalPaise: number;
+        };
+        /**
+         * QuoteAddon
+         * @description One add-on line on the quote (P8): the server's price, never discounted.
+         */
+        QuoteAddon: {
+            /**
+             * Addonid
+             * @description Null once the owner deleted the add-on
+             */
+            addonId: string | null;
+            /**
+             * Amountpaise
+             * @description unit × travellers × nights
+             */
+            amountPaise: number;
+            basis: components["schemas"]["AddonBasis"];
+            /** Name */
+            name: string;
+            /**
+             * Nights
+             * @description 1 unless charged per night
+             */
+            nights: number;
+            /**
+             * Travellers
+             * @description 1 for a per-booking add-on
+             */
+            travellers: number;
+            /**
+             * Unitpaise
+             * @description The price per booking, traveller or traveller-night
+             */
+            unitPaise: number;
         };
         /** QuoteCoupon */
         QuoteCoupon: {
@@ -4094,6 +4286,11 @@ export interface components {
         QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal";
         /** QuoteRequest */
         QuoteRequest: {
+            /**
+             * Addons
+             * @description P8: Make it yours
+             */
+            addons?: components["schemas"]["AddonChoice"][];
             /**
              * Couponcode
              * @description Case-insensitive; refused with its reason

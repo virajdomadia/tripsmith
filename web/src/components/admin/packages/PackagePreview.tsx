@@ -5,12 +5,21 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import type { PackageFieldValues } from '@/lib/admin/package-schema';
+import { addonUnit, type AddonBasis } from '@/lib/booking';
 import { formatDate, inr, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /** The editor's sections, in the order the customer page reads. */
 export type SectionKey =
-  'photos' | 'title' | 'highlights' | 'itinerary' | 'prices' | 'deal' | 'stays' | 'included';
+  | 'photos'
+  | 'title'
+  | 'highlights'
+  | 'itinerary'
+  | 'prices'
+  | 'deal'
+  | 'addons'
+  | 'stays'
+  | 'included';
 
 export const LABEL: Record<SectionKey, string> = {
   photos: 'Photos',
@@ -19,6 +28,7 @@ export const LABEL: Record<SectionKey, string> = {
   itinerary: 'Day by day',
   prices: 'Dates and prices',
   deal: 'Deal',
+  addons: 'Add-ons',
   stays: 'Hotels',
   included: 'Included, not included, FAQ',
 };
@@ -92,6 +102,7 @@ export function PackagePreview({
   const hotels = v.hotels ?? [];
   const inclusions = (v.inclusions ?? []).map((s) => s?.trim()).filter(Boolean) as string[];
   const dealLabel = v.dealLabel?.trim() || 'Deal';
+  const addons = (v.addons ?? []).filter((a) => a?.active && a.name?.trim());
 
   /** A clickable part of the preview: opens its section on the left. */
   /** A part of the preview. A click anywhere on it opens its section (a mouse shortcut); the
@@ -210,6 +221,27 @@ export function PackagePreview({
               ))}
             </ol>
           </section>
+          {addons.length > 0 && (
+            <section {...part('addons', 'grid gap-1.5 p-1')}>
+              {editButton('addons')}
+              <h3 className="text-[13px] font-extrabold">Make it yours</h3>
+              <ul className="grid gap-1 text-[12px]">
+                {addons.map((a, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2">
+                    <b className="min-w-0 truncate">{a?.name}</b>
+                    <small className="shrink-0 text-mute">
+                      {addonUnit({
+                        pricePaise: num(a?.pricePaise),
+                        basis: (a?.basis ?? 'traveller') as AddonBasis,
+                        maxNights: num(a?.maxNights) || null,
+                      })}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+              <small className="text-[11px] text-mute">Offered in the Book-now sheet</small>
+            </section>
+          )}
           {hotels.length > 0 && (
             <section {...part('stays', 'grid gap-1.5 p-1')}>
               {editButton('stays')}

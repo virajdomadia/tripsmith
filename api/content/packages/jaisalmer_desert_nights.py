@@ -157,6 +157,41 @@ PACKAGE = define_package(
             "single_supplement_inr": 6_500,
         },
     ],
+    addons=[
+        {
+            "name": "Jeep dune bashing",
+            "description": "A 4x4 across the Sam dunes before sunset, up to six in the jeep.",
+            "price_inr": 3_000,
+            "basis": "booking",
+            "photo": "rajasthan/sam-dunes-camel.jpg",
+        },
+        {
+            "name": "Sunrise camel safari",
+            "description": (
+                "An extra hour on camelback at first light, with chai at a dhani on the way back."
+            ),
+            "price_inr": 900,
+            "basis": "traveller",
+            "photo": "rajasthan/camel-safari-sunset.jpg",
+        },
+        {
+            "name": "Dune parasailing",
+            "description": "A tow-launched parasail over the dunes, about five minutes in the air.",
+            "price_inr": 1_000,
+            "basis": "traveller",
+            "photo": "rajasthan/gadisar-lake.jpg",
+        },
+        {
+            "name": "Luxury tent upgrade",
+            "description": (
+                "A Swiss tent with a proper bed and an attached bath at the desert camp, per night."
+            ),
+            "price_inr": 2_000,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "rajasthan/jaisalmer-fort-night.jpg",
+        },
+    ],
     photos=[
         {"file": "rajasthan/sam-dunes-camel.jpg", "alt": "A camel on the Sam sand dunes"},
         {"file": "rajasthan/jaisalmer-fort.jpg", "alt": "The battlements of Jaisalmer fort"},

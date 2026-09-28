@@ -103,6 +103,7 @@ def package(
         ],
         images=photos,
         cover=photos[0],
+        addons=[],
         departures=[
             departure(i, seats_left=(0 if i == 1 else 3 if i == 2 else 9), guaranteed=i == 0)
             for i in range(departures)

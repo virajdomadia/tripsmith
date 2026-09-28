@@ -180,6 +180,44 @@ PACKAGE = define_package(
             "single_supplement_inr": 9_000,
         },
     ],
+    addons=[
+        {
+            "name": "Oxygen + oximeter kit",
+            "description": (
+                "A portable oxygen can and a pulse oximeter in the car for the whole trip — handy "
+                "on Khardung La and at Pangong."
+            ),
+            "price_inr": 1_500,
+            "basis": "booking",
+            "photo": "ladakh/khardung-la.jpg",
+        },
+        {
+            "name": "Hunder camel ride",
+            "description": (
+                "Twenty minutes on a double-humped Bactrian camel across the Hunder dunes."
+            ),
+            "price_inr": 600,
+            "basis": "traveller",
+            "photo": "ladakh/hunder-camels.jpg",
+        },
+        {
+            "name": "Nubra ATV ride",
+            "description": "Half an hour on a quad bike on the Nubra sand dunes, with a guide.",
+            "price_inr": 1_200,
+            "basis": "traveller",
+            "photo": "ladakh/diskit-maitreya.jpg",
+        },
+        {
+            "name": "Extra acclimatisation night",
+            "description": (
+                "One more night in Leh before the high passes, breakfast included, for your party."
+            ),
+            "price_inr": 2_500,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "ladakh/shanti-stupa.jpg",
+        },
+    ],
     photos=[
         {"file": "ladakh/pangong-tso.jpg", "alt": "Pangong Tso"},
         {"file": "ladakh/khardung-la.jpg", "alt": "Prayer flags at Khardung La"},

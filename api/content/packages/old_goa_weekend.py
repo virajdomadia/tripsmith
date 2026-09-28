@@ -107,6 +107,31 @@ PACKAGE = define_package(
             "single_supplement_inr": 2_500,
         },
     ],
+    addons=[
+        {
+            "name": "Spice plantation lunch",
+            "description": (
+                "A guided walk through a Ponda spice farm, then a Goan buffet lunch on banana leaf."
+            ),
+            "price_inr": 1_000,
+            "basis": "traveller",
+            "photo": "goa/vagator-palms-2.jpg",
+        },
+        {
+            "name": "Mandovi river cruise",
+            "description": "An hour on the Mandovi at dusk with Goan folk music and dance on deck.",
+            "price_inr": 600,
+            "basis": "traveller",
+            "photo": "goa/aguada-fort.jpg",
+        },
+        {
+            "name": "Late checkout",
+            "description": "Keep your room until 4 pm on the last day, so you leave rested.",
+            "price_inr": 1_500,
+            "basis": "booking",
+            "photo": "goa/bom-jesus-basilica.jpg",
+        },
+    ],
     photos=[
         {"file": "goa/bom-jesus-basilica.jpg", "alt": "Front of the Basilica of Bom Jesus"},
         {"file": "goa/dudhsagar-falls.jpg", "alt": "Dudhsagar waterfall pouring down the hill"},

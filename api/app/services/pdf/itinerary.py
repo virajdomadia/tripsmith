@@ -98,14 +98,14 @@ def _renderer_hash() -> str:
 _RENDERER = _renderer_hash()
 
 
-NOT_DRAWN = {"related", "updated_at", "deal", "rating", "reviews"}
+NOT_DRAWN = {"related", "updated_at", "deal", "rating", "reviews", "addons"}
 
 
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:
     """16 hex chars over everything `render_itinerary` draws: the package page as served today
-    (`NOT_DRAWN`: `related`, `updated_at`, the B12 `deal`, the B13 `rating` / `reviews`), the
-    two settings it prints, the business block and the renderer. Any change → a new pathname;
-    nothing else → the same one."""
+    (`NOT_DRAWN`: `related`, `updated_at`, the B12 `deal`, the B13 `rating` / `reviews`, the P8
+    `addons`), the two settings it prints, the business block and the renderer. Any change → a
+    new pathname; nothing else → the same one."""
     drawn = pkg.model_dump(mode="json", exclude=NOT_DRAWN)
     payload = [drawn, site_url, whatsapp_number, BUSINESS, _RENDERER]
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
