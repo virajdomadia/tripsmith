@@ -5,6 +5,7 @@ import { errorFromResponse, type ApiRequestError } from '@/lib/api-errors';
 import {
   type BookingOrder,
   type Contact,
+  EMPTY_CONTACT,
   type Departure,
   formErrors,
   holdSecondsLeft,
@@ -95,7 +96,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [departureId, setDepartureId] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Rooms>({ double: 1, triple: 0, single: 0, children: 0 });
   const [travellers, setTravellers] = useState<Record<string, TravellerInput>>({});
-  const [contact, setContact] = useState<Contact>({ name: '', phone: '', email: '' });
+  const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [quote, setQuote] = useState<QuoteState>({ status: 'idle' });
   const [coupon, setCoupon] = useState<CouponState>(NO_COUPON);

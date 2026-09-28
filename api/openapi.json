@@ -179,6 +179,14 @@
             "title": "Destination",
             "type": "string"
           },
+          "documents": {
+            "description": "GST documents, in the order they happened (P13b)",
+            "items": {
+              "$ref": "#/components/schemas/GstDocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
           "hasVoucher": {
             "title": "Hasvoucher",
             "type": "boolean"
@@ -292,6 +300,7 @@
           "leadPhone",
           "leadEmail",
           "hasVoucher",
+          "documents",
           "canRequestCancellation",
           "review",
           "canReview",
@@ -565,6 +574,14 @@
           "departure": {
             "$ref": "#/components/schemas/DepartureSeats"
           },
+          "documents": {
+            "description": "GST documents, in the order they happened (P13b)",
+            "items": {
+              "$ref": "#/components/schemas/GstDocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
           "hasVoucher": {
             "title": "Hasvoucher",
             "type": "boolean"
@@ -696,6 +713,7 @@
           "leadEmail",
           "payments",
           "refunds",
+          "documents",
           "refundToSendPaise",
           "refundOfflinePaise",
           "history",
@@ -2285,10 +2303,36 @@
       },
       "BookingContact": {
         "properties": {
+          "companyName": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required with a GSTIN; printed on the invoice",
+            "title": "Companyname"
+          },
           "email": {
             "maxLength": 120,
             "title": "Email",
             "type": "string"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "maxLength": 15,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Business GSTIN",
+            "title": "Gstin"
           },
           "name": {
             "maxLength": 80,
@@ -2299,6 +2343,18 @@
           "phone": {
             "title": "Phone",
             "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer's State or UT (GST)",
+            "title": "State"
           }
         },
         "required": [
@@ -4353,6 +4409,61 @@
           "followUpOn"
         ],
         "title": "FollowUpInput",
+        "type": "object"
+      },
+      "GstDocumentOut": {
+        "description": "A receipt, tax invoice or credit note the booking has (R51, P13b). `number` is null until\nit is first downloaded (or emailed) — the number is issued then, and never changes.",
+        "properties": {
+          "amountPaise": {
+            "description": "GST-inclusive",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "dated": {
+            "description": "The IST day of the payment, full payment or refund",
+            "format": "date",
+            "title": "Dated",
+            "type": "string"
+          },
+          "key": {
+            "description": "receipt-<payment id> | invoice | credit-<refund id>",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "receipt",
+              "invoice",
+              "credit_note"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "number",
+          "amountPaise",
+          "dated"
+        ],
+        "title": "GstDocumentOut",
         "type": "object"
       },
       "Health": {
@@ -7277,6 +7388,65 @@
         "summary": "Post Cancellation",
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/documents/{key}.pdf": {
+      "get": {
+        "description": "P13b: a receipt, tax invoice or credit note — for the booking's customer or the owner,\nlike the voucher. Its number is issued on the first download and never changes after.",
+        "operationId": "getGstDocumentPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^(invoice|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The document PDF"
+          },
+          "403": {
+            "description": "Not this booking's account"
+          },
+          "404": {
+            "description": "Unknown booking, or it has no such document"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Gst Document",
+        "tags": [
+          "public"
         ]
       }
     },

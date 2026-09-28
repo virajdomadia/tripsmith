@@ -11,6 +11,9 @@
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Paid</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ paid }}</td></tr>
 {% if coupon %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-bottom:1px solid #e3e8ec;">Coupon</td><td style="padding:7px 0;border-bottom:1px solid #e3e8ec;">{{ coupon }}</td></tr>{% endif %}
 </table>
+{% if invoice_attached %}
+<p style="margin:0 0 16px;">Your GST tax invoice is attached too.</p>
+{% endif %}
 {% if voucher_attached %}
 <p style="margin:0 0 16px;">Your voucher is attached as a PDF — show it, printed or on your phone, at check-in.</p>
 {% else %}

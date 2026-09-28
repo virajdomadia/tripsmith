@@ -11,6 +11,9 @@ Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop
 Paid:        {{ paid }}
 {% if coupon %}Coupon:      {{ coupon }}
 {% endif %}
+{% if invoice_attached %}
+Your GST tax invoice is attached too.
+{% endif %}
 {% if voucher_attached %}
 Your voucher is attached as a PDF — show it, printed or on your phone, at check-in.
 {% else %}

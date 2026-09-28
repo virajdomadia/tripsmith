@@ -16,7 +16,7 @@ from app.models.enums import (
     RefundStatus,
 )
 from app.schemas import ApiModel
-from app.schemas.account import AccountCancellation, AccountTraveller
+from app.schemas.account import AccountCancellation, AccountTraveller, GstDocumentOut
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
@@ -239,6 +239,9 @@ class AdminBooking(ApiModel):
     lead_email: str
     payments: list[AdminPayment] = Field(description="Every attempt, oldest first")
     refunds: list[AdminRefund] = Field(description="Every refund, oldest first (P13)")
+    documents: list[GstDocumentOut] = Field(
+        description="GST documents, in the order they happened (P13b)"
+    )
     refund_to_send_paise: int = Field(
         description="What 'Send refund' would send now: owed and not yet sent, plus refunds "
         "that never reached Razorpay"

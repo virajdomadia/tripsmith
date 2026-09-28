@@ -8,8 +8,9 @@ reach it the same way — after their transaction has committed, and only when
 1. Freshness: recompute the package's "from ₹" and revalidate its pages (B3).
 2. Refunds (P13): a late capture with no seats, or money on a booking that no longer takes it,
    planned its refund in the capture's transaction; it is sent to Razorpay here.
-3. Emails (B7): the booking's facts are read in a short transaction and ended before the voucher
-   render and the sends, so no pooled connection waits on Resend.
+3. Emails (B7): the booking's facts are read in a short transaction and ended before the
+   voucher render and the sends, so no pooled connection waits on Resend. A fully-paid
+   confirmation also carries the GST tax invoice (P13b), numbered in its own transaction.
 
 Never raises: the money is already recorded.
 """
@@ -31,6 +32,7 @@ from app.services.booking.refunds import send_refunds
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import BookingFacts, load_booking_facts
 from app.services.email.bookings import send_booking_emails
+from app.services.gst.files import invoice_attachment
 from app.services.pdf.voucher import render_voucher, voucher_filename
 
 VOUCHER_TIMEOUT = 5.0  # R17 asks < 3 s; a render is ~0.2 s, so this only catches a stuck thread
@@ -97,9 +99,11 @@ async def on_new_capture(
             await db.rollback()  # read-only; the connection goes back before the sends
     if facts is None:
         return
-    voucher = None
+    voucher = invoice = None
     if capture.settled == Settled.CONFIRMED:
         voucher = await voucher_attachment(facts, notify.settings)
+        if facts.paid_paise >= facts.total_paise:  # P13b: paid in full → the tax invoice
+            invoice = await invoice_attachment(db, ref)
     await send_booking_emails(
-        notify.sender, notify.settings, facts, capture, voucher=voucher, db=db
+        notify.sender, notify.settings, facts, capture, voucher=voucher, invoice=invoice, db=db
     )

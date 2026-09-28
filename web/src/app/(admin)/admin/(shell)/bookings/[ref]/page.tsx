@@ -1,4 +1,5 @@
 import { ArrowLeft, FileDown, Mail, MessageCircle, Phone } from 'lucide-react';
+import { Documents } from '@/components/site/account/Documents';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
@@ -181,6 +182,13 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {b.documents.length > 0 && (
+            <section className={panel}>
+              <h2 className={heading}>GST documents</h2>
+              <Documents bookingRef={b.ref} documents={b.documents} />
             </section>
           )}
 

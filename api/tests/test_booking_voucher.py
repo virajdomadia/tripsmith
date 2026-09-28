@@ -284,7 +284,8 @@ async def test_journey_order_webhook_confirmed_voucher_for_its_owner_only(
     assert (await deliver(db_client, body)).json() == {"status": "captured"}
     assert roles(sender) == ["customer", "owner"]
     customer = next(m for m in sender.sent if m.to == "j@example.test")
-    [voucher] = customer.attachments
+    voucher, invoice = customer.attachments  # P13b: the tax invoice rides with the voucher
+    assert "-TS-" in invoice.filename and invoice.content.startswith(b"%PDF")
     assert voucher.filename == f"Tripsmith-{ref}-voucher.pdf"
     assert ref in pdf_text(voucher.content)[1]
 

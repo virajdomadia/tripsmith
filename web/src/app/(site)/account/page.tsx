@@ -21,6 +21,11 @@ const VOUCHER_NOTICE: Record<string, string> = {
   unavailable: 'We couldn’t fetch the voucher just now — try again in a moment.',
 };
 
+const DOCUMENT_NOTICE: Record<string, string> = {
+  missing: 'That document isn’t on this account, or the booking doesn’t have it yet.',
+  unavailable: 'We couldn’t fetch the document just now — try again in a moment.',
+};
+
 const EMPTY: Record<Tab, string> = {
   upcoming: 'No trips coming up.',
   past: 'No past trips yet.',
@@ -41,7 +46,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     throw e;
   }
   const sp = await searchParams;
-  const voucher = typeof sp.voucher === 'string' ? VOUCHER_NOTICE[sp.voucher] : undefined;
+  const voucher =
+    typeof sp.voucher === 'string'
+      ? VOUCHER_NOTICE[sp.voucher]
+      : typeof sp.document === 'string'
+        ? DOCUMENT_NOTICE[sp.document]
+        : undefined;
   const first = trips.name.split(' ')[0];
   const groups = groupTrips(trips.bookings, trips.today);
   const asked = TABS.find((t) => t.id === sp.tab)?.id;

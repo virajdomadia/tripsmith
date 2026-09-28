@@ -142,6 +142,7 @@ async function fillIn(user: ReturnType<typeof userEvent.setup>) {
   await user.type(within(sheet).getByLabelText('Traveller 2 age'), '36');
   await user.type(within(sheet).getByLabelText('Mobile'), '98450 12345');
   await user.type(within(sheet).getByLabelText('Email'), 'ananya@example.com');
+  await user.selectOptions(within(sheet).getByLabelText('State'), 'Karnataka');
 }
 
 // userEvent types every character; under a full parallel run that outgrows the 5 s default.
@@ -164,7 +165,12 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
         { name: 'Ananya Rao', age: 34, occupancy: 'double' },
         { name: 'Vikram Rao', age: 36, occupancy: 'double' },
       ],
-      contact: { name: 'Ananya Rao', phone: '9845012345', email: 'ananya@example.com' },
+      contact: {
+        name: 'Ananya Rao',
+        phone: '9845012345',
+        email: 'ananya@example.com',
+        state: 'Karnataka',
+      },
     });
     expect(checkout).toMatchObject({
       key: 'rzp_test_Key',

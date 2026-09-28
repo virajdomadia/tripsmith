@@ -6,13 +6,14 @@ travellers and live pending holds from `departures.seats_total`. Add-on D's `spl
 from the start; its `payments.share_id` arrives with the `booking_shares` table.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Identity,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -84,6 +86,11 @@ class Booking(IdMixin, TimestampsMixin, Base):
     )  # late capture with no seats left
     # 0009 (B15): the coupon the booking was quoted with, upper case; the discount is in `quote`.
     coupon_code: Mapped[str | None] = mapped_column(Text)
+    # 0013 (P13b): the State asked at checkout (place of supply) and an optional business GSTIN
+    # with its company name. Null on bookings made before it — treated as Karnataka.
+    billing_state: Mapped[str | None] = mapped_column(Text)
+    gstin: Mapped[str | None] = mapped_column(Text)
+    company_name: Mapped[str | None] = mapped_column(Text)
     split: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # add-on D
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
@@ -251,4 +258,60 @@ class BookingEvent(Base):
     approx: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     logged_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.clock_timestamp()
+    )
+
+
+class GstCounter(Base):
+    """The last GST document number used per (kind, FY) — incremented in the same transaction
+    that inserts the document, so numbers never skip or repeat (0013). Write through
+    `services/gst/documents.py`."""
+
+    __tablename__ = "gst_counters"
+
+    kind: Mapped[str] = mapped_column(Text, primary_key=True)
+    fy: Mapped[str] = mapped_column(Text, primary_key=True)
+    last: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
+class GstDocument(IdMixin, Base):
+    """A receipt, tax invoice or credit note issued for a booking (R51, P13b, 0013). The PDF is
+    rendered on demand from the booking as it stands; the row fixes its number, amount and
+    date. Write through `services/gst/documents.py`."""
+
+    __tablename__ = "gst_documents"
+    __table_args__ = (
+        Index("ix_gst_documents_booking_id", "booking_id"),
+        Index(
+            "uq_gst_documents_receipt",
+            "payment_id",
+            unique=True,
+            postgresql_where=text("kind = 'receipt'"),
+        ),
+        Index(
+            "uq_gst_documents_invoice",
+            "booking_id",
+            unique=True,
+            postgresql_where=text("kind = 'invoice'"),
+        ),
+        Index(
+            "uq_gst_documents_credit_note",
+            "refund_id",
+            unique=True,
+            postgresql_where=text("kind = 'credit_note'"),
+        ),
+        CheckConstraint("kind IN ('receipt', 'invoice', 'credit_note')", name="kind"),
+        UniqueConstraint("kind", "fy", "seq", name="uq_gst_documents_kind"),
+    )
+
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    fy: Mapped[str] = mapped_column(Text, nullable=False)  # "2026-27"
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    number: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # "RC/2026-27/0001"
+    payment_id: Mapped[str | None] = mapped_column(ForeignKey("payments.id"))
+    refund_id: Mapped[str | None] = mapped_column(ForeignKey("refunds.id"))
+    amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)  # GST-inclusive
+    dated: Mapped[date] = mapped_column(Date, nullable=False)  # the IST day of the event
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
