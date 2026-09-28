@@ -11,7 +11,7 @@ from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
 from app.schemas.catalog import HomeData, HomeStats, PackageCard, TestimonialOut
 from app.services.analytics import ist_today
-from app.services.catalog import deals
+from app.services.catalog import deals, early_bird
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import list_destinations
@@ -102,9 +102,12 @@ async def get_home_data(
     packages = await _featured_first(db, now, today)
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
+    savings = await early_bird.with_savings(db, today)
 
     def card(p: Package) -> PackageCard:
-        return package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+        return package_card(
+            p, upcoming.get(p.id), deal_base=base.get(p.id, 0), early_bird=p.id in savings, now=now
+        )
 
     running = [c for c in map(card, await _deal_candidates(db, now)) if c.deal]
     return HomeData(

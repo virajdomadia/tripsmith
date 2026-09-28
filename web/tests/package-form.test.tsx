@@ -118,6 +118,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   dealEndsOn: null,
   dealState: 'none',
   dealBasePaise: 1_499_900,
+  earlyBird: { on: false, tiers: [] },
   enquiryCount: 0,
   publishRules: [],
   canPublish: false,

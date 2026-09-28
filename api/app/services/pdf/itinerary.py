@@ -98,7 +98,7 @@ def _renderer_hash() -> str:
 _RENDERER = _renderer_hash()
 
 
-NOT_DRAWN = {"related", "updated_at", "deal", "rating", "reviews", "addons"}
+NOT_DRAWN = {"related", "updated_at", "deal", "early_bird", "rating", "reviews", "addons"}
 
 
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:

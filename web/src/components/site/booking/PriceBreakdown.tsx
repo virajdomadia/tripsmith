@@ -1,6 +1,6 @@
 'use client';
 
-import { addonDetail, lineLabel, type Quote } from '@/lib/booking';
+import { addonDetail, isDiscountLine, lineLabel, type Quote } from '@/lib/booking';
 import { inr } from '@/lib/format';
 import { AnimatedPrice } from './AnimatedPrice';
 import type { BookingFlow } from './use-booking';
@@ -43,13 +43,13 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
       {q.lines.map((l) => (
         <div
           key={`${l.kind}-${l.occupancy}`}
-          className={`flex justify-between gap-3 ${l.kind === 'deal' ? 'font-bold text-ok' : ''}`}
+          className={`flex justify-between gap-3 ${isDiscountLine(l) ? 'font-bold text-ok' : ''}`}
         >
-          <span className={l.kind === 'deal' ? '' : 'text-ink2'}>
+          <span className={isDiscountLine(l) ? '' : 'text-ink2'}>
             {lineLabel(l, q.deal?.label)} · {l.count} × {l.unitPaise < 0 ? '−' : ''}
             {inr(Math.abs(l.unitPaise))}
           </span>
-          <span className="num">
+          <span className="num shrink-0 whitespace-nowrap">
             {l.amountPaise < 0 ? '−' : ''}
             {inr(Math.abs(l.amountPaise))}
           </span>
@@ -60,14 +60,16 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
           <span>
             Coupon <span className="font-mono tracking-wide">{q.coupon.code}</span>
           </span>
-          <span className="num">−{inr(q.coupon.offPaise)}</span>
+          <span className="num shrink-0 whitespace-nowrap">−{inr(q.coupon.offPaise)}</span>
         </div>
       )}
       {addons.length > 0 && (
         <>
           <div className="mt-0.5 flex justify-between gap-3 border-t border-line pt-1.5 font-bold">
             <span>Trip fare</span>
-            <span className="num">{inr(q.totalPaise - (q.addonsPaise ?? 0))}</span>
+            <span className="num shrink-0 whitespace-nowrap">
+              {inr(q.totalPaise - (q.addonsPaise ?? 0))}
+            </span>
           </div>
           <p className="label-caps mt-1.5 text-[11px] text-mute">Add-ons · no discounts apply</p>
           {addons.map((a) => (
@@ -75,7 +77,7 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
               <span className="text-ink2">
                 {a.name} · {addonDetail(a)}
               </span>
-              <span className="num">{inr(a.amountPaise)}</span>
+              <span className="num shrink-0 whitespace-nowrap">{inr(a.amountPaise)}</span>
             </div>
           ))}
         </>

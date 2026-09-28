@@ -30,6 +30,8 @@
   --color-ok-soft: #e3f0ea;
   --color-warn: #b0501c; /* filling fast — darkened in H3: #b5541e on `--color-warn-soft` was 4.44:1 */
   --color-warn-soft: #fff1dd;
+  --color-eb: #7a4a05; /* P17 early-bird chips and tags (mockup `.eb`) — 7.4:1 on --color-eb-soft */
+  --color-eb-soft: #fff3dc;
   --color-bad: #b42318; /* B10: the desk's red "refund needed" flag — 5.75:1 on --color-bad-soft */
   --color-bad-soft: #fdeceb;
   /*

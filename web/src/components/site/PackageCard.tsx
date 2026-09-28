@@ -75,6 +75,11 @@ export function PackageCard({ card }: { card: Card }) {
               )}
             </b>
             {deal && <small className="block text-xs font-bold text-warn">{dealEnds(deal)}</small>}
+            {card.earlyBird && (
+              <small className="mt-1 inline-block rounded-chip bg-eb-soft px-2 py-0.5 text-[11.5px] font-extrabold text-eb">
+                Early-bird savings
+              </small>
+            )}
           </div>
           <span className="rounded-[10px] bg-primary px-3.5 py-2 text-[13px] font-bold text-white">
             View trip

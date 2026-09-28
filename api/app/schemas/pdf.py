@@ -26,3 +26,8 @@ class DailyReport(ApiModel):
     refunds_resent: int = Field(
         default=0, description="Bookings whose stuck Razorpay refunds were sent again (P13)"
     )
+    early_birds_ended: int = Field(
+        default=0,
+        description="Live packages where an early-bird tier ended in the last 2 IST days, "
+        "revalidated (P17)",
+    )

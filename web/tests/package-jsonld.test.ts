@@ -31,6 +31,7 @@ const pkg: PackageDetail = {
   departureCity: 'Ex-Mumbai',
   startingPricePaise: 14_499_00,
   deal: null,
+  earlyBird: null,
   highlights: ['Sunset from Chapora Fort'],
   inclusions: ['3 nights'],
   exclusions: ['Flights'],

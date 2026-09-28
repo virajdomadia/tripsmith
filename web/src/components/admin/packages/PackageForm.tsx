@@ -27,6 +27,7 @@ import { AddonsEditor } from './AddonsEditor';
 import { BasicsPanel } from './BasicsPanel';
 import { DeletePackage } from './DeletePackage';
 import { DealPanel } from './DealPanel';
+import { EarlyBirdPanel } from './EarlyBirdPanel';
 import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
 import { GalleryUploader } from './GalleryUploader';
@@ -73,7 +74,16 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
   highlights: ['highlights'],
   itinerary: ['itinerary'],
   prices: ['departures'],
-  deal: ['dealPricePaise', 'dealLabel', 'dealEndsOn'],
+  deal: [
+    'dealPricePaise',
+    'dealLabel',
+    'dealEndsOn',
+    'ebOn',
+    'eb1Days',
+    'eb1OffPaise',
+    'eb2Days',
+    'eb2OffPaise',
+  ],
   addons: ['addons'],
   stays: ['hotels'],
   included: ['inclusions', 'exclusions', 'faq'],
@@ -106,7 +116,8 @@ function LiveSub({
   } else if (k === 'highlights') text = plural(count(v.highlights), 'line');
   else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
   else if (k === 'prices') text = plural(count(v.departures), 'date');
-  else if (k === 'deal') text = v.dealPricePaise ? 'Deal set' : 'No deal';
+  else if (k === 'deal')
+    text = `${v.dealPricePaise ? 'Deal set' : 'No deal'} · ${v.ebOn ? 'Early bird on' : 'No early bird'}`;
   else if (k === 'addons') {
     const all = Array.isArray(v.addons) ? (v.addons as { active?: boolean }[]) : [];
     const on = all.filter((a) => a?.active).length;
@@ -199,6 +210,11 @@ const FIELDS = new Set<string>([
   'dealPricePaise',
   'dealLabel',
   'dealEndsOn',
+  'ebOn',
+  'eb1Days',
+  'eb1OffPaise',
+  'eb2Days',
+  'eb2OffPaise',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures', 'addons']);
@@ -207,12 +223,27 @@ const STALE_KEY = 'expectedEditedAt';
 
 /** Where a server field error lands on the form, or null when no field can show it. */
 function errorTarget(key: string): FieldPath<PackageFieldValues> | null {
+  if (key.startsWith('earlyBird')) return earlyBirdTarget(key);
   if (!FIELDS.has(key.split('.')[0] ?? '')) return null;
   if (ARRAYS.has(key)) return `${key}.root` as FieldPath<PackageFieldValues>;
   return key as FieldPath<PackageFieldValues>;
 }
 
+/**
+ * The api files early-bird errors under `earlyBird`, `earlyBird.tiers` or
+ * `earlyBird.tiers.<i>.<field>`; the form has one box per tier field.
+ */
+function earlyBirdTarget(key: string): FieldPath<PackageFieldValues> {
+  const m = /^earlyBird\.tiers\.([01])\.(days|offPaise)$/.exec(key);
+  if (m) {
+    const tier = m[1] === '0' ? 'eb1' : 'eb2';
+    return `${tier}${m[2] === 'days' ? 'Days' : 'OffPaise'}` as FieldPath<PackageFieldValues>;
+  }
+  return key === 'earlyBird.tiers' ? 'eb2Days' : 'eb1Days';
+}
+
 function toFieldValues(pkg: AdminPackage): PackageFieldValues {
+  const tiers = pkg.earlyBird?.tiers ?? []; // an api from before P17 sends none
   return {
     slug: pkg.slug,
     destinationId: pkg.destinationId,
@@ -256,6 +287,11 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     dealPricePaise: pkg.dealPricePaise ?? '',
     dealLabel: pkg.dealLabel ?? '',
     dealEndsOn: pkg.dealEndsOn ?? '',
+    ebOn: pkg.earlyBird?.on ?? false,
+    eb1Days: tiers[0]?.days ?? '',
+    eb1OffPaise: tiers[0]?.offPaise ?? '',
+    eb2Days: tiers[1]?.days ?? '',
+    eb2OffPaise: tiers[1]?.offPaise ?? '',
   };
 }
 
@@ -529,7 +565,13 @@ export function PackageForm(props: Props) {
             )}
             {section('itinerary', <ItineraryEditor />)}
             {section('prices', <DeparturesEditor />)}
-            {section('deal', <DealPanel saved={pkg} />)}
+            {section(
+              'deal',
+              <>
+                <DealPanel saved={pkg} />
+                <EarlyBirdPanel />
+              </>,
+            )}
             {section(
               'addons',
               <AddonsEditor images={pkg?.images ?? []} saved={pkg?.addons ?? []} />,

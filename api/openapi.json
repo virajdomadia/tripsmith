@@ -1808,6 +1808,10 @@
             "title": "Destinationid",
             "type": "string"
           },
+          "earlyBird": {
+            "$ref": "#/components/schemas/EarlyBirdAdmin",
+            "description": "P17"
+          },
           "editedAt": {
             "description": "Moves on form saves only; send it back as `expectedEditedAt`",
             "format": "date-time",
@@ -1954,6 +1958,7 @@
           "dealEndsOn",
           "dealState",
           "dealBasePaise",
+          "earlyBird",
           "enquiryCount",
           "publishRules",
           "canPublish",
@@ -2035,6 +2040,11 @@
           "destination": {
             "$ref": "#/components/schemas/DestinationRef"
           },
+          "earlyBirdOn": {
+            "description": "P17: early-bird switched on",
+            "title": "Earlybirdon",
+            "type": "boolean"
+          },
           "featured": {
             "title": "Featured",
             "type": "boolean"
@@ -2109,6 +2119,7 @@
           "dealEndsOn",
           "dealState",
           "dealBasePaise",
+          "earlyBirdOn",
           "departureCount",
           "recentEnquiryCount",
           "status",
@@ -4114,6 +4125,116 @@
         "title": "DestinationRef",
         "type": "object"
       },
+      "EarlyBirdAdmin": {
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "tiers": {
+            "description": "Saved tiers, even while switched off",
+            "items": {
+              "$ref": "#/components/schemas/EarlyBirdTierOut"
+            },
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "on",
+          "tiers"
+        ],
+        "title": "EarlyBirdAdmin",
+        "type": "object"
+      },
+      "EarlyBirdInput": {
+        "description": "The package form's early-bird (R47, P17). Switched off keeps the tiers for next time.",
+        "properties": {
+          "on": {
+            "default": false,
+            "title": "On",
+            "type": "boolean"
+          },
+          "tiers": {
+            "description": "Furthest out first",
+            "items": {
+              "$ref": "#/components/schemas/EarlyBirdTierInput"
+            },
+            "maxItems": 2,
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "title": "EarlyBirdInput",
+        "type": "object"
+      },
+      "EarlyBirdOut": {
+        "properties": {
+          "tiers": {
+            "description": "1 or 2, furthest out first; the first a booking day reaches applies",
+            "items": {
+              "$ref": "#/components/schemas/EarlyBirdTierOut"
+            },
+            "title": "Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tiers"
+        ],
+        "title": "EarlyBirdOut",
+        "type": "object"
+      },
+      "EarlyBirdTierInput": {
+        "properties": {
+          "days": {
+            "description": "Applies when booked this many days or more before departure (IST)",
+            "maximum": 365.0,
+            "minimum": 3.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "offPaise": {
+            "description": "Per traveller, whole rupees",
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000000.0,
+            "multipleOf": 100.0,
+            "title": "Offpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "offPaise"
+        ],
+        "title": "EarlyBirdTierInput",
+        "type": "object"
+      },
+      "EarlyBirdTierOut": {
+        "description": "One early-bird tier (R47): ₹ off per traveller when booked `days`+ days before departure.",
+        "properties": {
+          "days": {
+            "examples": [
+              90
+            ],
+            "title": "Days",
+            "type": "integer"
+          },
+          "offPaise": {
+            "examples": [
+              150000
+            ],
+            "title": "Offpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "offPaise"
+        ],
+        "title": "EarlyBirdTierOut",
+        "type": "object"
+      },
       "EmailStatus": {
         "enum": [
           "sent",
@@ -5393,6 +5514,46 @@
         "title": "ItineraryDayOut",
         "type": "object"
       },
+      "LadderRung": {
+        "description": "One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`\non — deal, early-bird and coupon applied, add-ons left out.",
+        "properties": {
+          "earlyBird": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteEarlyBird"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tier still running from that day"
+          },
+          "farePaise": {
+            "title": "Farepaise",
+            "type": "integer"
+          },
+          "fromOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = booked today",
+            "title": "Fromon"
+          }
+        },
+        "required": [
+          "fromOn",
+          "earlyBird",
+          "farePaise"
+        ],
+        "title": "LadderRung",
+        "type": "object"
+      },
       "Limits": {
         "properties": {
           "enquiryMessageMax": {
@@ -6152,6 +6313,11 @@
             "title": "Destination",
             "type": "string"
           },
+          "earlyBird": {
+            "description": "P17: a date bookable today (seats, price) still earns an early-bird tier",
+            "title": "Earlybird",
+            "type": "boolean"
+          },
           "highlights": {
             "items": {
               "type": "string"
@@ -6206,6 +6372,7 @@
           "highlights",
           "badge",
           "deal",
+          "earlyBird",
           "rating"
         ],
         "title": "PackageCard",
@@ -6289,6 +6456,17 @@
           },
           "destination": {
             "$ref": "#/components/schemas/DestinationRef"
+          },
+          "earlyBird": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EarlyBirdOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P17: the tiers; null when switched off. A date earns the first tier with IST today ≤ date − days"
           },
           "exclusions": {
             "items": {
@@ -6412,6 +6590,7 @@
           "departureCity",
           "startingPricePaise",
           "deal",
+          "earlyBird",
           "highlights",
           "inclusions",
           "exclusions",
@@ -6501,6 +6680,17 @@
             "minLength": 1,
             "title": "Destinationid",
             "type": "string"
+          },
+          "earlyBird": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EarlyBirdInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P17; omitted = left as saved (a new package: off, no tiers)"
           },
           "exclusions": {
             "items": {
@@ -6916,9 +7106,28 @@
             "type": "string"
           },
           "discountPaise": {
-            "description": "The deal lines' total plus the coupon, as a positive number; never touches the add-ons",
+            "description": "The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons",
             "title": "Discountpaise",
             "type": "integer"
+          },
+          "earlyBird": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteEarlyBird"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P17: null when no tier applies"
+          },
+          "ladder": {
+            "description": "P17: today's fare, then the fare from the day after each running tier ends; only on `quoteBooking` (a booking's snapshot has none)",
+            "items": {
+              "$ref": "#/components/schemas/LadderRung"
+            },
+            "title": "Ladder",
+            "type": "array"
           },
           "lines": {
             "items": {
@@ -6936,7 +7145,7 @@
             "type": "integer"
           },
           "subtotalPaise": {
-            "description": "The trip fare before the deal and the coupon",
+            "description": "The trip fare before its discounts",
             "title": "Subtotalpaise",
             "type": "integer"
           },
@@ -6953,8 +7162,10 @@
           "seatsLeft",
           "lines",
           "deal",
+          "earlyBird",
           "coupon",
           "addons",
+          "ladder",
           "subtotalPaise",
           "discountPaise",
           "addonsPaise",
@@ -7028,7 +7239,7 @@
             "type": "string"
           },
           "offPaise": {
-            "description": "Off the whole booking, after the deal; whole rupees",
+            "description": "Off the trip fare, after the deal and the early-bird; whole rupees",
             "title": "Offpaise",
             "type": "integer"
           }
@@ -7072,6 +7283,43 @@
         "title": "QuoteDeal",
         "type": "object"
       },
+      "QuoteEarlyBird": {
+        "description": "The early-bird tier this booking day earns (R47, P17).",
+        "properties": {
+          "bookBy": {
+            "description": "The last IST day this tier applies: departure − days",
+            "format": "date",
+            "title": "Bookby",
+            "type": "string"
+          },
+          "days": {
+            "description": "Booked this many days or more before departure, IST",
+            "title": "Days",
+            "type": "integer"
+          },
+          "perTravellerPaise": {
+            "description": "The tier's ₹ off per traveller, before any cap",
+            "title": "Pertravellerpaise",
+            "type": "integer"
+          },
+          "tier": {
+            "description": "1 or 2",
+            "examples": [
+              1
+            ],
+            "title": "Tier",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tier",
+          "days",
+          "perTravellerPaise",
+          "bookBy"
+        ],
+        "title": "QuoteEarlyBird",
+        "type": "object"
+      },
       "QuoteLine": {
         "properties": {
           "amountPaise": {
@@ -7094,7 +7342,7 @@
             "description": "Whose line this is (a deal line names its group)"
           },
           "unitPaise": {
-            "description": "Per traveller; negative on a deal line",
+            "description": "Per traveller; negative on a deal or early-bird line",
             "title": "Unitpaise",
             "type": "integer"
           }
@@ -7116,7 +7364,8 @@
           "single",
           "single_supplement",
           "child",
-          "deal"
+          "deal",
+          "early_bird"
         ],
         "title": "QuoteLineKind",
         "type": "string"

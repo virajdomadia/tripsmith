@@ -82,6 +82,13 @@ class Addon(Strict):
         return self
 
 
+class EarlyBirdTier(Strict):
+    """An early-bird tier (R47, P17): ₹ off per traveller when booked `days`+ days out."""
+
+    days: Annotated[int, Field(ge=3, le=365)]
+    off_inr: Annotated[int, Field(ge=1)]
+
+
 class PackageContent(Strict):
     slug: Slug
     destination: Slug
@@ -99,6 +106,7 @@ class PackageContent(Strict):
     departures: list[Departure] = Field(min_length=1)
     photos: list[Photo] = Field(min_length=4, max_length=8)  # 03 R4: gallery of 4–8
     addons: list[Addon] = Field(default_factory=list, max_length=12)  # R46: 3–4 each
+    early_bird: list[EarlyBirdTier] = Field(default_factory=list, max_length=2)  # R47: on if any
     status: PackageStatus = PackageStatus.LIVE
     featured: bool = False
 
@@ -126,6 +134,9 @@ class PackageContent(Strict):
             raise ValueError(f"{self.slug}: an add-on offers more nights than the trip has")
         if len({a.name for a in self.addons}) != len(self.addons):
             raise ValueError(f"{self.slug}: two add-ons share a name")
+        eb = self.early_bird
+        if len(eb) == 2 and not (eb[1].days < eb[0].days and eb[1].off_inr < eb[0].off_inr):
+            raise ValueError(f"{self.slug}: early-bird tier 2 must be nearer and smaller")
         files = {p.file for p in self.photos}
         for a in self.addons:
             if a.photo is not None and a.photo not in files:

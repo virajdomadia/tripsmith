@@ -4,7 +4,7 @@ import datetime as dt
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from app.models.enums import AddonBasis, PackageStatus, Theme
 from app.schemas import ApiModel
@@ -17,6 +17,9 @@ BUDGET_MAX_RUPEES = 10_000_000
 PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
 DEAL_LABEL_MAX = 24  # fits the card's corner stamp
 ADDONS_MAX = 12  # per package
+EARLY_BIRD_TIERS_MAX = 2  # R47
+EARLY_BIRD_DAYS_MIN = 3  # online booking closes 2 days out, so a tier must end before that
+EARLY_BIRD_DAYS_MAX = 365
 ADDON_NAME_MAX = 60
 ADDON_DESCRIPTION_MAX = 240
 ADDON_NIGHTS_MAX = 14
@@ -93,6 +96,19 @@ class DealOut(ApiModel):
     )
 
 
+class EarlyBirdTierOut(ApiModel):
+    """One early-bird tier (R47): ₹ off per traveller when booked `days`+ days before departure."""
+
+    days: int = Field(examples=[90])
+    off_paise: int = Field(examples=[150000])
+
+
+class EarlyBirdOut(ApiModel):
+    tiers: list[EarlyBirdTierOut] = Field(
+        description="1 or 2, furthest out first; the first a booking day reaches applies"
+    )
+
+
 class PackageCard(ApiModel):
     slug: str
     name: str
@@ -107,6 +123,9 @@ class PackageCard(ApiModel):
         description="From the next upcoming departure with seats; sold-out only when all are full"
     )
     deal: DealOut | None = Field(description="Null when no deal is running")
+    early_bird: bool = Field(
+        description="P17: a date bookable today (seats, price) still earns an early-bird tier"
+    )
     rating: RatingOut | None = Field(description="Published reviews only; null when none (B13)")
 
 
@@ -227,6 +246,10 @@ class PackageDetail(ApiModel):
         description="Cheapest upcoming double-sharing price; 0 if none"
     )
     deal: DealOut | None = Field(description="Null when no deal is running")
+    early_bird: EarlyBirdOut | None = Field(
+        description="P17: the tiers; null when switched off. A date earns the first tier with "
+        "IST today ≤ date − days"
+    )
     highlights: list[str]
     inclusions: list[str]
     exclusions: list[str]
@@ -400,6 +423,46 @@ class DepartureInput(ApiModel):
     single_supplement_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
 
 
+class EarlyBirdTierInput(ApiModel):
+    days: int = Field(
+        ge=EARLY_BIRD_DAYS_MIN,
+        le=EARLY_BIRD_DAYS_MAX,
+        description="Applies when booked this many days or more before departure (IST)",
+    )
+    off_paise: int = Field(
+        gt=0, le=PRICE_MAX_PAISE, multiple_of=100, description="Per traveller, whole rupees"
+    )
+
+
+class EarlyBirdInput(ApiModel):
+    """The package form's early-bird (R47, P17). Switched off keeps the tiers for next time."""
+
+    on: bool = False
+    tiers: list[EarlyBirdTierInput] = Field(
+        default_factory=list, max_length=EARLY_BIRD_TIERS_MAX, description="Furthest out first"
+    )
+
+    @field_validator("tiers")
+    @classmethod
+    def _tier_two_behind(cls, v: list[EarlyBirdTierInput]) -> list[EarlyBirdTierInput]:
+        if len(v) == 2 and v[1].days >= v[0].days:
+            raise ValueError("Tier 2 must end nearer the date than tier 1 — give it fewer days")
+        if len(v) == 2 and v[1].off_paise >= v[0].off_paise:
+            raise ValueError("Tier 2 must take off less than tier 1")
+        return v
+
+    @model_validator(mode="after")
+    def _on_needs_tier(self) -> "EarlyBirdInput":
+        if self.on and not self.tiers:
+            raise ValueError("Add a tier, or switch early-bird off")
+        return self
+
+
+class EarlyBirdAdmin(ApiModel):
+    on: bool
+    tiers: list[EarlyBirdTierOut] = Field(description="Saved tiers, even while switched off")
+
+
 class AddonInput(ApiModel):
     """One add-on in the package form (R46, P8). `id` present = update that row; absent =
     insert; rows the payload omits are deleted (bookings keep their own copy). The order sent is
@@ -464,6 +527,9 @@ class PackageInput(ApiModel):
     )
     deal_ends_on: dt.date | None = Field(
         default=None, description="The last day of the deal (IST); today or later when changed"
+    )
+    early_bird: EarlyBirdInput | None = Field(
+        default=None, description="P17; omitted = left as saved (a new package: off, no tiers)"
     )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
@@ -631,6 +697,7 @@ class AdminPackage(ApiModel):
         description="What the deal is measured from: the cheapest upcoming priced double, seats "
         "ignored; 0 when nothing is priced"
     )
+    early_bird: EarlyBirdAdmin = Field(description="P17")
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
@@ -654,6 +721,7 @@ class AdminPackageRow(ApiModel):
     deal_ends_on: dt.date | None
     deal_state: DealState
     deal_base_paise: int
+    early_bird_on: bool = Field(description="P17: early-bird switched on")
     departure_count: int = Field(description="Dated today or later")
     recent_enquiry_count: int = Field(description="Enquiries in the last 30 days")
     status: PackageStatus

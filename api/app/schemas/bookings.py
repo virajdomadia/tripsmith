@@ -298,13 +298,14 @@ class QuoteLineKind(StrEnum):
     SINGLE_SUPPLEMENT = "single_supplement"
     CHILD = "child"
     DEAL = "deal"  # negative; one per occupancy, since the discount is capped at the line price
+    EARLY_BIRD = "early_bird"  # P17: negative, one per occupancy, after the deal lines
 
 
 class QuoteLine(ApiModel):
     kind: QuoteLineKind
     occupancy: Occupancy = Field(description="Whose line this is (a deal line names its group)")
     count: int = Field(examples=[2])
-    unit_paise: int = Field(description="Per traveller; negative on a deal line")
+    unit_paise: int = Field(description="Per traveller; negative on a deal or early-bird line")
     amount_paise: int = Field(description="count × unit")
 
 
@@ -314,9 +315,29 @@ class QuoteDeal(ApiModel):
     per_traveller_paise: int = Field(description="Starting price − deal price, before any cap")
 
 
+class QuoteEarlyBird(ApiModel):
+    """The early-bird tier this booking day earns (R47, P17)."""
+
+    tier: int = Field(description="1 or 2", examples=[1])
+    days: int = Field(description="Booked this many days or more before departure, IST")
+    per_traveller_paise: int = Field(description="The tier's ₹ off per traveller, before any cap")
+    book_by: dt.date = Field(description="The last IST day this tier applies: departure − days")
+
+
+class LadderRung(ApiModel):
+    """One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`
+    on — deal, early-bird and coupon applied, add-ons left out."""
+
+    from_on: dt.date | None = Field(description="Null = booked today")
+    early_bird: QuoteEarlyBird | None = Field(description="The tier still running from that day")
+    fare_paise: int
+
+
 class QuoteCoupon(ApiModel):
     code: str = Field(examples=["WELCOME10"])
-    off_paise: int = Field(description="Off the whole booking, after the deal; whole rupees")
+    off_paise: int = Field(
+        description="Off the trip fare, after the deal and the early-bird; whole rupees"
+    )
 
 
 class QuoteAddon(ApiModel):
@@ -340,12 +361,17 @@ class Quote(ApiModel):
     seats_left: int
     lines: list[QuoteLine]
     deal: QuoteDeal | None
+    early_bird: QuoteEarlyBird | None = Field(description="P17: null when no tier applies")
     coupon: QuoteCoupon | None
     addons: list[QuoteAddon] = Field(description="P8: the add-ons, after the trip fare")
-    subtotal_paise: int = Field(description="The trip fare before the deal and the coupon")
+    ladder: list[LadderRung] = Field(
+        description="P17: today's fare, then the fare from the day after each running tier ends; "
+        "only on `quoteBooking` (a booking's snapshot has none)"
+    )
+    subtotal_paise: int = Field(description="The trip fare before its discounts")
     discount_paise: int = Field(
-        description="The deal lines' total plus the coupon, as a positive number; never touches "
-        "the add-ons"
+        description="The deal and early-bird lines' total plus the coupon, as a positive number; "
+        "never touches the add-ons"
     )
     addons_paise: int = Field(description="The add-on lines' total, at full price")
     total_paise: int = Field(description="subtotal − discount + add-ons")
@@ -359,13 +385,17 @@ class Quote(ApiModel):
     @model_validator(mode="before")
     @classmethod
     def _older_snapshot(cls, data: object) -> object:
-        """Bookings snapshotted before B15 have no `coupon` key, and before P8 no add-ons; the
-        fields stay required on the wire."""
+        """Bookings snapshotted before B15 have no `coupon` key, before P8 no add-ons, and before
+        P17 no early-bird or ladder; the fields stay required on the wire."""
         if not isinstance(data, dict):
             return data
         filled: dict[str, object] = {}
         if "coupon" not in data:
             filled["coupon"] = None
+        if "earlyBird" not in data and "early_bird" not in data:
+            filled["earlyBird"] = None
+        if "ladder" not in data:
+            filled["ladder"] = []
         if "addons" not in data:
             filled["addons"] = []
         if "addonsPaise" not in data and "addons_paise" not in data:

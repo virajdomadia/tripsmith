@@ -65,6 +65,7 @@ def package(
         "walk and one sunset cruise, with the hotel a minute from the sand.",
         destination=DestinationRef(slug="goa", name="Goa"),
         deal=None,
+        early_bird=None,
         themes=["beach", "family"],  # type: ignore[arg-type]
         nights=days - 1,
         days=days,

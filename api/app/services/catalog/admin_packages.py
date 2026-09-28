@@ -37,6 +37,8 @@ from app.schemas.catalog import (
     AdminPackageRow,
     DepartureInput,
     DestinationRef,
+    EarlyBirdAdmin,
+    EarlyBirdTierOut,
     FaqItem,
     HotelOut,
     ItineraryDayOut,
@@ -46,7 +48,7 @@ from app.schemas.catalog import (
     PublishRule,
 )
 from app.services.analytics import ist_today
-from app.services.catalog import deals
+from app.services.catalog import deals, early_bird
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
 from app.services.format import inr
@@ -176,6 +178,20 @@ async def revalidate_ended_deals(db: AsyncSession, *, now: dt.datetime) -> int:
         )
     )
     ended = rows.all()
+    tags: list[str] = []
+    for slug, destination_slug in ended:
+        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
+    if tags:
+        await revalidate(tags)
+    return len(ended)
+
+
+async def revalidate_ended_early_birds(db: AsyncSession, *, today: dt.date) -> int:
+    """Daily (`/cron/daily`, after IST midnight): the pages of live packages where an early-bird
+    tier ended for an upcoming date are rebuilt (R47), so the card tag leaves the prerendered
+    pages without a deploy. The quote and the date labels already follow the IST day; nothing
+    is written."""
+    ended = await early_bird.ended_tiers(db, today)
     tags: list[str] = []
     for slug, destination_slug in ended:
         tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
@@ -404,6 +420,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         deal_ends_on=deals.ends_on(pkg.deal_ends_at) if pkg.deal_ends_at else None,
         deal_state=deals.state(pkg, base, now),
         deal_base_paise=base,
+        early_bird=early_bird_admin(pkg),
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -508,6 +525,7 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             deal_ends_on=deals.ends_on(p.deal_ends_at) if p.deal_ends_at else None,
             deal_state=deals.state(p, base.get(p.id, 0), now),
             deal_base_paise=base.get(p.id, 0),
+            early_bird_on=p.early_bird_on,
             departure_count=int(departures),
             recent_enquiry_count=int(enquiries),
             status=p.status,
@@ -651,6 +669,31 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     pkg.deal_price_paise = payload.deal_price_paise
     pkg.deal_label = payload.deal_label
     pkg.deal_ends_at = _deal_ends_at(payload)
+    _apply_early_bird(pkg, payload)
+
+
+def _apply_early_bird(pkg: Package, payload: PackageInput) -> None:
+    """R47: the tiers go to their columns (tier 2 cleared when not sent). A live change reaches
+    new quotes only — every booking and open hold keeps its own quote. Omitted = unchanged, so
+    a form from before P17 (the web/api deploy race) cannot wipe them."""
+    eb = payload.early_bird
+    if eb is None:
+        if pkg.early_bird_on is None:  # a new package: the column default is not applied yet
+            pkg.early_bird_on = False
+        return
+    tiers: list[tuple[int | None, int | None]] = [(t.days, t.off_paise) for t in eb.tiers]
+    tiers += [(None, None)] * (2 - len(tiers))
+    pkg.early_bird_on = eb.on
+    (pkg.eb1_days, pkg.eb1_off_paise), (pkg.eb2_days, pkg.eb2_off_paise) = tiers
+
+
+def early_bird_admin(pkg: Package) -> EarlyBirdAdmin:
+    """The saved tiers, even while switched off (the form keeps them)."""
+    saved = [(pkg.eb1_days, pkg.eb1_off_paise), (pkg.eb2_days, pkg.eb2_off_paise)]
+    return EarlyBirdAdmin(
+        on=pkg.early_bird_on,
+        tiers=[EarlyBirdTierOut(days=d, off_paise=o) for d, o in saved if d and o],
+    )
 
 
 def _new_days(payload: PackageInput) -> list[ItineraryDay]:

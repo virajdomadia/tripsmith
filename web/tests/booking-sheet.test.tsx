@@ -74,6 +74,8 @@ const PKG = {
   cover: null,
   departures: [DEP, DEC],
   addons: [] as never[],
+  deal: null,
+  earlyBird: null,
 };
 const QUOTE = {
   departureId: 'dep_nov',
@@ -84,8 +86,10 @@ const QUOTE = {
     { kind: 'double', occupancy: 'double', count: 2, unitPaise: 14_999_00, amountPaise: 29_998_00 },
   ],
   deal: null,
+  earlyBird: null,
   coupon: null,
   addons: [],
+  ladder: [],
   subtotalPaise: 29_998_00,
   discountPaise: 0,
   addonsPaise: 0,

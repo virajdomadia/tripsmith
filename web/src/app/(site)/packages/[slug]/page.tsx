@@ -91,6 +91,8 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
         cover: pkg.cover ? { url: pkg.cover.url, alt: pkg.cover.alt } : null,
         departures: pkg.departures,
         addons: pkg.addons,
+        deal: pkg.deal,
+        earlyBird: pkg.earlyBird ?? null, // an api from before P17 sends none (deploy race)
       }}
     >
       <Container>
@@ -144,7 +146,11 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
               <Hotels hotels={pkg.hotels} />
             </Section>
             <Section id="dates" title="Dates & prices">
-              <DeparturesTable departures={pkg.departures} deal={pkg.deal} />
+              <DeparturesTable
+                departures={pkg.departures}
+                deal={pkg.deal}
+                earlyBird={pkg.earlyBird}
+              />
               <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
             </Section>
             {pkg.rating && (
