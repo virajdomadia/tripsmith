@@ -31,7 +31,9 @@ from app.services.pdf.voucher import render_voucher, voucher_filename
 
 DocumentKey = Annotated[
     str,
-    Path(pattern=r"^(invoice|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$"),
+    Path(
+        pattern=r"^(invoice|invoice-[a-z0-9]{8,40}|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$"
+    ),
 ]
 
 NO_VOUCHER = "This booking has no voucher yet"

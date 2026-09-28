@@ -1,0 +1,18 @@
+Extras added, {{ b.first_name }}.
+
+We received {{ amount }} for booking {{ b.ref }} — {{ b.package_name }}, {{ departs }}.
+
+Your add-ons: {% for label, price in addons %}{{ label }} · {{ price }}{% if not loop.last %}
+              {% endif %}{% endfor %}
+Trip total:   {{ total }} · paid {{ paid }}
+{% if invoice_attached %}
+The GST tax invoice for these extras is attached. Your voucher in My trips now lists them.
+{% else %}
+Your voucher and the tax invoice for these extras are in My trips.
+{% endif %}
+{{ demo_note }}
+
+WhatsApp us about this trip: {{ whatsapp_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

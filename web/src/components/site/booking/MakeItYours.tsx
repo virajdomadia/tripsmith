@@ -2,7 +2,7 @@
 
 import { ImageIcon, Minus, Plus } from 'lucide-react';
 import Image from 'next/image';
-import { type Addon, addonUnit } from '@/lib/booking';
+import { type Addon, type AddonPicks, addonUnit } from '@/lib/booking';
 import { cn } from '@/lib/utils';
 import type { BookingFlow } from './use-booking';
 
@@ -16,19 +16,43 @@ const stepper =
  * and the receipt beside it shows the server's line. Discounts never touch these.
  */
 export function MakeItYours({ flow }: { flow: BookingFlow }) {
-  const { offered, picks, party } = flow;
+  return (
+    <AddonMenu
+      offered={flow.offered}
+      picks={flow.picks}
+      party={flow.party}
+      onPick={flow.setPick}
+      notice={flow.addonNotice}
+    />
+  );
+}
+
+/** The add-on rows themselves — the Book-now sheet's step and My trips' Add extras (P8b). */
+export function AddonMenu({
+  offered,
+  picks,
+  party,
+  onPick,
+  notice,
+}: {
+  offered: Addon[];
+  picks: AddonPicks;
+  party: number;
+  onPick: (id: string, n: number) => void;
+  notice: string | null;
+}) {
   return (
     <div className="grid gap-2">
       {/* Mounted before it has anything to say, so screen readers announce the change. */}
       <p
         role="status"
         className={
-          flow.addonNotice
+          notice
             ? 'rounded-[10px] bg-warn-soft px-2.5 py-2 text-[13px] font-bold text-warn'
             : 'sr-only'
         }
       >
-        {flow.addonNotice}
+        {notice}
       </p>
       <ul className="grid overflow-hidden rounded-[14px] border border-line">
         {offered.map((a) => {
@@ -56,7 +80,7 @@ export function MakeItYours({ flow }: { flow: BookingFlow }) {
                 <small className="num text-[12.5px] font-bold text-mute">{addonUnit(a)}</small>
               </span>
               <span className="col-start-2 row-start-3 sm:col-start-3 sm:row-start-1">
-                <Control addon={a} value={n} party={party} set={(v) => flow.setPick(a.id, v)} />
+                <Control addon={a} value={n} party={party} set={(v) => onPick(a.id, v)} />
               </span>
               {a.description && (
                 <p className="col-start-2 text-[12.5px] leading-snug text-ink2 sm:col-end-4">

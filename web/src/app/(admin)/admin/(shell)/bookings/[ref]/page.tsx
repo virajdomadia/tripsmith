@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { History } from '@/components/admin/bookings/History';
 import { Lifecycle } from '@/components/admin/bookings/Lifecycle';
+import { RemoveAddon } from '@/components/admin/bookings/RemoveAddon';
+import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { CancelRequested, RefundFlag, StateBadge } from '@/components/admin/bookings/StateBadge';
 import { Stars } from '@/components/site/Stars';
@@ -129,6 +131,25 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               View the package page
             </Link>
           </section>
+
+          {(b.addons ?? []).length > 0 && (
+            <section className={panel} aria-labelledby="addons">
+              <h2 id="addons" className={heading}>
+                Add-ons
+              </h2>
+              <div className="grid gap-1.5 text-[13px]">
+                <BookedAddons
+                  quote={b.quote}
+                  addons={b.addons}
+                  action={
+                    b.canRemoveAddons
+                      ? (a) => <RemoveAddon bookingRef={b.ref} addon={a} />
+                      : undefined
+                  }
+                />
+              </div>
+            </section>
+          )}
 
           {b.payments.length > 0 && (
             <section className={panel}>

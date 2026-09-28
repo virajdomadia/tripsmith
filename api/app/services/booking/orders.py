@@ -32,7 +32,6 @@ from app.infra.db import constraint_name
 from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import (
     Booking,
-    BookingAddon,
     BookingTraveller,
     Departure,
     Package,
@@ -59,6 +58,7 @@ from app.schemas.bookings import (
 )
 from app.services.analytics import ist_today
 from app.services.booking import coupons, history
+from app.services.booking.addons import addon_rows
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
 from app.services.booking.pricing import (
@@ -153,24 +153,6 @@ async def priced_addons(
         )
     ).scalars()
     return price_addons(list(offered), choices, party=party)
-
-
-def addon_rows(lines: list[QuoteAddon], *, payment_id: str | None = None) -> list[BookingAddon]:
-    """The booking's own copy of each add-on line."""
-    return [
-        BookingAddon(
-            addon_id=a.addon_id,
-            name=a.name,
-            basis=a.basis,
-            unit_paise=a.unit_paise,
-            travellers=a.travellers,
-            nights=a.nights,
-            amount_paise=a.amount_paise,
-            position=i,
-            payment_id=payment_id,
-        )
-        for i, a in enumerate(lines)
-    ]
 
 
 async def quote_booking(

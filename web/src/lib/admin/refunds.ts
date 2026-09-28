@@ -82,6 +82,7 @@ export const REFUND_REASON: Record<string, string> = {
   owner: 'Owner',
   date_change: 'Date change',
   balance: 'Unpaid balance',
+  addon: 'Add-on taken off',
 };
 
 export const REFUND_STATUS: Record<Refund['status'], string> = {

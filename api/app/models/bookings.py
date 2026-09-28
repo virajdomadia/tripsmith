@@ -213,7 +213,7 @@ class Refund(IdMixin, TimestampsMixin, Base):
         nullable=False,
         server_default=RefundStatus.REQUESTED.value,
     )
-    # cancellation | seats_gone | surplus | owner — and, from later rows, date_change | balance
+    # cancellation | seats_gone | surplus | owner | addon (P8b) — later rows: date_change | balance
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     by_hand: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     razorpay_refund_id: Mapped[str | None] = mapped_column(Text, unique=True)

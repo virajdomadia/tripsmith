@@ -126,6 +126,14 @@
             "title": "Activity",
             "type": "array"
           },
+          "addons": {
+            "description": "P8: the add-ons bought, oldest first, taken-off ones included",
+            "items": {
+              "$ref": "#/components/schemas/BookedAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "bookedAt": {
             "format": "date-time",
             "title": "Bookedat",
@@ -186,6 +194,10 @@
             },
             "title": "Documents",
             "type": "array"
+          },
+          "extras": {
+            "$ref": "#/components/schemas/ExtrasOffer",
+            "description": "P8b: Add extras — open or not, and what"
           },
           "hasVoucher": {
             "title": "Hasvoucher",
@@ -304,7 +316,9 @@
           "canRequestCancellation",
           "review",
           "canReview",
-          "activity"
+          "activity",
+          "addons",
+          "extras"
         ],
         "title": "AccountBookingDetail",
         "type": "object"
@@ -782,6 +796,14 @@
       "AdminBooking": {
         "description": "`GET /admin/bookings/{ref}` and every desk action's answer.",
         "properties": {
+          "addons": {
+            "description": "P8: every add-on the booking bought, oldest first, taken-off ones included",
+            "items": {
+              "$ref": "#/components/schemas/BookedAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "bookedAt": {
             "format": "date-time",
             "title": "Bookedat",
@@ -795,6 +817,11 @@
           "canRelease": {
             "description": "Pending",
             "title": "Canrelease",
+            "type": "boolean"
+          },
+          "canRemoveAddons": {
+            "description": "Confirmed or part paid (P8b)",
+            "title": "Canremoveaddons",
             "type": "boolean"
           },
           "cancelReason": {
@@ -973,7 +1000,9 @@
           "canMarkPaid",
           "canRelease",
           "seatsShort",
-          "review"
+          "review",
+          "addons",
+          "canRemoveAddons"
         ],
         "title": "AdminBooking",
         "type": "object"
@@ -2547,6 +2576,75 @@
           "file"
         ],
         "title": "Body_uploadPackageImage",
+        "type": "object"
+      },
+      "BookedAddon": {
+        "description": "One add-on a booking has (or had: `removedAt`), as bought — its own copy of the price.",
+        "properties": {
+          "addedAt": {
+            "format": "date-time",
+            "title": "Addedat",
+            "type": "string"
+          },
+          "addedLater": {
+            "description": "Bought through Add extras, after the booking",
+            "title": "Addedlater",
+            "type": "boolean"
+          },
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AddonBasis"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Taken off by the owner, refunded",
+            "title": "Removedat"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          },
+          "unitPaise": {
+            "title": "Unitpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "basis",
+          "travellers",
+          "nights",
+          "unitPaise",
+          "amountPaise",
+          "addedLater",
+          "addedAt",
+          "removedAt"
+        ],
+        "title": "BookedAddon",
         "type": "object"
       },
       "BookingActor": {
@@ -4615,6 +4713,126 @@
         ],
         "title": "ErrorCode",
         "type": "string"
+      },
+      "ExtrasOffer": {
+        "description": "My trips → Add extras: open or not (and why), until when, and what can still be added.",
+        "properties": {
+          "closesOn": {
+            "description": "The last IST day to add extras: departure − 7 days",
+            "format": "date",
+            "title": "Closeson",
+            "type": "string"
+          },
+          "offered": {
+            "description": "Switched-on add-ons the booking does not have yet, in the owner's order",
+            "items": {
+              "$ref": "#/components/schemas/AddonOut"
+            },
+            "title": "Offered",
+            "type": "array"
+          },
+          "open": {
+            "title": "Open",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extras are closed, in the customer's words",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "open",
+          "closesOn",
+          "reason",
+          "offered"
+        ],
+        "title": "ExtrasOffer",
+        "type": "object"
+      },
+      "ExtrasOrder": {
+        "description": "The Razorpay order for the extras — Checkout is opened with it, and its success handler\nposts to `confirmPayment` like any booking payment.",
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "bookingRef": {
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "keyId": {
+            "title": "Keyid",
+            "type": "string"
+          },
+          "orderId": {
+            "title": "Orderid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookingRef",
+          "orderId",
+          "keyId",
+          "amountPaise",
+          "addons"
+        ],
+        "title": "ExtrasOrder",
+        "type": "object"
+      },
+      "ExtrasQuote": {
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
+          "totalPaise": {
+            "description": "What Add extras charges: the lines' sum, never discounted",
+            "title": "Totalpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "addons",
+          "totalPaise"
+        ],
+        "title": "ExtrasQuote",
+        "type": "object"
+      },
+      "ExtrasRequest": {
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/AddonChoice"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Addons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "addons"
+        ],
+        "title": "ExtrasRequest",
+        "type": "object"
       },
       "FacetOption": {
         "properties": {
@@ -7126,6 +7344,25 @@
         "title": "RelatedEnquiry",
         "type": "object"
       },
+      "RemoveAddonInput": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional, shown to the customer",
+            "title": "Note"
+          }
+        },
+        "title": "RemoveAddonInput",
+        "type": "object"
+      },
       "ResolveCancellationInput": {
         "description": "`POST /admin/cancellations/{id}/resolve` (R19, B11). The note goes to the customer — in\nthe email and on their booking page — so it is required either way. `refundPaise` is required\nto approve (0 when the policy refunds nothing) and must be left out to reject.",
         "properties": {
@@ -7823,7 +8060,7 @@
             "name": "key",
             "required": true,
             "schema": {
-              "pattern": "^(invoice|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$",
+              "pattern": "^(invoice|invoice-[a-z0-9]{8,40}|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$",
               "title": "Key",
               "type": "string"
             }
@@ -7856,6 +8093,120 @@
         "summary": "Get Gst Document",
         "tags": [
           "public"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/extras": {
+      "post": {
+        "description": "P8b: a Razorpay order for exactly the extras' price. Checkout's success handler posts to\n`confirmPayment` (and `syncPayment` checks it on close) like any booking payment; the add-ons\njoin the booking only when the money is captured.",
+        "operationId": "createExtrasOrder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtrasRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtrasOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Extras Order",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/extras/quote": {
+      "post": {
+        "description": "P8b: the server's price for these extras on this booking. 409 `extras_closed` with the\nreason, or `addon_unavailable` with `addons.<index>` for one no longer on sale.",
+        "operationId": "quoteExtras",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtrasRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtrasQuote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Extras Quote",
+        "tags": [
+          "account"
         ]
       }
     },
@@ -8349,6 +8700,68 @@
           }
         },
         "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/addons/{addon_id}/remove": {
+      "post": {
+        "description": "P8b: take an add-on off a confirmed booking and refund it in full through the one refund\nfunction (credit note included). 409 once taken off, or on a booking not confirmed.",
+        "operationId": "removeBookingAddon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "addon_id",
+            "required": true,
+            "schema": {
+              "title": "Addon Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveAddonInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Remove Addon Route",
         "tags": [
           "admin"
         ]

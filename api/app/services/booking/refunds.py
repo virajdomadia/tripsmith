@@ -58,7 +58,9 @@ from app.services.gst.documents import issue_due_safely
 
 log = logging.getLogger(__name__)
 
-Reason = Literal["cancellation", "seats_gone", "surplus", "owner", "date_change", "balance"]
+Reason = Literal[
+    "cancellation", "seats_gone", "surplus", "owner", "date_change", "balance", "addon"
+]
 # A payment holds money that can go back while it is captured; `refunded` = legacy B10/B11
 # hand-recorded refunds (0012 turned each into a by-hand row, so its room is what is left).
 HOLDS_MONEY = (PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)

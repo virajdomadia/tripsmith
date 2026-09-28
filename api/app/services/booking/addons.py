@@ -55,3 +55,30 @@ def from_quote(lines: list[QuoteAddon]) -> tuple[AddonFact, ...]:
 def summary(items: tuple[AddonFact, ...]) -> str:
     """ "Kullu river rafting (2 travellers), Bonfire + BBQ night (per booking)" — or ""."""
     return ", ".join(a.label for a in items)
+
+
+def addon_rows(
+    lines: list[QuoteAddon],
+    *,
+    booking_id: str | None = None,
+    payment_id: str | None = None,
+    start: int = 0,
+) -> list[BookingAddon]:
+    """The booking's own copy of each priced line; `booking_id` unless they ride on a new
+    booking's relationship; `payment_id` = the Add extras payment that bought them (None with the
+    booking); `start` continues the booking's positions."""
+    return [
+        BookingAddon(
+            booking_id=booking_id,
+            addon_id=a.addon_id,
+            name=a.name,
+            basis=a.basis,
+            unit_paise=a.unit_paise,
+            travellers=a.travellers,
+            nights=a.nights,
+            amount_paise=a.amount_paise,
+            position=start + i,
+            payment_id=payment_id,
+        )
+        for i, a in enumerate(lines)
+    ]

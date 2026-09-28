@@ -13,6 +13,7 @@ class Settled(StrEnum):
     PART_PAID = "part_paid"  # add-on D's split: still pending, no email yet
     SEATS_GONE = "seats_gone"  # late capture, no seats: cancelled, refund needed
     NOT_PENDING = "not_pending"  # money on a booking already confirmed or cancelled: refund
+    EXTRAS = "extras"  # P8b: an Add extras payment on a confirmed booking — the add-ons join it
 
 
 class Capture(NamedTuple):

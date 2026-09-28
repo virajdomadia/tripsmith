@@ -6,11 +6,12 @@ import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { Button } from '@/components/ui/button';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
 import { blocked, lifecycle, moves, type Move, type Step } from '@/lib/admin/lifecycle';
-import { AddonLines } from '@/components/site/booking/AddonLines';
+import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DeskActions } from './DeskActions';
+import { RemoveAddon } from './RemoveAddon';
 import { ResolveDialog } from './ResolveCancellation';
 
 const NODE = {
@@ -290,7 +291,13 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
               <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
             </div>
           )}
-          <AddonLines quote={b.quote} />
+          <BookedAddons
+            quote={b.quote}
+            addons={b.addons ?? []}
+            action={
+              b.canRemoveAddons ? (a) => <RemoveAddon bookingRef={b.ref} addon={a} /> : undefined
+            }
+          />
           <div className="flex justify-between border-t border-ink pt-1.5 font-bold">
             <span>Total</span>
             <span className="num">{inr(b.totalPaise)}</span>

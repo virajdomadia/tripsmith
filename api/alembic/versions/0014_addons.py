@@ -143,6 +143,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("uq_gst_documents_extras_invoice", table_name="gst_documents")
     op.drop_index("uq_gst_documents_invoice", table_name="gst_documents")
+    # Extras invoices (P8b) cannot live under the old one-invoice-per-booking rule; rolling the
+    # feature back removes them with the add-ons they covered.
+    op.execute("DELETE FROM gst_documents WHERE kind = 'invoice' AND payment_id IS NOT NULL")
     op.create_index(
         "uq_gst_documents_invoice",
         "gst_documents",

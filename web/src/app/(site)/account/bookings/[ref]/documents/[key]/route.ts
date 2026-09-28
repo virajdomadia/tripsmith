@@ -3,7 +3,7 @@ import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
 import { seeOther } from '@/lib/auth/forward';
 
 const REF = /^TB-[A-Z0-9]{6}$/;
-const KEY = /^(invoice|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$/;
+const KEY = /^(invoice|invoice-[a-z0-9]{8,40}|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$/;
 
 /**
  * `GET /account/bookings/{ref}/documents/{key}` — a GST receipt, tax invoice or credit note (R51,

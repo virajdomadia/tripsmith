@@ -13,7 +13,8 @@ import { WhatsApp } from '@/components/site/home/icons';
 import { bookingState, countdown, daysBetween, istDay, voucherHref } from '@/lib/account';
 import { api, ApiRequestError } from '@/lib/api';
 import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
-import { AddonLines } from '@/components/site/booking/AddonLines';
+import { BookedAddons } from '@/components/site/booking/BookedAddons';
+import { ExtrasPanel } from '@/components/site/account/ExtrasPanel';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -162,7 +163,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
                 </div>
               )}
-              <AddonLines quote={b.quote} />
+              <BookedAddons quote={b.quote} addons={b.addons ?? []} />
               <div className="mt-1 flex items-baseline justify-between border-t-[1.5px] border-ink pt-2.5">
                 <span className="font-bold">Total</span>
                 <span className="num text-[24px] font-extrabold tracking-tight">
@@ -185,6 +186,23 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               </ul>
             )}
           </section>
+          {(b.extras?.open || b.extras?.offered.length) && (
+            <section className="rounded-card border border-line p-5" aria-labelledby="extras">
+              <h2 id="extras" className="text-[18px]">
+                Add extras
+              </h2>
+              <p className="mt-1 mb-3 text-[14px] text-ink2">
+                Make the trip yours — each extra is priced for your booking, paid at full price.
+              </p>
+              <ExtrasPanel
+                bookingRef={b.ref}
+                extras={b.extras}
+                party={b.travellers.length}
+                contact={{ name: b.leadName, email: b.leadEmail, phone: b.leadPhone }}
+                packageName={b.packageName}
+              />
+            </section>
+          )}
           <Activity entries={b.activity} />
         </div>
 

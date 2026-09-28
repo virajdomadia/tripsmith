@@ -79,6 +79,22 @@ async def sync_rate_limit(request: Request, ref: BookingRef) -> None:
         )
 
 
+EXTRAS_LIMIT = 10  # Add extras orders per booking; each is a Razorpay order under our key
+EXTRAS_WINDOW_SECONDS = 600
+
+
+async def extras_rate_limit(request: Request, ref: BookingRef) -> None:
+    """Per booking, not per IP: the web forwards My trips calls from its own address."""
+    limiter: RateLimiter = request.app.state.rate_limiter
+    result = await limiter.hit(
+        f"extras:{ref}", limit=EXTRAS_LIMIT, window_seconds=EXTRAS_WINDOW_SECONDS
+    )
+    if not result.allowed:
+        raise RateLimited(
+            result.retry_after, "Too many tries on this booking — try again in a few minutes"
+        )
+
+
 def notify(request: Request) -> Notify:
     return Notify.of(request.app.state)
 

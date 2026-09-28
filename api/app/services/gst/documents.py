@@ -5,13 +5,15 @@ A booking has:
 - a **tax invoice** (`TS/…`) once it has been paid in full and taken up its seats — confirmed,
   completed, or cancelled by an approved request after it was (a late capture with no seats, or
   a hold released before it was paid, never bought anything, so nothing is invoiced). Its total
-  is the booking's price, which is what was paid in full;
+  is the price the booking was made at (its quote), which is what was paid in full;
+- (P8b) a **second tax invoice** for each Add extras payment, dated its capture, for the add-ons
+  that payment bought. The first invoice never changes;
 - a **credit note** (`CN/…`) for each processed refund that gives back part of an invoiced
   supply (a cancellation, a cheaper date, an unpaid balance). A refund of money the booking
   never needed (`surplus`, `seats_gone`) is not a credit against the invoice, and the credits
   together never exceed the invoice: a refund that also returns money paid beyond the price
   (an approved cancellation's surplus, a pre-P13 hand refund) is credited only up to what is
-  left of the invoice.
+  left of the invoices (all of them together — GST lets one credit note cover several).
 
 Numbers are issued at the event, in its own transaction: `issue_due` runs where a payment is
 captured (the receipt, and the invoice once paid in full) and where a refund is processed (the
@@ -28,11 +30,11 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import sentry_sdk
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.models import Booking, GstDocument, Payment, Refund
+from app.models import Booking, BookingAddon, GstDocument, Payment, Refund
 from app.models.enums import BookingStatus, CancelReason, PaymentStatus, RefundStatus
 from app.schemas.account import GstDocumentOut
 from app.services.booking.locking import lock_booking
@@ -57,7 +59,8 @@ log = logging.getLogger(__name__)
 class DocRef:
     """One document a booking has — issued (`number` set) or not yet."""
 
-    key: str  # receipt-<payment id> | invoice | credit-<refund id>
+    # receipt-<payment id> | invoice | invoice-<payment id> (P8b extras) | credit-<refund id>
+    key: str
     kind: Kind
     amount_paise: int
     dated: dt.date
@@ -88,18 +91,31 @@ def _ist(moment: dt.datetime) -> dt.date:
     return moment.astimezone(IST).date()
 
 
-def invoiced_on(booking: Booking, payments: list[Payment]) -> dt.date | None:
-    """The IST day the booking was paid in full, if it took up its seats; else None."""
-    took_seats = booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) or (
+def took_seats(booking: Booking) -> bool:
+    return booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) or (
         booking.status == BookingStatus.CANCELLED
         and booking.cancel_reason == CancelReason.CANCELLATION_APPROVED
     )
-    if not took_seats:
+
+
+def booked_price(booking: Booking) -> int:
+    """What the booking was made at — its quote's total. Later add-ons (their own invoices) and
+    an add-on taken off (a credit note) never move it."""
+    total = (booking.quote or {}).get("totalPaise")
+    return total if isinstance(total, int) else booking.total_paise
+
+
+def invoiced_on(booking: Booking, payments: list[Payment]) -> dt.date | None:
+    """The IST day the booking was paid in full, if it took up its seats; else None. Add extras
+    payments are their own supply (P8b) and never count towards it."""
+    if not took_seats(booking):
         return None
-    paid = 0
+    paid, price = 0, booked_price(booking)
     for p in sorted(payments, key=captured_at):
+        if p.extras is not None:
+            continue
         paid += p.amount_paise
-        if paid >= booking.total_paise:
+        if paid >= price:
             return _ist(captured_at(p))
     return None
 
@@ -142,11 +158,34 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
             DocRef(
                 key="invoice",
                 kind="invoice",
-                amount_paise=invoice.amount_paise if invoice else booking.total_paise,
+                amount_paise=invoice.amount_paise if invoice else booked_price(booking),
                 dated=invoice.dated if invoice else day,  # type: ignore[arg-type]
                 number=invoice.number if invoice else None,
             )
         )
+        rows = await db.execute(
+            select(BookingAddon.payment_id, func.sum(BookingAddon.amount_paise))
+            .where(BookingAddon.booking_id == booking.id, BookingAddon.payment_id.is_not(None))
+            .group_by(BookingAddon.payment_id)
+        )
+        bought: dict[str, int] = {str(pid): int(total) for pid, total in rows.all()}
+        for p in sorted(payments, key=captured_at):
+            if p.extras is None:
+                continue
+            d = issued.get(("invoice", p.id))
+            amount = d.amount_paise if d else int(bought.get(p.id) or 0)
+            if amount <= 0 or not (d or took_seats(booking)):
+                continue  # nothing it paid for joined the booking: refunded, not invoiced
+            out.append(
+                DocRef(
+                    key=f"invoice-{p.id}",
+                    kind="invoice",
+                    amount_paise=amount,
+                    dated=d.dated if d else _ist(captured_at(p)),
+                    number=d.number if d else None,
+                    payment_id=p.id,
+                )
+            )
         refunds = (
             await db.execute(
                 select(Refund)
@@ -158,7 +197,7 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
                 .order_by(Refund.processed_at, Refund.id)
             )
         ).scalars()
-        room = invoice.amount_paise if invoice else booking.total_paise
+        room = sum(d.amount_paise for d in out if d.kind == "invoice")
         for r in refunds:
             d = issued.get(("credit_note", r.id))
             amount = d.amount_paise if d else min(r.amount_paise, room)
