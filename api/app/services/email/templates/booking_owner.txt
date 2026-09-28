@@ -13,7 +13,9 @@ Departs:     {{ departs }}
 Lead:        {{ b.lead_name }} · {{ b.lead_phone }} · {{ b.lead_email }}
 Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
 
-Total:       {{ total }}
+{% if addons %}Add-ons:     {% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}
+             {% endif %}{% endfor %}
+{% endif %}Total:       {{ total }}
 Paid:        {{ paid }}
 {% if coupon %}Coupon:      {{ coupon }}
 {% endif %}Payment:     {{ payment_id }}

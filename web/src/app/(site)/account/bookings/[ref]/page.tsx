@@ -13,6 +13,7 @@ import { WhatsApp } from '@/components/site/home/icons';
 import { bookingState, countdown, daysBetween, istDay, voucherHref } from '@/lib/account';
 import { api, ApiRequestError } from '@/lib/api';
 import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
+import { AddonLines } from '@/components/site/booking/AddonLines';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -161,6 +162,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
                 </div>
               )}
+              <AddonLines quote={b.quote} />
               <div className="mt-1 flex items-baseline justify-between border-t-[1.5px] border-ink pt-2.5">
                 <span className="font-bold">Total</span>
                 <span className="num text-[24px] font-extrabold tracking-tight">

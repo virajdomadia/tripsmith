@@ -48,6 +48,7 @@ const pkg: PackageDetail = {
   ],
   images: [{ url: 'https://x/a.jpg', alt: 'a', width: 1600, height: 1000 }],
   cover: { url: 'https://x/a.jpg', alt: 'a', width: 1600, height: 1000 },
+  addons: [],
   departures: [
     departure({}),
     departure({

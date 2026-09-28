@@ -8,7 +8,9 @@ Departs:     {{ departs }} · {{ b.departure_city }}
 Returns:     {{ returns }}
 Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop.last %}, {% endif %}{% endfor %}
 
-Paid:        {{ paid }}
+{% if addons %}Add-ons:     {% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}
+             {% endif %}{% endfor %}
+{% endif %}Paid:        {{ paid }}
 {% if coupon %}Coupon:      {{ coupon }}
 {% endif %}
 {% if invoice_attached %}

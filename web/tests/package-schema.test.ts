@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADDON_NIGHTS_MESSAGE,
+  blankAddon,
   blankDay,
   blankDeparture,
   packageSchema,
@@ -45,6 +47,7 @@ const valid = {
       singleSupplementPaise: 600_000,
     },
   ],
+  addons: [] as ReturnType<typeof blankAddon>[],
 };
 
 describe('packageSchema', () => {
@@ -119,8 +122,49 @@ describe('packageSchema', () => {
     ]);
   });
 
+  it('add-ons (P8): max nights for a per-night one only, unique names, at least ₹1', () => {
+    const addon = (over: Partial<ReturnType<typeof blankAddon>>) => ({
+      ...blankAddon(),
+      name: 'Rafting',
+      pricePaise: 900_00,
+      ...over,
+    });
+    const night = packageSchema.safeParse({
+      ...valid,
+      addons: [addon({ name: 'Extra night', basis: 'night', maxNights: '' })],
+    });
+    expect(night.success).toBe(false);
+    if (!night.success) {
+      const issue = night.error.issues.find((i) => i.path.join('.') === 'addons.0.maxNights');
+      expect(issue?.message).toBe(ADDON_NIGHTS_MESSAGE);
+    }
+    const twins = packageSchema.safeParse({
+      ...valid,
+      addons: [addon({}), addon({ name: 'rafting' })],
+    });
+    expect(twins.success).toBe(false);
+    expect(packageSchema.safeParse({ ...valid, addons: [addon({ pricePaise: 50 })] }).success).toBe(
+      false,
+    );
+    // A per-traveller add-on sends no limit even when the box still holds one.
+    const out = packageSchema.parse({ ...valid, addons: [addon({ maxNights: 3 })] });
+    expect(toInput(out).addons).toEqual([
+      {
+        id: null,
+        name: 'Rafting',
+        description: '',
+        pricePaise: 900_00,
+        basis: 'traveller',
+        maxNights: null,
+        imageId: null,
+        active: true,
+      },
+    ]);
+  });
+
   it('blank rows carry no api id until the server assigns one', () => {
     expect(blankDeparture().id).toBeNull();
+    expect(blankAddon().id).toBeNull();
     expect(blankDay().meals).toEqual({ breakfast: false, lunch: false, dinner: false });
   });
 });

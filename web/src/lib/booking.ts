@@ -1,4 +1,5 @@
 import type { components } from './api-types';
+import { inr } from '@/lib/format';
 import { billingErrors, normaliseGstin } from '@/lib/gst';
 import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './enquiry-schema';
 
@@ -17,6 +18,10 @@ export type QuoteLine = components['schemas']['QuoteLine'];
 export type BookingOrder = components['schemas']['BookingOrder'];
 export type PaymentResult = components['schemas']['PaymentResult'];
 export type Occupancy = components['schemas']['Occupancy'];
+export type Addon = components['schemas']['AddonOut'];
+export type AddonBasis = components['schemas']['AddonBasis'];
+export type AddonChoice = components['schemas']['AddonChoice'];
+export type QuoteAddon = components['schemas']['QuoteAddon'];
 
 export const MAX_TRAVELLERS = 12; // api schemas/meta.py MAX_TRAVELLERS
 export const CHILD_MIN_AGE = 5;
@@ -204,9 +209,11 @@ export function orderBody(
   travellers: Record<string, TravellerInput>,
   contact: Contact,
   couponCode: string | null = null,
+  addons: AddonChoice[] = [],
 ): components['schemas']['BookingRequest'] {
   return {
     ...(couponCode ? { couponCode } : {}),
+    ...(addons.length ? { addons } : {}),
     departureId,
     travellers: slots.map((s) => ({
       name: travellers[s.key].name.trim(),
@@ -245,6 +252,53 @@ export function lineLabel(line: QuoteLine, dealLabel?: string | null): string {
       return OCCUPANCY_LABEL[line.occupancy];
   }
 }
+
+/* --------------------------------------------------------------- add-ons */
+
+export const ADDON_UNIT: Record<AddonBasis, string> = {
+  booking: 'per booking',
+  traveller: 'per traveller',
+  night: 'per traveller, per night',
+};
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+/** "₹2,200 per traveller, per night · up to 2 nights" — the price as the owner set it. */
+export function addonUnit(a: { pricePaise: number; basis: AddonBasis; maxNights: number | null }) {
+  const upTo = a.basis === 'night' && a.maxNights ? ` · up to ${plural(a.maxNights, 'night')}` : '';
+  return `${inr(a.pricePaise)} ${ADDON_UNIT[a.basis]}${upTo}`;
+}
+
+/** Mirrors `detail` in api/app/services/booking/addons.py: "per booking", "2 travellers",
+ *  "2 nights · 4 travellers". */
+export function addonDetail(a: { basis: AddonBasis; travellers: number; nights: number }) {
+  if (a.basis === 'booking') return 'per booking';
+  if (a.basis === 'traveller') return plural(a.travellers, 'traveller');
+  return `${plural(a.nights, 'night')} · ${plural(a.travellers, 'traveller')}`;
+}
+
+/**
+ * What the visitor picked, per add-on id: 1 for a per-booking one that is on, how many take a
+ * per-traveller one, how many nights of a per-night one; 0 or absent = not added.
+ */
+export type AddonPicks = Record<string, number>;
+
+/** The picks as the api's choices, in the owner's order; only add-ons still offered. Per
+ *  traveller counts are clamped to the party, so shrinking the party never sends a refusal. */
+export function addonChoices(offered: Addon[], picks: AddonPicks, party: number): AddonChoice[] {
+  const out: AddonChoice[] = [];
+  for (const a of offered) {
+    const n = picks[a.id] ?? 0;
+    if (n <= 0) continue;
+    if (a.basis === 'booking') out.push({ addonId: a.id });
+    else if (a.basis === 'traveller') out.push({ addonId: a.id, travellers: Math.min(n, party) });
+    else out.push({ addonId: a.id, nights: Math.min(n, a.maxNights ?? n) });
+  }
+  return out;
+}
+
+/** An add-on refused because the owner switched it off since the page loaded (409). */
+export const isAddonGone = (reason: string | undefined) => reason === 'addon_unavailable';
 
 /** A coupon refusal (B15, R26): shown under the code field, never as an unbookable date. */
 export const isCouponRefusal = (reason: string | undefined) => !!reason?.startsWith('coupon_');

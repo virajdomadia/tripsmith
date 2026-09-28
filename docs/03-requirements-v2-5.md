@@ -137,6 +137,18 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - **Later purchases:** "Add extras" in My trips until 7 days before departure.
 - The voucher, manifest and CSV list the add-ons. There are no stock limits; the owner switches an add-on off instead.
 - The seed gives each package 3–4 realistic add-ons.
+- **Decided at row start (Viraj, 2026-09-28):**
+  - **GST for extras bought after the tax invoice exists:** a **second tax invoice** for the extras, numbered at the event (`TS/FY/NNNN`), its total = the extras payment. The first invoice never changes. A later credit note may cover several invoices (GST s.34 allows it), capped at their sum. Same 5 % rate, SAC 998555: the extras are part of the tour supply.
+  - **Cancellation:** add-ons follow the same tier table as the trip; the tier's % applies to the whole total, add-ons included.
+  - **Removing extras:** customers can only add. The owner can remove an add-on from the desk: a full refund of that line through `refunds.refund()`, a credit note, and a history entry.
+  - **Coupons:** a coupon's %, cap and minimum amount are measured on the trip fare after the deal, never on add-ons.
+  - **Snapshot:** each booking keeps the name and price it bought at (`booking_addons`). Editing, switching off or deleting the package's add-on never changes an existing booking.
+  - **Per-night add-ons** are charged for the whole party × the nights chosen (1 to the owner's maximum). A per-traveller one is charged × the travellers who take it (at most the party).
+  - **"Add extras" deadline:** open while the IST date is on or before departure − 7 days. A payment that captures after that still stands: the money is in. If the booking is cancelled before an extras payment captures, that payment is refunded automatically.
+  - **Seed:** 53 add-ons across the 14 packages, each with a photo from its package's gallery.
+  - **Two PRs:**
+    - **P8a:** migration 0014 (every P8 table, including the P8b ones), the package-form panel, the "Make it yours" step in Book now B (wide sheet + live receipt), server quote lines, voucher/emails/manifest/CSV/invoice line, and the seed.
+    - **P8b:** Add extras in My trips, the second invoice, owner remove, and the replay test.
 
 ### R47. Early-bird pricing (P17)
 - **Owner:** up to **2 tiers** per package, each "₹X off per traveller when booked N+ days before departure", switchable on or off.

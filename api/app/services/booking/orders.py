@@ -13,6 +13,9 @@ block the next visitor.
 A coupon code (B15) is checked after the quote without it is built — its minimum is measured
 after the deal — and again at hold time under the coupon's row lock, where the booking keeps the
 code. The order amount is still the server quote's total, coupon included.
+
+Add-ons (P8) are priced from the package's rows at both steps, and the booking keeps its own
+copy of each (`booking_addons`) beside the quote snapshot.
 """
 
 import datetime as dt
@@ -27,7 +30,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.razorpay import Razorpay, RazorpayError
-from app.models import Booking, BookingTraveller, Departure, Package, Payment
+from app.models import (
+    Booking,
+    BookingAddon,
+    BookingTraveller,
+    Departure,
+    Package,
+    PackageAddon,
+    Payment,
+)
 from app.models.catalog import departure_availability
 from app.models.enums import (
     BookingActor,
@@ -37,10 +48,12 @@ from app.models.enums import (
     PaymentStatus,
 )
 from app.schemas.bookings import (
+    AddonChoice,
     BookingContact,
     BookingOrder,
     BookingRequest,
     Quote,
+    QuoteAddon,
     QuoteRequest,
     UnbookableReason,
 )
@@ -48,7 +61,12 @@ from app.services.analytics import ist_today
 from app.services.booking import coupons, history
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
-from app.services.booking.pricing import apply_coupon, build_quote, unbookable_reason
+from app.services.booking.pricing import (
+    apply_coupon,
+    build_quote,
+    price_addons,
+    unbookable_reason,
+)
 from app.services.enquiries import REF_ALPHABET
 
 HOLD = dt.timedelta(minutes=10)
@@ -121,6 +139,40 @@ async def _deal_base(db: AsyncSession, package_id: str, *, now: dt.datetime) -> 
     return int(cheapest or 0)
 
 
+async def priced_addons(
+    db: AsyncSession, package_id: str, choices: list[AddonChoice], *, party: int
+) -> list[QuoteAddon]:
+    """The chosen add-ons' lines, priced from the package's rows (P8); none chosen = no read."""
+    if not choices:
+        return []
+    offered = (
+        await db.execute(
+            select(PackageAddon)
+            .where(PackageAddon.package_id == package_id)
+            .order_by(PackageAddon.position, PackageAddon.id)
+        )
+    ).scalars()
+    return price_addons(list(offered), choices, party=party)
+
+
+def addon_rows(lines: list[QuoteAddon], *, payment_id: str | None = None) -> list[BookingAddon]:
+    """The booking's own copy of each add-on line."""
+    return [
+        BookingAddon(
+            addon_id=a.addon_id,
+            name=a.name,
+            basis=a.basis,
+            unit_paise=a.unit_paise,
+            travellers=a.travellers,
+            nights=a.nights,
+            amount_paise=a.amount_paise,
+            position=i,
+            payment_id=payment_id,
+        )
+        for i, a in enumerate(lines)
+    ]
+
+
 async def quote_booking(
     db: AsyncSession, req: QuoteRequest, *, now: dt.datetime | None = None
 ) -> Quote:
@@ -132,7 +184,10 @@ async def quote_booking(
     if reason := unbookable_reason(dep, seats_left=seats, party=len(req.travellers), now=now):
         raise unbookable(reason)
     base = await _deal_base(db, pkg.id, now=now)
-    quote = build_quote(dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now)
+    addons = await priced_addons(db, pkg.id, req.addons, party=len(req.travellers))
+    quote = build_quote(
+        dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now, addons=addons
+    )
     if req.coupon_code:
         coupon = await coupons.check(
             db, req.coupon_code, pkg, quote, email=req.email, now=now, lock=False
@@ -269,6 +324,7 @@ async def create_booking_order(
             seats_left=seats - party,
             deal_base=await _deal_base(db, pkg.id, now=now),
             now=now,
+            addons=await priced_addons(db, pkg.id, req.addons, party=party),
         )
         coupon_code: str | None = None
         if req.coupon_code:
@@ -299,6 +355,7 @@ async def create_booking_order(
                     BookingTraveller(name=t.name, age=t.age, occupancy=t.occupancy, position=i)
                     for i, t in enumerate(req.travellers)
                 ],
+                addons=addon_rows(quote.addons),
             )
             try:
                 # A savepoint: a ref collision must not drop the locks taken above.
@@ -317,14 +374,15 @@ async def create_booking_order(
             if quote.coupon
             else ""
         )
+        addons_text = history.addons(quote.addons)
         history.record(
             db,
             booking.id,
             "booked",
             actor=BookingActor.CUSTOMER,
-            text=f"Booked online · {history.travellers(party)} · "
+            text=f"Booked online · {history.travellers(party)}{addons_text} · "
             f"{history.money(booking.total_paise)}{coupon_text} · seats held 10 minutes",
-            customer=f"You booked {history.travellers(party)} · "
+            customer=f"You booked {history.travellers(party)}{addons_text} · "
             f"{history.money(booking.total_paise)} — seats held for 10 minutes while you pay",
             after={"status": BookingStatus.PENDING.value, "totalPaise": booking.total_paise},
         )

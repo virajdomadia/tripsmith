@@ -154,6 +154,40 @@ PACKAGE = define_package(
             "single_supplement_inr": 7_500,
         },
     ],
+    addons=[
+        {
+            "name": "Solang paragliding",
+            "description": (
+                "A tandem flight with a certified pilot from the Solang slopes, about 10–15 "
+                "minutes."
+            ),
+            "price_inr": 3_000,
+            "basis": "traveller",
+            "photo": "himachal/solang-snow-bridge.jpg",
+        },
+        {
+            "name": "Kufri horse ride",
+            "description": "The pony trail up to Mahasu peak at Kufri and back, about an hour.",
+            "price_inr": 500,
+            "basis": "traveller",
+            "photo": "himachal/shimla-ridge.jpg",
+        },
+        {
+            "name": "Snow gear rental",
+            "description": "Jacket, boots and gloves for the Solang day.",
+            "price_inr": 500,
+            "basis": "traveller",
+            "photo": "himachal/hadimba-temple.jpg",
+        },
+        {
+            "name": "Extra night in Manali",
+            "description": "One more night at the Manali hotel with breakfast, for your party.",
+            "price_inr": 2_000,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "himachal/manali-mountains.jpg",
+        },
+    ],
     photos=[
         {"file": "himachal/solang-snow-bridge.jpg", "alt": "Snow at Solang valley"},
         {"file": "himachal/shimla-ridge.jpg", "alt": "Christ Church on the Ridge, Shimla"},

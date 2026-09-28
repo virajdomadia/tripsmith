@@ -13,7 +13,7 @@ from typing import Annotated
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
-from app.models.enums import BookingStatus, Occupancy
+from app.models.enums import AddonBasis, BookingStatus, Occupancy
 from app.schemas import ApiModel
 from app.schemas.enquiries import CONTROL_RE, EMAIL_RE, PHONE_MESSAGE, PHONE_RE, normalise_phone
 from app.schemas.meta import MAX_TRAVELLERS
@@ -99,6 +99,40 @@ def party_errors(travellers: list[QuoteTraveller] | list[BookingTraveller]) -> s
     return None
 
 
+ADDON_CHOICES_MAX = 12
+
+
+class AddonChoice(ApiModel):
+    """One add-on the visitor picked (R46, P8). Per booking: nothing else. Per traveller: how
+    many of the party take it. Per night: how many nights — the whole party stays on."""
+
+    addon_id: str = Field(min_length=1, max_length=40)
+    travellers: Annotated[int, Field(ge=1, le=MAX_TRAVELLERS)] | None = Field(
+        default=None, description="Per-traveller add-ons: how many take it (≤ the party)"
+    )
+    nights: Annotated[int, Field(ge=1, le=14)] | None = Field(
+        default=None, description="Per-night add-ons: how many nights (≤ the add-on's maximum)"
+    )
+
+
+def addon_choice_errors(choices: list[AddonChoice], party: int) -> str | None:
+    """The first rule the choices break without the database: each add-on once, and never more
+    travellers than the party. The rest (on sale, nights ≤ the maximum) is the service's."""
+    ids = [c.addon_id for c in choices]
+    if len(ids) != len(set(ids)):
+        return "Each add-on can be picked once"
+    if any(c.travellers is not None and c.travellers > party for c in choices):
+        return "An add-on can't be taken by more travellers than are booked"
+    return None
+
+
+def _check_addons(v: list[AddonChoice], info: ValidationInfo) -> list[AddonChoice]:
+    party = len(info.data.get("travellers") or [])
+    if party and (message := addon_choice_errors(v, party)):
+        raise ValueError(message)
+    return v
+
+
 class QuoteRequest(ApiModel):
     departure_id: str = Field(min_length=1, max_length=40)
     travellers: list[QuoteTraveller] = Field(min_length=1, max_length=MAX_TRAVELLERS)
@@ -112,8 +146,12 @@ class QuoteRequest(ApiModel):
         "against a code's use limit; a malformed one is ignored. 'Already used by this email' is "
         "answered when Pay starts the hold, not here",
     )
+    addons: list[AddonChoice] = Field(
+        default_factory=list, max_length=ADDON_CHOICES_MAX, description="P8: Make it yours"
+    )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)
+    _addons = field_validator("addons")(_check_addons)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -229,8 +267,12 @@ class BookingRequest(ApiModel):
     travellers: list[BookingTraveller] = Field(min_length=1, max_length=MAX_TRAVELLERS)
     contact: BookingContact
     coupon_code: str | None = Field(default=None, max_length=40, description="As on the quote")
+    addons: list[AddonChoice] = Field(
+        default_factory=list, max_length=ADDON_CHOICES_MAX, description="As on the quote"
+    )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)
+    _addons = field_validator("addons")(_check_addons)
 
     @field_validator("travellers")
     @classmethod
@@ -245,6 +287,7 @@ class BookingRequest(ApiModel):
             travellers=[QuoteTraveller(occupancy=t.occupancy, age=t.age) for t in self.travellers],
             coupon_code=self.coupon_code,
             email=self.contact.email,
+            addons=self.addons,
         )
 
 
@@ -276,6 +319,18 @@ class QuoteCoupon(ApiModel):
     off_paise: int = Field(description="Off the whole booking, after the deal; whole rupees")
 
 
+class QuoteAddon(ApiModel):
+    """One add-on line on the quote (P8): the server's price, never discounted."""
+
+    addon_id: str | None = Field(description="The package add-on it was priced from")
+    name: str
+    basis: AddonBasis
+    unit_paise: int = Field(description="The price per booking, traveller or traveller-night")
+    travellers: int = Field(description="1 for a per-booking add-on")
+    nights: int = Field(description="1 unless charged per night")
+    amount_paise: int = Field(description="unit × travellers × nights")
+
+
 class Quote(ApiModel):
     """The server's price for a party on a departure; snapshotted on the booking as-is."""
 
@@ -286,19 +341,36 @@ class Quote(ApiModel):
     lines: list[QuoteLine]
     deal: QuoteDeal | None
     coupon: QuoteCoupon | None
-    subtotal_paise: int = Field(description="Before the deal and the coupon")
+    addons: list[QuoteAddon] = Field(description="P8: the add-ons, after the trip fare")
+    subtotal_paise: int = Field(description="The trip fare before the deal and the coupon")
     discount_paise: int = Field(
-        description="The deal lines' total plus the coupon, as a positive number"
+        description="The deal lines' total plus the coupon, as a positive number; never touches "
+        "the add-ons"
     )
-    total_paise: int
+    addons_paise: int = Field(description="The add-on lines' total, at full price")
+    total_paise: int = Field(description="subtotal − discount + add-ons")
+
+    @property
+    def fare_paise(self) -> int:
+        """The trip fare after its discounts — what a coupon's %, cap and minimum are measured
+        on. Add-ons are never discounted (R46)."""
+        return self.total_paise - self.addons_paise
 
     @model_validator(mode="before")
     @classmethod
-    def _pre_coupon_snapshot(cls, data: object) -> object:
-        """Bookings snapshotted before B15 have no `coupon` key; the field stays required."""
-        if isinstance(data, dict) and "coupon" not in data:
-            return {**data, "coupon": None}
-        return data
+    def _older_snapshot(cls, data: object) -> object:
+        """Bookings snapshotted before B15 have no `coupon` key, and before P8 no add-ons; the
+        fields stay required on the wire."""
+        if not isinstance(data, dict):
+            return data
+        filled: dict[str, object] = {}
+        if "coupon" not in data:
+            filled["coupon"] = None
+        if "addons" not in data:
+            filled["addons"] = []
+        if "addonsPaise" not in data and "addons_paise" not in data:
+            filled["addonsPaise"] = 0
+        return {**data, **filled} if filled else data
 
 
 class BookingOrder(ApiModel):

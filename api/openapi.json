@@ -528,6 +528,257 @@
         "title": "ActivityEntry",
         "type": "object"
       },
+      "AddonBasis": {
+        "description": "How an add-on is charged (R46, P8).",
+        "enum": [
+          "booking",
+          "traveller",
+          "night"
+        ],
+        "title": "AddonBasis",
+        "type": "string"
+      },
+      "AddonChoice": {
+        "description": "One add-on the visitor picked (R46, P8). Per booking: nothing else. Per traveller: how\nmany of the party take it. Per night: how many nights — the whole party stays on.",
+        "properties": {
+          "addonId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Addonid",
+            "type": "string"
+          },
+          "nights": {
+            "anyOf": [
+              {
+                "maximum": 14.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per-night add-ons: how many nights (≤ the add-on's maximum)",
+            "title": "Nights"
+          },
+          "travellers": {
+            "anyOf": [
+              {
+                "maximum": 12.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per-traveller add-ons: how many take it (≤ the party)",
+            "title": "Travellers"
+          }
+        },
+        "required": [
+          "addonId"
+        ],
+        "title": "AddonChoice",
+        "type": "object"
+      },
+      "AddonInput": {
+        "description": "One add-on in the package form (R46, P8). `id` present = update that row; absent =\ninsert; rows the payload omits are deleted (bookings keep their own copy). The order sent is\nthe order shown. `max_nights` belongs to a per-night add-on only.",
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AddonBasis"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 240,
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "imageId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One of the package's photos",
+            "title": "Imageid"
+          },
+          "maxNights": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxnights"
+          },
+          "name": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "pricePaise": {
+            "maximum": 100000000.0,
+            "minimum": 100.0,
+            "title": "Pricepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "pricePaise",
+          "basis"
+        ],
+        "title": "AddonInput",
+        "type": "object"
+      },
+      "AddonOut": {
+        "description": "An add-on the Book-now sheet offers (R46, P8): switched-on ones only, in the owner's order.\nThe sheet shows these; the price of a choice always comes from `quoteBooking`.",
+        "properties": {
+          "basis": {
+            "$ref": "#/components/schemas/AddonBasis",
+            "description": "booking: once per booking · traveller: per traveller who takes it · night: per traveller per night, for the whole party"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxNights": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when `basis` is night",
+            "title": "Maxnights"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pricePaise": {
+            "title": "Pricepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "pricePaise",
+          "basis",
+          "maxNights",
+          "image"
+        ],
+        "title": "AddonOut",
+        "type": "object"
+      },
+      "AdminAddon": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AddonBasis"
+          },
+          "booked": {
+            "description": "Bookings that have it (not removed): a delete keeps theirs",
+            "title": "Booked",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "imageId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imageid"
+          },
+          "maxNights": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxnights"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pricePaise": {
+            "title": "Pricepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "pricePaise",
+          "basis",
+          "maxNights",
+          "imageId",
+          "active",
+          "booked"
+        ],
+        "title": "AdminAddon",
+        "type": "object"
+      },
       "AdminBooking": {
         "description": "`GET /admin/bookings/{ref}` and every desk action's answer.",
         "properties": {
@@ -1439,6 +1690,14 @@
       },
       "AdminPackage": {
         "properties": {
+          "addons": {
+            "description": "In the order shown on the sheet (P8)",
+            "items": {
+              "$ref": "#/components/schemas/AdminAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "canPublish": {
             "title": "Canpublish",
             "type": "boolean"
@@ -1655,6 +1914,7 @@
           "faq",
           "itinerary",
           "departures",
+          "addons",
           "images",
           "coverImageId",
           "status",
@@ -2589,6 +2849,15 @@
       "BookingRequest": {
         "description": "`createBookingOrder`: the quote input with names and ages, plus the contact.",
         "properties": {
+          "addons": {
+            "description": "As on the quote",
+            "items": {
+              "$ref": "#/components/schemas/AddonChoice"
+            },
+            "maxItems": 12,
+            "title": "Addons",
+            "type": "array"
+          },
           "contact": {
             "$ref": "#/components/schemas/BookingContact"
           },
@@ -4971,6 +5240,14 @@
       "Manifest": {
         "description": "`GET /admin/departures/{id}/manifest`: who travels, grouped by booking.",
         "properties": {
+          "addons": {
+            "description": "Totals per add-on, in first-booked order",
+            "items": {
+              "$ref": "#/components/schemas/ManifestAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "bookings": {
             "description": "Confirmed, part-paid and completed bookings, oldest first",
             "items": {
@@ -5022,13 +5299,47 @@
           "returns",
           "bookings",
           "travellers",
+          "addons",
           "generatedAt"
         ],
         "title": "Manifest",
         "type": "object"
       },
+      "ManifestAddon": {
+        "description": "One add-on across the departure — what the team has to arrange (P8).",
+        "properties": {
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "travellers": {
+            "description": "Travellers taking it; 0 for a per-booking add-on",
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "bookings",
+          "travellers"
+        ],
+        "title": "ManifestAddon",
+        "type": "object"
+      },
       "ManifestBooking": {
         "properties": {
+          "addons": {
+            "description": "P8: e.g. 'Kullu river rafting (2 travellers)'",
+            "items": {
+              "type": "string"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "cancellationRequested": {
             "title": "Cancellationrequested",
             "type": "boolean"
@@ -5062,7 +5373,8 @@
           "leadName",
           "leadPhone",
           "cancellationRequested",
-          "travellers"
+          "travellers",
+          "addons"
         ],
         "title": "ManifestBooking",
         "type": "object"
@@ -5712,6 +6024,14 @@
       },
       "PackageDetail": {
         "properties": {
+          "addons": {
+            "description": "Switched-on add-ons, in the owner's order (P8)",
+            "items": {
+              "$ref": "#/components/schemas/AddonOut"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
           "cover": {
             "anyOf": [
               {
@@ -5883,6 +6203,7 @@
           "images",
           "cover",
           "departures",
+          "addons",
           "related",
           "rating",
           "reviews",
@@ -5894,6 +6215,14 @@
       "PackageInput": {
         "description": "Owner create/update body (06 §C4) — the whole package in one transaction.\n\n`status` is deliberately absent: publishing is `POST /admin/packages/{id}/status`, so a\nPUT can never bypass the publish rules. `days` is derived (`nights + 1`, the DB check\nconstraint `days_is_nights_plus_one`).",
         "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/AddonInput"
+            },
+            "maxItems": 12,
+            "title": "Addons",
+            "type": "array"
+          },
           "dealEndsOn": {
             "anyOf": [
               {
@@ -6326,6 +6655,19 @@
       "Quote": {
         "description": "The server's price for a party on a departure; snapshotted on the booking as-is.",
         "properties": {
+          "addons": {
+            "description": "P8: the add-ons, after the trip fare",
+            "items": {
+              "$ref": "#/components/schemas/QuoteAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
+          "addonsPaise": {
+            "description": "The add-on lines' total, at full price",
+            "title": "Addonspaise",
+            "type": "integer"
+          },
           "coupon": {
             "anyOf": [
               {
@@ -6356,7 +6698,7 @@
             "type": "string"
           },
           "discountPaise": {
-            "description": "The deal lines' total plus the coupon, as a positive number",
+            "description": "The deal lines' total plus the coupon, as a positive number; never touches the add-ons",
             "title": "Discountpaise",
             "type": "integer"
           },
@@ -6376,11 +6718,12 @@
             "type": "integer"
           },
           "subtotalPaise": {
-            "description": "Before the deal and the coupon",
+            "description": "The trip fare before the deal and the coupon",
             "title": "Subtotalpaise",
             "type": "integer"
           },
           "totalPaise": {
+            "description": "subtotal − discount + add-ons",
             "title": "Totalpaise",
             "type": "integer"
           }
@@ -6393,11 +6736,68 @@
           "lines",
           "deal",
           "coupon",
+          "addons",
           "subtotalPaise",
           "discountPaise",
+          "addonsPaise",
           "totalPaise"
         ],
         "title": "Quote",
+        "type": "object"
+      },
+      "QuoteAddon": {
+        "description": "One add-on line on the quote (P8): the server's price, never discounted.",
+        "properties": {
+          "addonId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package add-on it was priced from",
+            "title": "Addonid"
+          },
+          "amountPaise": {
+            "description": "unit × travellers × nights",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AddonBasis"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "description": "1 unless charged per night",
+            "title": "Nights",
+            "type": "integer"
+          },
+          "travellers": {
+            "description": "1 for a per-booking add-on",
+            "title": "Travellers",
+            "type": "integer"
+          },
+          "unitPaise": {
+            "description": "The price per booking, traveller or traveller-night",
+            "title": "Unitpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "addonId",
+          "name",
+          "basis",
+          "unitPaise",
+          "travellers",
+          "nights",
+          "amountPaise"
+        ],
+        "title": "QuoteAddon",
         "type": "object"
       },
       "QuoteCoupon": {
@@ -6505,6 +6905,15 @@
       },
       "QuoteRequest": {
         "properties": {
+          "addons": {
+            "description": "P8: Make it yours",
+            "items": {
+              "$ref": "#/components/schemas/AddonChoice"
+            },
+            "maxItems": 12,
+            "title": "Addons",
+            "type": "array"
+          },
           "couponCode": {
             "anyOf": [
               {

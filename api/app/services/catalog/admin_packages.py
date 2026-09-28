@@ -15,10 +15,22 @@ from sqlalchemy.orm import selectinload
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.revalidate import revalidate
-from app.models import Departure, Destination, Enquiry, ItineraryDay, Package, PackageImage
+from app.models import (
+    Booking,
+    BookingAddon,
+    Departure,
+    Destination,
+    Enquiry,
+    ItineraryDay,
+    Package,
+    PackageAddon,
+    PackageImage,
+)
 from app.models.catalog import departure_availability
-from app.models.enums import PackageStatus
+from app.models.enums import BookingStatus, PackageStatus
 from app.schemas.catalog import (
+    AddonInput,
+    AdminAddon,
     AdminDeparture,
     AdminImage,
     AdminPackage,
@@ -53,6 +65,9 @@ DEAL_LABEL_ALONE = "Add a deal price and end date, or clear the label"
 DEAL_ENDS_IN_PAST = "The deal cannot end before today"
 DEAL_NO_BASE = "Add a priced upcoming departure before setting a deal"
 DEAL_INVALID = "Check the deal fields"
+TOOK_SEATS = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
+FOREIGN_ADDON = "An add-on in this payload belongs to another package"
+FOREIGN_IMAGE = "Pick the add-on's photo from this package's gallery"
 
 
 def revalidate_tags(
@@ -278,6 +293,7 @@ def _loaded() -> Select[tuple[Package]]:
         selectinload(Package.itinerary),
         selectinload(Package.departures),
         selectinload(Package.images),
+        selectinload(Package.addons),
     )
 
 
@@ -377,6 +393,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
             )
             for d in sorted(pkg.departures, key=lambda d: d.date)
         ],
+        addons=await _admin_addons(db, pkg),
         images=[_image_out(i) for i in images],
         cover_image_id=pkg.cover_image_id,
         status=pkg.status,
@@ -394,6 +411,37 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         edited_at=edited_at(pkg),
         updated_at=pkg.updated_at,
     )
+
+
+async def _admin_addons(db: AsyncSession, pkg: Package) -> list[AdminAddon]:
+    ids = [a.id for a in pkg.addons]
+    booked: dict[str, int] = {}
+    if ids:
+        rows = await db.execute(
+            select(BookingAddon.addon_id, func.count(func.distinct(BookingAddon.booking_id)))
+            .join(Booking, Booking.id == BookingAddon.booking_id)
+            .where(
+                BookingAddon.addon_id.in_(ids),
+                BookingAddon.removed_at.is_(None),
+                Booking.status.in_(TOOK_SEATS),  # not lapsed holds or cancellations
+            )
+            .group_by(BookingAddon.addon_id)
+        )
+        booked = {str(k): int(n) for k, n in rows.all()}
+    return [
+        AdminAddon(
+            id=a.id,
+            name=a.name,
+            description=a.description,
+            price_paise=a.price_paise,
+            basis=a.basis,
+            max_nights=a.max_nights,
+            image_id=a.image_id,
+            active=a.active,
+            booked=booked.get(a.id, 0),
+        )
+        for a in sorted(pkg.addons, key=lambda a: a.position)
+    ]
 
 
 async def get_package(db: AsyncSession, id: str) -> AdminPackage:
@@ -632,6 +680,40 @@ def _fill_departure(target: Departure, row: DepartureInput) -> Departure:
     return target
 
 
+def _fill_addon(target: PackageAddon, row: AddonInput, position: int) -> PackageAddon:
+    target.name = row.name
+    target.description = row.description
+    target.price_paise = row.price_paise
+    target.basis = row.basis
+    target.max_nights = row.max_nights
+    target.image_id = row.image_id
+    target.active = row.active
+    target.position = position
+    return target
+
+
+def _check_addons(pkg: Package, payload: PackageInput) -> None:
+    """Every sent id is one of this package's add-ons, and every photo one of its images."""
+    if {a.id for a in payload.addons if a.id} - {a.id for a in pkg.addons}:
+        raise ApiError("validation", FOREIGN_ADDON, field_errors={"addons": FOREIGN_ADDON})
+    images = {i.id for i in pkg.images}
+    for i, a in enumerate(payload.addons):
+        if a.image_id is not None and a.image_id not in images:
+            raise ApiError(
+                "validation", FOREIGN_IMAGE, field_errors={f"addons.{i}.imageId": FOREIGN_IMAGE}
+            )
+
+
+def _replace_addons(pkg: Package, payload: PackageInput) -> None:
+    """Upsert by id, in the order sent; rows left out are deleted (a booking keeps its own
+    copy, and its `addon_id` goes null). `_check_addons` ran first."""
+    existing = {a.id: a for a in pkg.addons}
+    pkg.addons = [
+        _fill_addon(existing[row.id] if row.id else PackageAddon(), row, position)
+        for position, row in enumerate(payload.addons)
+    ]
+
+
 async def _replace_children(db: AsyncSession, pkg: Package, payload: PackageInput) -> None:
     """Rewrite the itinerary and departures of an **existing** package.
 
@@ -648,6 +730,7 @@ async def _replace_children(db: AsyncSession, pkg: Package, payload: PackageInpu
         raise ApiError(
             "validation", FOREIGN_DEPARTURE, field_errors={"departures": FOREIGN_DEPARTURE}
         )
+    _check_addons(pkg, payload)  # before the flush below, like the departures' check
 
     pkg.itinerary = []
     pkg.departures = [d for d in pkg.departures if d.id in sent_ids]
@@ -658,6 +741,7 @@ async def _replace_children(db: AsyncSession, pkg: Package, payload: PackageInpu
         _fill_departure(existing[row.id] if row.id else Departure(), row)
         for row in payload.departures
     ]
+    _replace_addons(pkg, payload)
 
 
 async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackage:
@@ -671,6 +755,11 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
     _apply_fields(pkg, payload)
     pkg.itinerary = _new_days(payload)
     pkg.departures = [_fill_departure(Departure(), row) for row in payload.departures]
+    # No gallery yet, so no add-on photo: one is picked once the photos are uploaded.
+    pkg.addons = [
+        _fill_addon(PackageAddon(), row.model_copy(update={"image_id": None}), position)
+        for position, row in enumerate(payload.addons)
+    ]
     if errors := deal_errors(pkg, today=ist_today()):
         raise ApiError("validation", DEAL_INVALID, field_errors=errors)
     pkg.starting_price_paise = recompute_starting_price(pkg, today=ist_today())
@@ -821,10 +910,27 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         PackageImage(url=i.url, alt=i.alt, width=i.width, height=i.height, position=i.position)
         for i in source_images
     ]
+    photo_position = {i.id: i.position for i in source_images}
+    copy.addons = [
+        PackageAddon(
+            name=a.name,
+            description=a.description,
+            price_paise=a.price_paise,
+            basis=a.basis,
+            max_nights=a.max_nights,
+            active=a.active,
+            position=a.position,
+        )
+        for a in source.addons
+    ]
     db.add(copy)
     await _flush_or_conflict(db)  # ids for the copied image rows, so the cover can point at one
     if cover_position is not None:
         copy.cover_image_id = next(i.id for i in copy.images if i.position == cover_position)
+    by_position = {i.position: i.id for i in copy.images}
+    for new, old in zip(copy.addons, source.addons, strict=True):
+        if old.image_id in photo_position:
+            new.image_id = by_position.get(photo_position[old.image_id])
     await _commit_or_conflict(db)
     out = await to_admin(db, await load(db, copy.id))
     await revalidate(revalidate_tags(out.slug, out.destination.slug))

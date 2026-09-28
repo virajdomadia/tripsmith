@@ -118,3 +118,13 @@ class BookingActor(StrEnum):
     WEBHOOK = "webhook"  # Razorpay's server-to-server event
     CRON = "cron"  # /cron/daily
     SYSTEM = "system"  # the api on its own: a late capture's outcome, an email, the seed
+
+
+class AddonBasis(StrEnum):
+    """How an add-on is charged (R46, P8)."""
+
+    # Kept in a text column with a check constraint (models/base.py `TextEnum`), not a native enum.
+
+    BOOKING = "booking"  # once per booking
+    TRAVELLER = "traveller"  # per traveller who takes it
+    NIGHT = "night"  # per traveller per night, for the whole party, up to `max_nights`

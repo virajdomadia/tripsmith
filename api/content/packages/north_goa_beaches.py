@@ -133,6 +133,44 @@ PACKAGE = define_package(
             "single_supplement_inr": 6_000,
         },
     ],
+    addons=[
+        {
+            "name": "Airport transfers",
+            "description": (
+                "A private car from Goa airport (Dabolim or Mopa) to your hotel and back."
+            ),
+            "price_inr": 1_800,
+            "basis": "booking",
+            "photo": "goa/morjim-boats.jpg",
+        },
+        {
+            "name": "Grande Island snorkelling",
+            "description": (
+                "A boat day out of Sinquerim: snorkelling off Grande Island, lunch on board, "
+                "dolphins if you're lucky."
+            ),
+            "price_inr": 1_800,
+            "basis": "traveller",
+            "photo": "goa/aguada-fort.jpg",
+        },
+        {
+            "name": "Calangute parasailing",
+            "description": "A boat-towed parasail flight off Calangute, about five minutes up.",
+            "price_inr": 1_200,
+            "basis": "traveller",
+            "photo": "goa/baga-beach.jpg",
+        },
+        {
+            "name": "Extra night",
+            "description": (
+                "Stay on one more night at the Vagator hotel with breakfast, for your party."
+            ),
+            "price_inr": 2_200,
+            "basis": "night",
+            "max_nights": 2,
+            "photo": "goa/vagator-palms-1.jpg",
+        },
+    ],
     photos=[
         {"file": "goa/vagator-palms-1.jpg", "alt": "Coconut palms leaning over Vagator beach"},
         {"file": "goa/chapora-fort.jpg", "alt": "Laterite walls of Chapora Fort above the sea"},

@@ -90,6 +90,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
         destination: pkg.destination.name,
         cover: pkg.cover ? { url: pkg.cover.url, alt: pkg.cover.alt } : null,
         departures: pkg.departures,
+        addons: pkg.addons,
       }}
     >
       <Container>

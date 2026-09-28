@@ -26,6 +26,8 @@ from app.models import Booking, BookingEvent, User
 from app.models.enums import BookingActor
 from app.schemas.account import ActivityEntry
 from app.schemas.admin_bookings import BookingHistory, HistoryEntry, HistoryGroup
+from app.schemas.bookings import QuoteAddon
+from app.services.booking.addons import from_quote, summary
 from app.services.format import inr, short_name
 
 log = logging.getLogger(__name__)
@@ -53,6 +55,11 @@ def money(paise: int) -> str:
 
 def travellers(n: int) -> str:
     return f"{n} traveller{'s' if n != 1 else ''}"
+
+
+def addons(lines: list[QuoteAddon]) -> str:
+    """ " · with Kullu river rafting (2 travellers), …" for a booking's entry — or "" (P8)."""
+    return f" · with {summary(from_quote(lines))}" if lines else ""
 
 
 def record(

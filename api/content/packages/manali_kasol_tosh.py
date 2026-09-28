@@ -166,6 +166,43 @@ PACKAGE = define_package(
             "single_supplement_inr": 7_500,
         },
     ],
+    addons=[
+        {
+            "name": "Solang paragliding",
+            "description": (
+                "A tandem flight with a certified pilot from the Solang slopes, about 10–15 "
+                "minutes."
+            ),
+            "price_inr": 3_000,
+            "basis": "traveller",
+            "photo": "himachal/solang-valley.jpg",
+        },
+        {
+            "name": "River rafting",
+            "description": (
+                "14 km of rapids on the Beas below Manali, with a guide and all the gear. Ages 14+."
+            ),
+            "price_inr": 900,
+            "basis": "traveller",
+            "photo": "himachal/kasol-parvati-river.jpg",
+        },
+        {
+            "name": "Snow gear rental",
+            "description": "Jacket, boots and gloves for the Solang day.",
+            "price_inr": 500,
+            "basis": "traveller",
+            "photo": "himachal/kheerganga.jpg",
+        },
+        {
+            "name": "Private cab upgrade",
+            "description": (
+                "A private SUV for the whole trip instead of the shared tempo traveller."
+            ),
+            "price_inr": 6_000,
+            "basis": "booking",
+            "photo": "himachal/old-manali.jpg",
+        },
+    ],
     photos=[
         {"file": "himachal/kasol-parvati-river.jpg", "alt": "Kasol below the snow peaks"},
         {"file": "himachal/tosh-village.jpg", "alt": "Tosh village above the Parvati valley"},

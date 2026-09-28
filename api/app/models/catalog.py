@@ -23,8 +23,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, CreatedMixin, IdMixin, TimestampsMixin, pg_enum
-from app.models.enums import PackageStatus, Theme
+from app.models.base import Base, CreatedMixin, IdMixin, TextEnum, TimestampsMixin, pg_enum
+from app.models.enums import AddonBasis, PackageStatus, Theme
 
 
 class Destination(IdMixin, TimestampsMixin, Base):
@@ -113,6 +113,11 @@ class Package(IdMixin, TimestampsMixin, Base):
     cover_image: Mapped["PackageImage | None"] = relationship(
         foreign_keys=[cover_image_id], post_update=True
     )
+    addons: Mapped[list["PackageAddon"]] = relationship(
+        back_populates="package",
+        cascade="all, delete-orphan",
+        order_by="[PackageAddon.position, PackageAddon.id]",
+    )
 
 
 class ItineraryDay(IdMixin, Base):
@@ -172,6 +177,42 @@ class PackageImage(IdMixin, Base):
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
 
     package: Mapped[Package] = relationship(back_populates="images", foreign_keys=[package_id])
+
+
+class PackageAddon(IdMixin, TimestampsMixin, Base):
+    """An extra the package offers (R46, P8, 0014): charged per booking, per traveller, or per
+    traveller per night up to `max_nights`. Switched off (`active` false) rather than stocked.
+    Bookings keep their own copy (`booking_addons`), so editing or deleting one never changes
+    a booking."""
+
+    __tablename__ = "package_addons"
+    __table_args__ = (
+        Index("ix_package_addons_package_id_position", "package_id", "position"),
+        CheckConstraint("basis IN ('booking', 'traveller', 'night')", name="basis"),
+        CheckConstraint("price_paise > 0", name="price_positive"),
+        CheckConstraint(
+            "(basis = 'night') = (max_nights IS NOT NULL) AND "
+            "(max_nights IS NULL OR max_nights BETWEEN 1 AND 14)",
+            name="nights",
+        ),
+    )
+
+    package_id: Mapped[str] = mapped_column(
+        ForeignKey("packages.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    price_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    basis: Mapped[AddonBasis] = mapped_column(TextEnum(AddonBasis), nullable=False)
+    max_nights: Mapped[int | None] = mapped_column(SmallInteger)
+    image_id: Mapped[str | None] = mapped_column(
+        ForeignKey("package_images.id", ondelete="SET NULL")
+    )
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+
+    package: Mapped[Package] = relationship(back_populates="addons")
+    image: Mapped["PackageImage | None"] = relationship(foreign_keys=[image_id])
 
 
 class Testimonial(IdMixin, CreatedMixin, Base):

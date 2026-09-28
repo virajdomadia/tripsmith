@@ -27,6 +27,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Booking, Departure, Package, Payment
 from app.models.enums import BookingStatus, Occupancy, PaymentProvider, PaymentStatus
+from app.services.booking.addons import AddonFact
+from app.services.booking.addons import facts as addon_facts
 
 LINK_SECONDS = 30 * 60
 HAS_VOUCHER = (BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
@@ -110,6 +112,7 @@ class BookingFacts:
     paid_offline: bool = False  # B10: at least one payment was marked paid on the desk
     coupon_code: str | None = None  # B15
     coupon_off_paise: int = 0  # from the booking's quote snapshot
+    addons: tuple[AddonFact, ...] = ()  # P8: what the booking still has, in the order bought
 
     @property
     def first_name(self) -> str:
@@ -126,7 +129,7 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         await db.execute(
             select(Booking)
             .where(Booking.ref == ref)
-            .options(selectinload(Booking.travellers))
+            .options(selectinload(Booking.travellers), selectinload(Booking.addons))
             .execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
@@ -185,6 +188,7 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         paid_offline=any(p.provider == PaymentProvider.OFFLINE for p in paid),
         coupon_code=booking.coupon_code,
         coupon_off_paise=coupon_off_of(booking.quote),
+        addons=addon_facts(booking.addons),
     )
 
 

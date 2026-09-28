@@ -70,6 +70,26 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
         </div>
       </dl>
 
+      {m.addons.length > 0 && (
+        <section className="mt-5 break-inside-avoid" aria-labelledby="addons">
+          <h2 id="addons" className="text-xs font-bold tracking-wide text-mute uppercase">
+            Add-ons to arrange
+          </h2>
+          <ul className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            {m.addons.map((a) => (
+              <li key={a.name}>
+                <b>{a.name}</b> ·{' '}
+                <span className="num">
+                  {a.travellers
+                    ? `${a.travellers} ${a.travellers === 1 ? 'traveller' : 'travellers'}`
+                    : `${a.bookings} ${a.bookings === 1 ? 'booking' : 'bookings'}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {m.bookings.length === 0 ? (
         <p className="mt-8 text-mute">No confirmed travellers on this departure yet.</p>
       ) : (
@@ -91,6 +111,11 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
                   {b.status === 'completed' && <span className="text-mute"> · completed</span>}
                   {b.cancellationRequested && (
                     <span className="font-bold text-warn"> · cancellation requested</span>
+                  )}
+                  {b.addons.length > 0 && (
+                    <span className="block text-[12.5px] text-ink2">
+                      Add-ons: {b.addons.join(' · ')}
+                    </span>
                   )}
                 </td>
               </tr>

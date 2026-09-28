@@ -8,7 +8,7 @@ from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.enums import PackageStatus, Theme
+from app.models.enums import AddonBasis, PackageStatus, Theme
 
 PHOTOS_DIR = Path(__file__).resolve().parent / "photos"
 
@@ -65,6 +65,23 @@ class Departure(Strict):
     single_supplement_inr: Rupees
 
 
+class Addon(Strict):
+    """An add-on (R46, P8). `photo` names one of the package's own photos by file."""
+
+    name: str = Field(min_length=2, max_length=60)
+    description: str = Field(max_length=240)
+    price_inr: Annotated[int, Field(ge=1)]
+    basis: AddonBasis
+    max_nights: Annotated[int, Field(ge=1, le=14)] | None = None
+    photo: str | None = None
+
+    @model_validator(mode="after")
+    def _nights(self) -> Self:
+        if (self.basis == AddonBasis.NIGHT) != (self.max_nights is not None):
+            raise ValueError(f"{self.name}: max_nights goes with a per-night add-on only")
+        return self
+
+
 class PackageContent(Strict):
     slug: Slug
     destination: Slug
@@ -81,6 +98,7 @@ class PackageContent(Strict):
     itinerary: list[Day]
     departures: list[Departure] = Field(min_length=1)
     photos: list[Photo] = Field(min_length=4, max_length=8)  # 03 R4: gallery of 4–8
+    addons: list[Addon] = Field(default_factory=list, max_length=12)  # R46: 3–4 each
     status: PackageStatus = PackageStatus.LIVE
     featured: bool = False
 
@@ -104,6 +122,14 @@ class PackageContent(Strict):
             raise ValueError(f"{self.slug}: hotel nights do not add up to {self.nights}")
         if len({p.file for p in self.photos}) != len(self.photos):
             raise ValueError(f"{self.slug}: duplicate photos")
+        if any((a.max_nights or 0) > self.nights for a in self.addons):
+            raise ValueError(f"{self.slug}: an add-on offers more nights than the trip has")
+        if len({a.name for a in self.addons}) != len(self.addons):
+            raise ValueError(f"{self.slug}: two add-ons share a name")
+        files = {p.file for p in self.photos}
+        for a in self.addons:
+            if a.photo is not None and a.photo not in files:
+                raise ValueError(f"{self.slug}: add-on photo {a.photo} is not in the gallery")
         return self
 
 

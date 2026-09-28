@@ -63,6 +63,7 @@ from app.models import (  # noqa: E402
     Destination,
     ItineraryDay,
     Package,
+    PackageAddon,
     PackageImage,
     Payment,
     Review,
@@ -252,8 +253,37 @@ async def _seed_package(
         images.append(image)
     await db.flush()
     row.cover_image_id = images[0].id
+    photos = {p.file: i.id for p, i in zip(content.photos, images, strict=True)}
+    await _seed_addons(db, row, content, photos)
     await db.flush()
     return row
+
+
+async def _seed_addons(
+    db: AsyncSession, row: Package, content: PackageContent, image_of: dict[str, str]
+) -> None:
+    """Upsert by name (R46, P8): a re-seed keeps each add-on's id, so bookings that bought
+    one stay linked to it; one no longer in the content is deleted (bookings keep their copy)."""
+    existing = {
+        a.name: a
+        for a in (
+            await db.execute(select(PackageAddon).where(PackageAddon.package_id == row.id))
+        ).scalars()
+    }
+    wanted = {a.name for a in content.addons}
+    for name, addon in existing.items():
+        if name not in wanted:
+            await db.delete(addon)
+    for position, src in enumerate(content.addons):
+        addon = existing.get(src.name) or PackageAddon(package_id=row.id, name=src.name)
+        addon.description = src.description
+        addon.price_paise = src.price_inr * 100
+        addon.basis = src.basis
+        addon.max_nights = src.max_nights
+        addon.image_id = image_of.get(src.photo) if src.photo else None
+        addon.active = True
+        addon.position = position
+        db.add(addon)
 
 
 async def _seed_testimonials(
@@ -446,6 +476,34 @@ async def seed_demo_traveller(
 DEMO_COUPON = "WELCOME10"
 
 
+async def seed_addons(db: AsyncSession, content: Content) -> SeedResult:
+    """Just the add-ons (R46, P8), for a database that already has its packages — production
+    after migration 0014. Nothing else is touched: no package fields, departures or photos. Each
+    add-on's photo is found among the package's own images by file name; a package the database
+    does not have is skipped with a warning."""
+    result = SeedResult()
+    total = 0
+    for src in content.packages:
+        row = (
+            await db.execute(select(Package).where(Package.slug == src.slug))
+        ).scalar_one_or_none()
+        if row is None:
+            result.warnings.append(f"{src.slug}: not in this database — skipped")
+            continue
+        images = (
+            await db.execute(select(PackageImage).where(PackageImage.package_id == row.id))
+        ).scalars()
+        by_name = {i.url.rsplit("/", 1)[-1]: i.id for i in images}
+        photos = {
+            p.file: by_name[Path(p.file).name] for p in src.photos if Path(p.file).name in by_name
+        }
+        await _seed_addons(db, row, src, photos)
+        total += len(src.addons)
+    await db.commit()
+    result.counts["addons"] = total
+    return result
+
+
 async def seed_demo_coupon(db: AsyncSession, *, today: dt.date | None = None) -> SeedResult:
     """The demo coupon (B15), upserted by its code; its uses (bookings) are left alone."""
     today = today or ist_today()
@@ -615,6 +673,11 @@ async def main(argv: list[str] | None = None) -> int:
         help=f"seed just the demo coupon {DEMO_COUPON} (B15)",
     )
     parser.add_argument(
+        "--addons",
+        action="store_true",
+        help="seed just the packages' add-ons (P8); leaves everything else untouched",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -631,6 +694,18 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.addons:  # needs no photo store: it only points at images already uploaded
+        engine = make_engine(url)
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+                result = await seed_addons(db, load_content())
+        finally:
+            await engine.dispose()
+        for key, value in result.counts.items():
+            print(f"{key:16} {value}")
+        for warning in result.warnings:
+            print(f"warning: {warning}", file=sys.stderr)
+        return 0
     try:
         store: Store = LocalStore(args.local_base_url) if args.local else BlobStore(settings)
     except StorageNotConfigured as exc:

@@ -94,6 +94,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   hotels: [],
   faq: [],
   itinerary: [day(1), day(2), day(3), day(4)],
+  addons: [],
   departures: [
     {
       id: 'dep-1',
@@ -129,7 +130,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
 const renderForm = (pkg = fixture()) =>
   render(<PackageForm mode="edit" pkg={pkg} destinations={[destination]} />);
 
-describe('PackageForm — errors that belong to a whole list', () => {
+describe('PackageForm — errors that belong to a whole list', { timeout: 30_000 }, () => {
   it('shows the itinerary-length error when nights drop below the written days', async () => {
     const user = userEvent.setup();
     renderForm();
@@ -193,6 +194,68 @@ describe('PackageForm — errors that belong to a whole list', () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith('A 3-night trip has 4 days at most'),
     );
+  });
+});
+
+// userEvent types every character; under a full parallel run that outgrows the 5 s default.
+describe('PackageForm — add-ons (P8)', { timeout: 30_000 }, () => {
+  it('edits, switches off and adds an add-on, and saves them in the order shown', async () => {
+    const user = userEvent.setup();
+    adminRequest.mockResolvedValue(fixture());
+    renderForm(
+      fixture({
+        addons: [
+          {
+            id: 'a1',
+            name: 'Airport transfers',
+            description: 'A private car.',
+            pricePaise: 1_800_00,
+            basis: 'booking',
+            maxNights: null,
+            imageId: null,
+            active: true,
+            booked: 2,
+          },
+        ],
+      }),
+    );
+    const section = screen.getByRole('button', { name: /^Add-ons/ });
+    expect(section.textContent).toContain('1 add-on · 1 on sale');
+    await user.click(section);
+    expect(screen.getByText(/on 2 bookings/)).toBeTruthy();
+    await user.click(screen.getByRole('switch', { name: 'On sale: Airport transfers' }));
+    await user.click(screen.getByRole('button', { name: 'Add an add-on' }));
+    const names = screen.getAllByLabelText('Name');
+    await user.type(names[names.length - 1]!, 'Extra night');
+    const prices = screen.getAllByLabelText('Price');
+    await user.type(prices[prices.length - 1]!, '2200');
+    await user.click(screen.getAllByRole('radio', { name: 'Per night' }).at(-1)!);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(adminRequest).toHaveBeenCalled());
+    const [, init] = adminRequest.mock.calls[0] as [string, { body: Record<string, unknown> }];
+    expect(init.body.addons).toEqual([
+      {
+        id: 'a1',
+        name: 'Airport transfers',
+        description: 'A private car.',
+        pricePaise: 1_800_00,
+        basis: 'booking',
+        maxNights: null,
+        imageId: null,
+        active: false,
+      },
+      {
+        id: null,
+        name: 'Extra night',
+        description: '',
+        pricePaise: 2_200_00,
+        basis: 'night',
+        maxNights: 2,
+        imageId: null,
+        active: true,
+      },
+    ]);
   });
 });
 

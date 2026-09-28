@@ -12,10 +12,11 @@ from sqlalchemy import func, nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Departure, Destination, Package, PackageImage
+from app.models import Departure, Destination, Package, PackageAddon, PackageImage
 from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
 from app.schemas.catalog import (
+    AddonOut,
     DepartureOut,
     DestinationCard,
     DestinationDetail,
@@ -119,6 +120,7 @@ async def _live_package(db: AsyncSession, slug: str) -> Package | None:
                 selectinload(Package.itinerary),
                 selectinload(Package.images),
                 selectinload(Package.cover_image),
+                selectinload(Package.addons).selectinload(PackageAddon.image),
             )
         )
     ).scalar_one_or_none()
@@ -200,6 +202,19 @@ async def get_package(
         images=images,
         cover=_image_out(p.cover_image) if p.cover_image else (images[0] if images else None),
         departures=departures,
+        addons=[
+            AddonOut(
+                id=a.id,
+                name=a.name,
+                description=a.description,
+                price_paise=a.price_paise,
+                basis=a.basis,
+                max_nights=a.max_nights,
+                image=_image_out(a.image) if a.image else None,
+            )
+            for a in sorted(p.addons, key=lambda a: a.position)
+            if a.active
+        ],
         related=await _related(db, p, today, now) if with_related else [],
         rating=rating_out(p.rating_avg, p.rating_count),
         reviews=(await list_public_reviews(db, p.id)).items if p.rating_count else [],

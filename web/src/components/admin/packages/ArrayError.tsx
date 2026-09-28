@@ -10,7 +10,7 @@ import type { PackageFieldValues } from '@/lib/admin/package-schema';
  * has no input to sit under, so without this block the save failed with nothing on screen.
  * Focusable so the failed-submit handler can move the owner straight to it.
  */
-export function ArrayError({ name }: { name: 'itinerary' | 'departures' }) {
+export function ArrayError({ name }: { name: 'itinerary' | 'departures' | 'addons' }) {
   const { formState } = useFormContext<PackageFieldValues>();
   const message = arrayRootMessage(formState.errors, name);
   if (!message) return null;

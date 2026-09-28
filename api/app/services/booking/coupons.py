@@ -119,7 +119,7 @@ async def check(
         )
     if not for_package(coupon, pkg.id):
         raise refused(CouponReason.NOT_FOR_TRIP)
-    if coupon.min_paise and quote.total_paise < coupon.min_paise:
+    if coupon.min_paise and quote.fare_paise < coupon.min_paise:  # add-ons never count (R46)
         raise refused(
             CouponReason.BELOW_MINIMUM,
             f"This code needs a booking of at least {inr(coupon.min_paise // 100)}",
