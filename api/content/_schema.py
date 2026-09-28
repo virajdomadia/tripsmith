@@ -122,6 +122,10 @@ class PackageContent(Strict):
             raise ValueError(f"{self.slug}: hotel nights do not add up to {self.nights}")
         if len({p.file for p in self.photos}) != len(self.photos):
             raise ValueError(f"{self.slug}: duplicate photos")
+        if any((a.max_nights or 0) > self.nights for a in self.addons):
+            raise ValueError(f"{self.slug}: an add-on offers more nights than the trip has")
+        if len({a.name for a in self.addons}) != len(self.addons):
+            raise ValueError(f"{self.slug}: two add-ons share a name")
         files = {p.file for p in self.photos}
         for a in self.addons:
             if a.photo is not None and a.photo not in files:

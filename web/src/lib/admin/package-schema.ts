@@ -187,7 +187,7 @@ export const packageSchema = z
     });
     const names = new Set<string>();
     v.addons.forEach((a, i) => {
-      const key = a.name.toLocaleLowerCase();
+      const key = a.name.toLowerCase(); // the api compares with str.lower()
       if (names.has(key)) {
         ctx.addIssue({
           code: 'custom',
@@ -196,6 +196,13 @@ export const packageSchema = z
         });
       }
       names.add(key);
+      if (a.basis === 'night' && a.maxNights !== null && a.maxNights > v.nights) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['addons', i, 'maxNights'],
+          message: `A ${v.nights}-night trip can add up to ${v.nights} nights`,
+        });
+      }
       if (
         a.basis === 'night' &&
         (a.maxNights === null || a.maxNights < 1 || a.maxNights > ADDON_NIGHTS_MAX)

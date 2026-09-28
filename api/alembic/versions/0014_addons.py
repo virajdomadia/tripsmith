@@ -37,6 +37,9 @@ BASIS = "basis IN ('booking', 'traveller', 'night')"
 
 
 def upgrade() -> None:
+    # Brief ACCESS EXCLUSIVE locks on payments and gst_documents: give up rather than queue
+    # every payment behind a long-running transaction (re-run it if it times out).
+    op.execute("SET LOCAL lock_timeout = '5s'")
     op.create_table(
         "package_addons",
         sa.Column("id", sa.Text(), nullable=False),

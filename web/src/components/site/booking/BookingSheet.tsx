@@ -92,7 +92,7 @@ export function BookingSheet({
 
   const errs = formErrors(slots, travellers, contact);
   const extras = flow.offered.length > 0;
-  const picked = quote.status === 'ok' ? quote.quote.addons.length : 0;
+  const picked = quote.status === 'ok' ? (quote.quote.addons ?? []).length : 0;
   const done = {
     date: !!departure && !flow.reason,
     party:
@@ -259,6 +259,11 @@ function Receipt({
 }) {
   const [open, setOpen] = useState(false);
   const { phase, party, departure } = flow;
+  // On a phone the drawer starts closed; a price or code problem must not hide inside it.
+  const problem = flow.quote.status === 'error' || !!flow.coupon.error;
+  useEffect(() => {
+    if (problem) setOpen(true);
+  }, [problem]);
   const when = `${party} ${party === 1 ? 'traveller' : 'travellers'}${
     departure ? ` · ${formatDate(departure.date)}` : ''
   }`;

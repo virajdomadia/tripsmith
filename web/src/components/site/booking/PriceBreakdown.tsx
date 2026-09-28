@@ -33,6 +33,7 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
     quote.status === 'ok' ? quote.quote : quote.status === 'loading' ? quote.last : undefined;
   if (!q) return <Skeleton />;
   const travellers = flow.party;
+  const addons = q.addons ?? []; // an api from before P8 sends none (deploy race)
 
   return (
     <div
@@ -62,14 +63,14 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
           <span className="num">−{inr(q.coupon.offPaise)}</span>
         </div>
       )}
-      {q.addons.length > 0 && (
+      {addons.length > 0 && (
         <>
           <div className="mt-0.5 flex justify-between gap-3 border-t border-line pt-1.5 font-bold">
             <span>Trip fare</span>
-            <span className="num">{inr(q.totalPaise - q.addonsPaise)}</span>
+            <span className="num">{inr(q.totalPaise - (q.addonsPaise ?? 0))}</span>
           </div>
           <p className="label-caps mt-1.5 text-[11px] text-mute">Add-ons · no discounts apply</p>
-          {q.addons.map((a) => (
+          {addons.map((a) => (
             <div key={a.addonId ?? a.name} className="flex justify-between gap-3 animate-rise">
               <span className="text-ink2">
                 {a.name} · {addonDetail(a)}
@@ -85,7 +86,7 @@ export function PriceBreakdown({ flow }: { flow: BookingFlow }) {
       </div>
       <p className="num text-right text-[12.5px] font-semibold text-mute">
         {inr(Math.round(q.totalPaise / travellers))} per traveller
-        {q.addons.length > 0 ? ', add-ons included' : ' · everything under Inclusions'}
+        {addons.length > 0 ? ', add-ons included' : ' · everything under Inclusions'}
       </p>
     </div>
   );

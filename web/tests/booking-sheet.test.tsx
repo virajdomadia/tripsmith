@@ -234,6 +234,9 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await user.type(within(sheet).getByLabelText('Coupon code'), 'old');
     await user.click(within(sheet).getByRole('button', { name: 'Apply' }));
     expect(await within(sheet).findByText('This code expired on 30 Sep 2026')).toBeTruthy();
+    // On a phone the receipt drawer opens itself, so the refusal is never hidden inside it.
+    const drawer = await within(sheet).findByRole('button', { name: 'Hide details' });
+    expect(drawer.getAttribute('aria-expanded')).toBe('true');
     // The refused code is dropped: the price is asked again without it, and a refusal is never
     // mistaken for a sold-out date.
     await waitFor(() =>

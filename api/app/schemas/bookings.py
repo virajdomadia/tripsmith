@@ -322,7 +322,7 @@ class QuoteCoupon(ApiModel):
 class QuoteAddon(ApiModel):
     """One add-on line on the quote (P8): the server's price, never discounted."""
 
-    addon_id: str | None = Field(description="Null once the owner deleted the add-on")
+    addon_id: str | None = Field(description="The package add-on it was priced from")
     name: str
     basis: AddonBasis
     unit_paise: int = Field(description="The price per booking, traveller or traveller-night")

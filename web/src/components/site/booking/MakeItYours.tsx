@@ -19,14 +19,17 @@ export function MakeItYours({ flow }: { flow: BookingFlow }) {
   const { offered, picks, party } = flow;
   return (
     <div className="grid gap-2">
-      {flow.addonNotice && (
-        <p
-          role="status"
-          className="rounded-[10px] bg-warn-soft px-2.5 py-2 text-[13px] font-bold text-warn"
-        >
-          {flow.addonNotice}
-        </p>
-      )}
+      {/* Mounted before it has anything to say, so screen readers announce the change. */}
+      <p
+        role="status"
+        className={
+          flow.addonNotice
+            ? 'rounded-[10px] bg-warn-soft px-2.5 py-2 text-[13px] font-bold text-warn'
+            : 'sr-only'
+        }
+      >
+        {flow.addonNotice}
+      </p>
       <ul className="grid overflow-hidden rounded-[14px] border border-line">
         {offered.map((a) => {
           const n = Math.min(picks[a.id] ?? 0, a.basis === 'traveller' ? party : Infinity);
@@ -117,7 +120,11 @@ function Control({
         >
           <Minus className="size-4" />
         </button>
-        <output aria-live="polite" className="num min-w-7 text-center font-extrabold">
+        <output
+          aria-live="polite"
+          aria-label={`${a.name}: ${value} ${value === 1 ? 'traveller' : 'travellers'}`}
+          className="num min-w-7 text-center font-extrabold"
+        >
           {value}
         </output>
         <button

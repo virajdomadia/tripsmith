@@ -16,6 +16,7 @@ from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.revalidate import revalidate
 from app.models import (
+    Booking,
     BookingAddon,
     Departure,
     Destination,
@@ -26,7 +27,7 @@ from app.models import (
     PackageImage,
 )
 from app.models.catalog import departure_availability
-from app.models.enums import PackageStatus
+from app.models.enums import BookingStatus, PackageStatus
 from app.schemas.catalog import (
     AddonInput,
     AdminAddon,
@@ -64,6 +65,7 @@ DEAL_LABEL_ALONE = "Add a deal price and end date, or clear the label"
 DEAL_ENDS_IN_PAST = "The deal cannot end before today"
 DEAL_NO_BASE = "Add a priced upcoming departure before setting a deal"
 DEAL_INVALID = "Check the deal fields"
+TOOK_SEATS = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
 FOREIGN_ADDON = "An add-on in this payload belongs to another package"
 FOREIGN_IMAGE = "Pick the add-on's photo from this package's gallery"
 
@@ -417,7 +419,12 @@ async def _admin_addons(db: AsyncSession, pkg: Package) -> list[AdminAddon]:
     if ids:
         rows = await db.execute(
             select(BookingAddon.addon_id, func.count(func.distinct(BookingAddon.booking_id)))
-            .where(BookingAddon.addon_id.in_(ids), BookingAddon.removed_at.is_(None))
+            .join(Booking, Booking.id == BookingAddon.booking_id)
+            .where(
+                BookingAddon.addon_id.in_(ids),
+                BookingAddon.removed_at.is_(None),
+                Booking.status.in_(TOOK_SEATS),  # not lapsed holds or cancellations
+            )
             .group_by(BookingAddon.addon_id)
         )
         booked = {str(k): int(n) for k, n in rows.all()}

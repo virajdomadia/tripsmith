@@ -146,7 +146,8 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
   const offered = useMemo(
-    () => pkg.addons.filter((a) => !goneAddons.has(a.id)),
+    // `?? []`: a page built against an api from before P8 (the web/api deploy race) has none.
+    () => (pkg.addons ?? []).filter((a) => !goneAddons.has(a.id)),
     [pkg.addons, goneAddons],
   );
   const choices = useMemo(() => addonChoices(offered, picks, party), [offered, picks, party]);

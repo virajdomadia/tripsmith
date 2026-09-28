@@ -530,10 +530,16 @@ class PackageInput(ApiModel):
 
     @field_validator("addons")
     @classmethod
-    def _unique_addons(cls, v: list[AddonInput]) -> list[AddonInput]:
-        names = [a.name.casefold() for a in v]
+    def _unique_addons(cls, v: list[AddonInput], info: ValidationInfo) -> list[AddonInput]:
+        names = [a.name.lower() for a in v]
         if len(names) != len(set(names)):
             raise ValueError("Two add-ons cannot share a name")
+        ids = [a.id for a in v if a.id]
+        if len(ids) != len(set(ids)):
+            raise ValueError("An add-on appears twice — reload the form")
+        nights = info.data.get("nights")
+        if isinstance(nights, int) and any((a.max_nights or 0) > nights for a in v):
+            raise ValueError(f"A {nights}-night trip can add up to {nights} nights")
         return v
 
 

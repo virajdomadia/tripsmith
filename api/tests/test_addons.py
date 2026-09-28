@@ -199,6 +199,18 @@ def test_the_form_keeps_max_nights_for_a_per_night_add_on_only() -> None:
     assert dropped.max_nights is None
     with pytest.raises(ValidationError):
         AddonInput.model_validate(fields | {"basis": "booking", "pricePaise": 50})  # under ₹1
+    with pytest.raises(ValidationError, match="appears twice"):
+        payload(
+            addons=[
+                {"id": "a1", "name": "Rafting", "pricePaise": 900_00, "basis": "traveller"},
+                {"id": "a1", "name": "Kayak", "pricePaise": 900_00, "basis": "traveller"},
+            ]
+        )
+    with pytest.raises(ValidationError, match="3-night trip can add up to 3 nights"):
+        payload(
+            nights=3,
+            addons=[{"name": "Stay on", "pricePaise": 900_00, "basis": "night", "maxNights": 4}],
+        )
     with pytest.raises(ValidationError, match="share a name"):
         payload(
             addons=[

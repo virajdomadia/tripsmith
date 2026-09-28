@@ -6757,7 +6757,7 @@
                 "type": "null"
               }
             ],
-            "description": "Null once the owner deleted the add-on",
+            "description": "The package add-on it was priced from",
             "title": "Addonid"
           },
           "amountPaise": {

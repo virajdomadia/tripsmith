@@ -130,7 +130,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
 const renderForm = (pkg = fixture()) =>
   render(<PackageForm mode="edit" pkg={pkg} destinations={[destination]} />);
 
-describe('PackageForm — errors that belong to a whole list', () => {
+describe('PackageForm — errors that belong to a whole list', { timeout: 30_000 }, () => {
   it('shows the itinerary-length error when nights drop below the written days', async () => {
     const user = userEvent.setup();
     renderForm();

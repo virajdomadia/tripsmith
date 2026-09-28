@@ -4203,7 +4203,7 @@ export interface components {
         QuoteAddon: {
             /**
              * Addonid
-             * @description Null once the owner deleted the add-on
+             * @description The package add-on it was priced from
              */
             addonId: string | null;
             /**
