@@ -161,8 +161,20 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - Early-bird applies per traveller, children included, never below ₹1, and never on add-ons.
   - It's counted from the booking day in IST.
 - The "from ₹" price and JSON-LD are unchanged. The cron revalidates pages when a tier ends.
-- The seed switches it on for 4 of the 12 packages.
+- The seed switches it on for 4 of the 14 packages.
 - **Accept:** the discount appears and disappears exactly at each threshold in IST.
+- **Decided at row start (Viraj, 2026-09-28):**
+  - **Storage:** five columns on `packages` (migration 0015): `early_bird_on`, `eb1_days` + `eb1_off_paise`, `eb2_days` + `eb2_off_paise`. Tier 2 is optional; when set, tier 1 is further out **and** bigger. A switched-off package keeps its tiers.
+  - **Which tier:** the furthest-out tier that fits applies; tiers never add up. It applies while the IST booking day ≤ departure − N days, so "book by" = departure − N, inclusive.
+  - **When it counts:** at the moment the booking starts (the quote and the hold), the same rule as the deal. A hold started on the last day keeps it through its 10 minutes. The copy says "counted in IST from the day you book".
+  - **Snapshot:** each booking (and each open hold) keeps the early-bird line in its `quote`. The owner may change or switch off a live tier at any time; that changes new quotes only, and the form says so.
+  - **Stacking:** early-bird always stacks with the deal, with no combined cap. Per traveller it comes off what the deal left and never takes that traveller below ₹1. The admin form shows the worst case: deal + tier 1 as ₹ and % of the cheapest double.
+  - **Coupons** are measured on the fare after the deal and the early-bird.
+  - **Later rows:** a date change (P7) keeps the early-bird as a fixed ₹ amount; counter booking (P18) gets it from the same `build_quote`.
+  - **Seed:** Munnar + Alleppey houseboat 90 d −₹1,500 / 45 d −₹750 · Leh, Nubra and Pangong 120 d −₹2,500 / 60 d −₹1,000 · Havelock honeymoon 120 d −₹2,000 / 60 d −₹1,000 · Jaisalmer desert nights 60 d −₹1,000 / 30 d −₹500. Production gets them with `seed.py --early-bird`, which touches nothing else.
+  - **One PR** (migration 0015 + api + web + seed).
+  - **What flips exactly at IST midnight** (added in review): the quote, the Book-now date rows, the ladder and the page's dates table (worked out on the visitor's IST day). The cards' "Early-bird savings" tag is prerendered and moves when the daily cron rebuilds the page, within the hour after midnight. It is a hint; the price always comes from the quote.
+  - **Seed:** a full re-seed sets tiers only on packages it creates. On an existing package they are the owner's, like a deal.
 
 ## Customer — after booking
 

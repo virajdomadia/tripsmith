@@ -15,7 +15,7 @@ import { api, ApiRequestError } from '@/lib/api';
 import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { ExtrasPanel } from '@/components/site/account/ExtrasPanel';
-import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
+import { isDiscountLine, lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { duration, formatDate, inr } from '@/lib/format';
 
@@ -143,13 +143,13 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               {b.quote.lines.map((l) => (
                 <div
                   key={`${l.kind}-${l.occupancy}`}
-                  className={`flex justify-between gap-3 ${l.kind === 'deal' ? 'font-bold text-ok' : ''}`}
+                  className={`flex justify-between gap-3 ${isDiscountLine(l) ? 'font-bold text-ok' : ''}`}
                 >
-                  <span className={l.kind === 'deal' ? '' : 'text-ink2'}>
+                  <span className={isDiscountLine(l) ? '' : 'text-ink2'}>
                     {lineLabel(l, b.quote.deal?.label)} · {l.count} × {l.unitPaise < 0 ? '−' : ''}
                     {inr(Math.abs(l.unitPaise))}
                   </span>
-                  <span className="num">
+                  <span className="num shrink-0 whitespace-nowrap">
                     {l.amountPaise < 0 ? '−' : ''}
                     {inr(Math.abs(l.amountPaise))}
                   </span>
@@ -160,7 +160,9 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   <span>
                     Coupon <span className="font-mono tracking-wide">{b.quote.coupon.code}</span>
                   </span>
-                  <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
+                  <span className="num shrink-0 whitespace-nowrap">
+                    −{inr(b.quote.coupon.offPaise)}
+                  </span>
                 </div>
               )}
               <BookedAddons quote={b.quote} addons={b.addons ?? []} />

@@ -12,9 +12,14 @@ ignored. The cached `starting_price_paise` skips sold-out dates, so it rises whi
 the cheap date — reading it would let anyone widen the discount by holding seats and walking
 away (the lapse fires no event, so it would stay wide until the daily cron).
 
-A coupon (B15) comes after the deal and is taken off the trip fare once: a flat ₹ amount, or a
-% of the fare after the deal, capped, rounded down to the rupee. It never takes the fare below
-₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
+Early-bird (R47, P17) comes after the deal: the package's furthest-out tier that the IST booking
+day still reaches (booked on or before departure − N days) takes its ₹ off each traveller, from
+what the deal left and never below ₹1 each. Tiers never add up. Like the deal it is judged at
+`now` — the quote and the hold — and the booking keeps the line in its snapshot.
+
+A coupon (B15) comes after the deal and the early-bird and is taken off the trip fare once: a
+flat ₹ amount, or a % of the fare after both, capped, rounded down to the rupee. It never takes
+the fare below ₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
 `services/booking/coupons.py`; `apply_coupon` only does the sum.
 
 Add-ons (R46, P8) are priced here from the package's switched-on add-ons and added after every
@@ -31,22 +36,27 @@ from app.models import Coupon, Departure, Package, PackageAddon
 from app.models.enums import AddonBasis, CouponKind, Occupancy
 from app.schemas.bookings import (
     AddonChoice,
+    LadderRung,
     Quote,
     QuoteAddon,
     QuoteCoupon,
     QuoteDeal,
+    QuoteEarlyBird,
     QuoteLine,
     QuoteLineKind,
     QuoteTraveller,
     UnbookableReason,
 )
 from app.services.analytics import ist_today
+from app.services.email.render import IST
 
 MIN_DAYS_AHEAD = 2
 MIN_TOTAL_PAISE = 100  # Razorpay's smallest order, ₹1
 RUPEE = 100
-# Line order on the breakdown; the deal lines follow in the same occupancy order.
+# Line order on the breakdown; the deal lines, then the early-bird lines, follow in the same
+# occupancy order.
 ORDER = (Occupancy.DOUBLE, Occupancy.TRIPLE, Occupancy.SINGLE, Occupancy.CHILD)
+DISCOUNTS = (QuoteLineKind.DEAL, QuoteLineKind.EARLY_BIRD)
 
 
 def unbookable_reason(
@@ -70,8 +80,27 @@ def deal_off(pkg: Package, *, base: int, now: dt.datetime) -> int:
     return base - deal
 
 
+def early_bird_tiers(pkg: Package) -> list[tuple[int, int]]:
+    """The package's tiers as (days, off per traveller), furthest out first; [] when switched
+    off. The table's checks keep tier 2 behind tier 1."""
+    if not pkg.early_bird_on:
+        return []
+    tiers = [(pkg.eb1_days, pkg.eb1_off_paise), (pkg.eb2_days, pkg.eb2_off_paise)]
+    return [(days, off) for days, off in tiers if days and off]
+
+
+def early_bird_for(pkg: Package, *, date: dt.date, today: dt.date) -> QuoteEarlyBird | None:
+    """The tier a booking made on IST `today` earns for a departure on `date`, or None."""
+    for tier, (days, off) in enumerate(early_bird_tiers(pkg), start=1):
+        book_by = date - dt.timedelta(days=days)
+        if today <= book_by:
+            return QuoteEarlyBird(tier=tier, days=days, per_traveller_paise=off, book_by=book_by)
+    return None
+
+
 def coupon_off(coupon: Coupon, amount_paise: int) -> int:
-    """What the coupon takes off `amount_paise` (the total after the deal), in whole rupees."""
+    """What the coupon takes off `amount_paise` (the fare after the deal and the early-bird), in
+    whole rupees."""
     if coupon.kind == CouponKind.FLAT:
         off = coupon.amount_paise or 0
     else:
@@ -196,13 +225,25 @@ def build_quote(
 
     off = deal_off(pkg, base=deal_base, now=now)
     deal: QuoteDeal | None = None
+    dealt = dict.fromkeys(ORDER, 0)  # the deal per traveller, by occupancy
     if off:
         assert pkg.deal_ends_at is not None  # deal_off is 0 without it
         deal = QuoteDeal(label=pkg.deal_label, ends_at=pkg.deal_ends_at, per_traveller_paise=off)
         for occ in ORDER:
             if counts[occ]:
-                line(QuoteLineKind.DEAL, occ, -min(off, unit_price(dep, occ)))
-    discount = -sum(li.amount_paise for li in lines if li.kind == QuoteLineKind.DEAL)
+                dealt[occ] = min(off, unit_price(dep, occ))
+                line(QuoteLineKind.DEAL, occ, -dealt[occ])
+
+    early_bird = early_bird_for(pkg, date=dep.date, today=ist_today(now))
+    if early_bird:
+        for occ in ORDER:
+            left = unit_price(dep, occ) - dealt[occ] - MIN_TOTAL_PAISE  # ₹1 each stays
+            each = min(early_bird.per_traveller_paise, max(0, left))
+            if counts[occ] and each:
+                line(QuoteLineKind.EARLY_BIRD, occ, -each)
+        if not any(li.kind == QuoteLineKind.EARLY_BIRD for li in lines):
+            early_bird = None  # the deal already took every traveller to ₹1 or less
+    discount = -sum(li.amount_paise for li in lines if li.kind in DISCOUNTS)
     extras = sum(a.amount_paise for a in addons)
 
     return Quote(
@@ -212,10 +253,69 @@ def build_quote(
         seats_left=seats_left,
         lines=lines,
         deal=deal,
+        early_bird=early_bird,
         coupon=None,
         addons=list(addons),
+        ladder=[],
         subtotal_paise=subtotal,
         discount_paise=discount,
         addons_paise=extras,
         total_paise=subtotal - discount + extras,
     )
+
+
+def start_of_ist_day(day: dt.date) -> dt.datetime:
+    """00:00 IST on `day`, in UTC: the first instant a booking counts as made that day."""
+    return dt.datetime.combine(day, dt.time(), IST).astimezone(dt.UTC)
+
+
+def price_ladder(
+    dep: Departure,
+    pkg: Package,
+    travellers: Sequence[QuoteTraveller],
+    today_quote: Quote,
+    *,
+    deal_base: int,
+    now: dt.datetime,
+    coupon: Coupon | None = None,
+) -> list[LadderRung]:
+    """R47's ladder: today's trip fare, then the fare from the day after each tier that is still
+    running ends — the same party re-priced on that IST day, deal and coupon included, add-ons
+    left out. Days on which the date can no longer be booked online are skipped. [] when the
+    package has no early-bird. A deal that ends before a rung is gone from it (`deal` says so,
+    and the ladder names it); the deal base and the coupon's terms are today's."""
+    tiers = early_bird_tiers(pkg)
+    if not tiers:
+        return []
+    rungs = [
+        LadderRung(
+            from_on=None,
+            early_bird=today_quote.early_bird,
+            deal=today_quote.deal is not None,
+            fare_paise=today_quote.fare_paise,
+        )
+    ]
+    today, last = ist_today(now), dep.date - dt.timedelta(days=MIN_DAYS_AHEAD)
+    for days, _off in tiers:
+        day = dep.date - dt.timedelta(days=days) + dt.timedelta(days=1)
+        if not today < day <= last:
+            continue
+        later = build_quote(
+            dep,
+            pkg,
+            travellers,
+            seats_left=today_quote.seats_left,
+            deal_base=deal_base,
+            now=start_of_ist_day(day),
+        )
+        if coupon is not None:
+            later = apply_coupon(later, coupon)
+        rungs.append(
+            LadderRung(
+                from_on=day,
+                early_bird=later.early_bird,
+                deal=later.deal is not None,
+                fare_paise=later.fare_paise,
+            )
+        )
+    return rungs

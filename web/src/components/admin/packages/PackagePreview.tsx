@@ -27,7 +27,7 @@ export const LABEL: Record<SectionKey, string> = {
   highlights: 'Highlights',
   itinerary: 'Day by day',
   prices: 'Dates and prices',
-  deal: 'Deal',
+  deal: 'Deal & early bird',
   addons: 'Add-ons',
   stays: 'Hotels',
   included: 'Included, not included, FAQ',

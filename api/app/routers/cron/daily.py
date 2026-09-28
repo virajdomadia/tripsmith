@@ -12,7 +12,9 @@ IST midnight, so `ist_today()` is the new day:
 5. (B12) revalidate the pages of packages whose deal ended (at IST midnight), so the
    strikethrough leaves the prerendered pages without a deploy;
 6. (P13) send again any Razorpay refund stuck `requested` for over an hour without a Razorpay
-   id (a process that died mid-call) — under the same idempotency key, so never twice.
+   id (a process that died mid-call) — under the same idempotency key, so never twice;
+7. (P17) revalidate the pages of packages where an early-bird tier ended at IST midnight, so the
+   "Early-bird savings" tag and the date labels move on without a deploy.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -34,6 +36,7 @@ from app.services.booking.sweep import sweep_bookings
 from app.services.catalog.admin_packages import (
     recompute_all_starting_prices,
     revalidate_ended_deals,
+    revalidate_ended_early_birds,
 )
 from app.services.pdf.service import PdfService
 
@@ -60,4 +63,5 @@ async def daily(
         bookings_completed=swept.completed,
         deals_ended=ended,
         refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
+        early_birds_ended=await revalidate_ended_early_birds(db, today=today),
     )

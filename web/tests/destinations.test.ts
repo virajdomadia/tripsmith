@@ -42,6 +42,7 @@ describe('destinationJsonLd', () => {
     days: 5,
     startingPricePaise: 21_999_00,
     deal: null,
+    earlyBird: false,
     themes,
     coverUrl: 'https://blob.test/x.jpg',
     highlights: ['a'],

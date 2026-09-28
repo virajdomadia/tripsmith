@@ -27,6 +27,8 @@ import {
   type TravellerInput,
   unbookableReason,
 } from '@/lib/booking';
+import type { Deal } from '@/lib/deal';
+import type { EarlyBird } from '@/lib/early-bird';
 import { formatDate } from '@/lib/format';
 import { type CheckoutSuccess, loadCheckout, openCheckout } from '@/lib/razorpay-checkout';
 
@@ -39,6 +41,9 @@ export type BookingPackage = {
   departures: Departure[];
   /** R46 (P8): the switched-on add-ons, in the owner's order. */
   addons: Addon[];
+  /** The running deal and (P17) the early-bird tiers, for the date rows' prices and labels. */
+  deal: Deal | null;
+  earlyBird: EarlyBird | null;
 };
 
 /**

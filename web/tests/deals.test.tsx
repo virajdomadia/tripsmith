@@ -32,6 +32,7 @@ const card = (over: Partial<Card> = {}): Card => ({
   days: 4,
   startingPricePaise: 14_499_00,
   deal: null,
+  earlyBird: false,
   themes: ['beach'],
   coverUrl: 'https://blob.test/cover.jpg',
   highlights: ['Sunset from Chapora Fort'],

@@ -65,6 +65,7 @@ from app.services.booking.pricing import (
     apply_coupon,
     build_quote,
     price_addons,
+    price_ladder,
     unbookable_reason,
 )
 from app.services.enquiries import REF_ALPHABET
@@ -170,12 +171,14 @@ async def quote_booking(
     quote = build_quote(
         dep, pkg, req.travellers, seats_left=seats, deal_base=base, now=now, addons=addons
     )
+    coupon = None
     if req.coupon_code:
         coupon = await coupons.check(
             db, req.coupon_code, pkg, quote, email=req.email, now=now, lock=False
         )
         quote = apply_coupon(quote, coupon)
-    return quote
+    ladder = price_ladder(dep, pkg, req.travellers, quote, deal_base=base, now=now, coupon=coupon)
+    return quote.model_copy(update={"ladder": ladder})
 
 
 async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:

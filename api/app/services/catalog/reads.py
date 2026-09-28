@@ -30,7 +30,7 @@ from app.schemas.catalog import (
     PackageDetail,
 )
 from app.services.analytics import ist_today
-from app.services.catalog import deals
+from app.services.catalog import deals, early_bird
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
@@ -142,8 +142,11 @@ async def _related(
     )
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
+    savings = await early_bird.with_savings(db, today)
     cards = {
-        p.id: package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+        p.id: package_card(
+            p, upcoming.get(p.id), deal_base=base.get(p.id, 0), early_bird=p.id in savings, now=now
+        )
         for p in candidates
     }
     shown = {id: c.deal.price_paise for id, c in cards.items() if c.deal}
@@ -184,6 +187,7 @@ async def get_package(
         departure_city=p.departure_city,
         starting_price_paise=p.starting_price_paise,
         deal=deals.deal_for(p, base, now),
+        early_bird=early_bird.early_bird_out(p),
         highlights=list(p.highlights),
         inclusions=list(p.inclusions),
         exclusions=list(p.exclusions),
@@ -299,6 +303,7 @@ async def get_destination(
         return None
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
+    savings = await early_bird.with_savings(db, today)
     return DestinationDetail(
         slug=d.slug,
         name=d.name,
@@ -308,7 +313,13 @@ async def get_destination(
         region=d.region,
         best_months=list(d.best_months),
         packages=[
-            package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now)
+            package_card(
+                p,
+                upcoming.get(p.id),
+                deal_base=base.get(p.id, 0),
+                early_bird=p.id in savings,
+                now=now,
+            )
             for p in packages
         ],
     )

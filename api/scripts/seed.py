@@ -26,6 +26,12 @@ packages, from today for a year, limit 1,000, one use per email:
 Re-running it restores those terms (and switches it back on) but never touches its uses, which
 are counted from bookings. A full seed never runs it.
 
+`--early-bird` (P17) writes only the early-bird tiers of the packages the content gives tiers
+(switching them on); nothing else is touched. A full seed sets tiers only on packages it creates:
+on an existing one they are the owner's, like a deal. Redeploy the web afterwards:
+
+    uv run python scripts/seed.py --early-bird --database-url …
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -167,6 +173,7 @@ async def _seed_package(
     row = (
         await db.execute(select(Package).where(Package.slug == content.slug))
     ).scalar_one_or_none()
+    new = row is None
     if row is None:
         row = Package(slug=content.slug)
         db.add(row)
@@ -184,6 +191,8 @@ async def _seed_package(
     row.faq = [f.model_dump() for f in content.faq]
     row.status = content.status
     row.featured = content.featured
+    if new:  # the owner has not set any tiers on a package the seed just created
+        _set_early_bird(row, content)
     # "min live-departure price": departures already gone do not set the "from ₹" figure.
     row.starting_price_paise = starting_price(
         _Priced(d.seats_total, d.guaranteed, d.price_double_inr * 100)
@@ -473,6 +482,39 @@ async def seed_demo_traveller(
     return result
 
 
+def _set_early_bird(row: Package, content: PackageContent) -> None:
+    """The content's tiers (R47): switched on when it lists any, off and cleared otherwise."""
+    tiers: list[tuple[int | None, int | None]] = [
+        (t.days, t.off_inr * 100) for t in content.early_bird
+    ]
+    tiers += [(None, None)] * (2 - len(tiers))
+    row.early_bird_on = bool(content.early_bird)
+    (row.eb1_days, row.eb1_off_paise), (row.eb2_days, row.eb2_off_paise) = tiers
+
+
+async def seed_early_bird(db: AsyncSession, content: Content) -> SeedResult:
+    """Just the early-bird tiers (R47, P17), for a database that already has its packages —
+    production after migration 0015. Only the packages the content gives tiers are written;
+    every other package, and every other field, is left as it is. Like `--addons` it does not
+    revalidate: redeploy the web afterwards."""
+    result = SeedResult()
+    written = 0
+    for src in content.packages:
+        if not src.early_bird:
+            continue
+        row = (
+            await db.execute(select(Package).where(Package.slug == src.slug))
+        ).scalar_one_or_none()
+        if row is None:
+            result.warnings.append(f"{src.slug}: not in this database — skipped")
+            continue
+        _set_early_bird(row, src)
+        written += 1
+    await db.commit()
+    result.counts["early_bird"] = written
+    return result
+
+
 DEMO_COUPON = "WELCOME10"
 
 
@@ -678,6 +720,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="seed just the packages' add-ons (P8); leaves everything else untouched",
     )
     parser.add_argument(
+        "--early-bird",
+        action="store_true",
+        help="seed just the packages' early-bird tiers (P17); leaves everything else untouched",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -694,11 +741,14 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.addons:  # needs no photo store: it only points at images already uploaded
+    if args.addons or args.early_bird:  # no photo store: nothing is uploaded
         engine = make_engine(url)
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-                result = await seed_addons(db, load_content())
+                if args.early_bird:
+                    result = await seed_early_bird(db, load_content())
+                else:
+                    result = await seed_addons(db, load_content())
         finally:
             await engine.dispose()
         for key, value in result.counts.items():

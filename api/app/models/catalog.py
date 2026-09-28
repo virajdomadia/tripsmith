@@ -50,6 +50,20 @@ class Package(IdMixin, TimestampsMixin, Base):
     __tablename__ = "packages"
     __table_args__ = (
         CheckConstraint("days = nights + 1", name="days_is_nights_plus_one"),
+        # 0015: the early-bird tiers' shape (see the migration).
+        CheckConstraint("(eb1_days IS NULL) = (eb1_off_paise IS NULL)", name="eb1_pair"),
+        CheckConstraint("(eb2_days IS NULL) = (eb2_off_paise IS NULL)", name="eb2_pair"),
+        CheckConstraint(
+            "(eb1_days IS NULL OR (eb1_days > 0 AND eb1_off_paise > 0)) "
+            "AND (eb2_days IS NULL OR (eb2_days > 0 AND eb2_off_paise > 0))",
+            name="eb_positive",
+        ),
+        CheckConstraint(
+            "eb2_days IS NULL OR (eb1_days IS NOT NULL AND eb2_days < eb1_days "
+            "AND eb2_off_paise < eb1_off_paise)",
+            name="eb2_after_eb1",
+        ),
+        CheckConstraint("NOT early_bird_on OR eb1_days IS NOT NULL", name="eb_on_needs_tier"),
         Index("ix_packages_destination_id_status", "destination_id", "status"),
         Index("ix_packages_status_featured", "status", "featured"),
         Index("ix_packages_themes", "themes", postgresql_using="gin"),
@@ -94,6 +108,13 @@ class Package(IdMixin, TimestampsMixin, Base):
     deal_price_paise: Mapped[int | None] = mapped_column(Integer)  # ⏩ v2
     deal_label: Mapped[str | None] = mapped_column(Text)  # ⏩ v2
     deal_ends_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # ⏩ v2
+    # 0015 (P17, R47): early-bird tiers — ₹ off per traveller when booked N+ days out (IST).
+    # Tier 2 is optional and sits behind tier 1: fewer days, less off. Switched off keeps them.
+    early_bird_on: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    eb1_days: Mapped[int | None] = mapped_column(SmallInteger)
+    eb1_off_paise: Mapped[int | None] = mapped_column(Integer)
+    eb2_days: Mapped[int | None] = mapped_column(SmallInteger)
+    eb2_off_paise: Mapped[int | None] = mapped_column(Integer)
     rating_avg: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))  # ⏩ v2 reviews
     rating_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # ⏩ v2
 

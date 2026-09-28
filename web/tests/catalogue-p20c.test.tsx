@@ -40,6 +40,7 @@ const row = (over: Partial<AdminPackageRow> = {}): AdminPackageRow => ({
   dealEndsOn: null,
   dealState: 'none',
   dealBasePaise: 1_499_900,
+  earlyBirdOn: false,
   departureCount: 4,
   recentEnquiryCount: 11,
   status: 'live',

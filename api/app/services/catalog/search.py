@@ -29,7 +29,7 @@ from app.schemas.catalog import (
 )
 from app.schemas.meta import THEME_LABELS
 from app.services.analytics import ist_today
-from app.services.catalog import deals
+from app.services.catalog import deals, early_bird
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.reads import month_bounds
@@ -217,7 +217,11 @@ async def search_packages(
     )
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
+    savings = await early_bird.with_savings(db, today)
     items = [
-        package_card(p, upcoming.get(p.id), deal_base=base.get(p.id, 0), now=now) for p in packages
+        package_card(
+            p, upcoming.get(p.id), deal_base=base.get(p.id, 0), early_bird=p.id in savings, now=now
+        )
+        for p in packages
     ]
     return PackageList(items=items, total=len(items), facets=await search_facets(db, today, now))

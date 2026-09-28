@@ -2029,6 +2029,8 @@ export interface components {
             destination: components["schemas"]["DestinationRef"];
             /** Destinationid */
             destinationId: string;
+            /** @description P17 */
+            earlyBird: components["schemas"]["EarlyBirdAdmin"];
             /**
              * Editedat
              * Format: date-time
@@ -2111,6 +2113,11 @@ export interface components {
              */
             departureCount: number;
             destination: components["schemas"]["DestinationRef"];
+            /**
+             * Earlybirdon
+             * @description P17: early-bird switched on
+             */
+            earlyBirdOn: boolean;
             /** Featured */
             featured: boolean;
             /** Id */
@@ -3078,6 +3085,69 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** EarlyBirdAdmin */
+        EarlyBirdAdmin: {
+            /** On */
+            on: boolean;
+            /**
+             * Tiers
+             * @description Saved tiers, even while switched off
+             */
+            tiers: components["schemas"]["EarlyBirdTierOut"][];
+        };
+        /**
+         * EarlyBirdInput
+         * @description The package form's early-bird (R47, P17). Switched off keeps the tiers for next time.
+         */
+        EarlyBirdInput: {
+            /**
+             * On
+             * @default false
+             */
+            on: boolean;
+            /**
+             * Tiers
+             * @description Furthest out first
+             */
+            tiers?: components["schemas"]["EarlyBirdTierInput"][];
+        };
+        /** EarlyBirdOut */
+        EarlyBirdOut: {
+            /**
+             * Tiers
+             * @description 1 or 2, furthest out first; the first a booking day reaches applies
+             */
+            tiers: components["schemas"]["EarlyBirdTierOut"][];
+        };
+        /** EarlyBirdTierInput */
+        EarlyBirdTierInput: {
+            /**
+             * Days
+             * @description Applies when booked this many days or more before departure (IST)
+             */
+            days: number;
+            /**
+             * Offpaise
+             * @description Per traveller, whole rupees
+             */
+            offPaise: number;
+        };
+        /**
+         * EarlyBirdTierOut
+         * @description One early-bird tier (R47): ₹ off per traveller when booked `days`+ days before departure.
+         */
+        EarlyBirdTierOut: {
+            /**
+             * Days
+             * @example 90
+             */
+            days: number;
+            /**
+             * Offpaise
+             * @example 150000
+             */
+            offPaise: number;
+        };
         /**
          * EmailStatus
          * @enum {string}
@@ -3643,6 +3713,27 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * LadderRung
+         * @description One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`
+         *     on — deal, early-bird and coupon applied, add-ons left out.
+         */
+        LadderRung: {
+            /**
+             * Deal
+             * @description A deal still runs from that day (one may end first)
+             */
+            deal: boolean;
+            /** @description The tier still running from that day */
+            earlyBird: components["schemas"]["QuoteEarlyBird"] | null;
+            /** Farepaise */
+            farePaise: number;
+            /**
+             * Fromon
+             * @description Null = booked today
+             */
+            fromOn: string | null;
+        };
         /** Limits */
         Limits: {
             /**
@@ -4027,6 +4118,11 @@ export interface components {
              * @description Destination display name
              */
             destination: string;
+            /**
+             * Earlybird
+             * @description P17: a date bookable today (seats, price) still earns an early-bird tier
+             */
+            earlyBird: boolean;
             /** Highlights */
             highlights: string[];
             /** Name */
@@ -4076,6 +4172,8 @@ export interface components {
              */
             departures: components["schemas"]["DepartureOut"][];
             destination: components["schemas"]["DestinationRef"];
+            /** @description P17: the tiers; null when switched off. A date earns the first tier with IST today ≤ date − days */
+            earlyBird: components["schemas"]["EarlyBirdOut"] | null;
             /** Exclusions */
             exclusions: string[];
             /** Faq */
@@ -4161,6 +4259,8 @@ export interface components {
             departures?: components["schemas"]["DepartureInput"][];
             /** Destinationid */
             destinationId: string;
+            /** @description P17; omitted = left as saved (a new package: off, no tiers) */
+            earlyBird?: components["schemas"]["EarlyBirdInput"] | null;
             /** Exclusions */
             exclusions?: string[];
             /**
@@ -4347,9 +4447,16 @@ export interface components {
             departureId: string;
             /**
              * Discountpaise
-             * @description The deal lines' total plus the coupon, as a positive number; never touches the add-ons
+             * @description The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons
              */
             discountPaise: number;
+            /** @description P17: null when no tier applies */
+            earlyBird: components["schemas"]["QuoteEarlyBird"] | null;
+            /**
+             * Ladder
+             * @description P17: today's fare, then the fare from the day after each running tier ends; only on `quoteBooking` (a booking's snapshot has none)
+             */
+            ladder: components["schemas"]["LadderRung"][];
             /** Lines */
             lines: components["schemas"]["QuoteLine"][];
             /** Packageslug */
@@ -4358,7 +4465,7 @@ export interface components {
             seatsLeft: number;
             /**
              * Subtotalpaise
-             * @description The trip fare before the deal and the coupon
+             * @description The trip fare before its discounts
              */
             subtotalPaise: number;
             /**
@@ -4410,7 +4517,7 @@ export interface components {
             code: string;
             /**
              * Offpaise
-             * @description Off the whole booking, after the deal; whole rupees
+             * @description Off the trip fare, after the deal and the early-bird; whole rupees
              */
             offPaise: number;
         };
@@ -4429,6 +4536,34 @@ export interface components {
              */
             perTravellerPaise: number;
         };
+        /**
+         * QuoteEarlyBird
+         * @description The early-bird tier this booking day earns (R47, P17).
+         */
+        QuoteEarlyBird: {
+            /**
+             * Bookby
+             * Format: date
+             * @description The last IST day this tier applies: departure − days
+             */
+            bookBy: string;
+            /**
+             * Days
+             * @description Booked this many days or more before departure, IST
+             */
+            days: number;
+            /**
+             * Pertravellerpaise
+             * @description The tier's ₹ off per traveller, before any cap
+             */
+            perTravellerPaise: number;
+            /**
+             * Tier
+             * @description 1 or 2
+             * @example 1
+             */
+            tier: number;
+        };
         /** QuoteLine */
         QuoteLine: {
             /**
@@ -4446,7 +4581,7 @@ export interface components {
             occupancy: components["schemas"]["Occupancy"];
             /**
              * Unitpaise
-             * @description Per traveller; negative on a deal line
+             * @description Per traveller; negative on a deal or early-bird line
              */
             unitPaise: number;
         };
@@ -4454,7 +4589,7 @@ export interface components {
          * QuoteLineKind
          * @enum {string}
          */
-        QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal";
+        QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal" | "early_bird";
         /** QuoteRequest */
         QuoteRequest: {
             /**

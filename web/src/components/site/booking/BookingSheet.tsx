@@ -31,6 +31,7 @@ import { MakeItYours } from './MakeItYours';
 import { DeparturePicker } from './DeparturePicker';
 import { PartyBuilder } from './PartyBuilder';
 import { PriceBreakdown } from './PriceBreakdown';
+import { PriceLadder } from './PriceLadder';
 import { type BookingFlow, type BookingPackage, useBooking } from './use-booking';
 
 gsap.registerPlugin(useGSAP);
@@ -193,7 +194,8 @@ export function BookingSheet({
                   </p>
                 )}
                 <Step n={1} title="Pick a date" done={done.date}>
-                  <DeparturePicker flow={flow} slug={pkg.slug} />
+                  <DeparturePicker flow={flow} pkg={pkg} />
+                  <PriceLadder flow={flow} />
                 </Step>
                 <Step n={2} title="Who’s travelling" done={done.party}>
                   <PartyBuilder flow={flow} />

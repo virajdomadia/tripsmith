@@ -242,12 +242,18 @@ export const OCCUPANCY_LABEL: Record<Occupancy, string> = {
 };
 
 /** The words for one server line; the numbers beside it are the server's. */
+/** A discount line (deal or early-bird, P17): negative, shown in green. */
+export const isDiscountLine = (line: QuoteLine) =>
+  line.kind === 'deal' || line.kind === 'early_bird';
+
 export function lineLabel(line: QuoteLine, dealLabel?: string | null): string {
   switch (line.kind) {
     case 'single_supplement':
       return 'Single supplement';
     case 'deal':
       return `${dealLabel || 'Deal'} · ${OCCUPANCY_LABEL[line.occupancy].toLowerCase()}`;
+    case 'early_bird':
+      return `Early bird · ${OCCUPANCY_LABEL[line.occupancy].toLowerCase()}`;
     default:
       return OCCUPANCY_LABEL[line.occupancy];
   }

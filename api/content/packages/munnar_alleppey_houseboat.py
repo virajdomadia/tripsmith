@@ -204,4 +204,9 @@ PACKAGE = define_package(
     ],
     status="live",
     featured=True,
+    # R47 (P17): early-bird, furthest tier first.
+    early_bird=[
+        {"days": 90, "off_inr": 1_500},
+        {"days": 45, "off_inr": 750},
+    ],
 )

@@ -11,10 +11,16 @@ from app.services.reviews import rating_out
 
 
 def package_card(
-    p: Package, availability: Availability | None, *, deal_base: int = 0, now: dt.datetime
+    p: Package,
+    availability: Availability | None,
+    *,
+    deal_base: int = 0,
+    early_bird: bool = False,
+    now: dt.datetime,
 ) -> PackageCard:
     """`p.destination` and `p.cover_image` must be loaded (selectinload) by the caller;
-    `deal_base` is the package's entry in `deals.bases` (0 = no deal can show)."""
+    `deal_base` is the package's entry in `deals.bases` (0 = no deal can show), `early_bird`
+    whether it is in `early_bird.with_savings`."""
     return PackageCard(
         slug=p.slug,
         name=p.name,
@@ -27,5 +33,6 @@ def package_card(
         highlights=list(p.highlights),
         badge=badge_for(availability) if availability else None,
         deal=deal_for(p, deal_base, now),
+        early_bird=early_bird,
         rating=rating_out(p.rating_avg, p.rating_count),
     )

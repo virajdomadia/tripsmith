@@ -43,6 +43,7 @@ const card: components['schemas']['PackageCard'] = {
   days: 4,
   startingPricePaise: 1449900,
   deal: null,
+  earlyBird: false,
   themes: ['beach'],
   coverUrl: 'https://blob.test/cover.jpg',
   highlights: ['Sunset from Chapora Fort'],

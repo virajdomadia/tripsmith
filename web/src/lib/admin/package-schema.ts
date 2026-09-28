@@ -30,6 +30,27 @@ const numberField = (message: string, min: number, max: number) =>
 
 const paise = (label: string) => numberField(`${label} must be a whole amount`, 0, PRICE_MAX_PAISE);
 
+/** A blank-able whole number (the early-bird boxes): '' → null, else an int in range. */
+const optionalInt = (message: string, min: number, max: number) =>
+  z.preprocess(
+    (v: number | string | null | undefined) => (v === '' || v == null ? null : v),
+    z.coerce
+      .number<number | string>({ error: message })
+      .int(message)
+      .min(min, message)
+      .max(max, message)
+      .nullable(),
+  );
+
+/** R47 (P17), word for word the api's `EarlyBirdInput` where both check the same thing. */
+export const EB_DAYS_MIN = 3; // online booking closes 2 days out
+export const EB_DAYS_MAX = 365;
+export const EB_DAYS_MESSAGE = `Days before departure, ${EB_DAYS_MIN}–${EB_DAYS_MAX}`;
+export const EB_OFF_MESSAGE = 'Amount off must be at least ₹1';
+export const EB_NEEDS_TIER = 'Add a tier, or switch early-bird off';
+export const EB_TIER2_NEARER = 'Tier 2 must end nearer the date than tier 1 — give it fewer days';
+export const EB_TIER2_LESS = 'Tier 2 must take off less than tier 1';
+
 /** The one-entry-per-line editors: trim, then drop the blanks. */
 const lines = z.array(z.string()).transform((xs) => xs.map((s) => s.trim()).filter(Boolean));
 
@@ -153,6 +174,12 @@ export const packageSchema = z
       .regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Pick a date')
       .nullish()
       .transform((s) => s || null),
+    /** P17: the switch and up to two tiers; the ₹ boxes hold paise like the deal's. */
+    ebOn: z.boolean().default(false),
+    eb1Days: optionalInt(EB_DAYS_MESSAGE, EB_DAYS_MIN, EB_DAYS_MAX),
+    eb1OffPaise: optionalInt(EB_OFF_MESSAGE, 100, PRICE_MAX_PAISE),
+    eb2Days: optionalInt(EB_DAYS_MESSAGE, EB_DAYS_MIN, EB_DAYS_MAX),
+    eb2OffPaise: optionalInt(EB_OFF_MESSAGE, 100, PRICE_MAX_PAISE),
   })
   .superRefine((v, ctx) => {
     // Price and end date together or not at all; a label needs both. The price-vs-starting-
@@ -166,6 +193,25 @@ export const packageSchema = z
     if (v.dealLabel && v.dealPricePaise === null && !v.dealEndsOn) {
       ctx.addIssue({ code: 'custom', path: ['dealLabel'], message: DEAL_LABEL_ALONE });
     }
+    // Early-bird: each tier's two boxes together; tier 2 only after tier 1, nearer and smaller.
+    const pairs = [
+      ['eb1Days', 'eb1OffPaise', v.eb1Days, v.eb1OffPaise],
+      ['eb2Days', 'eb2OffPaise', v.eb2Days, v.eb2OffPaise],
+    ] as const;
+    for (const [dayKey, offKey, d, off] of pairs) {
+      if (d !== null && off === null)
+        ctx.addIssue({ code: 'custom', path: [offKey], message: 'Add the amount off' });
+      if (off !== null && d === null)
+        ctx.addIssue({ code: 'custom', path: [dayKey], message: 'Add the days before departure' });
+    }
+    if (v.ebOn && v.eb1Days === null && v.eb1OffPaise === null)
+      ctx.addIssue({ code: 'custom', path: ['eb1Days'], message: EB_NEEDS_TIER });
+    if (v.eb2Days !== null && v.eb1Days === null && v.eb1OffPaise === null)
+      ctx.addIssue({ code: 'custom', path: ['eb1Days'], message: 'Fill tier 1 first' });
+    if (v.eb1Days !== null && v.eb2Days !== null && v.eb2Days >= v.eb1Days)
+      ctx.addIssue({ code: 'custom', path: ['eb2Days'], message: EB_TIER2_NEARER });
+    if (v.eb1OffPaise !== null && v.eb2OffPaise !== null && v.eb2OffPaise >= v.eb1OffPaise)
+      ctx.addIssue({ code: 'custom', path: ['eb2OffPaise'], message: EB_TIER2_LESS });
     const days = v.nights + 1;
     if (v.itinerary.length > days) {
       ctx.addIssue({
@@ -279,6 +325,11 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   dealPricePaise: '',
   dealLabel: '',
   dealEndsOn: '',
+  ebOn: false,
+  eb1Days: '',
+  eb1OffPaise: '',
+  eb2Days: '',
+  eb2OffPaise: '',
 });
 
 /** The exact wire body; a separate step so a schema tweak cannot silently send extra fields. */
@@ -306,5 +357,14 @@ export function toInput(v: PackageFormValues): PackageInput {
     dealPricePaise: v.dealPricePaise,
     dealLabel: v.dealLabel,
     dealEndsOn: v.dealEndsOn,
+    earlyBird: {
+      on: v.ebOn,
+      tiers: [
+        [v.eb1Days, v.eb1OffPaise],
+        [v.eb2Days, v.eb2OffPaise],
+      ].flatMap(([days, offPaise]) =>
+        days != null && offPaise != null ? [{ days, offPaise }] : [],
+      ),
+    },
   };
 }
