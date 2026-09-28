@@ -76,7 +76,7 @@ export function lifecycle(b: AdminBooking): Step[] {
     name: 'Departs',
     state,
     at: `${b.departs}T00:00:00+05:30`,
-    kinds: [],
+    kinds: ['order.extras', 'addon.removed'], // P8b: extras bought or taken off before departure
   });
   const asked = b.cancellation;
   const askedStep = (state: StepState): Step => ({

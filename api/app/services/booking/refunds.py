@@ -133,6 +133,31 @@ def reason_for(booking: Booking) -> Reason:
     return "surplus"
 
 
+RESENT_AS_IS: tuple[Reason, ...] = ("addon", "owner", "date_change", "balance")
+
+
+async def _resend_reason(db: AsyncSession, booking: Booking) -> Reason:
+    """The reason for money the desk sends again after a failure: the failed refund's own when
+    it was one that credits an invoice (P8b: an add-on taken off keeps its credit note), else
+    what the booking's state says."""
+    failed = (
+        await db.execute(
+            select(Refund.reason)
+            .where(
+                Refund.booking_id == booking.id,
+                Refund.status == RefundStatus.FAILED,
+                Refund.reason.in_(RESENT_AS_IS),
+            )
+            .order_by(Refund.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    for reason in RESENT_AS_IS:
+        if failed == reason:
+            return reason
+    return reason_for(booking)
+
+
 async def _room(db: AsyncSession, booking_id: str) -> list[tuple[Payment, int]]:
     """The booking's payments that still hold money, newest first, each with what is left to
     refund on it: its amount less every refund of it that has not failed."""
@@ -621,7 +646,7 @@ async def send_owed(
             db,
             booking,
             owed,
-            reason=reason_for(booking),
+            reason=await _resend_reason(db, booking),
             actor=BookingActor.OWNER,
             by=by,
             note=note,

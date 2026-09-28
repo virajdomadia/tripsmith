@@ -39,13 +39,23 @@ async def gst_facts(db: AsyncSession, ref: str, doc: DocRef) -> GstFacts:
         if doc.refund_id:
             r = (await db.execute(select(Refund).where(Refund.id == doc.refund_id))).scalar_one()
             reason = r.reason
-        if doc.kind == "credit_note":  # cites the booking's first invoice (P8b: not an extras one)
+        if doc.kind == "credit_note":
+            # The invoice it credits: an Add extras invoice when it refunds an add-on bought
+            # that way (P8b), else the booking's first invoice.
+            bought_by = (
+                await db.execute(
+                    select(BookingAddon.payment_id).where(BookingAddon.refund_id == doc.refund_id)
+                )
+            ).scalar_one_or_none()
+            which = (
+                GstDocument.payment_id == bought_by
+                if bought_by
+                else GstDocument.payment_id.is_(None)
+            )
             inv = (
                 await db.execute(
                     select(GstDocument).where(
-                        GstDocument.booking_id == booking.id,
-                        GstDocument.kind == "invoice",
-                        GstDocument.payment_id.is_(None),
+                        GstDocument.booking_id == booking.id, GstDocument.kind == "invoice", which
                     )
                 )
             ).scalar_one_or_none()

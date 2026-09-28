@@ -186,7 +186,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               </ul>
             )}
           </section>
-          {(b.extras?.open || b.extras?.offered.length) && (
+          {b.extras && (b.extras.open || ['confirmed', 'partially_paid'].includes(b.status)) && (
             <section className="rounded-card border border-line p-5" aria-labelledby="extras">
               <h2 id="extras" className="text-[18px]">
                 Add extras

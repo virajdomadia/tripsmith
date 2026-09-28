@@ -350,4 +350,33 @@ async def test_the_owner_takes_an_add_on_off_and_it_is_refunded_with_a_credit_no
     ).scalar_one()
     assert first_invoice.amount_paise == SINGLE  # the first invoice never changes
     page = (await db_client.get(f"/account/bookings/{ref}", headers=cookie)).json()
-    assert "Extra night" in [a["name"] for a in page["extras"]["offered"]]  # can be bought again
+    # Taken off for a reason: not offered again.
+    assert "Extra night" not in [a["name"] for a in page["extras"]["offered"]]
+
+
+async def test_a_failed_attempt_then_a_retry_still_adds_the_extras(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """Checkout retries on the same order: the failed attempt takes the order's row, the
+    successful one gets a new row — which must still carry the order's extras."""
+    ref, cookie, ids, _ = await setup(db, db_app, db_client)
+    order = (
+        await db_client.post(f"/account/bookings/{ref}/extras", json=choices(ids), headers=cookie)
+    ).json()
+    failed = event("payment.failed", order["orderId"], "pay_ExtrasFail01", EXTRAS)
+    assert (await deliver(db_client, failed)).status_code == 200
+    ok = event("payment.captured", order["orderId"], "pay_ExtrasRetry1", EXTRAS)
+    assert (await deliver(db_client, ok)).status_code == 200
+    b = await fresh(db, ref)
+    assert (b.total_paise, b.paid_paise, b.refund_needed) == (
+        SINGLE + EXTRAS,
+        SINGLE + EXTRAS,
+        False,
+    )
+    held = (
+        (await db.execute(select(BookingAddon.name).where(BookingAddon.booking_id == b.id)))
+        .scalars()
+        .all()
+    )
+    assert sorted(held) == ["Extra night", "Rafting"]
+    assert (await db.execute(select(Refund).where(Refund.booking_id == b.id))).all() == []

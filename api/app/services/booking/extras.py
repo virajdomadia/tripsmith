@@ -54,7 +54,7 @@ from app.services.booking.addons import addon_rows, detail, from_quote, summary
 from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import lock_booking
 from app.services.booking.pricing import ADDON_GONE_REASON, price_addons
-from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
+from app.services.booking.refunds import plan_refund, send_refunds
 from app.services.booking.settled import Settled
 from app.services.gst.documents import issue_due_safely
 
@@ -89,11 +89,11 @@ def refusal(booking: Booking, departs: dt.date, today: dt.date, *, asked: bool) 
 
 
 async def _held(db: AsyncSession, booking_id: str) -> set[str]:
-    """The package add-ons the booking has now (not taken off)."""
+    """The package add-ons the booking has had — held now, or taken off by the owner (who took
+    it off for a reason, so it is not offered again, and a late order for it is refunded)."""
     rows = await db.execute(
         select(BookingAddon.addon_id).where(
             BookingAddon.booking_id == booking_id,
-            BookingAddon.removed_at.is_(None),
             BookingAddon.addon_id.is_not(None),
         )
     )
@@ -349,7 +349,8 @@ async def settle_extras(
             db, booking, amount_paise - added, reason="surplus", actor=BookingActor.SYSTEM
         )
     await issue_due_safely(db, booking)  # the receipt, and this payment's own tax invoice
-    return Settled.EXTRAS
+    # Nothing new joined (every line already held): the money is simply going back.
+    return Settled.EXTRAS if kept else Settled.NOT_PENDING
 
 
 # --- the owner takes one off ---------------------------------------------------------------------
@@ -391,20 +392,22 @@ async def remove_addon(
         await db.flush()
         await db.refresh(booking)
         label = f"{row.name} ({detail(row.basis, row.travellers, row.nights)})"
+        # The line itself, in full (R46) — never more (older surplus stays flagged on the desk)
+        # and never more than the booking holds.
+        owed = min(row.amount_paise, booking.paid_paise)
         history.record(
             db,
             booking.id,
             "addon.removed",
             actor=BookingActor.OWNER,
             by=by,
-            text=f"Add-on taken off: {label} · {money(row.amount_paise)} refunded"
+            text=f"Add-on taken off: {label} · {money(owed)} refunded"
             + (f" · note: {note}" if note else ""),
-            customer=f"{label} was taken off your booking — {money(row.amount_paise)} "
-            "is on its way back" + (f". {note}" if note else ""),
+            customer=f"{label} was taken off your booking — {money(owed)} is on its way "
+            "back" + (f". {note}" if note else ""),
             before=before,
             after={"totalPaise": booking.total_paise},
         )
-        owed = await refund_owed(db, booking)
         refunds = await plan_refund(
             db, booking, owed, reason="addon", actor=BookingActor.OWNER, by=by, note=note
         )

@@ -110,24 +110,42 @@ export function ExtrasPanel({
   const q = quote.status === 'ok' ? quote.quote : quote.status === 'loading' ? quote.last : null;
   const busy = stage !== 'choose';
 
-  async function settle(orderId: string, payment?: CheckoutSuccess) {
-    setStage('confirming');
-    const path = payment ? 'confirm' : 'sync';
-    const body = payment
-      ? {
-          razorpayOrderId: payment.razorpay_order_id,
-          razorpayPaymentId: payment.razorpay_payment_id,
-          razorpaySignature: payment.razorpay_signature,
-        }
-      : { orderId };
-    await fetch(`/api/bookings/${encodeURIComponent(bookingRef)}/${path}`, {
+  /** POST to the booking's confirm or sync route; true when the api answered 2xx. */
+  async function post(path: 'confirm' | 'sync', body: unknown) {
+    const res = await fetch(`/api/bookings/${encodeURIComponent(bookingRef)}/${path}`, {
       method: 'POST',
       headers: json,
       body: JSON.stringify(body),
     }).catch(() => undefined);
+    return !!res?.ok;
+  }
+
+  /**
+   * After Checkout: a success is confirmed through the booking's own route (the signature is
+   * checked there); if that fails — or Checkout closed without one — the sync asks Razorpay.
+   * Only a confirmed payment reads as done; the page then shows what actually joined.
+   */
+  async function settle(orderId: string, payment?: CheckoutSuccess) {
+    setStage('confirming');
+    const confirmed =
+      (payment &&
+        (await post('confirm', {
+          razorpayOrderId: payment.razorpay_order_id,
+          razorpayPaymentId: payment.razorpay_payment_id,
+          razorpaySignature: payment.razorpay_signature,
+        }))) ||
+      false;
+    const synced = confirmed || (await post('sync', { orderId }));
+    router.refresh();
+    if (payment && !confirmed && !synced) {
+      setProblem(
+        'We couldn’t confirm that payment yet. If money left your account, it shows here within a few minutes — or WhatsApp us.',
+      );
+      setStage('choose');
+      return;
+    }
     setPicks({});
     setStage(payment ? 'done' : 'choose');
-    router.refresh();
   }
 
   async function pay() {
@@ -140,6 +158,7 @@ export function ExtrasPanel({
         setNotice(res.error.message);
         drop(res.error.fieldErrors, choices);
       } else setProblem(res.error.message);
+      if (res.error.reason === 'extras_closed') router.refresh(); // the page then says why
       setStage('choose');
       return;
     }
@@ -190,7 +209,7 @@ export function ExtrasPanel({
           role="status"
           className="rounded-[10px] bg-ok-soft px-3 py-2 text-[13.5px] font-bold text-ok"
         >
-          Extras added — your voucher and the tax invoice for them are below.
+          Payment received — your booking below shows what was added, and the tax invoice for it.
         </p>
       )}
       <AddonMenu

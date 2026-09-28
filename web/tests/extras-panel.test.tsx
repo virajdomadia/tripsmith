@@ -133,7 +133,36 @@ describe('ExtrasPanel', { timeout: 30_000 }, () => {
     });
     await waitFor(() => expect(calls('/api/bookings/TB-7F3K2Q/confirm')).toHaveLength(1));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(await screen.findByText(/Extras added/)).toBeTruthy();
+    expect(await screen.findByText(/Payment received/)).toBeTruthy();
+  });
+
+  it('never says received when neither confirm nor sync could apply the payment', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/extras/quote')) return json(200, { addons: [LINE], totalPaise: 1_800_00 });
+      if (url.endsWith('/extras'))
+        return json(201, {
+          bookingRef: 'TB-7F3K2Q',
+          orderId: 'order_Extra02',
+          keyId: 'rzp_test_Key',
+          amountPaise: 1_800_00,
+          addons: [LINE],
+        });
+      return json(502, { error: { code: 'internal', message: 'down' } });
+    });
+    const user = userEvent.setup();
+    panel();
+    await user.click(screen.getByRole('button', { name: 'One more traveller for Kullu rafting' }));
+    await screen.findByText('To pay now');
+    await user.click(screen.getByRole('button', { name: 'Pay for extras' }));
+    await waitFor(() => expect(checkout).toBeDefined());
+    checkout!.handler({
+      razorpay_order_id: 'order_Extra02',
+      razorpay_payment_id: 'pay_Extra02',
+      razorpay_signature: 'f'.repeat(64),
+    });
+    expect(await screen.findByText(/couldn’t confirm that payment yet/)).toBeTruthy();
+    expect(calls('/api/bookings/TB-7F3K2Q/sync')).toHaveLength(1);
+    expect(screen.queryByText(/Payment received/)).toBeNull();
   });
 
   it('drops an add-on the server says is gone, with its words', async () => {

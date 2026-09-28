@@ -24,7 +24,7 @@ and any replay of either apply a payment once.
 import logging
 from typing import Any, Literal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -256,6 +256,8 @@ async def capture_razorpay_payment(
             provider=PaymentProvider.RAZORPAY,
             razorpay_order_id=order_id,
             amount_paise=rows[0].amount_paise,
+            # P8b: a retry after a failed attempt is still the Add extras order's money.
+            extras=next((p.extras for p in rows if p.extras is not None), None),
         )
         db.add(payment)
     payment.razorpay_payment_id = payment_id
@@ -351,7 +353,12 @@ async def sync_payment(
     if not awaiting_payment(booking):
         if booking.status not in TAKES_EXTRAS:
             return result
-        orders = orders.where(Payment.extras.is_not(None), Payment.status.not_in(SETTLED_PAYMENT))
+        orders = orders.where(
+            Payment.extras.is_not(None),
+            Payment.status.not_in(SETTLED_PAYMENT),
+            # An abandoned order stays `created` for good; the webhook covers a later capture.
+            Payment.created_at > func.now() - text("interval '1 day'"),
+        )
     rows = await db.execute(orders.distinct())
     order_ids = [o for o in rows.scalars().all() if o]
     if not order_ids:

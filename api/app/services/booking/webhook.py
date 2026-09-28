@@ -179,6 +179,7 @@ async def record_failed_payment(
             provider=PaymentProvider.RAZORPAY,
             razorpay_order_id=order_id,
             amount_paise=rows[0].amount_paise,
+            extras=next((p.extras for p in rows if p.extras is not None), None),  # P8b
         )
         db.add(payment)
     payment.razorpay_payment_id = payment_id
