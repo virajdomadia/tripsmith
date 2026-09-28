@@ -1,4 +1,5 @@
 import type { components } from './api-types';
+import { billingErrors, normaliseGstin } from '@/lib/gst';
 import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './enquiry-schema';
 
 /**
@@ -134,7 +135,23 @@ export const UNBOOKABLE_LABEL: Record<Unbookable, string> = {
 /* ------------------------------------------------------------- the form */
 
 export type TravellerInput = { name: string; age: string };
-export type Contact = { name: string; phone: string; email: string };
+export type Contact = {
+  name: string;
+  phone: string;
+  email: string;
+  /** P13b: the place of supply, and an optional business GSTIN for the tax invoice. */
+  state: string;
+  gstin: string;
+  companyName: string;
+};
+export const EMPTY_CONTACT: Contact = {
+  name: '',
+  phone: '',
+  email: '',
+  state: '',
+  gstin: '',
+  companyName: '',
+};
 
 function nameError(raw: string, whose: 'your' | 'the'): string | undefined {
   const v = raw.trim();
@@ -177,6 +194,7 @@ export function formErrors(
   if (!PHONE_RE.test(normalisePhone(contact.phone))) errors['contact.phone'] = PHONE_MESSAGE;
   if (!EMAIL_RE.test(contact.email.trim().toLowerCase()))
     errors['contact.email'] = 'Enter a valid email address';
+  Object.assign(errors, billingErrors(contact.state, contact.gstin, contact.companyName));
   return errors;
 }
 
@@ -199,6 +217,10 @@ export function orderBody(
       name: contact.name.trim(),
       phone: normalisePhone(contact.phone),
       email: contact.email.trim().toLowerCase(),
+      state: contact.state,
+      ...(normaliseGstin(contact.gstin)
+        ? { gstin: normaliseGstin(contact.gstin), companyName: contact.companyName.trim() }
+        : {}),
     },
   };
 }

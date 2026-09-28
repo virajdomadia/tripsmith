@@ -54,6 +54,7 @@ from app.models.enums import (
 )
 from app.services.booking.history import money, record
 from app.services.booking.locking import lock_booking
+from app.services.gst.documents import issue_due_safely
 
 log = logging.getLogger(__name__)
 
@@ -440,6 +441,8 @@ async def apply_refund(
             )
         await db.flush()
         await _settle_flag(db, booking)
+        if changed and row.status == RefundStatus.PROCESSED:
+            await issue_due_safely(db, booking)  # P13b: its credit note, if it credits one
         await db.commit()
         return changed
     except Exception as exc:
@@ -668,6 +671,7 @@ async def record_by_hand(db: AsyncSession, ref: str, note: str | None, *, by: st
         )
         await db.flush()
         await _settle_flag(db, booking)
+        await issue_due_safely(db, booking)  # P13b: credit notes for what went back
         await db.commit()
     except BaseException:
         await db.rollback()

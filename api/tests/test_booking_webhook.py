@@ -181,7 +181,7 @@ async def test_five_replays_record_one_payment_and_confirm_once(
     assert confirmed.paid_paise == confirmed.total_paise  # counted once, not five times
     assert refreshes == [f"webhook payment on {ref}"]  # the confirm hook fired once
     assert roles(sender) == ["customer", "owner"]  # R16: one confirmation email (+ the owner's)
-    assert len(sender.sent[0].attachments + sender.sent[1].attachments) == 1  # the voucher
+    assert len(sender.sent[0].attachments + sender.sent[1].attachments) == 2  # voucher + invoice
     await db.rollback()  # a fresh transaction: `now()` is fixed at a transaction's start
     assert await seats_left(db, dep_id) == 2
 

@@ -85,6 +85,7 @@ from app.services.booking.voucher import (
     payment_label,
 )
 from app.services.email.render import IST
+from app.services.gst.documents import documents_out
 from app.services.reviews import review_for_booking
 
 log = logging.getLogger(__name__)
@@ -478,6 +479,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         lead_email=b.contact_email,
         payments=[_payment_out(p, refundable) for p in b.payments],
         refunds=[_refund_out(r) for r in refunds],
+        documents=await documents_out(db, b),
         refund_to_send_paise=await refund_owed(db, b) + stuck,
         refund_offline_paise=sum(r.amount_paise for r in waiting if r.by_hand),
         history=await booking_history(db, b.id),

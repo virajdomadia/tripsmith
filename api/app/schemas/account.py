@@ -74,6 +74,18 @@ class AccountCancellation(ApiModel):
     resolved_at: dt.datetime | None = None
 
 
+class GstDocumentOut(ApiModel):
+    """A receipt, tax invoice or credit note the booking has (R51, P13b). `number` is null until
+    it is first downloaded (or emailed) — the number is issued then, and never changes."""
+
+    key: str = Field(description="receipt-<payment id> | invoice | credit-<refund id>")
+    kind: Literal["receipt", "invoice", "credit_note"]
+    title: str
+    number: str | None
+    amount_paise: int = Field(description="GST-inclusive")
+    dated: dt.date = Field(description="The IST day of the payment, full payment or refund")
+
+
 class AccountBookingDetail(ApiModel):
     """`GET /account/bookings/{ref}`: everything the customer's booking page shows."""
 
@@ -100,6 +112,9 @@ class AccountBookingDetail(ApiModel):
     lead_phone: str
     lead_email: str
     has_voucher: bool
+    documents: list[GstDocumentOut] = Field(
+        description="GST documents, in the order they happened (P13b)"
+    )
     cancellation: AccountCancellation | None = None
     can_request_cancellation: bool = Field(
         description="Confirmed (or part paid), not yet departed, no request made"

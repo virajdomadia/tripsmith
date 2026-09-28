@@ -43,6 +43,7 @@ from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
 from app.services.booking import history
 from app.services.booking.voucher import HAS_VOUCHER
+from app.services.gst.documents import documents_out
 
 CANCELLABLE = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
 ALREADY_ASKED = "You've already asked to cancel this booking — we reply within a day"
@@ -186,7 +187,9 @@ async def get_booking(
     review = (
         await db.execute(select(Review).where(Review.booking_id == booking.id))
     ).scalar_one_or_none()
+    documents = await documents_out(db, booking)
     return AccountBookingDetail(
+        documents=documents,
         ref=booking.ref,
         status=booking.status,
         hold_expires_at=booking.hold_expires_at,

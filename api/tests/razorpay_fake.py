@@ -8,6 +8,7 @@ under it is a 409), never more than the payment's amount, and at least ₹1."""
 import hashlib
 import hmac
 import json
+import secrets
 
 import httpx
 
@@ -31,6 +32,7 @@ class FakeRazorpay(Razorpay):
         self.refunds_down = False
         # Razorpay forgot the idempotency keys (they expire): a resend is a new request.
         self.keys_expired = False
+        self._run = secrets.token_hex(3)  # refund ids stay unique across fake instances
         # What each payment id captured (paise), for the "more than captured" check.
         self.captured: dict[str, int] = {}
         super().__init__(KEY_ID, KEY_SECRET, transport=httpx.MockTransport(self._handle))
@@ -85,7 +87,7 @@ class FakeRazorpay(Razorpay):
                 return _error(400, "The payment has been fully refunded already")
             return _error(400, "The refund amount provided is greater than amount captured")
         refund = {
-            "id": f"rfnd_Fake{len(self.refunds) + 1:010d}",
+            "id": f"rfnd_Fake{len(self.refunds) + 1:04d}{self._run}",
             "entity": "refund",
             "payment_id": payment_id,
             "amount": body["amount"],

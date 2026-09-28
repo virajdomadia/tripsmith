@@ -1,4 +1,5 @@
 import { ArrowLeft, FileDown } from 'lucide-react';
+import { Documents } from '@/components/site/account/Documents';
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -207,6 +208,17 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               See the trip’s page
             </Link>
           </div>
+          {b.documents.length > 0 && (
+            <section className="grid gap-3 rounded-card border border-line p-5">
+              <h2 className="text-[15px]">GST documents</h2>
+              <Documents bookingRef={b.ref} documents={b.documents} />
+              <p className="text-[12px] text-mute">
+                Prices include GST at 5%. Each document is numbered when it’s issued: the receipt
+                when you pay, the tax invoice once the trip is paid in full, a credit note when a
+                refund goes out.
+              </p>
+            </section>
+          )}
           <CancelPanel
             bookingRef={b.ref}
             status={b.status}

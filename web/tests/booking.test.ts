@@ -103,7 +103,14 @@ describe('istToday', () => {
 
 describe('formErrors', () => {
   const slots = slotsFor(rooms({ double: 1, children: 1 }));
-  const contact = { name: 'Ananya Rao', phone: '+91 98450 12345', email: 'A@Example.com ' };
+  const contact = {
+    name: 'Ananya Rao',
+    phone: '+91 98450 12345',
+    email: 'A@Example.com ',
+    state: 'Karnataka',
+    gstin: '',
+    companyName: '',
+  };
   const ok = {
     'double-0-0': { name: 'Ananya Rao', age: '34' },
     'double-0-1': { name: 'Vikram Rao', age: '36' },
@@ -119,7 +126,32 @@ describe('formErrors', () => {
         { name: 'Vikram Rao', age: 36, occupancy: 'double' },
         { name: 'Mira Rao', age: 8, occupancy: 'child' },
       ],
-      contact: { name: 'Ananya Rao', phone: '9845012345', email: 'a@example.com' },
+      contact: {
+        name: 'Ananya Rao',
+        phone: '9845012345',
+        email: 'a@example.com',
+        state: 'Karnataka',
+      },
+    });
+  });
+
+  it('sends a business GSTIN, normalised, with its company — and checks it matches the State', () => {
+    const business = {
+      ...contact,
+      state: 'Delhi',
+      gstin: ' 07abcde1234f1z5',
+      companyName: ' Acme ',
+    };
+    expect(formErrors(slots, ok, business)).toEqual({});
+    expect(orderBody('dep_1', slots, ok, business).contact).toMatchObject({
+      state: 'Delhi',
+      gstin: '07ABCDE1234F1Z5',
+      companyName: 'Acme',
+    });
+    expect(formErrors(slots, ok, { ...business, state: 'Karnataka', companyName: '' })).toEqual({
+      'contact.gstin':
+        'This GSTIN is registered in another State (code 07) — pick that State, or check the number',
+      'contact.companyName': 'Enter the company name registered to this GSTIN',
     });
   });
 
@@ -127,7 +159,7 @@ describe('formErrors', () => {
     const errors = formErrors(
       slots,
       { ...ok, 'double-0-1': { name: 'V', age: '9' }, 'child-0': { name: 'Mira', age: '3' } },
-      { name: '', phone: '12345', email: 'nope' },
+      { name: '', phone: '12345', email: 'nope', state: '', gstin: 'X', companyName: 'Y' },
     );
     expect(errors).toEqual({
       'travellers.1.name': 'Enter a name',
@@ -136,6 +168,8 @@ describe('formErrors', () => {
       'contact.name': 'Enter your name',
       'contact.phone': 'Enter a 10-digit Indian mobile number',
       'contact.email': 'Enter a valid email address',
+      'contact.state': 'Pick your State — it goes on the invoice',
+      'contact.gstin': 'Enter a 15-character GSTIN, like 29ABCDE1234F1Z5',
     });
   });
 });

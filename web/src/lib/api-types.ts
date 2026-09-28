@@ -60,6 +60,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/documents/{key}.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gst Document
+         * @description P13b: a receipt, tax invoice or credit note — for the booking's customer or the owner,
+         *     like the voucher. Its number is issued on the first download and never changes after.
+         */
+        get: operations["getGstDocumentPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/review": {
         parameters: {
             query?: never;
@@ -1231,6 +1252,11 @@ export interface components {
             departureCity: string;
             /** Destination */
             destination: string;
+            /**
+             * Documents
+             * @description GST documents, in the order they happened (P13b)
+             */
+            documents: components["schemas"]["GstDocumentOut"][];
             /** Hasvoucher */
             hasVoucher: boolean;
             /**
@@ -1408,6 +1434,11 @@ export interface components {
              */
             departs: string;
             departure: components["schemas"]["DepartureSeats"];
+            /**
+             * Documents
+             * @description GST documents, in the order they happened (P13b)
+             */
+            documents: components["schemas"]["GstDocumentOut"][];
             /** Hasvoucher */
             hasVoucher: boolean;
             /** @description Every change, payment and email, oldest first (R54) */
@@ -2117,12 +2148,27 @@ export interface components {
         BookingActor: "owner" | "customer" | "webhook" | "cron" | "system";
         /** BookingContact */
         BookingContact: {
+            /**
+             * Companyname
+             * @description Required with a GSTIN; printed on the invoice
+             */
+            companyName?: string | null;
             /** Email */
             email: string;
+            /**
+             * Gstin
+             * @description Business GSTIN
+             */
+            gstin?: string | null;
             /** Name */
             name: string;
             /** Phone */
             phone: string;
+            /**
+             * State
+             * @description The customer's State or UT (GST)
+             */
+            state?: string | null;
         };
         /**
          * BookingCounts
@@ -3067,6 +3113,38 @@ export interface components {
         FollowUpInput: {
             /** Followupon */
             followUpOn: string | null;
+        };
+        /**
+         * GstDocumentOut
+         * @description A receipt, tax invoice or credit note the booking has (R51, P13b). `number` is null until
+         *     it is first downloaded (or emailed) — the number is issued then, and never changes.
+         */
+        GstDocumentOut: {
+            /**
+             * Amountpaise
+             * @description GST-inclusive
+             */
+            amountPaise: number;
+            /**
+             * Dated
+             * Format: date
+             * @description The IST day of the payment, full payment or refund
+             */
+            dated: string;
+            /**
+             * Key
+             * @description receipt-<payment id> | invoice | credit-<refund id>
+             */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "receipt" | "invoice" | "credit_note";
+            /** Number */
+            number: string | null;
+            /** Title */
+            title: string;
         };
         /** Health */
         Health: {
@@ -4442,6 +4520,52 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AccountCancellation"];
                 };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getGstDocumentPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The document PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Not this booking's account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or it has no such document */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error envelope (06 C0) */
             default: {

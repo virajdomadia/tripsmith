@@ -45,6 +45,7 @@ from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import NOT_FOUND, lock_booking
 from app.services.booking.refunds import plan_refund, refund_owed, refunding
 from app.services.booking.settled import Capture, Settled
+from app.services.gst.documents import issue_due_safely
 
 CaptureVia = Literal["checkout", "sync", "webhook"]
 # A payment in either state has been applied once; neither is ever applied or failed again.
@@ -136,6 +137,7 @@ async def settle_capture(
             reason="seats_gone" if settled == Settled.SEATS_GONE else "surplus",
             actor=BookingActor.SYSTEM,
         )
+    await issue_due_safely(db, booking)  # P13b: the receipt, and the invoice once paid in full
     return settled
 
 

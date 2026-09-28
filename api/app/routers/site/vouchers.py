@@ -1,4 +1,5 @@
-"""The booking voucher PDF (B7, R17), rendered on demand and never stored.
+"""The booking voucher PDF (B7, R17) and the GST documents (P13b), rendered on demand and never
+stored.
 
 - `GET /bookings/{ref}/voucher.pdf?exp=&sig=` — the success sheet's 30-minute signed link, for a
   visitor who is not signed in. A missing, wrong or expired signature is a 403.
@@ -13,7 +14,7 @@ voucher (404). `private, no-store`: it carries names, ages and a phone number.
 import asyncio
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -25,7 +26,13 @@ from app.routers.site.bookings import BookingRef
 from app.services.account import owns_booking
 from app.services.auth.deps import current_session
 from app.services.booking.voucher import HAS_VOUCHER, link_is_valid, load_booking_facts
+from app.services.gst.files import document_pdf
 from app.services.pdf.voucher import render_voucher, voucher_filename
+
+DocumentKey = Annotated[
+    str,
+    Path(pattern=r"^(invoice|receipt-[a-z0-9]{8,40}|credit-[a-z0-9]{2,40})$"),
+]
 
 NO_VOUCHER = "This booking has no voucher yet"
 BAD_LINK = "This voucher link has expired — WhatsApp us the reference and we'll send it"
@@ -96,3 +103,36 @@ async def get_account_voucher(
     if session.user.role != UserRole.OWNER and not await owns_booking(db, session.user, ref):
         raise ApiError("forbidden", "This booking is not on your account")
     return await _voucher(db, ref, request.app.state.settings)
+
+
+@router.get(
+    "/account/bookings/{ref}/documents/{key}.pdf",
+    operation_id="getGstDocumentPdf",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/pdf": {}}, "description": "The document PDF"},
+        403: {"description": "Not this booking's account"},
+        404: {"description": "Unknown booking, or it has no such document"},
+    },
+)
+async def get_gst_document(
+    ref: BookingRef,
+    key: DocumentKey,
+    session: Annotated[Session | None, Depends(current_session)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """P13b: a receipt, tax invoice or credit note — for the booking's customer or the owner,
+    like the voucher. Its number is issued on the first download and never changes after."""
+    if session is None:
+        raise ApiError("unauthorized", "Sign in to continue")
+    if session.user.role != UserRole.OWNER and not await owns_booking(db, session.user, ref):
+        raise ApiError("forbidden", "This booking is not on your account")
+    pdf, filename = await document_pdf(db, ref, key)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )

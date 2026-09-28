@@ -204,7 +204,8 @@ async def test_mark_paid_confirms_a_lapsed_hold_and_mails_only_the_customer(
     # The customer's confirmation with the voucher; no "New booking" email to the owner.
     [mail] = sender.sent
     assert mail.to == "p1@example.test" and "confirmed" in mail.subject
-    assert [a.filename for a in mail.attachments] == [voucher_filename(ref)]
+    names = [a.filename for a in mail.attachments]
+    assert names[0] == voucher_filename(ref) and "-TS-" in names[1]  # P13b: the invoice too
     assert "marked this booking paid offline" in mail.text
     assert all(m.to != OWNER_INBOX for m in sender.sent)
     facts = await load_booking_facts(db, ref)

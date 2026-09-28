@@ -89,6 +89,7 @@ def render_booking_emails(
     *,
     settings: Settings,
     voucher: EmailAttachment | None = None,
+    invoice: EmailAttachment | None = None,
 ) -> list[tuple[str, EmailMessage]]:
     """`(role, message)` pairs for this capture — `customer` and/or `owner`; none for a part
     payment. The customer's address is the booking's, before the demo-mode redirect."""
@@ -105,10 +106,15 @@ def render_booking_emails(
             facts.lead_email,
             f"Booking {facts.ref} confirmed — {facts.package_name}, {long_date(facts.departs)}",
             "booking_confirmed",
-            {**vars, "voucher_attached": voucher is not None},
+            {
+                **vars,
+                "voucher_attached": voucher is not None,
+                "invoice_attached": invoice is not None,
+            },
         )
-        if voucher is not None:
-            confirmed = replace(confirmed, attachments=(voucher,))
+        files = tuple(a for a in (voucher, invoice) if a is not None)
+        if files:  # P13b: the tax invoice rides with the voucher on the fully-paid email
+            confirmed = replace(confirmed, attachments=files)
         out.append(("customer", confirmed))
     elif settled == Settled.SEATS_GONE or facts.status == BookingStatus.CANCELLED:
         refund_vars = {**vars, "refund": inr(capture.amount_paise // 100)}
@@ -155,10 +161,13 @@ async def send_booking_emails(
     capture: Capture,
     *,
     voucher: EmailAttachment | None = None,
+    invoice: EmailAttachment | None = None,
     db: AsyncSession | None = None,
 ) -> None:
     try:
-        labelled = render_booking_emails(facts, capture, settings=settings, voucher=voucher)
+        labelled = render_booking_emails(
+            facts, capture, settings=settings, voucher=voucher, invoice=invoice
+        )
     except Exception as exc:
         log.exception("Could not render booking emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)

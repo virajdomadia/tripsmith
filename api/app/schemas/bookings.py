@@ -6,16 +6,23 @@ database (1–12 travellers, ≥ 1 adult, rooms filled exactly, child ages) are 
 """
 
 import datetime as dt
+import re
 from collections import Counter
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from app.models.enums import BookingStatus, Occupancy
 from app.schemas import ApiModel
 from app.schemas.enquiries import CONTROL_RE, EMAIL_RE, PHONE_MESSAGE, PHONE_RE, normalise_phone
 from app.schemas.meta import MAX_TRAVELLERS
+from app.services.gst.tax import STATES
+
+STATE_OF_CODE = {code: name for name, code in STATES.items()}
+
+# A GSTIN: 2-digit State code, PAN (5 letters, 4 digits, 1 letter), entity, "Z", check character.
+GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$")
 
 CHILD_MIN_AGE = 5
 CHILD_MAX_AGE = 11
@@ -126,6 +133,65 @@ class BookingContact(ApiModel):
     name: str = Field(min_length=2, max_length=80)
     phone: str
     email: str = Field(max_length=120)
+    # P13b: the place of supply and an optional business GSTIN for the tax invoice. The web
+    # asks for the State; the api keeps it optional for older clients (treated as Karnataka).
+    state: str | None = Field(default=None, description="The customer's State or UT (GST)")
+    gstin: str | None = Field(default=None, max_length=15, description="Business GSTIN")
+    company_name: str | None = Field(
+        default=None,
+        max_length=100,
+        validate_default=True,
+        description="Required with a GSTIN; printed on the invoice",
+    )
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _state(cls, v: object) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str) or v.strip() not in STATES:
+            raise ValueError("Pick your State from the list")
+        return v.strip()
+
+    @field_validator("gstin", mode="before")
+    @classmethod
+    def _gstin(cls, v: object, info: ValidationInfo) -> object:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        s = v.strip().upper().replace(" ", "") if isinstance(v, str) else ""
+        if not GSTIN_RE.match(s):
+            raise ValueError("Enter a 15-character GSTIN, like 29ABCDE1234F1Z5")
+        state = info.data.get("state")
+        if state is None and s[:2] not in STATE_OF_CODE:
+            raise ValueError("This GSTIN's State code isn't one we know — check the number")
+        if state is not None and STATES[state] != s[:2]:
+            raise ValueError(
+                f"This GSTIN is registered in another State (code {s[:2]}) — pick that State, "
+                "or check the number"
+            )
+        return s
+
+    @field_validator("company_name", mode="before")
+    @classmethod
+    def _company(cls, v: object, info: ValidationInfo) -> object:
+        if "gstin" not in info.data:
+            return None  # the GSTIN itself failed; its own error is the one to show
+        if info.data["gstin"] is None:
+            return None  # no business GSTIN: nothing to print a company against
+        s = v.strip() if isinstance(v, str) else ""
+        if not s:
+            raise ValueError("Enter the company name registered to this GSTIN")
+        if CONTROL_RE.search(s):
+            raise ValueError("Write the company name on one line")
+        return s
+
+    @model_validator(mode="after")
+    def _state_from_gstin(self) -> "BookingContact":
+        # A GSTIN names its State: an older client that sends one without a State still gets the
+        # right place of supply (IGST for a Maharashtra business), never the Karnataka fallback.
+        if self.gstin is not None and self.state is None:
+            self.state = STATE_OF_CODE[self.gstin[:2]]
+        return self
 
     @field_validator("name", mode="before")
     @classmethod
