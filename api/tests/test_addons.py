@@ -30,7 +30,7 @@ from app.services.booking.pricing import (
 from app.services.booking.voucher import load_booking_facts
 from app.services.catalog import admin_packages as svc
 from app.services.pdf.voucher import render_voucher
-from scripts.seed import seed
+from scripts.seed import seed, seed_addons
 from tests.razorpay_fake import FakeRazorpay
 from tests.settings import fixture_content, make_settings
 from tests.test_admin_packages import RecordingRevalidate, goa_id, payload
@@ -494,3 +494,42 @@ async def test_the_public_page_lists_switched_on_add_ons_and_the_seed_keeps_thei
     again = (await db_client.get("/packages/north-goa-beaches?fresh=1")).json()
     assert {a["name"]: a["id"] for a in again["addons"]} == before  # back on, same ids
     assert dt.date.fromisoformat(again["departures"][0]["date"])  # the page still reads
+
+
+@pytest.mark.db
+async def test_the_addons_only_seed_touches_nothing_but_add_ons(db: AsyncSession) -> None:
+    await seed(db, fixture_content(), RecordingStore(), make_settings())
+    pkg = (
+        await db.execute(select(Package).where(Package.slug == "north-goa-beaches"))
+    ).scalar_one()
+    pkg_id = pkg.id
+    pkg.name = "North Goa, edited by the owner"
+    for a in (
+        await db.execute(select(PackageAddon).where(PackageAddon.package_id == pkg_id))
+    ).scalars():
+        await db.delete(a)
+    await db.commit()
+
+    result = await seed_addons(db, fixture_content())
+    assert result.counts == {"addons": 4}
+    db.expire_all()
+    rows = (
+        (
+            await db.execute(
+                select(PackageAddon)
+                .where(PackageAddon.package_id == pkg_id)
+                .order_by(PackageAddon.position)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [r.name for r in rows] == [
+        "Airport transfers",
+        "Grande Island snorkelling",
+        "Calangute parasailing",
+        "Extra night",
+    ]
+    assert all(r.image_id for r in rows)  # matched to the uploaded gallery by file name
+    renamed = await db.get(Package, pkg_id)
+    assert renamed is not None and renamed.name == "North Goa, edited by the owner"

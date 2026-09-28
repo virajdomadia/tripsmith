@@ -476,6 +476,34 @@ async def seed_demo_traveller(
 DEMO_COUPON = "WELCOME10"
 
 
+async def seed_addons(db: AsyncSession, content: Content) -> SeedResult:
+    """Just the add-ons (R46, P8), for a database that already has its packages — production
+    after migration 0014. Nothing else is touched: no package fields, departures or photos. Each
+    add-on's photo is found among the package's own images by file name; a package the database
+    does not have is skipped with a warning."""
+    result = SeedResult()
+    total = 0
+    for src in content.packages:
+        row = (
+            await db.execute(select(Package).where(Package.slug == src.slug))
+        ).scalar_one_or_none()
+        if row is None:
+            result.warnings.append(f"{src.slug}: not in this database — skipped")
+            continue
+        images = (
+            await db.execute(select(PackageImage).where(PackageImage.package_id == row.id))
+        ).scalars()
+        by_name = {i.url.rsplit("/", 1)[-1]: i.id for i in images}
+        photos = {
+            p.file: by_name[Path(p.file).name] for p in src.photos if Path(p.file).name in by_name
+        }
+        await _seed_addons(db, row, src, photos)
+        total += len(src.addons)
+    await db.commit()
+    result.counts["addons"] = total
+    return result
+
+
 async def seed_demo_coupon(db: AsyncSession, *, today: dt.date | None = None) -> SeedResult:
     """The demo coupon (B15), upserted by its code; its uses (bookings) are left alone."""
     today = today or ist_today()
@@ -645,6 +673,11 @@ async def main(argv: list[str] | None = None) -> int:
         help=f"seed just the demo coupon {DEMO_COUPON} (B15)",
     )
     parser.add_argument(
+        "--addons",
+        action="store_true",
+        help="seed just the packages' add-ons (P8); leaves everything else untouched",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -661,6 +694,18 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.addons:  # needs no photo store: it only points at images already uploaded
+        engine = make_engine(url)
+        try:
+            async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+                result = await seed_addons(db, load_content())
+        finally:
+            await engine.dispose()
+        for key, value in result.counts.items():
+            print(f"{key:16} {value}")
+        for warning in result.warnings:
+            print(f"warning: {warning}", file=sys.stderr)
+        return 0
     try:
         store: Store = LocalStore(args.local_base_url) if args.local else BlobStore(settings)
     except StorageNotConfigured as exc:
