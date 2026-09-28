@@ -5517,6 +5517,11 @@
       "LadderRung": {
         "description": "One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`\non — deal, early-bird and coupon applied, add-ons left out.",
         "properties": {
+          "deal": {
+            "description": "A deal still runs from that day (one may end first)",
+            "title": "Deal",
+            "type": "boolean"
+          },
           "earlyBird": {
             "anyOf": [
               {
@@ -5549,6 +5554,7 @@
         "required": [
           "fromOn",
           "earlyBird",
+          "deal",
           "farePaise"
         ],
         "title": "LadderRung",

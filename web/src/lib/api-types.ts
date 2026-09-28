@@ -3719,6 +3719,11 @@ export interface components {
          *     on — deal, early-bird and coupon applied, add-ons left out.
          */
         LadderRung: {
+            /**
+             * Deal
+             * @description A deal still runs from that day (one may end first)
+             */
+            deal: boolean;
             /** @description The tier still running from that day */
             earlyBird: components["schemas"]["QuoteEarlyBird"] | null;
             /** Farepaise */

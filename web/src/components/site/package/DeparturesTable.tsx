@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/site/Badge';
 import type { components } from '@/lib/api-types';
 import { istToday } from '@/lib/booking';
@@ -9,18 +12,26 @@ type Departure = components['schemas']['DepartureOut'];
 
 /**
  * Seat bar + status pill per departure. The price is after the deal and (P17) the early-bird
- * tier the date earns today; the page is rebuilt by the daily cron when a tier ends.
+ * tier the date earns today. The page is prerendered and the daily cron only rebuilds it within
+ * the hour after IST midnight, so the table hydrates with the day it was built (`builtOn`, no
+ * mismatch) and then re-reads the IST day: a tier or deal that ended at midnight leaves the
+ * table at once, as it leaves the quote.
  */
 export function DeparturesTable({
   departures,
   deal,
   earlyBird,
+  builtOn,
 }: {
   departures: Departure[];
   deal?: Deal | null;
   earlyBird?: EarlyBird | null;
+  /** `istToday()` where the page was rendered. */
+  builtOn?: string;
 }) {
-  const today = istToday();
+  const [today, setToday] = useState(() => builtOn ?? istToday());
+  useEffect(() => setToday(istToday()), []);
+  const running = deal && deal.endsOn >= today ? deal : null;
   if (departures.length === 0) {
     return (
       <p className="rounded-[14px] border border-line bg-bg2 p-5 text-mute">
@@ -44,7 +55,7 @@ export function DeparturesTable({
             const fill = Math.max(0, Math.min(1, d.seatsLeft / d.seatsTotal));
             const low = d.seatsLeft > 0 && d.seatsLeft <= 4;
             const tier = tierFor(earlyBird, d.date, today);
-            const price = afterDiscounts(d.priceDoublePaise, deal, tier);
+            const price = afterDiscounts(d.priceDoublePaise, running, tier);
             return (
               <tr key={d.id} className="border-t border-line hover:bg-bg2/60">
                 <td className="px-3.5 py-3 font-bold">

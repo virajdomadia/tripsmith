@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { BookNowProvider } from '@/components/site/booking/BookNow';
+import { istToday } from '@/lib/booking';
 import { Container } from '@/components/site/Container';
 import { ItineraryPdfLink } from '@/components/site/ItineraryPdfLink';
 import { DeparturesTable } from '@/components/site/package/DeparturesTable';
@@ -150,6 +151,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
                 departures={pkg.departures}
                 deal={pkg.deal}
                 earlyBird={pkg.earlyBird}
+                builtOn={istToday()}
               />
               <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
             </Section>

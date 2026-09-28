@@ -27,7 +27,8 @@ Re-running it restores those terms (and switches it back on) but never touches i
 are counted from bookings. A full seed never runs it.
 
 `--early-bird` (P17) writes only the early-bird tiers of the packages the content gives tiers
-(switching them on); nothing else is touched. Redeploy the web afterwards:
+(switching them on); nothing else is touched. A full seed sets tiers only on packages it creates:
+on an existing one they are the owner's, like a deal. Redeploy the web afterwards:
 
     uv run python scripts/seed.py --early-bird --database-url …
 
@@ -172,6 +173,7 @@ async def _seed_package(
     row = (
         await db.execute(select(Package).where(Package.slug == content.slug))
     ).scalar_one_or_none()
+    new = row is None
     if row is None:
         row = Package(slug=content.slug)
         db.add(row)
@@ -189,7 +191,8 @@ async def _seed_package(
     row.faq = [f.model_dump() for f in content.faq]
     row.status = content.status
     row.featured = content.featured
-    _set_early_bird(row, content)
+    if new:  # the owner has not set any tiers on a package the seed just created
+        _set_early_bird(row, content)
     # "min live-departure price": departures already gone do not set the "from ₹" figure.
     row.starting_price_paise = starting_price(
         _Priced(d.seats_total, d.guaranteed, d.price_double_inr * 100)

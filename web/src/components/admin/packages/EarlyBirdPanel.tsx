@@ -65,6 +65,7 @@ export function EarlyBirdPanel() {
               <Input
                 type="number"
                 min={rupees ? 1 : EB_DAYS_MIN}
+                step={1}
                 max={rupees ? undefined : EB_DAYS_MAX}
                 inputMode="numeric"
                 name={field.name}

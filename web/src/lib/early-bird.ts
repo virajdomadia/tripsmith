@@ -11,8 +11,8 @@ export type Tier = { tier: number; days: number; offPaise: number; bookBy: strin
 
 /**
  * The furthest-out tier the booking day still reaches: booked on or before departure − N days,
- * counted in IST. Tiers never add up. `today` is `istToday()`, so a label flips at IST midnight
- * even on a prerendered page.
+ * counted in IST. Tiers never add up. Callers pass the visitor's `istToday()` on the client,
+ * so a label flips at IST midnight even on a prerendered page.
  */
 export function tierFor(
   eb: EarlyBird | null | undefined,

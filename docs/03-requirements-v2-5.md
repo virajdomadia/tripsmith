@@ -173,6 +173,8 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **Later rows:** a date change (P7) keeps the early-bird as a fixed ₹ amount; counter booking (P18) gets it from the same `build_quote`.
   - **Seed:** Munnar + Alleppey houseboat 90 d −₹1,500 / 45 d −₹750 · Leh, Nubra and Pangong 120 d −₹2,500 / 60 d −₹1,000 · Havelock honeymoon 120 d −₹2,000 / 60 d −₹1,000 · Jaisalmer desert nights 60 d −₹1,000 / 30 d −₹500. Production gets them with `seed.py --early-bird`, which touches nothing else.
   - **One PR** (migration 0015 + api + web + seed).
+  - **What flips exactly at IST midnight** (added in review): the quote, the Book-now date rows, the ladder and the page's dates table (worked out on the visitor's IST day). The cards' "Early-bird savings" tag is prerendered and moves when the daily cron rebuilds the page, within the hour after midnight. It is a hint; the price always comes from the quote.
+  - **Seed:** a full re-seed sets tiers only on packages it creates. On an existing package they are the owner's, like a deal.
 
 ## Customer — after booking
 

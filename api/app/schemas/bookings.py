@@ -330,6 +330,7 @@ class LadderRung(ApiModel):
 
     from_on: dt.date | None = Field(description="Null = booked today")
     early_bird: QuoteEarlyBird | None = Field(description="The tier still running from that day")
+    deal: bool = Field(description="A deal still runs from that day (one may end first)")
     fare_paise: int
 
 

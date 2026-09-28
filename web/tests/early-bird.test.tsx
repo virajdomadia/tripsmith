@@ -109,18 +109,24 @@ describe('the price ladder', () => {
     bookBy,
   });
 
-  it('shows today, then each step up with the tier that ended', () => {
+  it('shows today, then each step up with the tier (and a deal) that ended', () => {
     render(
       <PriceLadder
         flow={flow(
           quote([
-            { fromOn: null, earlyBird: tier(1, 1_500_00, '2026-11-14'), farePaise: 42_998_00 },
+            {
+              fromOn: null,
+              earlyBird: tier(1, 1_500_00, '2026-11-14'),
+              deal: true,
+              farePaise: 42_998_00,
+            },
             {
               fromOn: '2026-11-15',
               earlyBird: tier(2, 750_00, '2026-12-29'),
+              deal: true,
               farePaise: 44_498_00,
             },
-            { fromOn: '2026-12-30', earlyBird: null, farePaise: 45_998_00 },
+            { fromOn: '2026-12-30', earlyBird: null, deal: false, farePaise: 45_998_00 },
           ]),
         )}
       />,
@@ -131,13 +137,15 @@ describe('the price ladder', () => {
     expect(rungs[0]).toContain('Early bird −₹1,500 each');
     expect(rungs[1]).toContain('From 15 Nov');
     expect(rungs[1]).toContain('+₹1,500 · tier 1 ends 14 Nov');
-    expect(rungs[2]).toContain('+₹3,000 · tier 2 ends 29 Dec');
+    expect(rungs[2]).toContain('+₹3,000 · tier 2 ends 29 Dec · deal ends');
     expect(screen.getByText(/Trip fare for 2 travellers, add-ons extra/)).toBeTruthy();
   });
 
   it('says so when every tier has ended, and is absent without early-bird', () => {
     const { container, rerender } = render(
-      <PriceLadder flow={flow(quote([{ fromOn: null, earlyBird: null, farePaise: 45_998_00 }]))} />,
+      <PriceLadder
+        flow={flow(quote([{ fromOn: null, earlyBird: null, deal: false, farePaise: 45_998_00 }]))}
+      />,
     );
     expect(screen.getByText(/No early bird left on 12 Feb/)).toBeTruthy();
     rerender(<PriceLadder flow={flow(quote([]))} />);

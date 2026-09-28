@@ -471,3 +471,23 @@ async def test_the_early_bird_seed_writes_only_the_listed_packages(db: AsyncSess
         45,
     )
     assert (gqe.early_bird_on, gqe.eb1_days) == (True, 30), "a package the seed lists no tiers for"
+
+
+def test_a_deal_that_ends_before_a_rung_is_named_on_it() -> None:
+    ends = start_of_ist_day(dt.date(2026, 10, 1))  # the deal's last day is 30 Sep
+    rungs = ladder(ist(dt.date(2026, 9, 28)), **TIERS, **{**DEAL, "deal_ends_at": ends})
+    assert [(r.from_on, r.deal) for r in rungs] == [
+        (None, True),
+        (dt.date(2026, 11, 15), False),
+        (dt.date(2026, 12, 30), False),
+    ]
+
+
+@pytest.mark.db
+async def test_a_full_reseed_leaves_the_owners_tiers_alone(db: AsyncSession) -> None:
+    await seeded(db)
+    await set_tiers(db, NGB, early_bird_on=True, eb1_days=60, eb1_off_paise=900_00)
+    await seeded(db)
+    ngb = await package_by_slug(db, NGB)
+    await db.refresh(ngb)
+    assert (ngb.early_bird_on, ngb.eb1_days, ngb.eb1_off_paise) == (True, 60, 900_00)

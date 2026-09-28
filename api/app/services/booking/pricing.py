@@ -282,13 +282,17 @@ def price_ladder(
     """R47's ladder: today's trip fare, then the fare from the day after each tier that is still
     running ends — the same party re-priced on that IST day, deal and coupon included, add-ons
     left out. Days on which the date can no longer be booked online are skipped. [] when the
-    package has no early-bird. The deal base and the coupon's terms are today's."""
+    package has no early-bird. A deal that ends before a rung is gone from it (`deal` says so,
+    and the ladder names it); the deal base and the coupon's terms are today's."""
     tiers = early_bird_tiers(pkg)
     if not tiers:
         return []
     rungs = [
         LadderRung(
-            from_on=None, early_bird=today_quote.early_bird, fare_paise=today_quote.fare_paise
+            from_on=None,
+            early_bird=today_quote.early_bird,
+            deal=today_quote.deal is not None,
+            fare_paise=today_quote.fare_paise,
         )
     ]
     today, last = ist_today(now), dep.date - dt.timedelta(days=MIN_DAYS_AHEAD)
@@ -307,6 +311,11 @@ def price_ladder(
         if coupon is not None:
             later = apply_coupon(later, coupon)
         rungs.append(
-            LadderRung(from_on=day, early_bird=later.early_bird, fare_paise=later.fare_paise)
+            LadderRung(
+                from_on=day,
+                early_bird=later.early_bird,
+                deal=later.deal is not None,
+                fare_paise=later.fare_paise,
+            )
         )
     return rungs

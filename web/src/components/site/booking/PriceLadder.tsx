@@ -79,8 +79,12 @@ function Rung({
 }) {
   const now = rung.fromOn == null;
   const eb = rung.earlyBird;
-  // The tier that ended the day before this rung starts.
+  // What ended the day before this rung starts: the tier, and a deal that ran out on the way.
   const ended = prev?.earlyBird && rung.fromOn ? addDays(rung.fromOn, -1) : null;
+  const why = [
+    ended && prev?.earlyBird ? `tier ${prev.earlyBird.tier} ends ${shortDate(ended)}` : null,
+    prev?.deal && !rung.deal ? 'deal ends' : null,
+  ].filter(Boolean);
   return (
     <li className="grid min-w-0 content-end gap-0.5">
       <span
@@ -97,7 +101,7 @@ function Rung({
           ? eb
             ? `Early bird −${inr(eb.perTravellerPaise)} each`
             : 'No early bird left'
-          : `+${inr(rung.farePaise - base)}${ended && prev?.earlyBird ? ` · tier ${prev.earlyBird.tier} ends ${shortDate(ended)}` : ''}`}
+          : [`+${inr(rung.farePaise - base)}`, ...why].join(' · ')}
       </small>
     </li>
   );
