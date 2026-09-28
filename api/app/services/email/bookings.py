@@ -102,6 +102,37 @@ def render_booking_emails(
     if settled == Settled.PART_PAID:
         return out
 
+    if settled == Settled.EXTRAS:  # P8b: Add extras paid on a confirmed booking
+        added = _message(
+            facts.lead_email,
+            f"Extras added to {facts.ref} — {facts.package_name}",
+            "extras_added",
+            {
+                **vars,
+                "amount": inr(capture.amount_paise // 100),
+                "invoice_attached": invoice is not None,
+            },
+        )
+        if invoice is not None:
+            added = replace(added, attachments=(invoice,))
+        out.append(("customer", added))
+        if settings.owner_notify_email:
+            heading = f"Extras added on {facts.ref} — {facts.lead_name} · {facts.package_name}"
+            owner = _message(
+                settings.owner_notify_email,
+                heading,
+                "booking_owner",
+                {
+                    **vars,
+                    "heading": heading,
+                    "refund": None,
+                    "refund_why": "",
+                    "payment_id": capture.payment_id,
+                },
+            )
+            out.append(("owner", replace(owner, reply_to=facts.lead_email)))
+        return out
+
     if settled == Settled.CONFIRMED:
         confirmed = _message(
             facts.lead_email,

@@ -25,8 +25,9 @@ from app.schemas.admin_bookings import (
     RefundMadeInput,
     ResolveCancellationInput,
 )
+from app.schemas.extras import RemoveAddonInput
 from app.services.auth.deps import require_owner
-from app.services.booking import desk, refunds, resolve
+from app.services.booking import desk, extras, refunds, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -103,6 +104,34 @@ async def send_refund_route(
     response.headers.update(NO_STORE)
     await refunds.send_owed(
         db, ref, getattr(request.app.state, "razorpay", None), by=owner.id, note=payload.note
+    )
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
+    "/bookings/{ref}/addons/{addon_id}/remove",
+    operation_id="removeBookingAddon",
+    response_model_by_alias=True,
+)
+async def remove_addon_route(
+    ref: str,
+    addon_id: str,
+    payload: RemoveAddonInput,
+    request: Request,
+    response: Response,
+    db: Db,
+    owner: Owner,
+) -> AdminBooking:
+    """P8b: take an add-on off a confirmed booking and refund it in full through the one refund
+    function (credit note included). 409 once taken off, or on a booking not confirmed."""
+    response.headers.update(NO_STORE)
+    await extras.remove_addon(
+        db,
+        ref,
+        addon_id,
+        by=owner.id,
+        note=payload.note,
+        razorpay=getattr(request.app.state, "razorpay", None),
     )
     return await desk.get_booking(db, ref)
 

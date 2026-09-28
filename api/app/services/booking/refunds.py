@@ -58,7 +58,9 @@ from app.services.gst.documents import issue_due_safely
 
 log = logging.getLogger(__name__)
 
-Reason = Literal["cancellation", "seats_gone", "surplus", "owner", "date_change", "balance"]
+Reason = Literal[
+    "cancellation", "seats_gone", "surplus", "owner", "date_change", "balance", "addon"
+]
 # A payment holds money that can go back while it is captured; `refunded` = legacy B10/B11
 # hand-recorded refunds (0012 turned each into a by-hand row, so its room is what is left).
 HOLDS_MONEY = (PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)
@@ -129,6 +131,31 @@ def reason_for(booking: Booking) -> Reason:
     if booking.cancel_reason == CancelReason.SEATS_GONE:
         return "seats_gone"
     return "surplus"
+
+
+RESENT_AS_IS: tuple[Reason, ...] = ("addon", "owner", "date_change", "balance")
+
+
+async def _resend_reason(db: AsyncSession, booking: Booking) -> Reason:
+    """The reason for money the desk sends again after a failure: the failed refund's own when
+    it was one that credits an invoice (P8b: an add-on taken off keeps its credit note), else
+    what the booking's state says."""
+    failed = (
+        await db.execute(
+            select(Refund.reason)
+            .where(
+                Refund.booking_id == booking.id,
+                Refund.status == RefundStatus.FAILED,
+                Refund.reason.in_(RESENT_AS_IS),
+            )
+            .order_by(Refund.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    for reason in RESENT_AS_IS:
+        if failed == reason:
+            return reason
+    return reason_for(booking)
 
 
 async def _room(db: AsyncSession, booking_id: str) -> list[tuple[Payment, int]]:
@@ -619,7 +646,7 @@ async def send_owed(
             db,
             booking,
             owed,
-            reason=reason_for(booking),
+            reason=await _resend_reason(db, booking),
             actor=BookingActor.OWNER,
             by=by,
             note=note,

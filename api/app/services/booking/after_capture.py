@@ -32,7 +32,7 @@ from app.services.booking.refunds import send_refunds
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import BookingFacts, load_booking_facts
 from app.services.email.bookings import send_booking_emails
-from app.services.gst.files import invoice_attachment
+from app.services.gst.files import extras_invoice_attachment, invoice_attachment
 from app.services.pdf.voucher import render_voucher, voucher_filename
 
 VOUCHER_TIMEOUT = 5.0  # R17 asks < 3 s; a render is ~0.2 s, so this only catches a stuck thread
@@ -86,7 +86,8 @@ async def on_new_capture(
     await refresh_quietly(db, {package_id}, after=after)
     if notify is None or capture.settled == Settled.PART_PAID:
         return
-    if capture.settled in (Settled.SEATS_GONE, Settled.NOT_PENDING):
+    if capture.settled in (Settled.SEATS_GONE, Settled.NOT_PENDING, Settled.EXTRAS):
+        # EXTRAS: an add-on the booking already had by then is refunded (extras.settle_extras).
         await send_refunds(db, ref, notify.razorpay)
     try:
         facts = await load_booking_facts(db, ref)
@@ -104,6 +105,8 @@ async def on_new_capture(
         voucher = await voucher_attachment(facts, notify.settings)
         if facts.paid_paise >= facts.total_paise:  # P13b: paid in full → the tax invoice
             invoice = await invoice_attachment(db, ref)
+    elif capture.settled == Settled.EXTRAS:  # P8b: this payment's own tax invoice
+        invoice = await extras_invoice_attachment(db, ref, capture.payment_id)
     await send_booking_emails(
         notify.sender, notify.settings, facts, capture, voucher=voucher, invoice=invoice, db=db
     )

@@ -24,7 +24,7 @@ and any replay of either apply a payment once.
 import logging
 from typing import Any, Literal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -41,6 +41,7 @@ from app.models.enums import (
 from app.schemas.bookings import PaymentCallback, PaymentResult
 from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.extras import TAKES_EXTRAS, settle_extras
 from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import NOT_FOUND, lock_booking
 from app.services.booking.refunds import plan_refund, refund_owed, refunding
@@ -88,11 +89,31 @@ def awaiting_payment(booking: Booking) -> bool:
 
 
 async def settle_capture(
-    db: AsyncSession, booking: Booking, *, hold_live: bool, amount_paise: int, entry: PaymentLog
+    db: AsyncSession,
+    booking: Booking,
+    *,
+    hold_live: bool,
+    amount_paise: int,
+    entry: PaymentLog,
+    extras: list[dict[str, Any]] | None = None,
+    payment_id: str | None = None,
 ) -> Settled:
     """Apply newly captured money to a booking locked by `lock_booking`, and write it to the
     booking's history (`entry` + what the money did). The caller has recorded the payment row and
-    commits; call once per payment, never on a replay."""
+    commits; call once per payment, never on a replay.
+
+    `extras` (P8b) = the payment was an Add extras order: on a confirmed booking its add-ons join
+    the booking (`extras.settle_extras`); on any other it is money the booking does not take,
+    refunded by the rule below."""
+    if extras is not None and payment_id is not None and booking.status in TAKES_EXTRAS:
+        return await settle_extras(
+            db,
+            booking,
+            amount_paise=amount_paise,
+            extras=extras,
+            payment_id=payment_id,
+            entry=entry,
+        )
     before = {"status": booking.status.value, "paidPaise": booking.paid_paise}
     paid = booking.paid_paise + amount_paise
     values: dict[str, object] = {"paid_paise": paid, "updated_at": func.now()}
@@ -235,6 +256,8 @@ async def capture_razorpay_payment(
             provider=PaymentProvider.RAZORPAY,
             razorpay_order_id=order_id,
             amount_paise=rows[0].amount_paise,
+            # P8b: a retry after a failed attempt is still the Add extras order's money.
+            extras=next((p.extras for p in rows if p.extras is not None), None),
         )
         db.add(payment)
     payment.razorpay_payment_id = payment_id
@@ -248,6 +271,8 @@ async def capture_razorpay_payment(
         hold_live=hold_live,
         amount_paise=payment.amount_paise,
         entry=PaymentLog.razorpay(payment_id, payment.amount_paise, via),
+        extras=payment.extras,
+        payment_id=payment.id,
     )
     return booking, Capture(settled, payment_id, payment.amount_paise)
 
@@ -313,8 +338,8 @@ async def sync_payment(
     key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
     exactly like a signed callback — through
     `capture_razorpay_payment`, idempotent on the payment id. Only a booking still awaiting
-    payment (pending, or swept as `hold_expired`) makes the outbound call; any other status
-    answers from the database.
+    payment (pending, or swept as `hold_expired`), or a confirmed one with an Add extras order
+    not yet paid (P8b), makes the outbound call; any other answers from the database.
     """
     booking = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one_or_none()
     if booking is None:
@@ -322,12 +347,22 @@ async def sync_payment(
     result = PaymentResult(
         booking_ref=booking.ref, status=booking.status, refund_needed=await refunding(db, booking)
     )
+    # A booking awaiting payment checks all its orders; a confirmed one only its open Add extras
+    # orders (P8b) — Checkout can close without a callback there too.
+    orders = select(Payment.razorpay_order_id).where(Payment.booking_id == booking.id)
     if not awaiting_payment(booking):
-        return result
-    rows = await db.execute(
-        select(Payment.razorpay_order_id).where(Payment.booking_id == booking.id).distinct()
-    )
+        if booking.status not in TAKES_EXTRAS:
+            return result
+        orders = orders.where(
+            Payment.extras.is_not(None),
+            Payment.status.not_in(SETTLED_PAYMENT),
+            # An abandoned order stays `created` for good; the webhook covers a later capture.
+            Payment.created_at > func.now() - text("interval '1 day'"),
+        )
+    rows = await db.execute(orders.distinct())
     order_ids = [o for o in rows.scalars().all() if o]
+    if not order_ids:
+        return result
     await db.rollback()  # no transaction held open across the call to Razorpay
     found: tuple[str, str, dict[str, Any]] | None = None
     for order_id in order_ids:

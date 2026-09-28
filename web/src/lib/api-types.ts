@@ -81,6 +81,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/extras": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Extras Order
+         * @description P8b: a Razorpay order for exactly the extras' price. Checkout's success handler posts to
+         *     `confirmPayment` (and `syncPayment` checks it on close) like any booking payment; the add-ons
+         *     join the booking only when the money is captured.
+         */
+        post: operations["createExtrasOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/bookings/{ref}/extras/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Extras Quote
+         * @description P8b: the server's price for these extras on this booking. 409 `extras_closed` with the
+         *     reason, or `addon_unavailable` with `addons.<index>` for one no longer on sale.
+         */
+        post: operations["quoteExtras"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/review": {
         parameters: {
             query?: never;
@@ -164,6 +207,27 @@ export interface paths {
         get: operations["getAdminBooking"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/addons/{addon_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Addon Route
+         * @description P8b: take an add-on off a confirmed booking and refund it in full through the one refund
+         *     function (credit note included). 409 once taken off, or on a booking not confirmed.
+         */
+        post: operations["removeBookingAddon"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1224,6 +1288,11 @@ export interface components {
              */
             activity: components["schemas"]["ActivityEntry"][];
             /**
+             * Addons
+             * @description P8: the add-ons bought, oldest first, taken-off ones included
+             */
+            addons: components["schemas"]["BookedAddon"][];
+            /**
              * Bookedat
              * Format: date-time
              */
@@ -1257,6 +1326,8 @@ export interface components {
              * @description GST documents, in the order they happened (P13b)
              */
             documents: components["schemas"]["GstDocumentOut"][];
+            /** @description P8b: Add extras — open or not, and what */
+            extras: components["schemas"]["ExtrasOffer"];
             /** Hasvoucher */
             hasVoucher: boolean;
             /**
@@ -1515,6 +1586,11 @@ export interface components {
          */
         AdminBooking: {
             /**
+             * Addons
+             * @description P8: every add-on the booking bought, oldest first, taken-off ones included
+             */
+            addons: components["schemas"]["BookedAddon"][];
+            /**
              * Bookedat
              * Format: date-time
              */
@@ -1529,6 +1605,11 @@ export interface components {
              * @description Pending
              */
             canRelease: boolean;
+            /**
+             * Canremoveaddons
+             * @description Confirmed or part paid (P8b)
+             */
+            canRemoveAddons: boolean;
             cancelReason: components["schemas"]["CancelReason"] | null;
             cancellation: components["schemas"]["AdminCancellation"] | null;
             /**
@@ -2247,6 +2328,40 @@ export interface components {
         Body_uploadPackageImage: {
             /** File */
             file: string;
+        };
+        /**
+         * BookedAddon
+         * @description One add-on a booking has (or had: `removedAt`), as bought — its own copy of the price.
+         */
+        BookedAddon: {
+            /**
+             * Addedat
+             * Format: date-time
+             */
+            addedAt: string;
+            /**
+             * Addedlater
+             * @description Bought through Add extras, after the booking
+             */
+            addedLater: boolean;
+            /** Amountpaise */
+            amountPaise: number;
+            basis: components["schemas"]["AddonBasis"];
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /**
+             * Removedat
+             * @description Taken off by the owner, refunded
+             */
+            removedAt: string | null;
+            /** Travellers */
+            travellers: number;
+            /** Unitpaise */
+            unitPaise: number;
         };
         /**
          * BookingActor
@@ -3200,6 +3315,62 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
+        /**
+         * ExtrasOffer
+         * @description My trips → Add extras: open or not (and why), until when, and what can still be added.
+         */
+        ExtrasOffer: {
+            /**
+             * Closeson
+             * Format: date
+             * @description The last IST day to add extras: departure − 7 days
+             */
+            closesOn: string;
+            /**
+             * Offered
+             * @description Switched-on add-ons the booking does not have yet, in the owner's order
+             */
+            offered: components["schemas"]["AddonOut"][];
+            /** Open */
+            open: boolean;
+            /**
+             * Reason
+             * @description Why extras are closed, in the customer's words
+             */
+            reason: string | null;
+        };
+        /**
+         * ExtrasOrder
+         * @description The Razorpay order for the extras — Checkout is opened with it, and its success handler
+         *     posts to `confirmPayment` like any booking payment.
+         */
+        ExtrasOrder: {
+            /** Addons */
+            addons: components["schemas"]["QuoteAddon"][];
+            /** Amountpaise */
+            amountPaise: number;
+            /** Bookingref */
+            bookingRef: string;
+            /** Keyid */
+            keyId: string;
+            /** Orderid */
+            orderId: string;
+        };
+        /** ExtrasQuote */
+        ExtrasQuote: {
+            /** Addons */
+            addons: components["schemas"]["QuoteAddon"][];
+            /**
+             * Totalpaise
+             * @description What Add extras charges: the lines' sum, never discounted
+             */
+            totalPaise: number;
+        };
+        /** ExtrasRequest */
+        ExtrasRequest: {
+            /** Addons */
+            addons: components["schemas"]["AddonChoice"][];
+        };
         /** FacetOption */
         FacetOption: {
             /**
@@ -4381,6 +4552,14 @@ export interface components {
             ref: string;
             status: components["schemas"]["EnquiryStatus"];
         };
+        /** RemoveAddonInput */
+        RemoveAddonInput: {
+            /**
+             * Note
+             * @description Optional, shown to the customer
+             */
+            note?: string | null;
+        };
         /**
          * ResolveCancellationInput
          * @description `POST /admin/cancellations/{id}/resolve` (R19, B11). The note goes to the customer — in
@@ -4775,6 +4954,76 @@ export interface operations {
             };
         };
     };
+    createExtrasOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtrasRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtrasOrder"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    quoteExtras: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtrasRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtrasQuote"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     submitReview: {
         parameters: {
             query?: never;
@@ -4951,6 +5200,42 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    removeBookingAddon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                addon_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveAddonInput"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

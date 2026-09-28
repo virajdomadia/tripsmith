@@ -106,7 +106,12 @@ export const voucherHref = (ref: string) =>
   `/account/bookings/${encodeURIComponent(ref)}/voucher.pdf`;
 
 /** The api's error envelope as the sign-in screen and the cancel form need it. */
-export type SignInError = { message: string; reason?: string | null; retryAfter?: number };
+export type SignInError = {
+  message: string;
+  reason?: string | null;
+  retryAfter?: number;
+  fieldErrors?: Record<string, string>;
+};
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: SignInError };
 
@@ -141,6 +146,7 @@ async function postJson<T>(path: string, body: unknown): Promise<Result<T>> {
         json?.error?.message ??
         'Something went wrong — try again',
       reason: json?.error?.reason,
+      fieldErrors: json?.error?.fieldErrors,
       retryAfter: Number.isFinite(retry) && retry > 0 ? retry : undefined,
     },
   };
@@ -155,6 +161,20 @@ export const askToCancel = (ref: string, reason: string) =>
   postJson<AccountCancellation>(`/api/account/bookings/${encodeURIComponent(ref)}/cancellation`, {
     reason,
   });
+
+export type ExtrasQuote = components['schemas']['ExtrasQuote'];
+export type ExtrasOrder = components['schemas']['ExtrasOrder'];
+type AddonChoice = components['schemas']['AddonChoice'];
+
+/** P8b: the server's price for extras on a booking; never computed here. */
+export const quoteExtras = (ref: string, addons: AddonChoice[]) =>
+  postJson<ExtrasQuote>(`/api/account/bookings/${encodeURIComponent(ref)}/extras/quote`, {
+    addons,
+  });
+
+/** P8b: a Razorpay order for exactly that price; Checkout is opened on it. */
+export const orderExtras = (ref: string, addons: AddonChoice[]) =>
+  postJson<ExtrasOrder>(`/api/account/bookings/${encodeURIComponent(ref)}/extras`, { addons });
 
 export const sendReview = (ref: string, rating: number, text: string) =>
   postJson<AccountReview>(`/api/account/bookings/${encodeURIComponent(ref)}/review`, {

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from fpdf import XPos, YPos
 
-from app.services.booking.addons import summary
+from app.services.booking.addons import AddonFact, summary
 from app.services.booking.voucher import BookingFacts
 from app.services.format import inr, long_date
 from app.services.gst.documents import DocRef
@@ -39,6 +39,7 @@ REASON_WORDS = {
     "date_change": "Date changed to a cheaper departure",
     "balance": "Balance not paid — booking cancelled",
     "owner": "Refund agreed with the customer",
+    "addon": "Add-on taken off the booking",
 }
 
 
@@ -53,6 +54,10 @@ class GstFacts:
     invoice_number: str | None = None  # credit note: the invoice it credits
     invoice_dated: dt.date | None = None
     refund_reason: str | None = None
+    # P8b, an invoice: the add-ons it covers — the booking's own for the first invoice, the
+    # payment's for an Add extras invoice. Read from the rows each covers, so a later purchase or
+    # an add-on taken off never changes an invoice already issued.
+    invoice_addons: tuple[AddonFact, ...] = ()
 
 
 def gst_filename(ref: str, number: str) -> str:
@@ -193,15 +198,16 @@ class _GstDoc:
             x += w
         d.set_y(d.get_y() + 5.5)
         d.hairline(d.get_y())
+        extras = f.doc.kind == "invoice" and f.doc.payment_id is not None
         what = {
             "receipt": "Payment received towards",
-            "invoice": "Tour package",
+            "invoice": "Add-ons for the tour package" if extras else "Tour package",
             "credit_note": f"Credit — {REASON_WORDS.get(f.refund_reason or '', 'refund')} ·",
         }[f.doc.kind]
         party = f"{len(b.travellers)} traveller{'s' if len(b.travellers) != 1 else ''}"
         desc = f"{what} {b.package_name}, {long_date(b.departs)} to {long_date(b.returns)}, {party}"
-        if f.doc.kind == "invoice" and b.addons:  # P8: one supply, the extras named in it
-            desc += f", with {summary(b.addons)}"
+        if f.doc.kind == "invoice" and f.invoice_addons:  # P8: the add-ons it covers
+            desc += f"{': ' if extras else ', with '}{summary(f.invoice_addons)}"
         y = d.get_y() + 2
         d.set_xy(MARGIN, y)
         d.font(10, "", INK)

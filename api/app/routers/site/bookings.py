@@ -25,6 +25,7 @@ from app.infra.client_ip import RateLimited, client_ip
 from app.infra.db import get_session
 from app.infra.ratelimit import RateLimiter
 from app.infra.razorpay import Razorpay
+from app.models import User
 from app.schemas.bookings import (
     BookingOrder,
     BookingRequest,
@@ -34,6 +35,7 @@ from app.schemas.bookings import (
     QuoteRequest,
     SyncRequest,
 )
+from app.services.auth.deps import require_user
 from app.services.booking.after_capture import Notify
 from app.services.booking.orders import create_booking_order, quote_booking
 from app.services.booking.payments import confirm_payment, sync_payment
@@ -76,6 +78,25 @@ async def sync_rate_limit(request: Request, ref: BookingRef) -> None:
     if not result.allowed:
         raise RateLimited(
             result.retry_after, "Too many checks on this booking — try again in a few minutes"
+        )
+
+
+EXTRAS_LIMIT = 10  # Add extras orders per booking; each is a Razorpay order under our key
+EXTRAS_WINDOW_SECONDS = 600
+
+
+async def extras_rate_limit(
+    request: Request, ref: BookingRef, user: Annotated[User, Depends(require_user)]
+) -> None:
+    """Per signed-in customer and booking, after the sign-in check: not per IP (the web
+    forwards My trips calls from its own address), and a stranger cannot spend it."""
+    limiter: RateLimiter = request.app.state.rate_limiter
+    result = await limiter.hit(
+        f"extras:{user.id}:{ref}", limit=EXTRAS_LIMIT, window_seconds=EXTRAS_WINDOW_SECONDS
+    )
+    if not result.allowed:
+        raise RateLimited(
+            result.retry_after, "Too many tries on this booking — try again in a few minutes"
         )
 
 

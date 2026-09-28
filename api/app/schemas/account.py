@@ -9,6 +9,7 @@ from app.models.enums import BookingStatus, CancellationStatus, Occupancy, Payme
 from app.schemas import ApiModel
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
+from app.schemas.extras import BookedAddon, ExtrasOffer
 from app.schemas.reviews import AccountReview
 
 
@@ -122,6 +123,10 @@ class AccountBookingDetail(ApiModel):
     review: AccountReview | None = Field(description="The customer's review of this trip (B13)")
     can_review: bool = Field(description="Completed and not reviewed yet")
     activity: list[ActivityEntry] = Field(description="The customer-safe history, oldest first")
+    addons: list[BookedAddon] = Field(
+        description="P8: the add-ons bought, oldest first, taken-off ones included"
+    )
+    extras: ExtrasOffer = Field(description="P8b: Add extras — open or not, and what")
 
 
 class CancellationRequest(ApiModel):

@@ -9,6 +9,7 @@ import {
   IndianRupee,
   Link2,
   Mail,
+  PackageMinus,
   RotateCcw,
   Star,
   Ticket,
@@ -47,6 +48,7 @@ function iconOf(kind: string): LucideIcon {
   if (kind.startsWith('payment.') || kind.startsWith('order.')) return IndianRupee;
   if (kind === 'trip.completed' || kind === 'cancellation.approved') return CircleCheck;
   if (kind.startsWith('hold.')) return Clock;
+  if (kind === 'addon.removed') return PackageMinus; // P8b: the owner took one off
   return Ban;
 }
 

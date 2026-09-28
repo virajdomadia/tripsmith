@@ -25,7 +25,9 @@ export type AuthPath =
   | '/auth/otp/request'
   | '/auth/otp/verify'
   | `/account/bookings/${string}/cancellation`
-  | `/account/bookings/${string}/review`;
+  | `/account/bookings/${string}/review`
+  | `/account/bookings/${string}/extras`
+  | `/account/bookings/${string}/extras/quote`;
 
 export async function forwardAuth(
   path: AuthPath,

@@ -20,8 +20,8 @@ export type CheckoutOptions = {
   currency: 'INR';
   name: string;
   description: string;
-  /** Seconds before Checkout closes itself: what is left of the seat hold. */
-  timeout: number;
+  /** Seconds before Checkout closes itself: what is left of the seat hold (none for extras). */
+  timeout?: number;
   prefill: { name: string; email: string; contact: string };
   notes: Record<string, string>;
   theme: { color: string };

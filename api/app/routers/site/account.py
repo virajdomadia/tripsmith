@@ -10,18 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import ApiError
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.infra.razorpay import Razorpay
 from app.models import User
-from app.routers.site.bookings import BookingRef
+from app.routers.site.bookings import BookingRef, extras_rate_limit, razorpay
 from app.schemas.account import (
     AccountBookingDetail,
     AccountBookings,
     AccountCancellation,
     CancellationRequest,
 )
+from app.schemas.extras import ExtrasOrder, ExtrasQuote, ExtrasRequest
 from app.schemas.reviews import AccountReview, ReviewInput
 from app.services.account import get_booking, list_bookings, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
+from app.services.booking.extras import create_extras_order, quote_extras
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_cancellation_emails
 from app.services.email.reviews import send_review_email
@@ -57,6 +60,44 @@ async def get_my_booking(
     if detail is None:
         raise ApiError("not_found", "No booking with that reference on your account")
     return detail
+
+
+@router.post(
+    "/bookings/{ref}/extras/quote", operation_id="quoteExtras", response_model_by_alias=True
+)
+async def post_extras_quote(
+    ref: BookingRef,
+    payload: ExtrasRequest,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtrasQuote:
+    """P8b: the server's price for these extras on this booking. 409 `extras_closed` with the
+    reason, or `addon_unavailable` with `addons.<index>` for one no longer on sale."""
+    response.headers.update(NO_STORE)
+    return await quote_extras(db, user, ref, payload, today=ist_today())
+
+
+@router.post(
+    "/bookings/{ref}/extras",
+    operation_id="createExtrasOrder",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+    dependencies=[Depends(extras_rate_limit)],
+)
+async def post_extras_order(
+    ref: BookingRef,
+    payload: ExtrasRequest,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    rzp: Annotated[Razorpay, Depends(razorpay)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtrasOrder:
+    """P8b: a Razorpay order for exactly the extras' price. Checkout's success handler posts to
+    `confirmPayment` (and `syncPayment` checks it on close) like any booking payment; the add-ons
+    join the booking only when the money is captured."""
+    response.headers.update(NO_STORE)
+    return await create_extras_order(db, user, ref, payload, rzp, today=ist_today())
 
 
 @router.post(

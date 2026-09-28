@@ -41,7 +41,7 @@ from app.schemas.account import (
 )
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
-from app.services.booking import history
+from app.services.booking import extras, history
 from app.services.booking.voucher import HAS_VOUCHER
 from app.services.gst.documents import documents_out
 
@@ -232,6 +232,8 @@ async def get_booking(
         review=account_review(review) if review else None,
         can_review=can_review(booking.status, reviewed=review is not None),
         activity=await history.customer_activity(db, booking.id),
+        addons=await extras.booked(db, booking.id),
+        extras=await extras.offer(db, booking, departs, today),
     )
 
 

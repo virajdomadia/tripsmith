@@ -20,6 +20,7 @@ from app.schemas.account import AccountCancellation, AccountTraveller, GstDocume
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
+from app.schemas.extras import BookedAddon
 from app.schemas.reviews import AdminReview
 
 NOTE_MAX = 80
@@ -260,6 +261,10 @@ class AdminBooking(ApiModel):
         description="Seats the party is missing right now; mark paid refuses while > 0"
     )
     review: AdminReview | None = Field(description="The customer's review of the trip (B13)")
+    addons: list[BookedAddon] = Field(
+        description="P8: every add-on the booking bought, oldest first, taken-off ones included"
+    )
+    can_remove_addons: bool = Field(description="Confirmed or part paid (P8b)")
 
 
 def short_note(v: object) -> str | None:
