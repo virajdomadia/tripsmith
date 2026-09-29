@@ -31,3 +31,7 @@ class DailyReport(ApiModel):
         description="Live packages where an early-bird tier ended in the last 2 IST days, "
         "revalidated (P17)",
     )
+    balances_cancelled: int = Field(
+        default=0, description="Bookings cancelled for a balance unpaid past its grace (P5)"
+    )
+    balance_reminders: int = Field(default=0, description="Balance reminders sent (P5)")

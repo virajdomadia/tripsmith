@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import sentry_sdk
-from sqlalchemy import func, select, text
+from sqlalchemy import ColumnElement, and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -92,25 +92,55 @@ def _ist(moment: dt.datetime) -> dt.date:
 
 
 def took_seats(booking: Booking) -> bool:
-    return booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) or (
+    """Held its seats at some point: confirmed, on its deposit (P5), completed, or cancelled after
+    that (approved, or the balance went unpaid). The invoice still waits for full payment."""
+    return booking.status in (
+        BookingStatus.CONFIRMED,
+        BookingStatus.PARTIALLY_PAID,
+        BookingStatus.COMPLETED,
+    ) or (
         booking.status == BookingStatus.CANCELLED
-        and booking.cancel_reason == CancelReason.CANCELLATION_APPROVED
+        and booking.cancel_reason
+        in (CancelReason.CANCELLATION_APPROVED, CancelReason.BALANCE_UNPAID)
     )
 
 
-def booked_price(booking: Booking) -> int:
-    """What the booking was made at — its quote's total. Later add-ons (their own invoices) and
-    an add-on taken off (a credit note) never move it."""
+def off_the_bill() -> ColumnElement[bool]:
+    """A checkout add-on taken off while the booking was on its deposit (P5): it left the price
+    before any invoice, so no credit note cites it (`refund_id` stays null)."""
+    return and_(
+        BookingAddon.payment_id.is_(None),
+        BookingAddon.removed_at.is_not(None),
+        BookingAddon.refund_id.is_(None),
+    )
+
+
+def booked_price(booking: Booking, off_paise: int = 0) -> int:
+    """What the booking was made at — its quote's total, less any checkout add-on taken off
+    before it was paid in full (`off_paise`, P5). Later add-ons (their own invoices) and an
+    add-on taken off a paid booking (a credit note) never move it."""
     total = (booking.quote or {}).get("totalPaise")
-    return total if isinstance(total, int) else booking.total_paise
+    return (total if isinstance(total, int) else booking.total_paise) - off_paise
 
 
-def invoiced_on(booking: Booking, payments: list[Payment]) -> dt.date | None:
-    """The IST day the booking was paid in full, if it took up its seats; else None. Add extras
-    payments are their own supply (P8b) and never count towards it."""
+async def off_paise(db: AsyncSession, booking_id: str) -> int:
+    return int(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(BookingAddon.amount_paise), 0)).where(
+                    BookingAddon.booking_id == booking_id, off_the_bill()
+                )
+            )
+        ).scalar_one()
+    )
+
+
+def invoiced_on(booking: Booking, payments: list[Payment], price: int) -> dt.date | None:
+    """The IST day the booking was paid in full (`price`), if it took up its seats; else None.
+    Add extras payments are their own supply (P8b) and never count towards it."""
     if not took_seats(booking):
         return None
-    paid, price = 0, booked_price(booking)
+    paid = 0
     for p in sorted(payments, key=captured_at):
         if p.extras is not None:
             continue
@@ -151,14 +181,15 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
                 payment_id=p.id,
             )
         )
-    day = invoiced_on(booking, payments)
+    price = booked_price(booking, await off_paise(db, booking.id))
+    day = invoiced_on(booking, payments, price)
     invoice = issued.get(("invoice", None))
     if invoice is not None or day is not None:
         out.append(
             DocRef(
                 key="invoice",
                 kind="invoice",
-                amount_paise=invoice.amount_paise if invoice else booked_price(booking),
+                amount_paise=invoice.amount_paise if invoice else price,
                 dated=invoice.dated if invoice else day,  # type: ignore[arg-type]
                 number=invoice.number if invoice else None,
             )

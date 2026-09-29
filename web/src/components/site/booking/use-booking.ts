@@ -19,6 +19,7 @@ import {
   orderBody,
   partySize,
   type PaymentResult,
+  type PayChoice,
   type Quote,
   quoteEmail,
   quoteTravellers,
@@ -113,6 +114,8 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [quote, setQuote] = useState<QuoteState>({ status: 'idle' });
   const [coupon, setCoupon] = useState<CouponState>(NO_COUPON);
   const [picks, setPicks] = useState<AddonPicks>({});
+  /** R43 (P5): the visitor's pick; it only counts while the quote offers a deposit. */
+  const [payChoice, setPay] = useState<PayChoice>('full');
   /** Add-ons the api said are no longer offered (switched off since the page was built). */
   const [goneAddons, setGoneAddons] = useState<ReadonlySet<string>>(() => new Set());
   const [addonNotice, setAddonNotice] = useState<string | null>(null);
@@ -340,6 +343,14 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     phase.kind === 'opening' ||
     phase.kind === 'paying' ||
     phase.kind === 'checking';
+  const shown =
+    quote.status === 'ok' ? quote.quote : quote.status === 'loading' ? quote.last : undefined;
+  /** The deposit on offer for this quote (none inside 30 days, or switched off). */
+  const depositOffer = shown?.deposit ?? null;
+  const pay: PayChoice = payChoice === 'deposit' && depositOffer ? 'deposit' : 'full';
+  /** What Pay charges now: the deposit, or the whole total. */
+  const payNow = pay === 'deposit' && depositOffer ? depositOffer.amountPaise : shown?.totalPaise;
+
   const canPay =
     !!departure &&
     !reason &&
@@ -358,7 +369,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   };
 
   async function startOrder(): Promise<BookingOrder | null> {
-    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied, choices);
+    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied, choices, pay);
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
     if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt) > REUSE_MIN_SECONDS)
@@ -409,6 +420,14 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     } else if (res.status === 409 && isAddonGone(err.body.reason)) {
       dropGoneAddon(err, body.addons ?? []);
       setPhase({ kind: 'choose' });
+      return null;
+    } else if (res.status === 409 && err.body.reason === 'deposit_unavailable') {
+      // P5: the balance fell due since the quote (IST midnight), or deposits were switched off.
+      // The date is still bookable: back to paying in full, with the server's reason.
+      setPay('full');
+      setBanner(err.body.message);
+      setPhase({ kind: 'choose' });
+      void refresh();
       return null;
     } else if (res.status === 409) unbookable(err.body.message, departure?.date);
     else if (res.status === 404) unbookable(MESSAGES.gone);
@@ -492,7 +511,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     return () => clearInterval(timer);
   }, [phase.kind]);
 
-  async function pay() {
+  async function startPayment() {
     const found = formErrors(slots, travellers, contact);
     if (Object.keys(found).length) {
       setErrors(found);
@@ -600,12 +619,16 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     picks,
     setPick,
     addonNotice,
+    pay,
+    setPay,
+    depositOffer,
+    payNow,
     phase,
     busy,
     canPay,
     banner,
     gone,
-    pay,
+    startPayment,
     retryConfirm,
     startOver,
     refresh,

@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 import sentry_sdk
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -14,7 +14,7 @@ from app.models import Booking, BookingAddon, GstDocument, Payment, Refund
 from app.models.enums import PaymentProvider
 from app.services.booking.addons import AddonFact
 from app.services.booking.voucher import load_booking_facts, offline_reference
-from app.services.gst.documents import NO_DOCUMENT, DocRef, issue
+from app.services.gst.documents import NO_DOCUMENT, DocRef, issue, off_the_bill
 from app.services.pdf.gst import GstFacts, gst_filename, render_gst_document
 
 RENDER_TIMEOUT = 5.0
@@ -63,7 +63,9 @@ async def gst_facts(db: AsyncSession, ref: str, doc: DocRef) -> GstFacts:
                 invoice_number, invoice_dated = inv.number, inv.dated
         invoice_addons: tuple[AddonFact, ...] = ()
         if doc.kind == "invoice":
-            covered = BookingAddon.payment_id.is_(None)
+            # The first invoice: the checkout add-ons, less any taken off the price while the
+            # booking was on its deposit (P5) — the price it invoices never had them.
+            covered = and_(BookingAddon.payment_id.is_(None), ~off_the_bill())
             if doc.payment_id is not None:
                 covered = BookingAddon.payment_id == doc.payment_id
             rows = (

@@ -2,7 +2,7 @@
 
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { Check, ChevronDown, Info, Lock, X } from 'lucide-react';
+import { CalendarClock, Check, ChevronDown, Info, Lock, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -30,6 +30,7 @@ import { CouponField } from './CouponField';
 import { MakeItYours } from './MakeItYours';
 import { DeparturePicker } from './DeparturePicker';
 import { PartyBuilder } from './PartyBuilder';
+import { PayChoice } from './PayChoice';
 import { PriceBreakdown } from './PriceBreakdown';
 import { PriceLadder } from './PriceLadder';
 import { type BookingFlow, type BookingPackage, useBooking } from './use-booking';
@@ -261,6 +262,9 @@ function Receipt({
 }) {
   const [open, setOpen] = useState(false);
   const { phase, party, departure } = flow;
+  // R43 (P5): what Pay charges now — the deposit when chosen — and the balance after it.
+  const now = total !== undefined ? flow.payNow : undefined;
+  const deposit = flow.pay === 'deposit' ? flow.depositOffer : null;
   // On a phone the drawer starts closed; a price or code problem must not hide inside it.
   const problem = flow.quote.status === 'error' || !!flow.coupon.error;
   useEffect(() => {
@@ -306,9 +310,10 @@ function Receipt({
       >
         <PriceBreakdown flow={flow} />
         {flow.quote.status !== 'idle' && <CouponField flow={flow} />}
+        <PayChoice flow={flow} />
       </div>
       <div className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] max-md:px-3.5">
-        {total !== undefined && total > TEST_MODE_MAX_PAISE && (
+        {now !== undefined && now > TEST_MODE_MAX_PAISE && (
           <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
             Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this payment
             will stop at Razorpay. For a full test payment, try{' '}
@@ -324,7 +329,7 @@ function Receipt({
         )}
         <button
           type="button"
-          onClick={() => void flow.pay()}
+          onClick={() => void flow.startPayment()}
           disabled={!flow.canPay}
           aria-busy={flow.busy}
           className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-action px-5 py-3.5 text-[15px] font-bold text-ink shadow-[0_8px_20px_-10px_rgb(242_169_59/0.8)] transition-[background-color,transform,opacity] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:bg-action-ink disabled:pointer-events-none disabled:opacity-45"
@@ -338,10 +343,11 @@ function Receipt({
           ) : (
             <>
               {phase.kind === 'dismissed' ? 'Pay again' : 'Pay'}
-              {total !== undefined && flow.canPay && (
-                // The receipt announces the total; the button's accessible name stays "Pay".
+              {now !== undefined && flow.canPay && (
+                // The receipt announces the amounts; the button's accessible name stays "Pay".
                 <span aria-hidden className="num">
-                  {inr(total)}
+                  {inr(now)}
+                  {deposit ? ' now' : ''}
                 </span>
               )}
             </>
@@ -349,6 +355,11 @@ function Receipt({
         </button>
         {phase.kind === 'dismissed' ? (
           <HoldNote expiresAt={phase.order.holdExpiresAt} failure={phase.failure} />
+        ) : deposit ? (
+          <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
+            <CalendarClock className="size-3.5" aria-hidden /> Then{' '}
+            <span className="num">{inr(deposit.balancePaise)}</span> by {formatDate(deposit.dueOn)}
+          </span>
         ) : (
           <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
             <Lock className="size-3.5" aria-hidden /> Seats held for 10 minutes once you press Pay

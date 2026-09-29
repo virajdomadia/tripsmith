@@ -2,14 +2,15 @@
 {% set title = "Booking " ~ b.ref ~ " confirmed" %}
 {% block body %}
 <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">You’re going to {{ b.destination }}, {{ b.first_name }}.</h1>
-<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> is confirmed and paid. Keep the reference — quote it whenever you talk to us.</p>
+<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> {% if balance %}is confirmed — your deposit is in and your seats are held. The balance of <strong>{{ balance }}</strong> is due by <strong>{{ due }}</strong>: pay it from <a href="{{ trip_url }}" style="color:#1b4fd8;font-weight:700;">My trips</a>, all at once or in parts of ₹1,000 or more.{% else %}is confirmed and paid.{% endif %} Keep the reference — quote it whenever you talk to us.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Trip</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;"><a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">{{ b.package_name }}</a> · {{ duration }}</td></tr>
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Departs</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ departs }} · {{ b.departure_city }}</td></tr>
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Returns</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ returns }}</td></tr>
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;vertical-align:top;">Travellers</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>
 {% if addons %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;vertical-align:top;">Add-ons</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endif %}
-<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Paid</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ paid }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Paid</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ paid }}{% if balance %} of {{ total }}{% endif %}</td></tr>
+{% if balance %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-bottom:1px solid #e3e8ec;">Balance due</td><td style="padding:7px 0;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ balance }} by {{ due }}</td></tr>{% endif %}
 {% if coupon %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-bottom:1px solid #e3e8ec;">Coupon</td><td style="padding:7px 0;border-bottom:1px solid #e3e8ec;">{{ coupon }}</td></tr>{% endif %}
 </table>
 {% if invoice_attached %}

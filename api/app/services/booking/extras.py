@@ -365,7 +365,9 @@ async def remove_addon(
     note: str | None,
     razorpay: Razorpay | None,
 ) -> int:
-    """Take an add-on off a confirmed booking and refund it in full. Returns the refund."""
+    """Take an add-on off a confirmed (or, P5, part-paid) booking and refund what was paid for
+    it: in full on a booking paid in full; on a deposit booking the price comes off the balance
+    first. Returns the refund."""
     try:
         booking, _ = await lock_booking(db, ref)
         row = (
@@ -393,26 +395,50 @@ async def remove_addon(
         await db.refresh(booking)
         label = f"{row.name} ({detail(row.basis, row.travellers, row.nights)})"
         # The line itself, in full (R46) — never more (older surplus stays flagged on the desk)
-        # and never more than the booking holds.
-        owed = min(row.amount_paise, booking.paid_paise)
+        # and never more than the booking holds. A checkout add-on on a booking still on its
+        # deposit (P5) comes off the price instead: it was never paid for on its own, so only
+        # what was paid beyond the new total goes back — money the booking no longer needs, not
+        # a credit against an invoice (none exists yet). Extras bought later were paid in full
+        # with their own invoice, and go back in full as before.
+        off_the_bill = booking.status == BookingStatus.PARTIALLY_PAID and row.payment_id is None
+        owed = (
+            min(row.amount_paise, max(0, booking.paid_paise - booking.total_paise))
+            if off_the_bill
+            else min(row.amount_paise, booking.paid_paise)
+        )
+        cleared = booking.status == BookingStatus.PARTIALLY_PAID and booking.paid_paise >= (
+            booking.total_paise
+        )
+        if cleared:  # nothing left to pay once the line is off: the booking is paid in full
+            booking.status = BookingStatus.CONFIRMED
+        what = f"{money(owed)} refunded" if owed else "off the balance, nothing to refund"
         history.record(
             db,
             booking.id,
             "addon.removed",
             actor=BookingActor.OWNER,
             by=by,
-            text=f"Add-on taken off: {label} · {money(owed)} refunded"
-            + (f" · note: {note}" if note else ""),
-            customer=f"{label} was taken off your booking — {money(owed)} is on its way "
-            "back" + (f". {note}" if note else ""),
+            text=f"Add-on taken off: {label} · {what}" + (f" · note: {note}" if note else ""),
+            customer=f"{label} was taken off your booking — "
+            + (f"{money(owed)} is on its way back" if owed else "it comes off your balance")
+            + (f". {note}" if note else ""),
             before=before,
-            after={"totalPaise": booking.total_paise},
+            after={"totalPaise": booking.total_paise, "status": booking.status.value},
         )
         refunds = await plan_refund(
-            db, booking, owed, reason="addon", actor=BookingActor.OWNER, by=by, note=note
+            db,
+            booking,
+            owed,
+            reason="surplus" if off_the_bill else "addon",
+            actor=BookingActor.OWNER,
+            by=by,
+            note=note,
         )
-        if refunds:
+        if refunds and not off_the_bill:  # a credit note cites the line's refund (P8b)
             row.refund_id = refunds[0].id
+        if cleared:
+            await db.flush()
+            await issue_due_safely(db, booking)  # paid in full now: the tax invoice
         await db.commit()
     except BaseException:
         await db.rollback()

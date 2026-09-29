@@ -22,6 +22,9 @@ export type Addon = components['schemas']['AddonOut'];
 export type AddonBasis = components['schemas']['AddonBasis'];
 export type AddonChoice = components['schemas']['AddonChoice'];
 export type QuoteAddon = components['schemas']['QuoteAddon'];
+export type QuoteDeposit = components['schemas']['QuoteDeposit'];
+/** R43 (P5): pay in full, or the deposit now and the balance by its due day. */
+export type PayChoice = 'full' | 'deposit';
 
 export const MAX_TRAVELLERS = 12; // api schemas/meta.py MAX_TRAVELLERS
 export const CHILD_MIN_AGE = 5;
@@ -210,10 +213,12 @@ export function orderBody(
   contact: Contact,
   couponCode: string | null = null,
   addons: AddonChoice[] = [],
+  pay: PayChoice = 'full',
 ): components['schemas']['BookingRequest'] {
   return {
     ...(couponCode ? { couponCode } : {}),
     ...(addons.length ? { addons } : {}),
+    pay,
     departureId,
     travellers: slots.map((s) => ({
       name: travellers[s.key].name.trim(),

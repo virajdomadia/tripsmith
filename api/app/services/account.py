@@ -31,7 +31,7 @@ from app.models import (
     Review,
     User,
 )
-from app.models.enums import BookingActor, BookingStatus, PaymentStatus
+from app.models.enums import BookingActor, BookingStatus, CancellationStatus, PaymentStatus
 from app.schemas.account import (
     AccountBooking,
     AccountBookingDetail,
@@ -42,6 +42,7 @@ from app.schemas.account import (
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
 from app.services.booking import extras, history
+from app.services.booking.balance import balance_out
 from app.services.booking.voucher import HAS_VOUCHER
 from app.services.gst.documents import documents_out
 
@@ -101,6 +102,7 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             Booking.total_paise,
             Booking.paid_paise,
             Booking.created_at,
+            Booking.balance_due_on,
             Package.name,
             Package.slug,
             Destination.name,
@@ -137,6 +139,7 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             cancellation=asked,
             review_rating=stars,
             can_review=can_review(status, reviewed=stars is not None),
+            balance_due_on=due if status == BookingStatus.PARTIALLY_PAID else None,
         )
         for (
             ref,
@@ -145,6 +148,7 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
             total,
             paid,
             booked,
+            due,
             pkg,
             slug,
             dest,
@@ -234,6 +238,10 @@ async def get_booking(
         activity=await history.customer_activity(db, booking.id),
         addons=await extras.booked(db, booking.id),
         extras=await extras.offer(db, booking, departs, today),
+        balance=balance_out(
+            booking,
+            asked=asked is not None and asked.status == CancellationStatus.REQUESTED,
+        ),
     )
 
 

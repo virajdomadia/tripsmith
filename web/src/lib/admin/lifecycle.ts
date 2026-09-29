@@ -212,6 +212,19 @@ export function lifecycle(b: AdminBooking): Step[] {
         },
         ...(owesOrRefunded ? refunded() : []),
       ];
+    case 'balance_unpaid': // P5: the daily tidy, after the balance's grace ran out
+      return [
+        booked,
+        paid('Deposit paid'),
+        {
+          name: 'Cancelled · balance unpaid',
+          state: owesOrRefunded ? 'done' : 'now',
+          at: at(h, 'cancelled.balance_unpaid'),
+          kinds: ['cancelled.balance_unpaid'],
+        },
+        // The policy kept everything: nothing to refund, so no Refunded step.
+        ...(owesOrRefunded ? refunded() : []),
+      ];
     default:
       return [booked, ...failed, { name: 'Cancelled', state: 'now', at: null, kinds: [] }];
   }
@@ -270,6 +283,14 @@ export function nextStep(b: AdminBooking): NextStep {
   }
   if (b.status === 'confirmed') {
     return { tone: 'ok', title: 'Nothing to do', text: `Departs ${formatDate(b.departs)}.` };
+  }
+  if (b.status === 'partially_paid') {
+    // P5: on its deposit — the customer pays the rest from My trips.
+    return {
+      tone: 'ok',
+      title: 'Deposit paid',
+      text: `${inr(b.totalPaise - b.paidPaise)} left to pay. Departs ${formatDate(b.departs)}.`,
+    };
   }
   return { tone: 'mute', title: 'Nothing to do', text: 'This booking is closed.' };
 }

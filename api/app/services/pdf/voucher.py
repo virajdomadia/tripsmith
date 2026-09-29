@@ -21,6 +21,8 @@ from app.services.pdf.document import (
     PRIMARY_SOFT,
     R_PANEL,
     WA,
+    WARN,
+    WARN_SOFT,
     Document,
 )
 
@@ -89,8 +91,11 @@ class _Voucher:
         d.cell(w, 8.5, f.ref, align="C")
         d.set_char_spacing(0)
         paid_in_full = f.paid_paise >= f.total_paise
-        status = "Confirmed · paid in full" if paid_in_full else "Confirmed"
-        d.pill(MARGIN + w + 3, y + 1.65, status, fill=OK_SOFT, color=OK)
+        if not paid_in_full and f.balance_due_on:  # P5: confirmed on its deposit
+            d.pill(MARGIN + w + 3, y + 1.65, "Confirmed · balance due", fill=WARN_SOFT, color=WARN)
+        else:
+            status = "Confirmed · paid in full" if paid_in_full else "Confirmed"
+            d.pill(MARGIN + w + 3, y + 1.65, status, fill=OK_SOFT, color=OK)
         d.set_y(y + 8.5 + 6)
 
     def section(self, title: str, *, keep: float) -> None:
@@ -124,11 +129,23 @@ class _Voucher:
             d.font(11.5, "XB", INK)
             d.cell(cw - 8, 6, value)
         d.set_y(top + h)
+        y = top + h
+        if f.balance_paise and f.balance_due_on:  # P5: under the strip, in the pill's warn tone
+            d.set_xy(MARGIN, y + 2)
+            d.font(10, "B", WARN)
+            d.cell(
+                0,
+                5,
+                f"Balance due: {inr(f.balance_paise // 100)} of {inr(f.total_paise // 100)}, by "
+                f"{long_date(f.balance_due_on)} — pay it in My trips",
+            )
+            y += 7
+            d.set_y(y)
         if f.coupon_code:  # B15: under the strip, like a receipt's discount line
-            d.set_xy(MARGIN, top + h + 2)
+            d.set_xy(MARGIN, y + 2)
             d.font(9, "", MUTE)
             d.cell(0, 5, f"Coupon {f.coupon_code} · {inr(f.coupon_off_paise // 100)} off the total")
-            d.set_y(top + h + 7)
+            d.set_y(y + 7)
 
     def travellers(self) -> None:
         d, f = self.doc, self.f

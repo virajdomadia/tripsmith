@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set title = "Booking " ~ b.ref ~ " cancelled" %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Booking {{ b.ref }} is cancelled, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">The balance for {{ b.package_name }}, {{ departs }}, was due on {{ due }} and wasn’t paid by the end of the grace period, so the booking is cancelled and the seats are released.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">You paid</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ paid_before }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Refund</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ refund or "None" }}</td></tr>
+</table>
+<p style="margin:0 0 16px;">{% if refund %}{{ refund }} is on its way back — banks take 5–7 working days to show it.{% else %}It was cancelled {{ days_out }} days before departure, when the cancellation policy applies: {{ tier }}. So there is no refund.{% endif %}</p>
+<p style="margin:0 0 18px;color:#5e6b76;">If this is a mistake, WhatsApp us today. {{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ whatsapp_url }}" style="display:inline-block;background:#17823f;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">WhatsApp us about this trip</a>
+</p>
+{% endblock %}

@@ -708,6 +708,7 @@ CANCEL_LABELS = {
     CancelReason.SEATS_GONE: "Seats gone",
     CancelReason.CANCELLATION_APPROVED: "Cancellation approved",
     CancelReason.OWNER_RELEASED: "Released by owner",
+    CancelReason.BALANCE_UNPAID: "Balance unpaid",
 }
 CANCELLATION_LABELS = {
     CancellationStatus.REQUESTED: "Requested",

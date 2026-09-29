@@ -16,6 +16,10 @@ code. The order amount is still the server quote's total, coupon included.
 
 Add-ons (P8) are priced from the package's rows at both steps, and the booking keeps its own
 copy of each (`booking_addons`) beside the quote snapshot.
+
+The deposit (P5) is offered on the final total at both steps too. A booking made with it keeps
+the deposit and the balance's due day, its snapshot keeps the deposit it was made on (none when
+paid in full), and its Razorpay order is for the deposit alone.
 """
 
 import datetime as dt
@@ -57,7 +61,7 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.services.analytics import ist_today
-from app.services.booking import coupons, history
+from app.services.booking import coupons, deposit, history
 from app.services.booking.addons import addon_rows
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
@@ -75,6 +79,7 @@ REF_CONSTRAINT = "uq_bookings_ref"
 REF_ATTEMPTS = 5
 GONE = "That trip is no longer available"
 PAYMENTS_DOWN = "Payments are not reachable right now — try again in a minute, or WhatsApp us"
+NO_DEPOSIT = "This date can only be paid in full now — pick Pay in full"
 UNBOOKABLE_MESSAGE = {
     UnbookableReason.ON_REQUEST: "This date is priced on request — enquire and we'll quote it",
     UnbookableReason.TOO_SOON: "This date departs too soon to book online — WhatsApp us",
@@ -177,6 +182,7 @@ async def quote_booking(
             db, req.coupon_code, pkg, quote, email=req.email, now=now, lock=False
         )
         quote = apply_coupon(quote, coupon)
+    quote = deposit.with_deposit(quote, dep.date, ist_today(now), on=pkg.deposit_on)
     ladder = price_ladder(dep, pkg, req.travellers, quote, deal_base=base, now=now, coupon=coupon)
     return quote.model_copy(update={"ladder": ladder})
 
@@ -318,6 +324,13 @@ async def create_booking_order(
             )
             quote = apply_coupon(quote, coupon)
             coupon_code = coupon.code
+        offer = deposit.with_deposit(quote, dep.date, ist_today(now), on=pkg.deposit_on)
+        chosen = offer.deposit if req.pay == "deposit" else None
+        if req.pay == "deposit" and chosen is None:
+            raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
+        # The snapshot keeps the deposit it was made on (none when paid in full); the order's
+        # answer keeps the offer, so the sheet can still show both choices while the hold lasts.
+        quote = offer.model_copy(update={"deposit": chosen})
 
         booking: Booking | None = None
         for _attempt in range(REF_ATTEMPTS):
@@ -335,6 +348,8 @@ async def create_booking_order(
                 company_name=contact.company_name,
                 quote=quote.model_dump(mode="json", by_alias=True),
                 total_paise=quote.total_paise,
+                deposit_paise=chosen.amount_paise if chosen else None,
+                balance_due_on=chosen.due_on if chosen else None,
                 coupon_code=coupon_code,
                 travellers=[
                     BookingTraveller(name=t.name, age=t.age, occupancy=t.occupancy, position=i)
@@ -360,16 +375,28 @@ async def create_booking_order(
             else ""
         )
         addons_text = history.addons(quote.addons)
+        deposit_text = (
+            f" · paying a {history.money(chosen.amount_paise)} deposit now, the balance by "
+            f"{history.day(chosen.due_on)}"
+            if chosen
+            else ""
+        )
         history.record(
             db,
             booking.id,
             "booked",
             actor=BookingActor.CUSTOMER,
             text=f"Booked online · {history.travellers(party)}{addons_text} · "
-            f"{history.money(booking.total_paise)}{coupon_text} · seats held 10 minutes",
+            f"{history.money(booking.total_paise)}{coupon_text}{deposit_text} · seats held 10 "
+            "minutes",
             customer=f"You booked {history.travellers(party)}{addons_text} · "
-            f"{history.money(booking.total_paise)} — seats held for 10 minutes while you pay",
-            after={"status": BookingStatus.PENDING.value, "totalPaise": booking.total_paise},
+            f"{history.money(booking.total_paise)}{deposit_text} — seats held for 10 minutes "
+            "while you pay",
+            after={
+                "status": BookingStatus.PENDING.value,
+                "totalPaise": booking.total_paise,
+                **({"depositPaise": chosen.amount_paise} if chosen else {}),
+            },
         )
         await db.commit()
     except BaseException:
@@ -377,10 +404,9 @@ async def create_booking_order(
         raise
 
     touched = {pkg.id, *(r.package_id for r in released)}
+    now_paise = booking.deposit_paise or booking.total_paise  # P5: the deposit alone
     try:
-        order_id = await razorpay.create_order(
-            amount_paise=booking.total_paise, receipt=booking.ref
-        )
+        order_id = await razorpay.create_order(amount_paise=now_paise, receipt=booking.ref)
     except RazorpayError:
         log.exception("Razorpay order for booking %s failed; undoing its hold", booking.ref)
         await _undo_hold(db, booking, released, contact)
@@ -392,7 +418,7 @@ async def create_booking_order(
             booking_id=booking.id,
             provider=PaymentProvider.RAZORPAY,
             razorpay_order_id=order_id,
-            amount_paise=booking.total_paise,
+            amount_paise=now_paise,
             status=PaymentStatus.CREATED,
         )
     )
@@ -401,7 +427,8 @@ async def create_booking_order(
         booking.id,
         "order.opened",
         actor=BookingActor.SYSTEM,
-        text=f"Razorpay order {order_id} opened · {history.money(booking.total_paise)}",
+        text=f"Razorpay order {order_id} opened · {history.money(now_paise)}"
+        + (" (deposit)" if booking.deposit_paise else ""),
     )
     await db.commit()
     await refresh_quietly(db, touched, after=f"booking {booking.ref}")
@@ -409,7 +436,7 @@ async def create_booking_order(
         booking_ref=booking.ref,
         order_id=order_id,
         key_id=razorpay.key_id,
-        amount_paise=booking.total_paise,
+        amount_paise=now_paise,
         hold_expires_at=booking.hold_expires_at,
-        quote=quote,
+        quote=offer,
     )

@@ -14,7 +14,9 @@ IST midnight, so `ist_today()` is the new day:
 6. (P13) send again any Razorpay refund stuck `requested` for over an hour without a Razorpay
    id (a process that died mid-call) — under the same idempotency key, so never twice;
 7. (P17) revalidate the pages of packages where an early-bird tier ended at IST midnight, so the
-   "Early-bird savings" tag and the date labels move on without a deploy.
+   "Early-bird savings" tag and the date labels move on without a deploy;
+8. (P5) cancel bookings whose balance is past its 2-day grace (`balance_unpaid`, the policy's
+   refund sent), then send today's balance reminders — each once (services/booking/balance.py).
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -31,6 +33,8 @@ from app.schemas.pdf import DailyReport
 from app.services.analytics import ist_today
 from app.services.auth.otp import prune_codes
 from app.services.auth.sessions import prune_sessions
+from app.services.booking.after_capture import Notify
+from app.services.booking.balance import sweep_balances
 from app.services.booking.refunds import resend_stale
 from app.services.booking.sweep import sweep_bookings
 from app.services.catalog.admin_packages import (
@@ -50,6 +54,8 @@ async def daily(
     response.headers["Cache-Control"] = "no-store"
     today = ist_today()
     changed = await recompute_all_starting_prices(db, today=today)
+    # P5 before the Blob GC, which can fail the run: a missed night would skip a reminder stage.
+    balances = await sweep_balances(db, Notify.of(request.app.state), today=today)
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
     swept = await sweep_bookings(db, today=today)
@@ -64,4 +70,6 @@ async def daily(
         deals_ended=ended,
         refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
         early_birds_ended=await revalidate_ended_early_birds(db, today=today),
+        balances_cancelled=balances.cancelled,
+        balance_reminders=balances.reminded,
     )

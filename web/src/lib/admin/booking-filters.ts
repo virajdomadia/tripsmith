@@ -47,6 +47,7 @@ export const CANCEL_LABELS: Record<CancelReason, string> = {
   seats_gone: 'Seats gone',
   cancellation_approved: 'Cancellation approved',
   owner_released: 'Released by owner',
+  balance_unpaid: 'Balance unpaid',
 };
 
 /** One line for a row's state: a pending booking says whether its hold still runs. */

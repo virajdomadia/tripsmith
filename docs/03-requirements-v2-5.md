@@ -90,6 +90,13 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - A desk filter and column for balances due; paid, due and due-by on the booking, voucher and CSV.
   - Mark a balance paid offline, extend one booking's due date (logged), or switch deposits off per package.
 - **Accept:** the deposit plus all parts equals the quote to the paisa; a replayed part-payment webhook records one payment; the cron cancels an unpaid booking and frees its seats.
+- **Decided at row start (Viraj, 2026-09-29):**
+  - **State:** a paid deposit moves the booking from `pending` to `partially_paid` (the status already existed, and the seat view already counts it); the part that clears the balance moves it to `confirmed`, so `confirmed` always means paid in full. Migration 0016 adds `bookings.deposit_paise` (null = pay in full) and `bookings.balance_due_on`, `packages.deposit_on` (default on), and the cancel reason `balance_unpaid`. The 25 %, the 30 days, the 2 days' grace and the ₹1,000 minimum are constants in code. Add-on D's unused `split` column is left alone.
+  - **Rounding:** the deposit is rounded **up** to the whole rupee, so it is never under 25 % and the balance stays in whole rupees. A part is at least ₹1,000 unless less than that is left, when the remainder is the last part.
+  - **Add-ons** picked at checkout count in the 25 %. **Extras added later** stay as P8b built them: paid in full at once with their own invoice; the balance does not move. When the owner removes a checkout add-on from a booking still on its deposit, its price comes off the balance first, and only money paid beyond the new total is refunded.
+  - **Reminders are built in this row:** `/cron/daily` sends −7, −3 and due-day reminders, each recorded once in the history log so a re-run sends nothing twice, and the customer is emailed when the booking is cancelled. P15 later puts them under its switches and previews.
+  - **GST as P13:** a receipt for every part, the tax invoice once paid in full. A `balance_unpaid` cancellation never had an invoice, so its refund has no credit note. The cancel lands 28 days out (the 50 %-retained tier), so the refund is paid − half the price, usually ₹0: the deposit is kept.
+  - **Two PRs:** P5a customer path (0016 with all the schema, pay choice on the sheet, deposit capture, pay the balance in My trips, voucher "Balance due", reminders and the overdue cancel), then P5b owner (desk filter and column, CSV, mark the balance paid offline, extend the due date up to the departure day, logged, and the per-package switch).
 
 ### R44. Waitlist (P6)
 - **Joining:**

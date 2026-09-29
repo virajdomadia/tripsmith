@@ -9,7 +9,7 @@ import datetime as dt
 import re
 from collections import Counter
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
@@ -49,6 +49,9 @@ class CouponReason(StrEnum):
     NOT_FOR_TRIP = "coupon_not_for_trip"
     BELOW_MINIMUM = "coupon_below_minimum"  # measured after the deal
     USED_BY_EMAIL = "coupon_used_by_email"
+
+
+PayChoice = Literal["full", "deposit"]  # P5: pay in full, or the deposit now
 
 
 def normalise_code(v: object) -> object:
@@ -270,6 +273,11 @@ class BookingRequest(ApiModel):
     addons: list[AddonChoice] = Field(
         default_factory=list, max_length=ADDON_CHOICES_MAX, description="As on the quote"
     )
+    pay: PayChoice = Field(
+        default="full",
+        description="P5: `deposit` pays the quote's deposit now and the balance later; refused "
+        "with 409 `deposit_unavailable` when the quote offers none",
+    )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)
     _addons = field_validator("addons")(_check_addons)
@@ -353,6 +361,16 @@ class QuoteAddon(ApiModel):
     amount_paise: int = Field(description="unit × travellers × nights")
 
 
+class QuoteDeposit(ApiModel):
+    """R43 (P5): "Reserve with 25 % now" — offered when the package allows it and the balance
+    would not yet be due. On a booking's snapshot: the deposit it was made on, or null."""
+
+    percent: int = Field(examples=[25])
+    amount_paise: int = Field(description="25 % of the total, rounded up to the whole rupee")
+    balance_paise: int = Field(description="total − deposit")
+    due_on: dt.date = Field(description="The IST day the balance is due: departure − 30 days")
+
+
 class Quote(ApiModel):
     """The server's price for a party on a departure; snapshotted on the booking as-is."""
 
@@ -376,6 +394,9 @@ class Quote(ApiModel):
     )
     addons_paise: int = Field(description="The add-on lines' total, at full price")
     total_paise: int = Field(description="subtotal − discount + add-ons")
+    deposit: QuoteDeposit | None = Field(
+        default=None, description="P5: the deposit option (null = pay in full only)"
+    )
 
     @property
     def fare_paise(self) -> int:
@@ -399,6 +420,8 @@ class Quote(ApiModel):
             filled["ladder"] = []
         if "addons" not in data:
             filled["addons"] = []
+        if "deposit" not in data:
+            filled["deposit"] = None
         if "addonsPaise" not in data and "addons_paise" not in data:
             filled["addonsPaise"] = 0
         return {**data, **filled} if filled else data
@@ -410,7 +433,7 @@ class BookingOrder(ApiModel):
     booking_ref: str = Field(examples=["TB-7F3K2Q"])
     order_id: str = Field(examples=["order_RB58wdjHk3F0vd"])
     key_id: str = Field(description="Razorpay's public key id (test mode)")
-    amount_paise: int
+    amount_paise: int = Field(description="What Checkout charges now: the total, or the deposit")
     hold_expires_at: dt.datetime
     quote: Quote
 

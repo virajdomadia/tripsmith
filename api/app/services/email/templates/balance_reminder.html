@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% set title = "Balance due · " ~ b.ref %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">{% if overdue %}Your balance is overdue, {{ b.first_name }}.{% elif days_left == 0 %}Your balance is due today, {{ b.first_name }}.{% else %}{{ balance }} due in {{ days_left }} days, {{ b.first_name }}.{% endif %}</h1>
+<p style="margin:0 0 16px;">The balance of <strong>{{ balance }}</strong> for booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }}, {{ departs }} — {% if overdue %}was due on {{ due }}{% else %}is due by {{ due }}{% endif %}. You can pay it all at once or in parts of ₹1,000 or more.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Paid so far</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ paid }} of {{ total }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Left to pay</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ balance }}</td></tr>
+</table>
+<p style="margin:0 0 16px;color:#5e6b76;">If it isn’t paid by {{ last_day }}, the booking is cancelled and the seats are released; the cancellation policy then applies to what you’ve paid. {{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ trip_url }}" style="display:inline-block;background:#1b4fd8;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Pay the balance</a>
+</p>
+{% endblock %}

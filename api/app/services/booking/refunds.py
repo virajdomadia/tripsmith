@@ -75,10 +75,11 @@ NOTHING_BY_HAND = "This booking has no offline refund to record"
 
 async def refund_owed(db: AsyncSession, booking: Booking) -> int:
     """What is still owed back and not yet sent. A cancellation the owner approved owes the
-    refund agreed then (a policy tier may keep part) plus any money beyond the price in full; any
-    other cancelled booking everything it holds; a live one only what it holds beyond its total
-    (a second payment). A refund in flight or done is already off `paid_paise`; a failed one is
-    back on it."""
+    refund agreed then (a policy tier may keep part) plus any money beyond the price in full, and
+    so does one the daily tidy made for an unpaid balance (P5: the policy's refund, kept on the
+    booking); any other cancelled booking everything it holds; a live one only what it holds
+    beyond its total (a second payment). A refund in flight or done is already off
+    `paid_paise`; a failed one is back on it."""
     agreed = (
         await db.execute(
             select(BookingCancellation.refund_paise).where(
@@ -87,7 +88,12 @@ async def refund_owed(db: AsyncSession, booking: Booking) -> int:
             )
         )
     ).one_or_none()
+    settled: int | None = None
     if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
+        settled = agreed[0] or 0
+    elif booking.cancel_reason == CancelReason.BALANCE_UNPAID:
+        settled = booking.balance_refund_paise or 0
+    if settled is not None:
         # Everything owed since the approval, less what was already given back: the refund
         # agreed, plus in full any money captured beyond the booking's price (a second
         # payment has no seat behind it, whenever it landed). Amounts, not timestamps: a
@@ -102,7 +108,7 @@ async def refund_owed(db: AsyncSession, booking: Booking) -> int:
         ).scalar_one()
         given_back = ever - booking.paid_paise
         surplus = max(0, ever - booking.total_paise)
-        return min(booking.paid_paise, max(0, (agreed[0] or 0) + surplus - given_back))
+        return min(booking.paid_paise, max(0, settled + surplus - given_back))
     elif booking.status == BookingStatus.CANCELLED:
         return booking.paid_paise
     else:
@@ -130,6 +136,8 @@ def reason_for(booking: Booking) -> Reason:
         return "cancellation"
     if booking.cancel_reason == CancelReason.SEATS_GONE:
         return "seats_gone"
+    if booking.cancel_reason == CancelReason.BALANCE_UNPAID:
+        return "balance"
     return "surplus"
 
 

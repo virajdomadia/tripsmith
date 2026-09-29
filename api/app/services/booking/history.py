@@ -28,7 +28,7 @@ from app.schemas.account import ActivityEntry
 from app.schemas.admin_bookings import BookingHistory, HistoryEntry, HistoryGroup
 from app.schemas.bookings import QuoteAddon
 from app.services.booking.addons import from_quote, summary
-from app.services.format import inr, short_name
+from app.services.format import inr, long_date, short_name
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +51,10 @@ def group_of(kind: str) -> HistoryGroup:
 
 def money(paise: int) -> str:
     return inr(paise // 100)
+
+
+def day(d: dt.date) -> str:
+    return long_date(d)
 
 
 def travellers(n: int) -> str:

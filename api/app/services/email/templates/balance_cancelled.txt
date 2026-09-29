@@ -1,0 +1,15 @@
+Booking {{ b.ref }} is cancelled, {{ b.first_name }}.
+
+The balance for {{ b.package_name }}, {{ departs }}, was due on {{ due }} and wasn’t paid by the end of the grace period, so the booking is cancelled and the seats are released.
+
+You paid: {{ paid_before }}
+Refund:   {{ refund or "None" }}
+
+{% if refund %}{{ refund }} is on its way back — banks take 5–7 working days to show it.{% else %}It was cancelled {{ days_out }} days before departure, when the cancellation policy applies: {{ tier }}. So there is no refund.{% endif %}
+
+If this is a mistake, WhatsApp us today. {{ demo_note }}
+
+WhatsApp us about this trip: {{ whatsapp_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

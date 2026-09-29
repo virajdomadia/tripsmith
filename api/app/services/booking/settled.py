@@ -14,6 +14,9 @@ class Settled(StrEnum):
     SEATS_GONE = "seats_gone"  # late capture, no seats: cancelled, refund needed
     NOT_PENDING = "not_pending"  # money on a booking already confirmed or cancelled: refund
     EXTRAS = "extras"  # P8b: an Add extras payment on a confirmed booking — the add-ons join it
+    DEPOSIT = "deposit"  # P5: the deposit is in — `partially_paid`, the seats held
+    BALANCE_PART = "balance_part"  # P5: a part of the balance, some still to pay
+    PAID_IN_FULL = "paid_in_full"  # P5: the part that cleared the balance — `confirmed`
 
 
 class Capture(NamedTuple):

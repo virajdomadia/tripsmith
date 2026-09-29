@@ -11,7 +11,8 @@ Blob object to go stale or leak. Two ways in:
 - `GET /account/bookings/{ref}/voucher.pdf` — a signed-in owner in B7; B8 adds the customer the
   booking belongs to.
 
-Only a confirmed (or completed) booking has a voucher.
+Only a confirmed (or completed) booking has a voucher — and one on its deposit (P5), which prints
+"Balance due".
 """
 
 import datetime as dt
@@ -31,7 +32,7 @@ from app.services.booking.addons import AddonFact
 from app.services.booking.addons import facts as addon_facts
 
 LINK_SECONDS = 30 * 60
-HAS_VOUCHER = (BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
+HAS_VOUCHER = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
 OCCUPANCY_LABEL = {
     Occupancy.DOUBLE: "Double room",
     Occupancy.TRIPLE: "Triple room",
@@ -113,6 +114,13 @@ class BookingFacts:
     coupon_code: str | None = None  # B15
     coupon_off_paise: int = 0  # from the booking's quote snapshot
     addons: tuple[AddonFact, ...] = ()  # P8: what the booking still has, in the order bought
+    deposit_paise: int | None = None  # P5: made on a deposit
+    balance_due_on: dt.date | None = None  # P5: the balance's due day (IST)
+
+    @property
+    def balance_paise(self) -> int:
+        """What is still to pay (P5); 0 once paid in full."""
+        return max(0, self.total_paise - self.paid_paise)
 
     @property
     def first_name(self) -> str:
@@ -189,6 +197,8 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         coupon_code=booking.coupon_code,
         coupon_off_paise=coupon_off_of(booking.quote),
         addons=addon_facts(booking.addons),
+        deposit_paise=booking.deposit_paise,
+        balance_due_on=booking.balance_due_on,
     )
 
 

@@ -17,6 +17,8 @@ from app.schemas.account import (
     AccountBookingDetail,
     AccountBookings,
     AccountCancellation,
+    BalanceOrder,
+    BalanceRequest,
     CancellationRequest,
 )
 from app.schemas.extras import ExtrasOrder, ExtrasQuote, ExtrasRequest
@@ -24,6 +26,7 @@ from app.schemas.reviews import AccountReview, ReviewInput
 from app.services.account import get_booking, list_bookings, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
+from app.services.booking.balance import create_balance_order
 from app.services.booking.extras import create_extras_order, quote_extras
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_cancellation_emails
@@ -98,6 +101,29 @@ async def post_extras_order(
     join the booking only when the money is captured."""
     response.headers.update(NO_STORE)
     return await create_extras_order(db, user, ref, payload, rzp, today=ist_today())
+
+
+@router.post(
+    "/bookings/{ref}/balance",
+    operation_id="createBalanceOrder",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+    dependencies=[Depends(extras_rate_limit)],
+)
+async def post_balance_order(
+    ref: BookingRef,
+    payload: BalanceRequest,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    rzp: Annotated[Razorpay, Depends(razorpay)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> BalanceOrder:
+    """P5: a Razorpay order for a part of the balance (at least ₹1,000 unless less is left, at
+    most what is left). Checkout's success handler posts to `confirmPayment` and `syncPayment`
+    checks it on close, like any booking payment; the part that clears the balance confirms the
+    booking. 409 `balance_closed` when there is nothing to pay or a cancellation request waits."""
+    response.headers.update(NO_STORE)
+    return await create_balance_order(db, user, ref, payload.amount_paise, rzp)
 
 
 @router.post(

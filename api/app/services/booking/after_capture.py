@@ -6,8 +6,9 @@ reach it the same way — after their transaction has committed, and only when
 "5 replays → 1 payment, 1 email" hold: the emails live here and nowhere else.
 
 1. Freshness: recompute the package's "from ₹" and revalidate its pages (B3).
-2. Refunds (P13): a late capture with no seats, or money on a booking that no longer takes it,
-   planned its refund in the capture's transaction; it is sent to Razorpay here.
+2. Refunds (P13): a late capture with no seats, money on a booking that no longer takes it, or
+   (P5) a balance part beyond the total planned its refund in the capture's transaction; it is
+   sent to Razorpay here.
 3. Emails (B7): the booking's facts are read in a short transaction and ended before the
    voucher render and the sends, so no pooled connection waits on Resend. A fully-paid
    confirmation also carries the GST tax invoice (P13b), numbered in its own transaction.
@@ -86,9 +87,10 @@ async def on_new_capture(
     await refresh_quietly(db, {package_id}, after=after)
     if notify is None or capture.settled == Settled.PART_PAID:
         return
-    if capture.settled in (Settled.SEATS_GONE, Settled.NOT_PENDING, Settled.EXTRAS):
-        # EXTRAS: an add-on the booking already had by then is refunded (extras.settle_extras).
-        await send_refunds(db, ref, notify.razorpay)
+    # Whatever the capture planned to give back: a late capture with no seats, money on a booking
+    # that no longer takes it, an add-on it already had (P8b), or the part of two balance parts
+    # paid at once that went beyond the total (P5). Nothing planned = one read, no call.
+    await send_refunds(db, ref, notify.razorpay)
     try:
         facts = await load_booking_facts(db, ref)
     except Exception as exc:
@@ -101,7 +103,8 @@ async def on_new_capture(
     if facts is None:
         return
     voucher = invoice = None
-    if capture.settled == Settled.CONFIRMED:
+    if capture.settled in (Settled.CONFIRMED, Settled.DEPOSIT, Settled.PAID_IN_FULL):
+        # P5: the deposit's voucher says "Balance due"; the part that clears it sends a fresh one.
         voucher = await voucher_attachment(facts, notify.settings)
         if facts.paid_paise >= facts.total_paise:  # P13b: paid in full → the tax invoice
             invoice = await invoice_attachment(db, ref)
