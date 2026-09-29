@@ -212,6 +212,19 @@ export function lifecycle(b: AdminBooking): Step[] {
         },
         ...(owesOrRefunded ? refunded() : []),
       ];
+    case 'balance_unpaid': // P5: the daily tidy, after the balance's grace ran out
+      return [
+        booked,
+        paid('Deposit paid'),
+        {
+          name: 'Cancelled · balance unpaid',
+          state: owesOrRefunded ? 'done' : 'now',
+          at: at(h, 'cancelled.balance_unpaid'),
+          kinds: ['cancelled.balance_unpaid'],
+        },
+        // The policy kept everything: nothing to refund, so no Refunded step.
+        ...(owesOrRefunded ? refunded() : []),
+      ];
     default:
       return [booked, ...failed, { name: 'Cancelled', state: 'now', at: null, kinds: [] }];
   }

@@ -92,9 +92,16 @@ def _ist(moment: dt.datetime) -> dt.date:
 
 
 def took_seats(booking: Booking) -> bool:
-    return booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) or (
+    """Held its seats at some point: confirmed, on its deposit (P5), completed, or cancelled after
+    that (approved, or the balance went unpaid). The invoice still waits for full payment."""
+    return booking.status in (
+        BookingStatus.CONFIRMED,
+        BookingStatus.PARTIALLY_PAID,
+        BookingStatus.COMPLETED,
+    ) or (
         booking.status == BookingStatus.CANCELLED
-        and booking.cancel_reason == CancelReason.CANCELLATION_APPROVED
+        and booking.cancel_reason
+        in (CancelReason.CANCELLATION_APPROVED, CancelReason.BALANCE_UNPAID)
     )
 
 

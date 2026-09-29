@@ -55,6 +55,16 @@ class Booking(IdMixin, TimestampsMixin, Base):
             "contact_email",
             postgresql_where=text("coupon_code IS NOT NULL"),
         ),
+        CheckConstraint(  # 0016 (P5)
+            "(deposit_paise IS NULL) = (balance_due_on IS NULL) "
+            "AND (deposit_paise IS NULL OR deposit_paise > 0)",
+            name="deposit_due",
+        ),
+        Index(  # 0016: the daily tidy's reminder and overdue scans
+            "ix_bookings_balance_due_on",
+            "balance_due_on",
+            postgresql_where=text("status = 'partially_paid'"),
+        ),
     )
 
     ref: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # TB-XXXXXX
@@ -93,6 +103,12 @@ class Booking(IdMixin, TimestampsMixin, Base):
     gstin: Mapped[str | None] = mapped_column(Text)
     company_name: Mapped[str | None] = mapped_column(Text)
     split: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # add-on D
+    # 0016 (P5, R43): the deposit the booking was made on (null = paid in full) and the IST day
+    # its balance is due. `partially_paid` = the deposit is in, the seats held, the balance open.
+    deposit_paise: Mapped[int | None] = mapped_column(Integer)
+    balance_due_on: Mapped[date | None] = mapped_column(Date)
+    # The refund the policy gave when the balance went unpaid (`balance_unpaid`).
+    balance_refund_paise: Mapped[int | None] = mapped_column(Integer)
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
         back_populates="booking",

@@ -103,6 +103,7 @@ class CancelReason(StrEnum):
     SEATS_GONE = "seats_gone"
     CANCELLATION_APPROVED = "cancellation_approved"
     OWNER_RELEASED = "owner_released"
+    BALANCE_UNPAID = "balance_unpaid"  # P5: the daily tidy, after the 2-day grace
 
 
 class CouponKind(StrEnum):

@@ -28,8 +28,9 @@ const WA_BTN =
 
 /**
  * The end of the sheet (B0 success; B7 adds the voucher, a 30-minute signed link). Three
- * honest outcomes — confirmed; paid too late for the last seats (cancelled + refund, R16); and
- * paid but not yet confirmed by us — each with the reference to quote on WhatsApp.
+ * honest outcomes — confirmed (or, P5, confirmed on its deposit with the balance still due);
+ * paid too late for the last seats (cancelled + refund, R16); and paid but not yet confirmed by
+ * us — each with the reference to quote on WhatsApp.
  */
 export function BookingDone({
   pkg,
@@ -75,7 +76,10 @@ export function BookingDone({
       </div>
     );
 
-  if (result?.status === 'confirmed' || result?.status === 'completed')
+  const onDeposit = result?.status === 'partially_paid';
+  const due = order.quote.deposit?.dueOn;
+  const balance = order.quote.totalPaise - order.amountPaise;
+  if (result?.status === 'confirmed' || result?.status === 'completed' || onDeposit)
     return (
       <div className="grid gap-5" role="status">
         <div className="grid size-14 place-items-center rounded-2xl bg-ok-soft text-ok">
@@ -94,13 +98,29 @@ export function BookingDone({
         </div>
         <h2 className="text-[30px] animate-rise">You’re going to {pkg.destination}.</h2>
         <p className="text-[16px] leading-relaxed text-ink2 animate-rise [animation-delay:80ms]">
-          Booking <RefChip ref_={ref} inline /> is confirmed and paid. Keep the reference — quote it
-          whenever you talk to us.
+          Booking <RefChip ref_={ref} inline />{' '}
+          {onDeposit ? (
+            <>
+              is confirmed — your deposit is in and your seats are held. Pay the{' '}
+              <b className="num text-ink">{inr(balance)}</b> balance from My trips by{' '}
+              {due ? formatDate(due) : 'its due date'}, all at once or in parts.
+            </>
+          ) : (
+            'is confirmed and paid.'
+          )}{' '}
+          Keep the reference — quote it whenever you talk to us.
         </p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-card border border-line p-4 animate-rise [animation-delay:160ms]">
           <Fact k="Trip" v={pkg.name} wide />
           <Fact k="Departs" v={formatDate(order.quote.date)} />
-          <Fact k="Paid" v={paid} num />
+          <Fact k={onDeposit ? 'Deposit paid' : 'Paid'} v={paid} num />
+          {onDeposit && (
+            <Fact
+              k={due ? `Balance due by ${formatDate(due)}` : 'Balance due'}
+              v={inr(balance)}
+              num
+            />
+          )}
           <Fact k="Travellers" v={travellers} />
           <Fact k="Lead" v={lead} />
         </dl>

@@ -115,6 +115,8 @@ class Package(IdMixin, TimestampsMixin, Base):
     eb1_off_paise: Mapped[int | None] = mapped_column(Integer)
     eb2_days: Mapped[int | None] = mapped_column(SmallInteger)
     eb2_off_paise: Mapped[int | None] = mapped_column(Integer)
+    # 0016 (P5, R43): the Book-now sheet offers "Reserve with 25 % now" (per package).
+    deposit_on: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     rating_avg: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))  # ⏩ v2 reviews
     rating_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # ⏩ v2
 

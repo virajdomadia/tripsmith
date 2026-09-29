@@ -94,6 +94,15 @@ export function TripRow({
           <p className="text-[13px] text-mute">Payment wasn’t finished — seats released</p>
         ) : b.cancellation === 'requested' ? (
           <p className="text-[13px] text-mute">We reply within a day</p>
+        ) : b.balanceDueOn ? (
+          // P5: on its deposit — what is left, and by when.
+          <p className="num text-right text-[14px] text-mute">
+            Balance{' '}
+            <b className="text-[17px] font-extrabold text-ink">{inr(b.totalPaise - b.paidPaise)}</b>
+            <span className="block text-[12.5px] font-semibold text-warn">
+              due by {formatDate(b.balanceDueOn)}
+            </span>
+          </p>
         ) : (
           <p className="num text-[14px] text-mute">
             {paid ? 'Paid ' : 'Total '}

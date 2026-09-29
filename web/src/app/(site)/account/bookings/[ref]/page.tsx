@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Activity } from '@/components/site/account/Activity';
+import { BalancePanel } from '@/components/site/account/BalancePanel';
 import { CancelPanel } from '@/components/site/account/CancelPanel';
 import { ReviewPanel } from '@/components/site/account/ReviewPanel';
 import { PILL } from '@/components/site/account/TripRow';
@@ -32,7 +33,8 @@ const REF = /^TB-[A-Z0-9]{6}$/;
  * One booking on My trips (R18, R19): the trip, when, who, what was paid for what, the voucher,
  * and the cancellation block — the policy tier that applies today, and the request form while
  * a request can still be made. A completed trip leads with its review (R21, B13), and the
- * booking's customer-safe history closes the page as "Activity" (R54, P16).
+ * booking's customer-safe history closes the page as "Activity" (R54, P16). A booking made on
+ * a deposit leads with its balance: paid, left, due by, and Pay now in parts (R43, P5).
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -102,6 +104,18 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             review={b.review ?? null}
             canReview={b.canReview}
           />
+          {b.balance &&
+            (b.status === 'partially_paid' || (b.status === 'confirmed' && upcoming)) && (
+              <BalancePanel
+                bookingRef={b.ref}
+                balance={b.balance}
+                paidPaise={b.paidPaise}
+                totalPaise={b.totalPaise}
+                today={b.today}
+                contact={{ name: b.leadName, email: b.leadEmail, phone: b.leadPhone }}
+                packageName={b.packageName}
+              />
+            )}
           <section className="rounded-card border border-line p-5" aria-labelledby="when">
             <h2 id="when" className="text-[18px]">
               When

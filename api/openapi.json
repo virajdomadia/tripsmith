@@ -1,8 +1,79 @@
 {
   "components": {
     "schemas": {
+      "AccountBalance": {
+        "description": "R43 (P5): a booking made on a deposit — what is paid, what is left and by when, and\nwhether \"Pay the balance\" is open (it closes while a cancellation request waits).",
+        "properties": {
+          "balancePaise": {
+            "description": "Still to pay; 0 once paid in full",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "depositPaise": {
+            "title": "Depositpaise",
+            "type": "integer"
+          },
+          "dueOn": {
+            "description": "The IST day the balance is due",
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          },
+          "lastDayOn": {
+            "description": "The last day of grace; cancelled the day after",
+            "format": "date",
+            "title": "Lastdayon",
+            "type": "string"
+          },
+          "minPartPaise": {
+            "description": "The smallest part accepted now: ₹1,000, or less left",
+            "title": "Minpartpaise",
+            "type": "integer"
+          },
+          "open": {
+            "description": "Pay the balance is available",
+            "title": "Open",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is closed, in the customer's words",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "depositPaise",
+          "balancePaise",
+          "dueOn",
+          "lastDayOn",
+          "minPartPaise",
+          "open"
+        ],
+        "title": "AccountBalance",
+        "type": "object"
+      },
       "AccountBooking": {
         "properties": {
+          "balanceDueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: on its deposit — the day the balance is due",
+            "title": "Balancedueon"
+          },
           "bookedAt": {
             "format": "date-time",
             "title": "Bookedat",
@@ -133,6 +204,17 @@
             },
             "title": "Addons",
             "type": "array"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountBalance"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: made on a deposit (null = booked paying in full)"
           },
           "bookedAt": {
             "format": "date-time",
@@ -2561,6 +2643,57 @@
         "title": "BadgeOption",
         "type": "object"
       },
+      "BalanceOrder": {
+        "description": "A Razorpay order for a part of the balance; Checkout's success handler posts to\n`confirmPayment` like any booking payment.",
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "balancePaise": {
+            "description": "The balance before this part",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "bookingRef": {
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "keyId": {
+            "title": "Keyid",
+            "type": "string"
+          },
+          "orderId": {
+            "title": "Orderid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookingRef",
+          "orderId",
+          "keyId",
+          "amountPaise",
+          "balancePaise"
+        ],
+        "title": "BalanceOrder",
+        "type": "object"
+      },
+      "BalanceRequest": {
+        "description": "How much of the balance to pay now — at least the minimum part, at most what is left.",
+        "properties": {
+          "amountPaise": {
+            "description": "Whole rupees, unless it is all that is left",
+            "minimum": 100.0,
+            "title": "Amountpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amountPaise"
+        ],
+        "title": "BalanceRequest",
+        "type": "object"
+      },
       "Body_uploadDestinationCover": {
         "properties": {
           "file": {
@@ -2875,6 +3008,7 @@
         "description": "A held booking and its Razorpay order: everything Checkout.js is opened with.",
         "properties": {
           "amountPaise": {
+            "description": "What Checkout charges now: the total, or the deposit",
             "title": "Amountpaise",
             "type": "integer"
           },
@@ -2987,6 +3121,16 @@
             "maxLength": 40,
             "minLength": 1,
             "title": "Departureid",
+            "type": "string"
+          },
+          "pay": {
+            "default": "full",
+            "description": "P5: `deposit` pays the quote's deposit now and the balance later; refused with 409 `deposit_unavailable` when the quote offers none",
+            "enum": [
+              "full",
+              "deposit"
+            ],
+            "title": "Pay",
             "type": "string"
           },
           "travellers": {
@@ -3167,7 +3311,8 @@
           "payment_failed",
           "seats_gone",
           "cancellation_approved",
-          "owner_released"
+          "owner_released",
+          "balance_unpaid"
         ],
         "title": "CancelReason",
         "type": "string"
@@ -7111,6 +7256,17 @@
             "title": "Departureid",
             "type": "string"
           },
+          "deposit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteDeposit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: the deposit option (null = pay in full only)"
+          },
           "discountPaise": {
             "description": "The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons",
             "title": "Discountpaise",
@@ -7287,6 +7443,42 @@
           "perTravellerPaise"
         ],
         "title": "QuoteDeal",
+        "type": "object"
+      },
+      "QuoteDeposit": {
+        "description": "R43 (P5): \"Reserve with 25 % now\" — offered when the package allows it and the balance\nwould not yet be due. On a booking's snapshot: the deposit it was made on, or null.",
+        "properties": {
+          "amountPaise": {
+            "description": "25 % of the total, rounded up to the whole rupee",
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "balancePaise": {
+            "description": "total − deposit",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "dueOn": {
+            "description": "The IST day the balance is due: departure − 30 days",
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          },
+          "percent": {
+            "examples": [
+              25
+            ],
+            "title": "Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "percent",
+          "amountPaise",
+          "balancePaise",
+          "dueOn"
+        ],
+        "title": "QuoteDeposit",
         "type": "object"
       },
       "QuoteEarlyBird": {
@@ -8230,6 +8422,63 @@
           }
         },
         "summary": "Get My Booking",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/balance": {
+      "post": {
+        "description": "P5: a Razorpay order for a part of the balance (at least ₹1,000 unless less is left, at\nmost what is left). Checkout's success handler posts to `confirmPayment` and `syncPayment`\nchecks it on close, like any booking payment; the part that clears the balance confirms the\nbooking. 409 `balance_closed` when there is nothing to pay or a cancellation request waits.",
+        "operationId": "createBalanceOrder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BalanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Balance Order",
         "tags": [
           "account"
         ]

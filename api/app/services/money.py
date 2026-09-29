@@ -77,6 +77,8 @@ def _why(b: Booking, resolved_at: dt.datetime | None, *, offline: bool = False) 
         return "Agreed when you approved the cancellation" + (
             f", {day.day} {MONTHS[day.month - 1]}" if day else ""
         )
+    if b.cancel_reason == CancelReason.BALANCE_UNPAID:
+        return "The policy's refund when the balance went unpaid"
     if b.status == BookingStatus.CANCELLED:
         return "Money arrived on a cancelled booking"
     return f"Paid more than the {inr(b.total_paise // 100)} price"

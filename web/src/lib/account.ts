@@ -27,7 +27,7 @@ export function bookingState(b: Stateful, now: Date = new Date()): { label: stri
       if (b.cancellation === 'requested') return { label: 'Cancellation requested', tone: 'warn' };
       return b.status === 'confirmed'
         ? { label: 'Confirmed', tone: 'ok' }
-        : { label: 'Part paid', tone: 'primary' };
+        : { label: 'Deposit paid · balance due', tone: 'primary' };
     case 'completed':
       return { label: 'Completed', tone: 'mute' };
     case 'cancelled':
@@ -175,6 +175,14 @@ export const quoteExtras = (ref: string, addons: AddonChoice[]) =>
 /** P8b: a Razorpay order for exactly that price; Checkout is opened on it. */
 export const orderExtras = (ref: string, addons: AddonChoice[]) =>
   postJson<ExtrasOrder>(`/api/account/bookings/${encodeURIComponent(ref)}/extras`, { addons });
+
+export type BalanceOrder = components['schemas']['BalanceOrder'];
+
+/** P5: a Razorpay order for a part of the balance; Checkout is opened on it. */
+export const orderBalance = (ref: string, amountPaise: number) =>
+  postJson<BalanceOrder>(`/api/account/bookings/${encodeURIComponent(ref)}/balance`, {
+    amountPaise,
+  });
 
 export const sendReview = (ref: string, rating: number, text: string) =>
   postJson<AccountReview>(`/api/account/bookings/${encodeURIComponent(ref)}/review`, {

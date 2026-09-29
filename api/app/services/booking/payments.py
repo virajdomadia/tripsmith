@@ -13,6 +13,10 @@ with a guarded single-row UPDATE (§2). The hold decides what the money buys:
 - the booking is otherwise no longer pending (cancelled, or confirmed by an earlier payment) →
   the payment is kept, and what the booking now owes back is refunded.
 
+A booking made with a deposit (P5) is `partially_paid` once the deposit is in (the seats are
+held from then on); each later part of the balance adds to what it holds, and the part that
+clears the balance confirms it. Money beyond the total (two parts paid at once) goes back.
+
 Either refund is planned here, in the capture's transaction (P13: `refunds.plan_refund`), and
 sent to Razorpay after the commit (`on_new_capture` → `refunds.send_refunds`), so money with no
 seat behind it goes back on its own — once, however often the capture is replayed.
@@ -118,7 +122,12 @@ async def settle_capture(
     paid = booking.paid_paise + amount_paise
     values: dict[str, object] = {"paid_paise": paid, "updated_at": func.now()}
     expected = booking.status
-    if not awaiting_payment(booking):
+    if booking.status == BookingStatus.PARTIALLY_PAID:  # P5: a part of the balance
+        settled = Settled.BALANCE_PART
+        if paid >= booking.total_paise:
+            settled = Settled.PAID_IN_FULL
+            values["status"] = BookingStatus.CONFIRMED
+    elif not awaiting_payment(booking):
         settled = Settled.NOT_PENDING
         values["refund_needed"] = True
         log.error(
@@ -127,11 +136,15 @@ async def settle_capture(
             booking.status.value,
             booking.ref,
         )
-    elif paid < booking.total_paise:
-        settled = Settled.PART_PAID  # add-on D's split: stays pending
+    elif paid < booking.total_paise and paid < (booking.deposit_paise or booking.total_paise):
+        settled = Settled.PART_PAID  # less than was asked for: stays pending
     elif await seats_short(db, booking, hold_live=hold_live) == 0:
-        settled = Settled.CONFIRMED
-        values |= {"status": BookingStatus.CONFIRMED, "cancel_reason": None}
+        if paid >= booking.total_paise:
+            settled = Settled.CONFIRMED
+            values |= {"status": BookingStatus.CONFIRMED, "cancel_reason": None}
+        else:  # P5: the deposit holds the seats
+            settled = Settled.DEPOSIT
+            values |= {"status": BookingStatus.PARTIALLY_PAID, "cancel_reason": None}
     else:
         settled = Settled.SEATS_GONE
         values |= {
@@ -150,7 +163,10 @@ async def settle_capture(
     )
     await db.refresh(booking)
     _log_capture(db, booking, settled, entry, amount_paise=amount_paise, before=before)
-    if settled in (Settled.SEATS_GONE, Settled.NOT_PENDING):
+    if settled in (Settled.SEATS_GONE, Settled.NOT_PENDING) or (
+        settled in (Settled.CONFIRMED, Settled.DEPOSIT, Settled.PAID_IN_FULL)
+        and booking.paid_paise > booking.total_paise  # two parts at once: the extra goes back
+    ):
         await plan_refund(
             db,
             booking,
@@ -172,11 +188,21 @@ def _log_capture(
     before: dict[str, Any],
 ) -> None:
     amount = money(amount_paise)
-    confirmed = settled == Settled.CONFIRMED
+    coupon = f" · coupon {booking.coupon_code} used" if booking.coupon_code else ""
+    left = money(max(0, booking.total_paise - booking.paid_paise))
+    due = history.day(booking.balance_due_on) if booking.balance_due_on else ""
     outcome = {
-        Settled.CONFIRMED: " — booking confirmed"
-        + (f" · coupon {booking.coupon_code} used" if booking.coupon_code else ""),
+        Settled.CONFIRMED: " — booking confirmed" + coupon,
         Settled.PART_PAID: " — part paid",
+        Settled.DEPOSIT: f" — deposit paid, booking confirmed{coupon} · {left} due by {due}",
+        Settled.BALANCE_PART: f" — towards the balance · {left} left, due by {due}",
+        Settled.PAID_IN_FULL: " — balance cleared, paid in full",
+    }.get(settled, "")
+    customer = {
+        Settled.CONFIRMED: " — booking confirmed",
+        Settled.DEPOSIT: f" — deposit paid, booking confirmed. {left} is due by {due}",
+        Settled.BALANCE_PART: f" towards the balance — {left} left, due by {due}",
+        Settled.PAID_IN_FULL: " — the balance is cleared and your trip is paid in full",
     }.get(settled, "")
     history.record(
         db,
@@ -185,7 +211,7 @@ def _log_capture(
         actor=entry.actor,
         by=entry.by,
         text=entry.text + outcome,
-        customer=f"Payment of {amount} received" + (" — booking confirmed" if confirmed else ""),
+        customer=f"Payment of {amount} received{customer}",
         before=before,
         after={"status": booking.status.value, "paidPaise": booking.paid_paise},
     )
@@ -338,8 +364,9 @@ async def sync_payment(
     key secret, so a `captured` one (or an `authorized` one, captured here first) is applied
     exactly like a signed callback — through
     `capture_razorpay_payment`, idempotent on the payment id. Only a booking still awaiting
-    payment (pending, or swept as `hold_expired`), or a confirmed one with an Add extras order
-    not yet paid (P8b), makes the outbound call; any other answers from the database.
+    payment (pending, or swept as `hold_expired`), or a confirmed or part-paid one with an Add
+    extras order (P8b) or a balance order (P5) not yet paid, makes the outbound call; any other
+    answers from the database.
     """
     booking = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one_or_none()
     if booking is None:
@@ -347,14 +374,14 @@ async def sync_payment(
     result = PaymentResult(
         booking_ref=booking.ref, status=booking.status, refund_needed=await refunding(db, booking)
     )
-    # A booking awaiting payment checks all its orders; a confirmed one only its open Add extras
-    # orders (P8b) — Checkout can close without a callback there too.
+    # A booking awaiting payment checks all its orders; a confirmed or part-paid one only its
+    # open later orders — Add extras (P8b) or a part of the balance (P5): Checkout can close
+    # without a callback there too.
     orders = select(Payment.razorpay_order_id).where(Payment.booking_id == booking.id)
     if not awaiting_payment(booking):
         if booking.status not in TAKES_EXTRAS:
             return result
         orders = orders.where(
-            Payment.extras.is_not(None),
             Payment.status.not_in(SETTLED_PAYMENT),
             # An abandoned order stays `created` for good; the webhook covers a later capture.
             Payment.created_at > func.now() - text("interval '1 day'"),

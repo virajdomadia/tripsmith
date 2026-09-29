@@ -168,6 +168,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     // The order carries people, never a price; the contact name came from traveller 1.
     expect(JSON.parse(calls('/api/bookings')[0][1].body)).toEqual({
       departureId: 'dep_nov',
+      pay: 'full',
       travellers: [
         { name: 'Ananya Rao', age: 34, occupancy: 'double' },
         { name: 'Vikram Rao', age: 36, occupancy: 'double' },
@@ -204,6 +205,51 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     const voucher = screen.getByRole('link', { name: /Download voucher/ });
     expect(voucher.getAttribute('href')).toBe(`/api${VOUCHER}`);
     expect(voucher.hasAttribute('download')).toBe(true);
+  });
+
+  it('reserves with the deposit: pays 25% now and says what is due and when (P5)', async () => {
+    const deposit = {
+      percent: 25,
+      amountPaise: 7_500_00,
+      balancePaise: 22_498_00,
+      dueOn: '2099-10-21',
+    };
+    api({
+      '/api/bookings/quote': () => json(200, { ...QUOTE, deposit }),
+      '/api/bookings': () =>
+        json(201, { ...ORDER, amountPaise: 7_500_00, quote: { ...QUOTE, deposit } }),
+      '/api/bookings/TB-7F3K2Q/confirm': () =>
+        json(200, {
+          bookingRef: ORDER.bookingRef,
+          status: 'partially_paid',
+          refundNeeded: false,
+          voucherUrl: VOUCHER,
+        }),
+    });
+    const user = userEvent.setup();
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    const sheet = screen.getByRole('dialog');
+    const full = await within(sheet).findByRole('radio', { name: /Pay in full/ });
+    expect((full as HTMLInputElement).checked).toBe(true);
+    await user.click(within(sheet).getByRole('radio', { name: /Reserve with 25% now/ }));
+    const pay = within(sheet).getByRole('button', { name: 'Pay' });
+    expect(pay.textContent).toContain('₹7,500 now');
+    expect(within(sheet).getByText(/Then/).textContent).toContain('₹22,498');
+    await user.click(pay);
+
+    await waitFor(() => expect(checkout).toBeDefined());
+    expect(JSON.parse(calls('/api/bookings')[0][1].body).pay).toBe('deposit');
+    expect(checkout!.amount).toBe(7_500_00);
+    checkout!.handler({
+      razorpay_order_id: 'order_Test0001',
+      razorpay_payment_id: 'pay_Test0001',
+      razorpay_signature: 'a'.repeat(64),
+    });
+    expect(await screen.findByText('You’re going to Goa.')).toBeTruthy();
+    expect(screen.getByText(/your deposit is in and your seats are held/)).toBeTruthy();
+    expect(screen.getByText('Deposit paid')).toBeTruthy();
+    expect(screen.getByText(/^Balance due by/)).toBeTruthy();
   });
 
   it('applies a code on the server quote, explains a refusal and orders with the code', async () => {

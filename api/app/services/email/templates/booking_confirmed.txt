@@ -1,6 +1,6 @@
 You’re going to {{ b.destination }}, {{ b.first_name }}.
 
-Booking {{ b.ref }} is confirmed and paid. Keep the reference — quote it whenever you talk to us.
+{% if balance %}Booking {{ b.ref }} is confirmed — your deposit is in and your seats are held. The balance of {{ balance }} is due by {{ due }}: pay it from My trips ({{ trip_url }}), all at once or in parts of ₹1,000 or more.{% else %}Booking {{ b.ref }} is confirmed and paid.{% endif %} Keep the reference — quote it whenever you talk to us.
 
 Trip:        {{ b.package_name }} · {{ duration }}
              {{ package_url }}
@@ -10,7 +10,8 @@ Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}){% if not loop
 
 {% if addons %}Add-ons:     {% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}
              {% endif %}{% endfor %}
-{% endif %}Paid:        {{ paid }}
+{% endif %}Paid:        {{ paid }}{% if balance %} of {{ total }}
+Balance due: {{ balance }} by {{ due }}{% endif %}
 {% if coupon %}Coupon:      {{ coupon }}
 {% endif %}
 {% if invoice_attached %}

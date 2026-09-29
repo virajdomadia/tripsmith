@@ -126,6 +126,7 @@ describe('formErrors', () => {
     expect(formErrors(slots, ok, contact)).toEqual({});
     expect(orderBody('dep_1', slots, ok, contact)).toEqual({
       departureId: 'dep_1',
+      pay: 'full',
       travellers: [
         { name: 'Ananya Rao', age: 34, occupancy: 'double' },
         { name: 'Vikram Rao', age: 36, occupancy: 'double' },

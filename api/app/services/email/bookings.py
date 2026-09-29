@@ -9,7 +9,10 @@
   customer also hears "we couldn't hold your seat" when the booking was cancelled (a second
   payment on a confirmed booking goes back on its own, and the history says so);
 - marked paid offline on the desk (B10) → the customer's confirmation only, its demo note
-  saying so; the owner did it and gets no email about it.
+  saying so; the owner did it and gets no email about it;
+- a deposit (P5) → the same confirmation and new-booking emails, saying what is still due and
+  by when; a part of the balance → the customer's receipt email (the owner reads it on the
+  desk), and the part that clears it → "paid in full" with the voucher and the tax invoice.
 
 Demo mode is the enquiry emails' rule (send.py `held_back`): while `EMAIL_FROM` is @resend.dev,
 or always for an @example.com/.org/.net customer, the customer's copy goes to
@@ -67,6 +70,12 @@ def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
         ),
         "addons": [(a.label, inr(a.amount_paise // 100)) for a in facts.addons],
         "booked_at": _ist(facts.booked_at),
+        # P5: still on its deposit — the balance and its due day
+        "balance": inr(facts.balance_paise // 100)
+        if facts.balance_paise and facts.balance_due_on
+        else None,
+        "due": long_date(facts.balance_due_on) if facts.balance_due_on else None,
+        "trip_url": f"{site}/account/bookings/{facts.ref}",
         "demo_note": DEMO_NOTE,
         "whatsapp_url": whatsapp_href(
             settings.whatsapp_number,
@@ -133,7 +142,29 @@ def render_booking_emails(
             out.append(("owner", replace(owner, reply_to=facts.lead_email)))
         return out
 
-    if settled == Settled.CONFIRMED:
+    if settled in (Settled.BALANCE_PART, Settled.PAID_IN_FULL):  # P5
+        full = settled == Settled.PAID_IN_FULL
+        paid_msg = _message(
+            facts.lead_email,
+            f"{facts.ref} is paid in full — {facts.package_name}, {long_date(facts.departs)}"
+            if full
+            else f"Payment received for {facts.ref} — {vars['balance']} left to pay",
+            "balance_paid",
+            {
+                **vars,
+                "amount": inr(capture.amount_paise // 100),
+                "full": full,
+                "voucher_attached": voucher is not None,
+                "invoice_attached": invoice is not None,
+            },
+        )
+        files = tuple(a for a in (voucher, invoice) if a is not None)
+        if files:
+            paid_msg = replace(paid_msg, attachments=files)
+        out.append(("customer", paid_msg))
+        return out
+
+    if settled in (Settled.CONFIRMED, Settled.DEPOSIT):
         confirmed = _message(
             facts.lead_email,
             f"Booking {facts.ref} confirmed — {facts.package_name}, {long_date(facts.departs)}",
@@ -164,9 +195,13 @@ def render_booking_emails(
 
     # B10: an offline payment is the owner's own act on the desk — no "New booking" email.
     if settings.owner_notify_email and not capture.offline:
-        refund = None if settled == Settled.CONFIRMED else inr(capture.amount_paise // 100)
+        booked = settled in (Settled.CONFIRMED, Settled.DEPOSIT)
+        refund = None if booked else inr(capture.amount_paise // 100)
+        on_deposit = (
+            f" (deposit · {vars['balance']} due by {vars['due']})" if vars["balance"] else ""
+        )
         heading = (
-            f"New booking {facts.ref} — {facts.lead_name} · {facts.package_name}"
+            f"New booking {facts.ref} — {facts.lead_name} · {facts.package_name}{on_deposit}"
             if refund is None
             else f"Refunding {refund} on {facts.ref} · {facts.package_name}"
         )

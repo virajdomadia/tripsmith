@@ -14,7 +14,8 @@ const RANGE = 46; // px: how much taller the dearest bar is
  * R47 (P17), Book now B `.stairs`: what waiting costs. The rungs are the server's — this party's
  * trip fare if booked today, then from the day after each running early-bird tier ends (deal,
  * early-bird and coupon applied, add-ons left out). Nothing is priced here. Hidden when the
- * package has no early-bird; one rung = every tier has already ended for this date.
+ * package has no early-bird; one rung = every tier has already ended for this date. With a
+ * deposit on offer (P5) the note names the day its balance falls due.
  */
 export function PriceLadder({ flow }: { flow: BookingFlow }) {
   const { quote, departure, reason } = flow;
@@ -61,6 +62,9 @@ export function PriceLadder({ flow }: { flow: BookingFlow }) {
         {rungs.length === 1 &&
           `No early bird left on ${shortDate(q.date)}; this is the price until departure. `}
         Counted in IST from the day you book; never on add-ons.
+        {q.deposit
+          ? ` Reserving with ${q.deposit.percent}% now? The balance falls due ${shortDate(q.deposit.dueOn)}.`
+          : ''}
       </p>
     </div>
   );

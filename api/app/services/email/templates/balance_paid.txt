@@ -1,0 +1,16 @@
+{% if full %}Paid in full, {{ b.first_name }}.{% else %}Payment received, {{ b.first_name }}.{% endif %}
+
+We received {{ amount }} towards booking {{ b.ref }} — {{ b.package_name }}, {{ departs }}.
+
+Paid so far: {{ paid }} of {{ total }}
+{% if balance %}Left to pay: {{ balance }} by {{ due }}
+{% endif %}
+{% if full %}Your trip is paid in full.{% if voucher_attached %} Your updated voucher is attached{% if invoice_attached %}, with your GST tax invoice{% endif %}.{% elif invoice_attached %} Your GST tax invoice is attached.{% endif %}
+{% else %}Pay the rest from My trips whenever it suits you — all at once, or in parts of ₹1,000 or more.
+{% endif %}
+{{ demo_note }}
+
+Open your trip: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

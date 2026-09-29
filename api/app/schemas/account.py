@@ -34,6 +34,9 @@ class AccountBooking(ApiModel):
     )
     review_rating: int | None = Field(description="The stars of the customer's review, if any")
     can_review: bool = Field(description="Completed and not reviewed yet (B13)")
+    balance_due_on: dt.date | None = Field(
+        default=None, description="P5: on its deposit — the day the balance is due"
+    )
 
 
 class AccountBookings(ApiModel):
@@ -87,6 +90,38 @@ class GstDocumentOut(ApiModel):
     dated: dt.date = Field(description="The IST day of the payment, full payment or refund")
 
 
+class AccountBalance(ApiModel):
+    """R43 (P5): a booking made on a deposit — what is paid, what is left and by when, and
+    whether "Pay the balance" is open (it closes while a cancellation request waits)."""
+
+    deposit_paise: int
+    balance_paise: int = Field(description="Still to pay; 0 once paid in full")
+    due_on: dt.date = Field(description="The IST day the balance is due")
+    last_day_on: dt.date = Field(description="The last day of grace; cancelled the day after")
+    min_part_paise: int = Field(description="The smallest part accepted now: ₹1,000, or less left")
+    open: bool = Field(description="Pay the balance is available")
+    reason: str | None = Field(
+        default=None, description="Why it is closed, in the customer's words"
+    )
+
+
+class BalanceRequest(ApiModel):
+    """How much of the balance to pay now — at least the minimum part, at most what is left."""
+
+    amount_paise: int = Field(ge=100, description="Whole rupees, unless it is all that is left")
+
+
+class BalanceOrder(ApiModel):
+    """A Razorpay order for a part of the balance; Checkout's success handler posts to
+    `confirmPayment` like any booking payment."""
+
+    booking_ref: str
+    order_id: str
+    key_id: str
+    amount_paise: int
+    balance_paise: int = Field(description="The balance before this part")
+
+
 class AccountBookingDetail(ApiModel):
     """`GET /account/bookings/{ref}`: everything the customer's booking page shows."""
 
@@ -127,6 +162,9 @@ class AccountBookingDetail(ApiModel):
         description="P8: the add-ons bought, oldest first, taken-off ones included"
     )
     extras: ExtrasOffer = Field(description="P8b: Add extras — open or not, and what")
+    balance: AccountBalance | None = Field(
+        default=None, description="P5: made on a deposit (null = booked paying in full)"
+    )
 
 
 class CancellationRequest(ApiModel):

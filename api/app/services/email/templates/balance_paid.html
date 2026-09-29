@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% set title = ("Paid in full · " if full else "Payment received · ") ~ b.ref %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">{% if full %}Paid in full, {{ b.first_name }}.{% else %}Payment received, {{ b.first_name }}.{% endif %}</h1>
+<p style="margin:0 0 16px;">We received {{ amount }} towards booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }}, {{ departs }}.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;{% if not balance %}border-bottom:1px solid #e3e8ec;{% endif %}">Paid so far</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;{% if not balance %}border-bottom:1px solid #e3e8ec;{% endif %}font-weight:700;">{{ paid }} of {{ total }}</td></tr>
+{% if balance %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Left to pay</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ balance }} by {{ due }}</td></tr>{% endif %}
+</table>
+{% if full %}
+<p style="margin:0 0 16px;">Your trip is paid in full.{% if voucher_attached %} Your updated voucher is attached{% if invoice_attached %}, with your GST tax invoice{% endif %}.{% elif invoice_attached %} Your GST tax invoice is attached.{% endif %}</p>
+{% else %}
+<p style="margin:0 0 16px;">Pay the rest from My trips whenever it suits you — all at once, or in parts of ₹1,000 or more.</p>
+{% endif %}
+<p style="margin:0 0 18px;color:#5e6b76;">{{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ trip_url }}" style="display:inline-block;background:#1b4fd8;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Open your trip</a>
+</p>
+{% endblock %}

@@ -38,6 +38,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Balance Order
+         * @description P5: a Razorpay order for a part of the balance (at least ₹1,000 unless less is left, at
+         *     most what is left). Checkout's success handler posts to `confirmPayment` and `syncPayment`
+         *     checks it on close, like any booking payment; the part that clears the balance confirms the
+         *     booking. 409 `balance_closed` when there is nothing to pay or a cancellation request waits.
+         */
+        post: operations["createBalanceOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/cancellation": {
         parameters: {
             query?: never;
@@ -1221,8 +1244,54 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccountBalance
+         * @description R43 (P5): a booking made on a deposit — what is paid, what is left and by when, and
+         *     whether "Pay the balance" is open (it closes while a cancellation request waits).
+         */
+        AccountBalance: {
+            /**
+             * Balancepaise
+             * @description Still to pay; 0 once paid in full
+             */
+            balancePaise: number;
+            /** Depositpaise */
+            depositPaise: number;
+            /**
+             * Dueon
+             * Format: date
+             * @description The IST day the balance is due
+             */
+            dueOn: string;
+            /**
+             * Lastdayon
+             * Format: date
+             * @description The last day of grace; cancelled the day after
+             */
+            lastDayOn: string;
+            /**
+             * Minpartpaise
+             * @description The smallest part accepted now: ₹1,000, or less left
+             */
+            minPartPaise: number;
+            /**
+             * Open
+             * @description Pay the balance is available
+             */
+            open: boolean;
+            /**
+             * Reason
+             * @description Why it is closed, in the customer's words
+             */
+            reason?: string | null;
+        };
         /** AccountBooking */
         AccountBooking: {
+            /**
+             * Balancedueon
+             * @description P5: on its deposit — the day the balance is due
+             */
+            balanceDueOn?: string | null;
             /**
              * Bookedat
              * Format: date-time
@@ -1292,6 +1361,8 @@ export interface components {
              * @description P8: the add-ons bought, oldest first, taken-off ones included
              */
             addons: components["schemas"]["BookedAddon"][];
+            /** @description P5: made on a deposit (null = booked paying in full) */
+            balance?: components["schemas"]["AccountBalance"] | null;
             /**
              * Bookedat
              * Format: date-time
@@ -2326,6 +2397,37 @@ export interface components {
             label: string;
             value: components["schemas"]["Badge"];
         };
+        /**
+         * BalanceOrder
+         * @description A Razorpay order for a part of the balance; Checkout's success handler posts to
+         *     `confirmPayment` like any booking payment.
+         */
+        BalanceOrder: {
+            /** Amountpaise */
+            amountPaise: number;
+            /**
+             * Balancepaise
+             * @description The balance before this part
+             */
+            balancePaise: number;
+            /** Bookingref */
+            bookingRef: string;
+            /** Keyid */
+            keyId: string;
+            /** Orderid */
+            orderId: string;
+        };
+        /**
+         * BalanceRequest
+         * @description How much of the balance to pay now — at least the minimum part, at most what is left.
+         */
+        BalanceRequest: {
+            /**
+             * Amountpaise
+             * @description Whole rupees, unless it is all that is left
+             */
+            amountPaise: number;
+        };
         /** Body_uploadDestinationCover */
         Body_uploadDestinationCover: {
             /** File */
@@ -2463,7 +2565,10 @@ export interface components {
          * @description A held booking and its Razorpay order: everything Checkout.js is opened with.
          */
         BookingOrder: {
-            /** Amountpaise */
+            /**
+             * Amountpaise
+             * @description What Checkout charges now: the total, or the deposit
+             */
             amountPaise: number;
             /**
              * Bookingref
@@ -2520,6 +2625,13 @@ export interface components {
             couponCode?: string | null;
             /** Departureid */
             departureId: string;
+            /**
+             * Pay
+             * @description P5: `deposit` pays the quote's deposit now and the balance later; refused with 409 `deposit_unavailable` when the quote offers none
+             * @default full
+             * @enum {string}
+             */
+            pay: "full" | "deposit";
             /** Travellers */
             travellers: components["schemas"]["BookingTraveller"][];
         };
@@ -2590,7 +2702,7 @@ export interface components {
          * @description Why a booking is `cancelled` — set in the same UPDATE as the status.
          * @enum {string}
          */
-        CancelReason: "hold_expired" | "payment_failed" | "seats_gone" | "cancellation_approved" | "owner_released";
+        CancelReason: "hold_expired" | "payment_failed" | "seats_gone" | "cancellation_approved" | "owner_released" | "balance_unpaid";
         /** CancellationRequest */
         CancellationRequest: {
             /** Reason */
@@ -4445,6 +4557,8 @@ export interface components {
             deal: components["schemas"]["QuoteDeal"] | null;
             /** Departureid */
             departureId: string;
+            /** @description P5: the deposit option (null = pay in full only) */
+            deposit?: components["schemas"]["QuoteDeposit"] | null;
             /**
              * Discountpaise
              * @description The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons
@@ -4535,6 +4649,34 @@ export interface components {
              * @description Starting price − deal price, before any cap
              */
             perTravellerPaise: number;
+        };
+        /**
+         * QuoteDeposit
+         * @description R43 (P5): "Reserve with 25 % now" — offered when the package allows it and the balance
+         *     would not yet be due. On a booking's snapshot: the deposit it was made on, or null.
+         */
+        QuoteDeposit: {
+            /**
+             * Amountpaise
+             * @description 25 % of the total, rounded up to the whole rupee
+             */
+            amountPaise: number;
+            /**
+             * Balancepaise
+             * @description total − deposit
+             */
+            balancePaise: number;
+            /**
+             * Dueon
+             * Format: date
+             * @description The IST day the balance is due: departure − 30 days
+             */
+            dueOn: string;
+            /**
+             * Percent
+             * @example 25
+             */
+            percent: number;
         };
         /**
          * QuoteEarlyBird
@@ -4995,6 +5137,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountBookingDetail"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createBalanceOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BalanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceOrder"];
                 };
             };
             /** @description Error envelope (06 C0) */

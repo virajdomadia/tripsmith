@@ -1,0 +1,13 @@
+{% if overdue %}Your balance is overdue, {{ b.first_name }}.{% elif days_left == 0 %}Your balance is due today, {{ b.first_name }}.{% else %}{{ balance }} due in {{ days_left }} days, {{ b.first_name }}.{% endif %}
+
+The balance of {{ balance }} for booking {{ b.ref }} — {{ b.package_name }}, {{ departs }} — {% if overdue %}was due on {{ due }}{% else %}is due by {{ due }}{% endif %}. You can pay it all at once or in parts of ₹1,000 or more.
+
+Paid so far: {{ paid }} of {{ total }}
+Left to pay: {{ balance }}
+
+If it isn’t paid by {{ last_day }}, the booking is cancelled and the seats are released; the cancellation policy then applies to what you’ve paid. {{ demo_note }}
+
+Pay the balance: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}
