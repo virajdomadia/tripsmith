@@ -284,6 +284,14 @@ export function nextStep(b: AdminBooking): NextStep {
   if (b.status === 'confirmed') {
     return { tone: 'ok', title: 'Nothing to do', text: `Departs ${formatDate(b.departs)}.` };
   }
+  if (b.status === 'partially_paid') {
+    // P5: on its deposit — the customer pays the rest from My trips.
+    return {
+      tone: 'ok',
+      title: 'Deposit paid',
+      text: `${inr(b.totalPaise - b.paidPaise)} left to pay. Departs ${formatDate(b.departs)}.`,
+    };
+  }
   return { tone: 'mute', title: 'Nothing to do', text: 'This booking is closed.' };
 }
 

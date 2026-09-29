@@ -45,7 +45,7 @@ const BALANCE = {
   lastDayOn: '2099-10-16',
   minPartPaise: 1_000_00,
   open: true,
-  reason: null,
+  reason: null as string | null,
 };
 
 function panel(balance = BALANCE, paid = 8_500_00) {

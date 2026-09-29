@@ -54,11 +54,12 @@ async def daily(
     response.headers["Cache-Control"] = "no-store"
     today = ist_today()
     changed = await recompute_all_starting_prices(db, today=today)
+    # P5 before the Blob GC, which can fail the run: a missed night would skip a reminder stage.
+    balances = await sweep_balances(db, Notify.of(request.app.state), today=today)
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
     swept = await sweep_bookings(db, today=today)
     ended = await revalidate_ended_deals(db, now=dt.datetime.now(dt.UTC))
-    balances = await sweep_balances(db, Notify.of(request.app.state), today=today)
     return DailyReport(
         prices_updated=changed,
         pdf=gc,

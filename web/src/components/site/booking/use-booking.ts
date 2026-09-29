@@ -421,6 +421,14 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       dropGoneAddon(err, body.addons ?? []);
       setPhase({ kind: 'choose' });
       return null;
+    } else if (res.status === 409 && err.body.reason === 'deposit_unavailable') {
+      // P5: the balance fell due since the quote (IST midnight), or deposits were switched off.
+      // The date is still bookable: back to paying in full, with the server's reason.
+      setPay('full');
+      setBanner(err.body.message);
+      setPhase({ kind: 'choose' });
+      void refresh();
+      return null;
     } else if (res.status === 409) unbookable(err.body.message, departure?.date);
     else if (res.status === 404) unbookable(MESSAGES.gone);
     else if (res.status === 429) setBanner(MESSAGES.rate_limited);

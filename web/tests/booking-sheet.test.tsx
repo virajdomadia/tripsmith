@@ -252,6 +252,40 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     expect(screen.getByText(/^Balance due by/)).toBeTruthy();
   });
 
+  it('keeps the date when the deposit is no longer offered at Pay, and falls back to full', async () => {
+    const deposit = {
+      percent: 25,
+      amountPaise: 7_500_00,
+      balancePaise: 22_498_00,
+      dueOn: '2099-10-21',
+    };
+    let offered = true;
+    api({
+      '/api/bookings/quote': () => json(200, offered ? { ...QUOTE, deposit } : QUOTE),
+      '/api/bookings': () => {
+        offered = false; // the balance fell due at IST midnight
+        return json(409, {
+          error: {
+            code: 'conflict',
+            message: 'This date can only be paid in full now — pick Pay in full',
+            reason: 'deposit_unavailable',
+          },
+        });
+      },
+    });
+    const user = userEvent.setup();
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    await fillIn(user);
+    const sheet = screen.getByRole('dialog');
+    await user.click(await within(sheet).findByRole('radio', { name: /Reserve with 25% now/ }));
+    await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
+    expect(await within(sheet).findByText(/can only be paid in full now/)).toBeTruthy();
+    expect(within(sheet).queryByText(/is no longer available/)).toBeNull();
+    const pay = within(sheet).getByRole('button', { name: 'Pay' });
+    await waitFor(() => expect(pay.textContent).toContain('₹29,998'));
+    expect(pay.textContent).not.toContain('now');
+  });
+
   it('applies a code on the server quote, explains a refusal and orders with the code', async () => {
     api();
     const base = fetchMock.getMockImplementation()!;

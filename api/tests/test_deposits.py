@@ -19,11 +19,12 @@ from app.models.enums import BookingStatus, CancellationStatus, CancelReason, Pa
 from app.services.analytics import ist_today
 from app.services.booking import deposit
 from tests.razorpay_fake import FakeRazorpay, sign
+from tests.test_addons import addon_ids, with_addons
 from tests.test_auth import with_cookie
 from tests.test_booking_orders import SOON, seats_left, seeded
 from tests.test_booking_payments import booking_body, rzp
 from tests.test_booking_webhook import deliver, event, mailing, with_webhook_secret
-from tests.test_bookings_desk import cron, run_daily
+from tests.test_bookings_desk import cron, owner_cookie, run_daily
 from tests.test_customer_accounts import EMAIL, signed_in
 
 __all__ = ["cron", "rzp"]
@@ -345,15 +346,15 @@ async def test_reminders_go_once_per_stage_and_again_after_the_due_day_moves(
     claims = (
         (
             await db.execute(
-                select(BookingEvent.after).where(
-                    BookingEvent.booking_id == b.id, BookingEvent.kind == "balance.reminder"
-                )
+                select(BookingEvent.after)
+                .where(BookingEvent.booking_id == b.id, BookingEvent.kind == "balance.reminder")
+                .order_by(BookingEvent.at)
             )
         )
         .scalars()
         .all()
     )
-    assert [c["stage"] for c in claims] == [7, 7, 0]
+    assert [(c or {}).get("stage") for c in claims] == [7, 7, 0]
 
 
 async def test_the_tidy_cancels_after_the_grace_refunds_per_tier_and_frees_the_seats(
@@ -432,3 +433,83 @@ async def test_an_open_cancellation_request_waits_for_the_owner(
         )
     ).scalar_one()
     assert asked == CancellationStatus.REQUESTED  # left for the owner
+
+
+async def test_an_add_on_taken_off_a_deposit_booking_comes_off_the_balance_first(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    with_webhook_secret(db_app)
+    demo_mail(db_app)
+    pkg_id, dep_id = await far_departure(db)
+    await with_addons(db, pkg_id)
+    ids = await addon_ids(db, pkg_id)
+    body = {
+        **far_body(),
+        "departureId": dep_id,
+        "addons": [
+            {"addonId": ids["Airport transfers"]},
+            {"addonId": ids["Rafting"], "travellers": 1},
+        ],
+    }
+    res = await db_client.post("/bookings", json=body)
+    assert res.status_code == 201, res.text
+    order = res.json()
+    total = TOTAL + 1_800_00 + 900_00
+    assert order["amountPaise"] == deposit.deposit_paise(total) == 9_175_00
+    await capture(db_client, order, "pay_AddonDep0001")
+    ref = order["bookingRef"]
+    owner = await owner_cookie(db)
+    lines = {
+        a["name"]: a["id"]
+        for a in (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()["addons"]
+    }
+
+    # On the deposit alone: the price comes off the balance, nothing goes back.
+    gone = await db_client.post(
+        f"/admin/bookings/{ref}/addons/{lines['Rafting']}/remove", json={}, headers=owner
+    )
+    assert gone.status_code == 200, gone.text
+    b = await row(db, ref)
+    assert (b.status, b.total_paise, b.paid_paise) == (
+        BookingStatus.PARTIALLY_PAID,
+        total - 900_00,
+        9_175_00,
+    )
+    assert (await db.execute(select(Refund).where(Refund.booking_id == b.id))).first() is None
+
+    # Paid to within ₹1,300 of the total: taking ₹1,800 off clears it and ₹500 goes back.
+    cookie = with_cookie(await signed_in(db_client))
+    part = (await balance_order(db_client, ref, cookie, 25_325_00)).json()
+    rzp.captured["pay_AddonPart001"] = 25_325_00
+    await capture(db_client, part, "pay_AddonPart001")
+    await db_client.post(
+        f"/admin/bookings/{ref}/addons/{lines['Airport transfers']}/remove", json={}, headers=owner
+    )
+    b = await row(db, ref)
+    assert (b.status, b.total_paise, b.paid_paise) == (BookingStatus.CONFIRMED, TOTAL, TOTAL)
+    refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
+    # Money the booking no longer needs, not a credit: no invoice ever had the transfers.
+    assert [(r.amount_paise, r.reason) for r in refunds] == [(500_00, "surplus")]
+    page = (await db_client.get(f"/account/bookings/{ref}", headers=cookie)).json()
+    assert [d["kind"] for d in page["documents"]].count("invoice") == 1
+
+
+async def test_a_part_that_lands_after_the_cancel_goes_back_in_full(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+) -> None:
+    ref, dep_id, _ = await on_deposit(db, db_app, db_client)
+    today = ist_today()
+    await db.execute(
+        update(Departure).where(Departure.id == dep_id).values(date=today + dt.timedelta(days=28))
+    )
+    await db.commit()
+    cookie = with_cookie(await signed_in(db_client))
+    part = (await balance_order(db_client, ref, cookie, 5_000_00)).json()  # Checkout left open
+    await set_due(db, ref, today - dt.timedelta(days=3))
+    assert (await run_daily(db_client, db_app))["balancesCancelled"] == 1  # deposit kept
+    rzp.captured["pay_LatePart0001"] = 5_000_00
+    await capture(db_client, part, "pay_LatePart0001")
+    b = await row(db, ref)
+    assert (b.balance_refund_paise, b.paid_paise, b.refund_needed) == (5_000_00, DEPOSIT, False)
+    refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
+    assert [(r.amount_paise, r.status.value) for r in refunds] == [(5_000_00, "processed")]

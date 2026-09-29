@@ -130,6 +130,12 @@ async def settle_capture(
     elif not awaiting_payment(booking):
         settled = Settled.NOT_PENDING
         values["refund_needed"] = True
+        if booking.cancel_reason == CancelReason.BALANCE_UNPAID:
+            # A part paid after the tidy cancelled it (Checkout open at 01:00, a late webhook):
+            # the policy's refund was settled on what was paid then, so this goes back in full.
+            values["balance_refund_paise"] = (
+                func.coalesce(Booking.balance_refund_paise, 0) + amount_paise
+            )
         log.error(
             "Payment of %s paise captured on %s booking %s — flagged for a refund",
             amount_paise,

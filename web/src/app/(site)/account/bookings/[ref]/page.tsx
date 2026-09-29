@@ -107,6 +107,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
           {b.balance &&
             (b.status === 'partially_paid' || (b.status === 'confirmed' && upcoming)) && (
               <BalancePanel
+                // A new balance after a part is paid starts the amount afresh.
+                key={b.balance.balancePaise}
                 bookingRef={b.ref}
                 balance={b.balance}
                 paidPaise={b.paidPaise}

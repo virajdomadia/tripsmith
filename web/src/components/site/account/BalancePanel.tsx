@@ -77,7 +77,8 @@ export function BalancePanel({
 
   const wanted = Number(amount || 0) * 100;
   // The last part may be the exact balance even when it has paise; any other part whole rupees.
-  const paying = rupees(left) * 100 === wanted ? left : wanted;
+  // Within a rupee of the balance = the balance itself (a remainder may carry paise).
+  const paying = Math.abs(wanted - left) < 100 ? left : wanted;
   const help =
     !wanted || paying < balance.minPartPaise
       ? { error: true, text: `Enter at least ${inr(balance.minPartPaise)}.` }
