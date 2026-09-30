@@ -111,7 +111,7 @@ async def test_a_link_holds_the_seats_24_hours_and_a_replayed_webhook_confirms_o
     assert await seats_left(db, dep_id) == 4  # the two seats are held
 
     b, row = await row_of(db, ref)
-    made = rzp.links[row.razorpay_link_id or ""]
+    made: dict[str, Any] = rzp.links[row.razorpay_link_id or ""]
     assert made["reference_id"] == row.id and made["notes"]["payment_row"] == row.id
     assert made["expire_by"] == int(b.hold_expires_at.timestamp())
     assert made["callback_url"] == f"https://tripsmith.vercel.app/pay/{ref}"
