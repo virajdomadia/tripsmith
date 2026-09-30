@@ -76,6 +76,8 @@ from app.services.analytics import ist_today
 from app.services.booking import coupons, deposit, history
 from app.services.booking.addons import addon_rows
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.freshness import refresh_quietly
+from app.services.booking.links import issue_link, link_until
 from app.services.booking.locking import lock_booking
 from app.services.booking.orders import (
     HOLD,
@@ -93,6 +95,7 @@ from app.services.booking.payments import settle_capture
 from app.services.booking.pricing import apply_coupon, apply_manual, build_quote
 from app.services.booking.settled import Capture, Settled
 from app.services.booking.voucher import offline_label
+from app.services.email.links import ist_moment
 
 CHANNEL_WORDS = {
     BookingChannel.WEB: "Web",
@@ -106,6 +109,8 @@ CUSTOMER_MATCHES = 8
 TRIPS_SHOWN = 3
 DEPARTED = "This date has already departed"
 NO_ENQUIRY = "That enquiry no longer exists"
+PAYMENTS_OFF = "Online payments are switched off — take the payment at the counter"
+LINK_TOO_LATE = "Too close to departure for a 24-hour link — take the payment now, or a deposit"
 EDITABLE = (BookingStatus.PENDING, BookingStatus.PARTIALLY_PAID, BookingStatus.CONFIRMED)
 
 
@@ -195,10 +200,14 @@ async def _claim_enquiry(db: AsyncSession, enquiry_id: str) -> Enquiry:
     ).scalar_one_or_none()
     if enquiry is None:
         raise ApiError("not_found", NO_ENQUIRY)
-    # Marked Won by hand (no booking behind it) can still be converted and linked; one with a
-    # booking already can't be converted twice.
+    # Marked Won by hand (no booking behind it) can still be converted and linked, and so can
+    # one whose booking was cancelled (a payment link that lapsed); a live one can't twice.
     linked = (
-        await db.execute(select(Booking.ref).where(Booking.enquiry_id == enquiry.id).limit(1))
+        await db.execute(
+            select(Booking.ref)
+            .where(Booking.enquiry_id == enquiry.id, Booking.status != BookingStatus.CANCELLED)
+            .limit(1)
+        )
     ).scalar_one_or_none()
     if linked:
         raise ApiError(
@@ -244,13 +253,17 @@ async def create_counter_booking(
     try:
         await _lock_contact(db, contact.email, contact.phone)
         dep, pkg = await _load(db, req.departure_id, lock=True)
+        package_id = pkg.id  # read now: a rollback later expires the row
         seats = await _seats_left(db, dep.id)
         _unbookable(dep, seats_left=seats, party=party, today=ist_today(now))
         offer, coupon_code = await _price(
             db, dep, pkg, req.as_quote(), seats_left=seats - party, now=now, lock=True
         )
-        chosen = offer.deposit if req.settle == "deposit" else None
-        if req.settle == "deposit" and chosen is None:
+        wants_deposit = req.settle == "deposit" or (
+            req.settle == "link" and req.link_pay == "deposit"
+        )
+        chosen = offer.deposit if wants_deposit else None
+        if wants_deposit and chosen is None:
             raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
         if offer.total_paise != req.expected_total_paise:
             raise ApiError(
@@ -259,6 +272,24 @@ async def create_counter_booking(
                 f"{history.money(req.expected_total_paise)} — check the receipt and confirm again",
                 reason="price_changed",
             )
+        amount = chosen.amount_paise if chosen else offer.total_paise
+        hold_until = now + HOLD
+        if req.settle == "link":
+            rzp = notify.razorpay if notify else None
+            if rzp is None:
+                raise ApiError("internal", PAYMENTS_OFF, status=503)
+            until = link_until(dep.date, now)
+            if until is None:
+                raise ApiError("conflict", LINK_TOO_LATE, reason="link_unavailable")
+            if rzp.link_max_paise is not None and amount > rzp.link_max_paise:
+                raise ApiError(
+                    "conflict",
+                    "Razorpay's test mode can't create a link over "
+                    f"{history.money(rzp.link_max_paise)} — send the deposit link, or take the "
+                    "payment now",
+                    reason="link_over_cap",
+                )
+            hold_until = until
         quote = offer.model_copy(update={"deposit": chosen})
         enquiry = await _claim_enquiry(db, req.enquiry_id) if req.enquiry_id else None
 
@@ -269,7 +300,7 @@ async def create_counter_booking(
                 package_id=pkg.id,
                 departure_id=dep.id,
                 status=BookingStatus.PENDING,
-                hold_expires_at=now + HOLD,
+                hold_expires_at=hold_until,
                 contact_name=contact.name,
                 contact_phone=contact.phone,
                 contact_email=contact.email,
@@ -315,6 +346,11 @@ async def create_counter_booking(
             if chosen
             else ""
         )
+        link_text = (
+            f" · payment link, seats held until {ist_moment(hold_until)}"
+            if req.settle == "link"
+            else ""
+        )
         history.record(
             db,
             booking.id,
@@ -323,7 +359,7 @@ async def create_counter_booking(
             by=by,
             text=f"Booked at the counter · channel {CHANNEL_WORDS[channel]} · "
             f"{history.travellers(party)}{addons_text} · {history.money(booking.total_paise)}"
-            f"{coupon_text}{manual_text}{deposit_text}",
+            f"{coupon_text}{manual_text}{deposit_text}{link_text}",
             customer=f"Booked with Tripsmith · {history.travellers(party)}{addons_text} · "
             f"{history.money(booking.total_paise)}{deposit_text}",
             after={
@@ -346,6 +382,7 @@ async def create_counter_booking(
                 customer=f"A discount of {history.money(quote.manual.off_paise)}: "
                 f"{quote.manual.reason}",
             )
+        reverts = (enquiry.id, enquiry.status.value) if enquiry is not None else None
         if enquiry is not None:
             enquiry.status = EnquiryStatus.CONVERTED
             enquiry.follow_up_on = None
@@ -360,49 +397,85 @@ async def create_counter_booking(
                 text=f"Converted from enquiry {enquiry.ref} — marked converted and linked",
             )
 
-        amount = chosen.amount_paise if chosen else booking.total_paise
-        reference = _reference(req.method, req.reference)
-        db.add(
-            Payment(
-                booking_id=booking.id,
-                provider=PaymentProvider.OFFLINE,
-                amount_paise=amount,
-                status=PaymentStatus.CAPTURED,
-                raw={"reference": reference, "method": req.method},
+        capture: Capture | None = None
+        if req.settle == "link":
+            db.add(
+                Payment(
+                    booking_id=booking.id,
+                    provider=PaymentProvider.RAZORPAY,
+                    amount_paise=amount,
+                    status=PaymentStatus.CREATED,
+                )
             )
-        )
-        await db.flush()
-        settled = await settle_capture(
-            db,
-            booking,
-            hold_live=True,  # seats counted for this party under the departure lock above
-            amount_paise=amount,
-            entry=history.PaymentLog(
-                "payment.offline",
-                BookingActor.OWNER,
-                f"Paid at the counter · {history.money(amount)} · {reference}",
-                by=by,
-            ),
-        )
-        if settled not in (Settled.CONFIRMED, Settled.DEPOSIT):  # unreachable under the lock
-            raise RuntimeError(f"Counter payment on {booking.ref} settled as {settled}")
+        else:
+            capture = await _settle_now(db, booking, req, amount=amount, by=by)
         ref = booking.ref
         await db.commit()
     except BaseException:
         await db.rollback()
         raise
-    capture = Capture(settled, offline_label(reference), amount, offline=True)
+    if capture is None:
+        assert notify is not None and notify.razorpay is not None  # checked above
+        await issue_link(
+            db,
+            ref,
+            notify.razorpay,
+            amount_paise=amount,
+            expires=hold_until,
+            callback_url=f"{notify.settings.site_url.rstrip('/')}/pay/{ref}",
+            by=by,
+            enquiry_reverts=reverts,
+        )
+        await refresh_quietly(db, {package_id}, after=f"counter link booking {ref}")
+        return ref
     await on_new_capture(
-        db, ref, capture, package_id=pkg.id, after=f"counter booking {ref}", notify=notify
+        db, ref, capture, package_id=package_id, after=f"counter booking {ref}", notify=notify
     )
     return ref
+
+
+async def _settle_now(
+    db: AsyncSession, booking: Booking, req: CounterBookingRequest, *, amount: int, by: str
+) -> Capture:
+    """Paid now or deposit now: the offline payment through `settle_capture`, in the caller's
+    transaction (it commits)."""
+    assert req.method is not None  # the schema requires it unless settling by link
+    reference = _reference(req.method, req.reference)
+    db.add(
+        Payment(
+            booking_id=booking.id,
+            provider=PaymentProvider.OFFLINE,
+            amount_paise=amount,
+            status=PaymentStatus.CAPTURED,
+            raw={"reference": reference, "method": req.method},
+        )
+    )
+    await db.flush()
+    settled = await settle_capture(
+        db,
+        booking,
+        hold_live=True,  # seats counted for this party under the departure lock above
+        amount_paise=amount,
+        entry=history.PaymentLog(
+            "payment.offline",
+            BookingActor.OWNER,
+            f"Paid at the counter · {history.money(amount)} · {reference}",
+            by=by,
+        ),
+    )
+    if settled not in (Settled.CONFIRMED, Settled.DEPOSIT):  # unreachable under the lock
+        raise RuntimeError(f"Counter payment on {booking.ref} settled as {settled}")
+    return Capture(settled, offline_label(reference), amount, offline=True)
 
 
 # --- the trip picker ---------------------------------------------------------------------------
 
 
-async def counter_trips(db: AsyncSession, *, now: dt.datetime | None = None) -> CounterTrips:
-    today = ist_today(now or dt.datetime.now(dt.UTC))
+async def counter_trips(
+    db: AsyncSession, *, link_max_paise: int | None, now: dt.datetime | None = None
+) -> CounterTrips:
+    now = now or dt.datetime.now(dt.UTC)
+    today = ist_today(now)
     packages = (
         (
             await db.execute(
@@ -443,9 +516,11 @@ async def counter_trips(db: AsyncSession, *, now: dt.datetime | None = None) -> 
                     dep.price_double_paise, dep.price_triple_paise, dep.price_child_paise
                 )
                 <= 0,
+                link_until=link_until(dep.date, now),
             )
         )
     return CounterTrips(
+        link_max_paise=link_max_paise,
         packages=[
             CounterPackage(
                 id=p.id,
@@ -479,7 +554,7 @@ async def counter_trips(db: AsyncSession, *, now: dt.datetime | None = None) -> 
                 ],
             )
             for p in packages
-        ]
+        ],
     )
 
 

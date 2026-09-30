@@ -287,9 +287,24 @@ class AdminBooking(ApiModel):
     enquiry: "LinkedEnquiry | None" = Field(
         default=None, description="P18: the enquiry it was converted from"
     )
+    payment_link: "AdminPaymentLink | None" = Field(
+        default=None, description="P18b: the counter's payment link, if it sent one"
+    )
     can_edit_travellers: bool = Field(
         default=False, description="P18: pending, part paid or confirmed — names and ages"
     )
+
+
+class AdminPaymentLink(ApiModel):
+    """P18b: the counter's Razorpay Payment Link on a booking."""
+
+    id: str
+    url: str | None = Field(description="While open: the link to share (rzp.io)")
+    amount_paise: int
+    expires_at: dt.datetime = Field(description="When the seats and the link end")
+    status: Literal["open", "paid", "expired", "cancelled"]
+    can_cancel: bool
+    can_check: bool = Field(description="Ask Razorpay whether it was paid (open or lapsed)")
 
 
 class LinkedEnquiry(ApiModel):

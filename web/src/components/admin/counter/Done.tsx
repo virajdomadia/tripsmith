@@ -7,15 +7,50 @@ import { travellersLabel, voucherHref } from '@/lib/account';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
 import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { formatDate, inr } from '@/lib/format';
+import { LinkPanel } from './LinkPanel';
 
 /**
  * After booking: what happened, in the booking's own words — confirmed or on its deposit, the
  * receipt (and the invoice once paid in full), the voucher, and the history's first lines.
  * The emails have gone out as for a web booking.
  */
-export function Done({ booking: b, onNew }: { booking: AdminBooking; onNew: () => void }) {
+export function Done({
+  booking: b,
+  onNew,
+  onChanged,
+}: {
+  booking: AdminBooking;
+  onNew: () => void;
+  onChanged: (b: AdminBooking) => void;
+}) {
   const deposit = b.status === 'partially_paid';
   const outline = buttonVariants({ size: 'sm', variant: 'outline' });
+  if (b.status === 'pending' || b.paymentLink?.status === 'cancelled')
+    return (
+      <section
+        className="ctr-big grid gap-3.5 rounded-[20px] border border-line bg-bg p-5 sm:p-6"
+        aria-labelledby="ctr-done-title"
+      >
+        <h2 id="ctr-done-title" className="text-[24px] leading-tight font-extrabold">
+          Payment link for {b.leadName}
+        </h2>
+        <p className="text-[14px] text-ink2">
+          {b.package.name} · {formatDate(b.departs)} · {travellersLabel(b.travellers.length)}. Share
+          it now: the seats stay held until it is paid or it lapses.
+        </p>
+        <LinkPanel booking={b} onChanged={onChanged} />
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/admin/bookings/${b.ref}`} className={buttonVariants({ size: 'sm' })}>
+            Open booking {b.ref}
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
+          <button type="button" onClick={onNew} className={outline}>
+            <Plus className="size-4" aria-hidden />
+            New booking
+          </button>
+        </div>
+      </section>
+    );
   return (
     <section
       className="ctr-big grid gap-3.5 rounded-[20px] border border-line bg-bg p-5 sm:p-6"

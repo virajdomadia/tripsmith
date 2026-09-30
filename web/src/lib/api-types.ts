@@ -300,6 +300,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/link/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Cancel Route
+         * @description P18b: cancel the link at Razorpay, then release the seats. 409 `link_paid` when the
+         *     customer paid it meanwhile (the booking is confirmed instead), `no_link` when none is open.
+         */
+        post: operations["cancelPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/link/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Check Route
+         * @description P18b: ask Razorpay whether the booking's payment link was paid, and apply it through
+         *     the one capture path (as the webhook would).
+         */
+        post: operations["checkPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/link/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Email Route
+         * @description P18b: email the open link to the customer (logged in the history).
+         */
+        post: operations["emailPaymentLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings/{ref}/mark-paid": {
         parameters: {
             query?: never;
@@ -435,7 +497,10 @@ export interface paths {
         /**
          * Create Route
          * @description Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the
-         *     website. 409 `deposit_unavailable`, `already_converted`, or the quote's reasons.
+         *     website, `link` holds the seats and sends a Razorpay Payment Link (P18b). 409
+         *     `deposit_unavailable`, `already_converted`, `price_changed`, `link_unavailable`,
+         *     `link_over_cap`, or the quote's reasons; 502 when Razorpay can't make the link (the seats
+         *     are released).
          */
         post: operations["createCounterBooking"];
         delete?: never;
@@ -474,7 +539,8 @@ export interface paths {
         };
         /**
          * Trips Route
-         * @description Every live package with its departures from today (IST) on, seats left and add-ons.
+         * @description Every live package with its departures from today (IST) on, seats left and add-ons;
+         *     when a payment link made now would end, and the largest link Razorpay will create.
          */
         get: operations["getCounterTrips"];
         put?: never;
@@ -1132,6 +1198,28 @@ export interface paths {
         put?: never;
         /** Post Confirm */
         post: operations["confirmPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/{ref}/link-callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Link Callback
+         * @description P18b: the customer's browser, back from a paid Payment Link with Razorpay's signed
+         *     redirect. A signature that verifies syncs the link (the one capture path); a confirmed
+         *     answer carries the voucher link, since the signature proves this caller paid.
+         */
+        post: operations["paymentLinkCallback"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1928,6 +2016,8 @@ export interface components {
             package: components["schemas"]["BookingPackage"];
             /** Paidpaise */
             paidPaise: number;
+            /** @description P18b: the counter's payment link, if it sent one */
+            paymentLink?: components["schemas"]["AdminPaymentLink"] | null;
             /**
              * Payments
              * @description Every attempt, oldest first
@@ -2491,6 +2581,39 @@ export interface components {
             via: ("checkout" | "sync" | "webhook" | "desk") | null;
         };
         /**
+         * AdminPaymentLink
+         * @description P18b: the counter's Razorpay Payment Link on a booking.
+         */
+        AdminPaymentLink: {
+            /** Amountpaise */
+            amountPaise: number;
+            /** Cancancel */
+            canCancel: boolean;
+            /**
+             * Cancheck
+             * @description Ask Razorpay whether it was paid (open or lapsed)
+             */
+            canCheck: boolean;
+            /**
+             * Expiresat
+             * Format: date-time
+             * @description When the seats and the link end
+             */
+            expiresAt: string;
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "paid" | "expired" | "cancelled";
+            /**
+             * Url
+             * @description While open: the link to share (rzp.io)
+             */
+            url: string | null;
+        };
+        /**
          * AdminRefund
          * @description One refund of one payment (R51, P13).
          */
@@ -2995,12 +3118,19 @@ export interface components {
              * @description The total on the owner's receipt: refused with 409 `price_changed` when the server's price differs now (a deal or tier ended, an add-on changed), so the money taken at the counter always matches the booking
              */
             expectedTotalPaise: number;
+            /**
+             * Linkpay
+             * @description `link` only: the link is for the total, or the deposit
+             * @default full
+             * @enum {string}
+             */
+            linkPay: "full" | "deposit";
             manual?: components["schemas"]["ManualDiscountInput"] | null;
             /**
              * Method
-             * @enum {string}
+             * @description How the money came; not for `link`
              */
-            method: "cash" | "upi" | "bank";
+            method?: ("cash" | "upi" | "bank") | null;
             /**
              * Reference
              * @description UPI reference (UTR) or bank reference; optional for cash
@@ -3010,7 +3140,7 @@ export interface components {
              * Settle
              * @enum {string}
              */
-            settle: "paid" | "deposit";
+            settle: "paid" | "deposit" | "link";
             /** Travellers */
             travellers: components["schemas"]["CounterTraveller"][];
         };
@@ -3023,6 +3153,11 @@ export interface components {
             date: string;
             /** Id */
             id: string;
+            /**
+             * Linkuntil
+             * @description P18b: when a payment link made now would end (24 h, capped at 00:00 IST on the departure day); null = too close for a link
+             */
+            linkUntil?: string | null;
             /**
              * Onrequest
              * @description A price is 0: not bookable
@@ -3109,6 +3244,11 @@ export interface components {
          * @description `GET /admin/counter/trips`: every live package with its departures from today on.
          */
         CounterTrips: {
+            /**
+             * Linkmaxpaise
+             * @description P18b: the largest link Razorpay will create (test mode)
+             */
+            linkMaxPaise?: number | null;
             /** Packages */
             packages: components["schemas"]["CounterPackage"][];
         };
@@ -4335,6 +4475,26 @@ export interface components {
              * @example 12
              */
             maxTravellers: number;
+        };
+        /**
+         * LinkCallback
+         * @description What Razorpay appends to the callback URL after a Payment Link is paid (P18b), posted
+         *     back as-is. The signature covers the link id, its reference id, the status and the payment.
+         */
+        LinkCallback: {
+            /** Razorpaypaymentid */
+            razorpayPaymentId: string;
+            /** Razorpaypaymentlinkid */
+            razorpayPaymentLinkId: string;
+            /** Razorpaypaymentlinkreferenceid */
+            razorpayPaymentLinkReferenceId: string;
+            /** Razorpaypaymentlinkstatus */
+            razorpayPaymentLinkStatus: string;
+            /**
+             * Razorpaysignature
+             * @description Hex HMAC-SHA256
+             */
+            razorpaySignature: string;
         };
         /** LinkedEnquiry */
         LinkedEnquiry: {
@@ -6196,6 +6356,99 @@ export interface operations {
             };
         };
     };
+    cancelPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    checkPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    emailPaymentLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     markBookingPaid: {
         parameters: {
             query?: never;
@@ -8014,6 +8267,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PaymentCallback"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResult"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    paymentLinkCallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkCallback"];
             };
         };
         responses: {

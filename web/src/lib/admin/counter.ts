@@ -13,6 +13,7 @@ import {
   type Slot,
 } from '@/lib/booking';
 import { EMAIL_RE, normalisePhone, PHONE_RE } from '@/lib/enquiry-schema';
+import { inr } from '@/lib/format';
 
 /**
  * The counter (R56, P18): the owner books for a customer. Nothing here prices anything — the
@@ -29,7 +30,10 @@ export type CustomerMatch = components['schemas']['CustomerMatch'];
 export type BookingChannel = components['schemas']['BookingChannel'];
 export type CounterChannel = Exclude<BookingChannel, 'web'>;
 export type ManualMode = 'inr' | 'percent';
-export type Settle = 'paid' | 'deposit';
+/** Paid now, the deposit now, or (P18b) a Razorpay Payment Link that holds the seats. */
+export type Settle = 'paid' | 'deposit' | 'link';
+export type LinkPay = 'full' | 'deposit';
+export type PaymentLink = NonNullable<components['schemas']['AdminBooking']['paymentLink']>;
 export type Method = 'cash' | 'upi' | 'bank';
 
 export const CHANNEL_LABEL: Record<BookingChannel, string> = {
@@ -152,13 +156,42 @@ export type Draft = {
   manual: Manual;
   customer: Customer | null;
   settle: Settle;
+  linkPay: LinkPay;
   method: Method;
   reference: string;
   channel: CounterChannel;
 };
 
+/** What the quote and the departure allow right now. */
+export type Offer = {
+  deposit: boolean;
+  totalPaise?: number | null;
+  depositPaise?: number | null;
+  /** When a link made now would end; null = too close to departure (P18b). */
+  linkUntil?: string | null;
+  /** Razorpay's largest link in test mode (₹15,000); null = no cap. */
+  linkMaxPaise?: number | null;
+};
+
+/** What a payment link would ask for: the total, or the deposit. */
+export const linkAmount = (d: Pick<Draft, 'linkPay'>, o: Offer) =>
+  (d.linkPay === 'deposit' ? o.depositPaise : o.totalPaise) ?? null;
+
+/** Why a link can't be sent now, or null. */
+export function linkProblem(d: Pick<Draft, 'linkPay'>, o: Offer): string | null {
+  if (o.linkUntil === null)
+    return 'Too close to departure for a 24-hour link: take the payment now';
+  if (d.linkPay === 'deposit' && !o.deposit)
+    return 'Deposit closes 30 days before departure: send a link for the full amount';
+  const amount = linkAmount(d, o);
+  if (amount != null && o.linkMaxPaise != null && amount > o.linkMaxPaise)
+    return `Razorpay's test mode caps a link at ${inr(o.linkMaxPaise)}: send the deposit link, or take the payment now`;
+  return null;
+}
+
 /** What still stops the booking, in the order the steps come (the api re-checks all of it). */
-export function blockers(d: Draft, depositOffered: boolean): string[] {
+export function blockers(d: Draft, offer: Offer): string[] {
+  const depositOffered = offer.deposit;
   const out: string[] = [];
   if (!d.departureId) out.push('Pick a departure');
   if (partySize(d.rooms) === 0 || adultsIn(d.rooms) === 0) out.push('Add at least one adult');
@@ -177,7 +210,10 @@ export function blockers(d: Draft, depositOffered: boolean): string[] {
   }
   if (d.settle === 'deposit' && !depositOffered)
     out.push('Deposit closes 30 days before departure: take the full amount');
-  if (d.method !== 'cash' && !d.reference.trim())
+  if (d.settle === 'link') {
+    const problem = linkProblem(d, offer);
+    if (problem) out.push(problem);
+  } else if (d.method !== 'cash' && !d.reference.trim())
     out.push(`Add the ${d.method === 'upi' ? 'UPI reference (UTR)' : 'bank reference'}`);
   return out;
 }
@@ -202,13 +238,36 @@ export function bookingBody(d: Draft, enquiryId: string | null) {
     channel: d.channel,
     enquiryId,
     settle: d.settle,
-    method: d.method,
-    reference: d.reference.trim() || null,
+    linkPay: d.linkPay,
+    method: d.settle === 'link' ? null : d.method,
+    reference: d.settle === 'link' ? null : d.reference.trim() || null,
   };
 }
 
 /** "wa.me" wants the country code and digits only. */
 export const waNumber = (phone: string) => `91${normalisePhone(phone)}`;
+
+/** The WhatsApp message a payment link goes out with (mockup C's wording). */
+export function linkMessage(o: {
+  firstName: string;
+  packageName: string;
+  when: string;
+  party: string;
+  amount: string;
+  deposit: boolean;
+  held: string;
+  url: string;
+}) {
+  return `Hi ${o.firstName}, here is your Tripsmith payment link for ${o.packageName} (${o.when}, ${o.party}): ${o.amount}${o.deposit ? ' deposit' : ''}. Your seats are held until ${o.held}. ${o.url}`;
+}
+
+/** Hours:minutes:seconds left, "07:42:10"; never negative. */
+export function countdown(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60]
+    .map((x) => String(x).padStart(2, '0'))
+    .join(':');
+}
 
 /** Initials for a customer's avatar: "Priya Nair" → "PN". */
 export const initials = (name: string) =>

@@ -1,0 +1,15 @@
+Here’s your payment link, {{ b.first_name }}.
+
+Your seats on {{ b.package_name }}, {{ departs }}, are held until {{ expires }}. Pay {{ amount }}{% if on_deposit %} now as the deposit, and the {{ balance }} balance by {{ due }}{% endif %} to confirm booking {{ b.ref }}.
+
+Travellers:  {{ b.party }}
+Total:       {{ total }}
+{% if discount %}Discount:    {{ discount }}
+{% endif %}Pay now:     {{ amount }}
+
+Pay securely: {{ url }}
+
+The link is Razorpay’s and works by UPI, card or netbanking. If it isn’t paid by {{ expires }}, the seats are released. The voucher and receipt come by email as soon as it’s paid. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

@@ -67,6 +67,7 @@ async def daily(
         codes_pruned=await prune_codes(db),
         holds_expired=swept.holds_expired,
         bookings_completed=swept.completed,
+        links_expired=swept.links_expired,
         deals_ended=ended,
         refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
         early_birds_ended=await revalidate_ended_early_birds(db, today=today),

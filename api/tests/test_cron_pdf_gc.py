@@ -164,6 +164,7 @@ async def test_daily_recomputes_prices_that_departures_left_behind(
         "codesPruned": 0,
         "holdsExpired": 0,  # B10: tested in test_bookings_desk.py
         "bookingsCompleted": 0,
+        "linksExpired": 0,  # P18b: tested in test_counter_links.py
         "dealsEnded": 0,  # B12: tested in test_deals.py
         "refundsResent": 0,  # P13: tested in test_refunds.py
         "earlyBirdsEnded": 0,  # P17: tested in test_early_bird.py

@@ -13,8 +13,10 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.errors import ApiError
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.infra.razorpay import Razorpay
 from app.models import User
 from app.schemas.admin_bookings import (
     AdminBooking,
@@ -29,7 +31,7 @@ from app.schemas.admin_bookings import (
 from app.schemas.counter import EditTravellersInput
 from app.schemas.extras import RemoveAddonInput
 from app.services.auth.deps import require_owner
-from app.services.booking import balance, counter, desk, extras, refunds, resolve
+from app.services.booking import balance, counter, desk, extras, links, refunds, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -121,6 +123,47 @@ async def balance_due_route(
     re-arm for the new day."""
     response.headers.update(NO_STORE)
     await balance.extend_due(db, ref, payload.due_on, by=owner.id)
+    return await desk.get_booking(db, ref)
+
+
+def _razorpay(request: Request) -> Razorpay:
+    rzp: Razorpay | None = getattr(request.app.state, "razorpay", None)
+    if rzp is None:
+        raise ApiError("internal", "Razorpay isn't set up here", status=503)
+    return rzp
+
+
+@router.post(
+    "/bookings/{ref}/link/check", operation_id="checkPaymentLink", response_model_by_alias=True
+)
+async def link_check_route(ref: str, request: Request, response: Response, db: Db) -> AdminBooking:
+    """P18b: ask Razorpay whether the booking's payment link was paid, and apply it through
+    the one capture path (as the webhook would)."""
+    response.headers.update(NO_STORE)
+    await links.sync_link(db, ref, _razorpay(request), Notify.of(request.app.state))
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
+    "/bookings/{ref}/link/cancel", operation_id="cancelPaymentLink", response_model_by_alias=True
+)
+async def link_cancel_route(
+    ref: str, request: Request, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
+    """P18b: cancel the link at Razorpay, then release the seats. 409 `link_paid` when the
+    customer paid it meanwhile (the booking is confirmed instead), `no_link` when none is open."""
+    response.headers.update(NO_STORE)
+    await links.cancel_link(db, ref, _razorpay(request), Notify.of(request.app.state), by=owner.id)
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
+    "/bookings/{ref}/link/email", operation_id="emailPaymentLink", response_model_by_alias=True
+)
+async def link_email_route(ref: str, request: Request, response: Response, db: Db) -> AdminBooking:
+    """P18b: email the open link to the customer (logged in the history)."""
+    response.headers.update(NO_STORE)
+    await links.email_link(db, ref, Notify.of(request.app.state))
     return await desk.get_booking(db, ref)
 
 

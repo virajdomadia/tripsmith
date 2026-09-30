@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { History } from '@/components/admin/bookings/History';
 import { BalanceActions } from '@/components/admin/bookings/BalanceActions';
+import { LinkPanel } from '@/components/admin/counter/LinkPanel';
 import { Lifecycle } from '@/components/admin/bookings/Lifecycle';
 import { RemoveAddon } from '@/components/admin/bookings/RemoveAddon';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
@@ -120,6 +121,16 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
 
         <div className="grid gap-3.5">
           <SeatStrip seats={b.departure} />
+
+          {b.paymentLink && (
+            // P18b: the counter's Razorpay Payment Link — share, check or cancel it.
+            <section className={panel} aria-labelledby="payment-link">
+              <h2 id="payment-link" className={heading}>
+                Payment link
+              </h2>
+              <LinkPanel booking={b} />
+            </section>
+          )}
 
           <section className={panel}>
             <h2 className={heading}>Lead</h2>

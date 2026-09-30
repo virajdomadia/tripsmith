@@ -90,7 +90,7 @@ export function useCounterQuote(
     quote: key ? (quote?.quote ?? null) : null,
     error: key ? error : null,
     // Until the answer for this exact request is in, the one on screen is stale: not bookable.
-    loading: loading || (!!key && quote?.key !== key),
+    loading: loading || (!!key && quote?.key !== key && !error),
     requote: () => setNonce((n) => n + 1),
   };
 }

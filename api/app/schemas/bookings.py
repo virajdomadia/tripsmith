@@ -482,6 +482,17 @@ class PaymentResult(ApiModel):
     )
 
 
+class LinkCallback(ApiModel):
+    """What Razorpay appends to the callback URL after a Payment Link is paid (P18b), posted
+    back as-is. The signature covers the link id, its reference id, the status and the payment."""
+
+    razorpay_payment_id: str = Field(pattern=r"^pay_[A-Za-z0-9]{1,40}$")
+    razorpay_payment_link_id: str = Field(pattern=r"^plink_[A-Za-z0-9]{1,40}$")
+    razorpay_payment_link_reference_id: str = Field(min_length=1, max_length=60)
+    razorpay_payment_link_status: str = Field(min_length=1, max_length=30)
+    razorpay_signature: str = Field(pattern=r"^[0-9a-f]{64}$", description="Hex HMAC-SHA256")
+
+
 class SyncRequest(ApiModel):
     """The booking's Razorpay order id, which only the visitor who started it holds: with it,
     a confirmed answer carries the voucher link."""

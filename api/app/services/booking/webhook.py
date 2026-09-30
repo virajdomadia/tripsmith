@@ -12,6 +12,8 @@ the raw body before anything here runs.
   its Razorpay id or, when the call's answer was lost, by the `refund_id` note we sent. A failed
   refund's money goes back onto the booking, so the desk offers "Send refund" again. A refund
   made by hand in the Razorpay dashboard is not ours and is ignored.
+- a paid Payment Link (P18b): its order is opened by Razorpay, so it is unknown here; the
+  payment's notes name our link row, which learns the order id, and the capture goes on as above;
 - anything else, or an order that is not one of ours (the dev api creates orders with the same
   test keys, but the webhook is registered on production only) → ignored, still a 200, so
   Razorpay does not retry it for a day.
@@ -27,10 +29,12 @@ from app.models import Booking, Payment, Refund
 from app.models.enums import BookingActor, PaymentProvider, PaymentStatus, RefundStatus
 from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.links import ref_for_link_event
 from app.services.booking.payments import (
     SETTLED_PAYMENT,
     capture_razorpay_payment,
     lock_booking,
+    map_link_order,
 )
 from app.services.booking.refunds import apply_refund, failure_reason
 
@@ -40,12 +44,17 @@ REFUND_EVENTS = {"refund.processed": RefundStatus.PROCESSED, "refund.failed": Re
 log = logging.getLogger(__name__)
 
 
-def _payment_entity(event: dict[str, Any]) -> tuple[str, str] | None:
-    """`(order_id, payment_id)` from `payload.payment.entity`, or None when either is missing."""
+def _entity(event: dict[str, Any]) -> dict[str, Any]:
     payload = event.get("payload")
     payment = payload.get("payment") if isinstance(payload, dict) else None
     entity = payment.get("entity") if isinstance(payment, dict) else None
-    if not isinstance(entity, dict):
+    return entity if isinstance(entity, dict) else {}
+
+
+def _payment_entity(event: dict[str, Any]) -> tuple[str, str] | None:
+    """`(order_id, payment_id)` from `payload.payment.entity`, or None when either is missing."""
+    entity = _entity(event)
+    if not entity:
         return None
     order_id, payment_id = entity.get("order_id"), entity.get("id")
     if not (isinstance(order_id, str) and order_id.startswith("order_")):
@@ -76,6 +85,11 @@ async def handle_razorpay_event(
             .limit(1)
         )
     ).scalar_one_or_none()
+    link_row: str | None = None
+    if ref is None:  # P18b: a paid link's order, named by the link's notes
+        found = await ref_for_link_event(db, _entity(event), order_id)
+        if found is not None:
+            ref, link_row = found
     if ref is None:
         log.warning("Razorpay %s for order %s, which is not ours — ignored", kind, order_id)
         await db.rollback()
@@ -84,12 +98,18 @@ async def handle_razorpay_event(
     try:
         if kind == "payment.failed":
             await record_failed_payment(
-                db, ref, order_id=order_id, payment_id=payment_id, raw=event
+                db, ref, order_id=order_id, payment_id=payment_id, raw=event, link_row=link_row
             )
             await db.commit()
             return "failed"
         booking, capture = await capture_razorpay_payment(
-            db, ref, order_id=order_id, payment_id=payment_id, via="webhook", raw=event
+            db,
+            ref,
+            order_id=order_id,
+            payment_id=payment_id,
+            via="webhook",
+            raw=event,
+            link_row=link_row,
         )
         package_id = booking.package_id
         await db.commit()
@@ -141,12 +161,20 @@ async def _refund_event(db: AsyncSession, event: dict[str, Any], status: RefundS
 
 
 async def record_failed_payment(
-    db: AsyncSession, ref: str, *, order_id: str, payment_id: str, raw: dict[str, Any]
+    db: AsyncSession,
+    ref: str,
+    *,
+    order_id: str,
+    payment_id: str,
+    raw: dict[str, Any],
+    link_row: str | None = None,
 ) -> None:
     """Keep a failed attempt on record without touching the booking (R16). It fills the order's
     `created` row, or a new one when that is taken; a replay updates the same row. A payment
     already captured stays captured — a failure event never undoes money received."""
     booking, _ = await lock_booking(db, ref)  # serialises with a capture on the same order
+    if link_row is not None:  # P18b: a link's order, learned now
+        await map_link_order(db, booking.id, link_row, order_id)
     rows = (
         (
             await db.execute(
