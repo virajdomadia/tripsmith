@@ -11,7 +11,7 @@ import {
 } from './enquiry-filters';
 
 export type BookingStatus = components['schemas']['BookingStatus'];
-export type BookingFlag = 'refund' | 'cancellation';
+export type BookingFlag = 'refund' | 'cancellation' | 'balance';
 export type CancelReason = components['schemas']['CancelReason'];
 export type BookingRow = components['schemas']['BookingRow'];
 export type AdminBooking = components['schemas']['AdminBooking'];
@@ -22,15 +22,20 @@ export const CSV_PATH = '/api/admin/bookings.csv';
 export const manifestHref = (departureId: string) =>
   `/admin/departures/${encodeURIComponent(departureId)}/manifest`;
 
-/** The tabs, in desk order. `partially_paid` (add-on D) is filterable but has no tab yet. */
+/** The tabs, in desk order. `partially_paid` (P5: on its deposit) is filterable, and the
+ *  "Balance due" tile shows it; it has no tab of its own. */
 export const STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'] as const;
 const ALL_STATUSES = [...STATUSES, 'partially_paid'] as const satisfies readonly BookingStatus[];
-export const FLAGS = ['refund', 'cancellation'] as const satisfies readonly BookingFlag[];
+export const FLAGS = [
+  'refund',
+  'cancellation',
+  'balance',
+] as const satisfies readonly BookingFlag[];
 
 export const STATUS_LABELS: Record<BookingStatus, string> = {
   pending: 'Pending',
   confirmed: 'Confirmed',
-  partially_paid: 'Part paid',
+  partially_paid: 'Deposit paid',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
@@ -38,6 +43,7 @@ export const STATUS_LABELS: Record<BookingStatus, string> = {
 export const FLAG_LABELS: Record<BookingFlag, string> = {
   refund: 'Refund needed',
   cancellation: 'Cancellation requested',
+  balance: 'Balance due',
 };
 
 /** Mirrors the api's CSV `CANCEL_LABELS` (services/booking/desk.py). */

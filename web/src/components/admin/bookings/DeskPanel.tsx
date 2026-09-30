@@ -8,6 +8,7 @@ import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
 import { nextStep } from '@/lib/admin/lifecycle';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { BalanceActions } from './BalanceActions';
 import { DeskActions } from './DeskActions';
 import { CancelRequested, RefundFlag, StateBadge } from './StateBadge';
 
@@ -89,6 +90,7 @@ export function DeskPanel({ b, closeHref }: { b: AdminBooking | null; closeHref:
           <b className="text-sm">{step.title}</b>
           <p className="text-[13px] text-ink2">{step.text}</p>
           {(b.canMarkPaid || b.canRelease || b.refundNeeded) && <DeskActions booking={b} />}
+          {b.status === 'partially_paid' && b.balance && <BalanceActions booking={b} />}
           {b.cancellation?.status === 'requested' && (
             <Link href={`/admin/bookings/${b.ref}`} className="text-[13px] font-bold text-primary">
               Answer it on the booking →

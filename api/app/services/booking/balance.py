@@ -14,6 +14,11 @@ under the booking's lock and committed — and only then sent, so a re-run of th
 nothing twice (a lost email is logged, not retried). An owner extending the due day (P5b) arms
 the reminders again, since the day is part of the claim.
 
+**Owner (P5b).** The desk shows the balance and can record it paid offline (the whole
+balance, as one `offline` payment through `settle_capture`, so the booking is confirmed and the
+invoice issued like any clearing part) or move the due day later, up to the departure day
+(logged; the reminders re-arm for the new day).
+
 **Overdue.** The day after the 2-day grace, the tidy cancels the booking as `balance_unpaid`,
 which frees its seats. The refund is the cancellation policy's tier applied to what was paid, as
 of that day; it is kept on the booking (`balance_refund_paise`) so `refunds.refund_owed` stays
@@ -42,13 +47,17 @@ from app.models.enums import (
     PaymentStatus,
 )
 from app.schemas.account import AccountBalance, BalanceOrder
+from app.schemas.admin_bookings import AdminBalance
+from app.services.analytics import ist_today
 from app.services.booking import deposit, history
-from app.services.booking.after_capture import Notify
+from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
-from app.services.booking.history import money
+from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import lock_booking
+from app.services.booking.payments import settle_capture
 from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
-from app.services.booking.voucher import load_booking_facts
+from app.services.booking.settled import Capture
+from app.services.booking.voucher import load_booking_facts, offline_label
 from app.services.email.balance import send_balance_cancelled, send_balance_reminder
 
 NO_BALANCE = "This booking has no balance to pay"
@@ -163,6 +172,110 @@ async def create_balance_order(
         amount_paise=amount_paise,
         balance_paise=left,
     )
+
+
+# --- the owner (P5b) ---------------------------------------------------------------------------
+
+NOT_ON_DEPOSIT = "Only a booking on its deposit has a balance to settle"
+DUE_NOT_LATER = "Pick a day after the current due day"
+DUE_AFTER_DEPARTURE = "The balance can be due on the departure day at the latest"
+
+
+def admin_balance(
+    booking: Booking, departs: dt.date, today: dt.date | None = None
+) -> AdminBalance | None:
+    """The desk's balance block; None for a booking paid in full at booking."""
+    if booking.deposit_paise is None or booking.balance_due_on is None:
+        return None
+    today = today or ist_today()
+    open_ = booking.status == BookingStatus.PARTIALLY_PAID
+    return AdminBalance(
+        deposit_paise=booking.deposit_paise,
+        balance_paise=max(0, booking.total_paise - booking.paid_paise) if open_ else 0,
+        due_on=booking.balance_due_on,
+        last_day_on=deposit.overdue_after(booking.balance_due_on),
+        days_left=(booking.balance_due_on - today).days,
+        can_mark_paid=open_,
+        can_extend=open_ and booking.balance_due_on < departs,
+        extend_until=departs,
+    )
+
+
+async def mark_balance_paid(
+    db: AsyncSession,
+    ref: str,
+    reference: str | None,
+    notify: Notify | None,
+    *,
+    by: str | None = None,
+) -> None:
+    """Record the whole balance paid offline (cash, UPI, bank) and apply it like any part: the
+    booking is confirmed, the invoice issued, and the customer gets the paid-in-full email."""
+    try:
+        booking, live = await lock_booking(db, ref)
+        left = booking.total_paise - booking.paid_paise
+        if booking.status != BookingStatus.PARTIALLY_PAID or left <= 0:
+            raise ApiError("conflict", NOT_ON_DEPOSIT, reason="not_on_deposit")
+        payment = Payment(
+            booking_id=booking.id,
+            provider=PaymentProvider.OFFLINE,
+            amount_paise=left,
+            status=PaymentStatus.CAPTURED,
+            raw={"reference": reference} if reference else None,
+        )
+        db.add(payment)
+        await db.flush()
+        entry = PaymentLog(
+            "payment.offline",
+            BookingActor.OWNER,
+            f"Balance marked paid offline · {money(left)}"
+            + (f" · {reference}" if reference else ""),
+            by=by,
+        )
+        settled = await settle_capture(db, booking, hold_live=live, amount_paise=left, entry=entry)
+        package_id = booking.package_id
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    capture = Capture(settled, offline_label(reference), left, offline=True)
+    await on_new_capture(
+        db, ref, capture, package_id=package_id, after=f"offline balance on {ref}", notify=notify
+    )
+
+
+async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | None = None) -> None:
+    """Move one booking's due day later, up to its departure day (logged)."""
+    try:
+        booking, _ = await lock_booking(db, ref)
+        if booking.status != BookingStatus.PARTIALLY_PAID or booking.balance_due_on is None:
+            raise ApiError("conflict", NOT_ON_DEPOSIT, reason="not_on_deposit")
+        departs = (
+            await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
+        ).scalar_one()
+        if due_on <= booking.balance_due_on:
+            raise ApiError("validation", DUE_NOT_LATER, field_errors={"dueOn": DUE_NOT_LATER})
+        if due_on > departs:
+            raise ApiError(
+                "validation", DUE_AFTER_DEPARTURE, field_errors={"dueOn": DUE_AFTER_DEPARTURE}
+            )
+        before = booking.balance_due_on
+        booking.balance_due_on = due_on
+        history.record(
+            db,
+            booking.id,
+            "balance.extended",
+            actor=BookingActor.OWNER,
+            by=by,
+            text=f"Balance due day moved from {history.day(before)} to {history.day(due_on)}",
+            customer=f"Your balance is now due by {history.day(due_on)}",
+            before={"balanceDueOn": before.isoformat()},
+            after={"balanceDueOn": due_on.isoformat()},
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
 
 
 # --- the daily tidy -----------------------------------------------------------------------------

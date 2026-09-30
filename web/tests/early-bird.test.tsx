@@ -209,6 +209,7 @@ describe('the form sends the tiers the api expects', () => {
     hotels: [],
     faq: [],
     featured: false,
+    depositOn: true,
     itinerary: [],
     departures: [],
     addons: [],

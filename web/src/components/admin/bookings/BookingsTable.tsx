@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table';
 import type { BookingRow } from '@/lib/admin/booking-filters';
 import { travellersLabel } from '@/lib/account';
-import { formatDate, inr } from '@/lib/format';
+import { formatDate, inr, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { CancelRequested, RefundFlag, StateBadge } from './StateBadge';
 
@@ -94,6 +94,12 @@ export function BookingsTable({
                 {b.couponCode && (
                   <span className="block font-mono text-xs tracking-wide text-ok">
                     {b.couponCode}
+                  </span>
+                )}
+                {b.balanceDueOn && (
+                  // P5: on its deposit — what is left and by when.
+                  <span className="block text-xs font-semibold text-warn">
+                    {inr(b.totalPaise - b.paidPaise)} due {shortDate(b.balanceDueOn)}
                   </span>
                 )}
               </TableCell>

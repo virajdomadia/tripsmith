@@ -112,6 +112,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   coverImageId: null,
   status: 'draft',
   featured: false,
+  depositOn: true,
   startingPricePaise: 1_499_900,
   dealPricePaise: null,
   dealLabel: null,

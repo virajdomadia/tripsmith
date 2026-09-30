@@ -116,7 +116,7 @@ export function lifecycle(b: AdminBooking): Step[] {
     return [
       booked,
       ...failed,
-      paid(b.status === 'partially_paid' ? 'Part paid' : 'Paid in full'),
+      paid(b.status === 'partially_paid' ? 'Deposit paid' : 'Paid in full'),
       ...(asked ? [askedStep(open ? 'now' : 'done')] : []),
       ...(asked?.status === 'rejected'
         ? [
@@ -321,9 +321,13 @@ export function moves(b: AdminBooking): Move[] {
       key: 'reject',
       title: 'Reject the request',
       becomes:
-        ({ confirmed: 'Confirmed', partially_paid: 'Part paid', completed: 'Completed' } as const)[
-          b.status as 'confirmed' | 'partially_paid' | 'completed'
-        ] ?? 'Unchanged',
+        (
+          {
+            confirmed: 'Confirmed',
+            partially_paid: 'Deposit paid',
+            completed: 'Completed',
+          } as const
+        )[b.status as 'confirmed' | 'partially_paid' | 'completed'] ?? 'Unchanged',
       tone: 'ok',
       effects: [
         ['Seats', 'Stay booked'],

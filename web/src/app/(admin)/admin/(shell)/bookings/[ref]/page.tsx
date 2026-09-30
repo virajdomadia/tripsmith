@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { History } from '@/components/admin/bookings/History';
+import { BalanceActions } from '@/components/admin/bookings/BalanceActions';
 import { Lifecycle } from '@/components/admin/bookings/Lifecycle';
 import { RemoveAddon } from '@/components/admin/bookings/RemoveAddon';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
@@ -131,6 +132,16 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               View the package page
             </Link>
           </section>
+
+          {b.balance && (
+            // P5: made on a deposit — the balance, and settling or extending it.
+            <section className={panel} aria-labelledby="balance">
+              <h2 id="balance" className={heading}>
+                Deposit &amp; balance
+              </h2>
+              <BalanceActions booking={b} />
+            </section>
+          )}
 
           {(b.addons ?? []).length > 0 && (
             <section className={panel} aria-labelledby="addons">

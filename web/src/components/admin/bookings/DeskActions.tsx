@@ -24,7 +24,7 @@ import { inr } from '@/lib/format';
 const NOTE_MAX = 80; // api schemas/admin_bookings.py NOTE_MAX
 
 export type DeskAction = 'mark-paid' | 'release' | 'refund-made';
-type Action = 'mark-paid' | 'release' | 'refund' | 'refund-made';
+type Action = 'mark-paid' | 'release' | 'refund' | 'refund-made' | 'balance-paid';
 
 /**
  * The desk's writes, each behind a confirm dialog — mark paid, release, and (P13) the refunds:
@@ -164,7 +164,7 @@ export function SplitList({ parts }: { parts: SplitPart[] }) {
   );
 }
 
-function ActionDialog({
+export function ActionDialog({
   bookingRef,
   action,
   body: fixedBody,

@@ -152,6 +152,7 @@ describe('the form schema', () => {
     hotels: [],
     faq: [],
     featured: false,
+    depositOn: true,
     itinerary: [],
     departures: [],
     addons: [],

@@ -148,6 +148,7 @@ async def test_the_desk_numbers_match_departure_availability(
         "all": 3,
         "refund": 0,
         "cancellation": 0,
+        "balance": 0,  # P5
     }
     assert [d["id"] for d in body["departures"]] == [dep_id]
 

@@ -29,6 +29,7 @@ const valid = {
   hotels: [{ name: 'Lemon Tree', city: 'Candolim', stars: 4, nights: 3 }],
   faq: [{ q: 'Is it family friendly?', a: 'Yes, the beach is calm.' }],
   featured: false,
+  depositOn: true,
   itinerary: [1, 2, 3, 4].map(() => ({
     title: 'A day',
     description: 'Something real happens on this day of the trip.',
