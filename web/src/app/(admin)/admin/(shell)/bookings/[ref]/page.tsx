@@ -17,6 +17,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { travellersLabel, voucherHref } from '@/lib/account';
 import { DESK_PATH } from '@/lib/admin/booking-filters';
 import { REFUND_REASON, REFUND_STATUS } from '@/lib/admin/refunds';
+import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { reviewsHref } from '@/lib/admin/reviews';
 import { api, ApiRequestError } from '@/lib/api';
 import { formatDate, inr } from '@/lib/format';
@@ -56,7 +57,11 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
     <>
       <PageHead
         title={`${b.ref} · ${b.leadName}`}
-        subtitle={`${b.package.name} · ${formatDate(b.departs)} · ${travellersLabel(b.travellers.length)} · ${inr(b.totalPaise)} · booked ${istFullDate(b.bookedAt)}`}
+        subtitle={`${b.package.name} · ${formatDate(b.departs)} · ${travellersLabel(b.travellers.length)} · ${inr(b.totalPaise)} · booked ${istFullDate(b.bookedAt)}${
+          b.channel && b.channel !== 'web'
+            ? ` · ${CHANNEL_LABEL[b.channel]}${b.createdBy ? ` by ${b.createdBy}` : ''}${b.enquiry ? ` · from ${b.enquiry.ref}` : ''}`
+            : ''
+        }`}
         actions={
           <>
             <a href={telHref(b.leadPhone)} className={outline}>

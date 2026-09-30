@@ -380,6 +380,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/travellers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Travellers Route
+         * @description P18: names and ages, in the booking's order (details taken later at the counter). A
+         *     child's age stays inside the child rate; the rooms stay as booked. Logged.
+         */
+        put: operations["editBookingTravellers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/cancellations/{id}/resolve": {
         parameters: {
             query?: never;
@@ -396,6 +417,68 @@ export interface paths {
          *     answered, `not_active` when approving a booking that no longer holds its seats.
          */
         post: operations["resolveCancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/counter/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Route
+         * @description Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the
+         *     website. 409 `deposit_unavailable`, `already_converted`, or the quote's reasons.
+         */
+        post: operations["createCounterBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/counter/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Route
+         * @description The website's quote for the party, plus the manual discount. 409 with the reason when
+         *     the date can't be booked, the party doesn't fit, or a code or the discount is refused.
+         */
+        post: operations["quoteCounterBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/counter/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trips Route
+         * @description Every live package with its departures from today (IST) on, seats left and add-ons.
+         */
+        get: operations["getCounterTrips"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -465,6 +548,26 @@ export interface paths {
         };
         /** Results Route */
         get: operations["getCouponResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customers Route
+         * @description Customers by phone, email or name (2 characters or more), with their past trips.
+         */
+        get: operations["searchCustomers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1560,8 +1663,11 @@ export interface components {
         };
         /** AccountTraveller */
         AccountTraveller: {
-            /** Age */
-            age: number;
+            /**
+             * Age
+             * @description Null when the counter left it for later (P18)
+             */
+            age: number | null;
             /** Name */
             name: string;
             occupancy: components["schemas"]["Occupancy"];
@@ -1757,6 +1863,12 @@ export interface components {
              */
             bookedAt: string;
             /**
+             * Canedittravellers
+             * @description P18: pending, part paid or confirmed — names and ages
+             * @default false
+             */
+            canEditTravellers: boolean;
+            /**
              * Canmarkpaid
              * @description Pending, or swept as hold_expired
              */
@@ -1774,6 +1886,16 @@ export interface components {
             cancelReason: components["schemas"]["CancelReason"] | null;
             cancellation: components["schemas"]["AdminCancellation"] | null;
             /**
+             * @description P18
+             * @default web
+             */
+            channel: components["schemas"]["BookingChannel"];
+            /**
+             * Createdby
+             * @description P18: the owner who made it at the counter, by name
+             */
+            createdBy?: string | null;
+            /**
              * Departs
              * Format: date
              */
@@ -1784,6 +1906,8 @@ export interface components {
              * @description GST documents, in the order they happened (P13b)
              */
             documents: components["schemas"]["GstDocumentOut"][];
+            /** @description P18: the enquiry it was converted from */
+            enquiry?: components["schemas"]["LinkedEnquiry"] | null;
             /** Hasvoucher */
             hasVoucher: boolean;
             /** @description Every change, payment and email, oldest first (R54) */
@@ -2578,6 +2702,12 @@ export interface components {
          * @enum {string}
          */
         BookingActor: "owner" | "customer" | "webhook" | "cron" | "system";
+        /**
+         * BookingChannel
+         * @description Where a booking came from (R56, P18): the Book-now sheet, or the owner's counter.
+         * @enum {string}
+         */
+        BookingChannel: "web" | "phone" | "walk_in" | "whatsapp" | "enquiry";
         /** BookingContact */
         BookingContact: {
             /**
@@ -2762,6 +2892,11 @@ export interface components {
             cancelReason: components["schemas"]["CancelReason"] | null;
             cancellation: components["schemas"]["CancellationStatus"] | null;
             /**
+             * @description P18: web, or how the counter took it
+             * @default web
+             */
+            channel: components["schemas"]["BookingChannel"];
+            /**
              * Couponcode
              * @description B15: the coupon the booking was quoted with
              */
@@ -2830,6 +2965,148 @@ export interface components {
          * @enum {string}
          */
         CancellationStatus: "requested" | "approved" | "rejected";
+        /**
+         * CounterBookingRequest
+         * @description `POST /admin/counter/bookings`: book and settle in one step.
+         *
+         *     `paid` = the whole total taken now (cash, UPI or bank), confirmed at once with a receipt;
+         *     `deposit` = the quote's deposit taken now, the balance due later as on the website.
+         */
+        CounterBookingRequest: {
+            /** Addons */
+            addons?: components["schemas"]["AddonChoice"][];
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "phone" | "walk_in" | "whatsapp" | "enquiry";
+            contact: components["schemas"]["BookingContact"];
+            /** Couponcode */
+            couponCode?: string | null;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Enquiryid
+             * @description Converting: marked converted and linked
+             */
+            enquiryId?: string | null;
+            manual?: components["schemas"]["ManualDiscountInput"] | null;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "upi" | "bank";
+            /**
+             * Reference
+             * @description UPI reference (UTR) or bank reference; optional for cash
+             */
+            reference?: string | null;
+            /**
+             * Settle
+             * @enum {string}
+             */
+            settle: "paid" | "deposit";
+            /** Travellers */
+            travellers: components["schemas"]["CounterTraveller"][];
+        };
+        /** CounterDeparture */
+        CounterDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /**
+             * Onrequest
+             * @description A price is 0: not bookable
+             */
+            onRequest: boolean;
+            /**
+             * Pricedoublepaise
+             * @description 0 = on request
+             */
+            priceDoublePaise: number;
+            /** Seatsleft */
+            seatsLeft: number;
+            /** Seatstotal */
+            seatsTotal: number;
+        };
+        /** CounterPackage */
+        CounterPackage: {
+            /**
+             * Addons
+             * @description Switched-on add-ons, in the owner's order
+             */
+            addons: components["schemas"]["AddonOut"][];
+            /** Coverurl */
+            coverUrl: string | null;
+            /** Days */
+            days: number;
+            /**
+             * Departures
+             * @description From today (IST), soonest first
+             */
+            departures: components["schemas"]["CounterDeparture"][];
+            /** Depositon */
+            depositOn: boolean;
+            /** Destination */
+            destination: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * CounterQuoteRequest
+         * @description `POST /admin/counter/quote`: the website's quote input, plus the manual discount.
+         */
+        CounterQuoteRequest: {
+            /** Addons */
+            addons?: components["schemas"]["AddonChoice"][];
+            /** Couponcode */
+            couponCode?: string | null;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Email
+             * @description The customer's
+             */
+            email?: string | null;
+            manual?: components["schemas"]["ManualQuoteInput"] | null;
+            /** Travellers */
+            travellers: components["schemas"]["QuoteTraveller"][];
+        };
+        /**
+         * CounterTraveller
+         * @description A traveller as the counter takes them: the name and an adult's age may come later.
+         */
+        CounterTraveller: {
+            /**
+             * Age
+             * @description Required for a child
+             */
+            age?: number | null;
+            /**
+             * Name
+             * @description Blank = later
+             */
+            name?: string | null;
+            occupancy: components["schemas"]["Occupancy"];
+        };
+        /**
+         * CounterTrips
+         * @description `GET /admin/counter/trips`: every live package with its departures from today on.
+         */
+        CounterTrips: {
+            /** Packages */
+            packages: components["schemas"]["CounterPackage"][];
+        };
         /** CouponActive */
         CouponActive: {
             /** Active */
@@ -2973,6 +3250,54 @@ export interface components {
             ref: string;
             /** Travellers */
             travellers: number;
+        };
+        /**
+         * CustomerMatch
+         * @description One customer, by email: their latest details and their trips (newest first).
+         */
+        CustomerMatch: {
+            /** Companyname */
+            companyName: string | null;
+            /** Email */
+            email: string;
+            /** Gstin */
+            gstin: string | null;
+            /**
+             * Hasaccount
+             * @description Signed in before: the booking shows in My trips
+             */
+            hasAccount: boolean;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+            /** State */
+            state: string | null;
+            /** Tripcount */
+            tripCount: number;
+            /**
+             * Trips
+             * @description The latest three
+             */
+            trips: components["schemas"]["CustomerTrip"][];
+        };
+        /** CustomerSearch */
+        CustomerSearch: {
+            /** Items */
+            items: components["schemas"]["CustomerMatch"][];
+        };
+        /** CustomerTrip */
+        CustomerTrip: {
+            /**
+             * Departs
+             * Format: date
+             */
+            departs: string;
+            /** Packagename */
+            packageName: string;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["BookingStatus"];
         };
         /** Dashboard */
         Dashboard: {
@@ -3376,6 +3701,15 @@ export interface components {
              * @example 150000
              */
             offPaise: number;
+        };
+        /**
+         * EditTravellersInput
+         * @description `PUT /admin/bookings/{ref}/travellers`: names and ages, in the booking's order; rooms and
+         *     the party stay as booked.
+         */
+        EditTravellersInput: {
+            /** Travellers */
+            travellers: components["schemas"]["TravellerDetails"][];
         };
         /**
          * EmailStatus
@@ -3997,6 +4331,13 @@ export interface components {
              */
             maxTravellers: number;
         };
+        /** LinkedEnquiry */
+        LinkedEnquiry: {
+            /** Id */
+            id: string;
+            /** Ref */
+            ref: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Email */
@@ -4074,6 +4415,49 @@ export interface components {
             status: components["schemas"]["BookingStatus"];
             /** Travellers */
             travellers: components["schemas"]["AccountTraveller"][];
+        };
+        /**
+         * ManualDiscountInput
+         * @description The manual discount on a booking: the reason is required — it prints on the invoice.
+         */
+        ManualDiscountInput: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "inr" | "percent";
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Value
+             * @description Whole rupees, or a percent 1–100
+             */
+            value: number;
+        };
+        /**
+         * ManualQuoteInput
+         * @description ₹ off, or a % of the trip fare after the deal, the early-bird and the coupon. The live quote
+         *     prices it before its reason is typed; booking needs the reason (`ManualDiscountInput`).
+         */
+        ManualQuoteInput: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "inr" | "percent";
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Value
+             * @description Whole rupees, or a percent 1–100
+             */
+            value: number;
         };
         /** MarkPaidInput */
         MarkPaidInput: {
@@ -4694,7 +5078,7 @@ export interface components {
             deposit?: components["schemas"]["QuoteDeposit"] | null;
             /**
              * Discountpaise
-             * @description The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons
+             * @description The deal and early-bird lines' total plus the coupon and the counter's manual discount, as a positive number; never touches the add-ons
              */
             discountPaise: number;
             /** @description P17: null when no tier applies */
@@ -4706,6 +5090,8 @@ export interface components {
             ladder: components["schemas"]["LadderRung"][];
             /** Lines */
             lines: components["schemas"]["QuoteLine"][];
+            /** @description P18: the owner's discount at the counter; null on the web */
+            manual: components["schemas"]["QuoteManual"] | null;
             /** Packageslug */
             packageSlug: string;
             /** Seatsleft */
@@ -4865,6 +5251,28 @@ export interface components {
          * @enum {string}
          */
         QuoteLineKind: "double" | "triple" | "single" | "single_supplement" | "child" | "deal" | "early_bird";
+        /**
+         * QuoteManual
+         * @description R56 (P18): the owner's discount at the counter — after the coupon, off the trip fare only,
+         *     whole rupees, never taking the fare below ₹1. Printed on the invoice with its reason.
+         */
+        QuoteManual: {
+            /**
+             * Offpaise
+             * @description Off the trip fare, after every other discount
+             */
+            offPaise: number;
+            /**
+             * Percent
+             * @description Set when the owner gave a % (1–100); null for ₹
+             */
+            percent: number | null;
+            /**
+             * Reason
+             * @description Why — required to book (a live quote may not have it yet); on the invoice and in the history
+             */
+            reason: string;
+        };
         /** QuoteRequest */
         QuoteRequest: {
             /**
@@ -5167,6 +5575,13 @@ export interface components {
             /** Label */
             label: string;
             value: components["schemas"]["Theme"];
+        };
+        /** TravellerDetails */
+        TravellerDetails: {
+            /** Age */
+            age?: number | null;
+            /** Name */
+            name: string;
         };
         /** UpcomingDeparture */
         UpcomingDeparture: {
@@ -5557,6 +5972,8 @@ export interface operations {
                 flag?: ("refund" | "cancellation" | "balance") | null;
                 packageId?: string | null;
                 departureId?: string | null;
+                /** @description P18: where the booking came from (web or the counter) */
+                channel?: components["schemas"]["BookingChannel"] | null;
                 /** @description Departing on or after this day */
                 from?: string | null;
                 /** @description Departing on or before this day */
@@ -5600,6 +6017,8 @@ export interface operations {
                 flag?: ("refund" | "cancellation" | "balance") | null;
                 packageId?: string | null;
                 departureId?: string | null;
+                /** @description P18: where the booking came from (web or the counter) */
+                channel?: components["schemas"]["BookingChannel"] | null;
                 /** @description Departing on or after this day */
                 from?: string | null;
                 /** @description Departing on or before this day */
@@ -5908,6 +6327,41 @@ export interface operations {
             };
         };
     };
+    editBookingTravellers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditTravellersInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     resolveCancellation: {
         parameters: {
             query?: never;
@@ -5930,6 +6384,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createCounterBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    quoteCounterBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quote"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getCounterTrips: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterTrips"];
                 };
             };
             /** @description Error envelope (06 C0) */
@@ -6153,6 +6702,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CouponResults"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    searchCustomers: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSearch"];
                 };
             };
             /** @description Error envelope (06 C0) */

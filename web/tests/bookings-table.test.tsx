@@ -25,6 +25,7 @@ const row = (over: Partial<BookingRow> = {}): BookingRow => ({
   totalPaise: 1_699_700,
   paidPaise: 0,
   couponCode: null,
+  channel: 'web',
   bookedAt: '2026-09-22T06:12:00Z',
   ...over,
 });

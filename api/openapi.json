@@ -564,8 +564,16 @@
       "AccountTraveller": {
         "properties": {
           "age": {
-            "title": "Age",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the counter left it for later (P18)",
+            "title": "Age"
           },
           "name": {
             "title": "Name",
@@ -960,6 +968,12 @@
             "title": "Bookedat",
             "type": "string"
           },
+          "canEditTravellers": {
+            "default": false,
+            "description": "P18: pending, part paid or confirmed — names and ages",
+            "title": "Canedittravellers",
+            "type": "boolean"
+          },
           "canMarkPaid": {
             "description": "Pending, or swept as hold_expired",
             "title": "Canmarkpaid",
@@ -995,6 +1009,23 @@
               }
             ]
           },
+          "channel": {
+            "$ref": "#/components/schemas/BookingChannel",
+            "default": "web",
+            "description": "P18"
+          },
+          "createdBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18: the owner who made it at the counter, by name",
+            "title": "Createdby"
+          },
           "departs": {
             "format": "date",
             "title": "Departs",
@@ -1010,6 +1041,17 @@
             },
             "title": "Documents",
             "type": "array"
+          },
+          "enquiry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedEnquiry"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18: the enquiry it was converted from"
           },
           "hasVoucher": {
             "title": "Hasvoucher",
@@ -2884,6 +2926,18 @@
         "title": "BookingActor",
         "type": "string"
       },
+      "BookingChannel": {
+        "description": "Where a booking came from (R56, P18): the Book-now sheet, or the owner's counter.",
+        "enum": [
+          "web",
+          "phone",
+          "walk_in",
+          "whatsapp",
+          "enquiry"
+        ],
+        "title": "BookingChannel",
+        "type": "string"
+      },
       "BookingContact": {
         "properties": {
           "companyName": {
@@ -3284,6 +3338,11 @@
               }
             ]
           },
+          "channel": {
+            "$ref": "#/components/schemas/BookingChannel",
+            "default": "web",
+            "description": "P18: web, or how the counter took it"
+          },
           "couponCode": {
             "anyOf": [
               {
@@ -3446,6 +3505,362 @@
         ],
         "title": "CancellationStatus",
         "type": "string"
+      },
+      "CounterBookingRequest": {
+        "description": "`POST /admin/counter/bookings`: book and settle in one step.\n\n`paid` = the whole total taken now (cash, UPI or bank), confirmed at once with a receipt;\n`deposit` = the quote's deposit taken now, the balance due later as on the website.",
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/AddonChoice"
+            },
+            "maxItems": 12,
+            "title": "Addons",
+            "type": "array"
+          },
+          "channel": {
+            "enum": [
+              "phone",
+              "walk_in",
+              "whatsapp",
+              "enquiry"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/BookingContact"
+          },
+          "couponCode": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Couponcode"
+          },
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "enquiryId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Converting: marked converted and linked",
+            "title": "Enquiryid"
+          },
+          "manual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualDiscountInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "enum": [
+              "cash",
+              "upi",
+              "bank"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UPI reference (UTR) or bank reference; optional for cash",
+            "title": "Reference"
+          },
+          "settle": {
+            "enum": [
+              "paid",
+              "deposit"
+            ],
+            "title": "Settle",
+            "type": "string"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/CounterTraveller"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departureId",
+          "travellers",
+          "contact",
+          "channel",
+          "settle",
+          "method"
+        ],
+        "title": "CounterBookingRequest",
+        "type": "object"
+      },
+      "CounterDeparture": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "onRequest": {
+            "description": "A price is 0: not bookable",
+            "title": "Onrequest",
+            "type": "boolean"
+          },
+          "priceDoublePaise": {
+            "description": "0 = on request",
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "seatsTotal",
+          "seatsLeft",
+          "priceDoublePaise",
+          "onRequest"
+        ],
+        "title": "CounterDeparture",
+        "type": "object"
+      },
+      "CounterPackage": {
+        "properties": {
+          "addons": {
+            "description": "Switched-on add-ons, in the owner's order",
+            "items": {
+              "$ref": "#/components/schemas/AddonOut"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
+          "coverUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverurl"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "departures": {
+            "description": "From today (IST), soonest first",
+            "items": {
+              "$ref": "#/components/schemas/CounterDeparture"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "depositOn": {
+            "title": "Depositon",
+            "type": "boolean"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "destination",
+          "coverUrl",
+          "nights",
+          "days",
+          "depositOn",
+          "departures",
+          "addons"
+        ],
+        "title": "CounterPackage",
+        "type": "object"
+      },
+      "CounterQuoteRequest": {
+        "description": "`POST /admin/counter/quote`: the website's quote input, plus the manual discount.",
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/AddonChoice"
+            },
+            "maxItems": 12,
+            "title": "Addons",
+            "type": "array"
+          },
+          "couponCode": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Couponcode"
+          },
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer's",
+            "title": "Email"
+          },
+          "manual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualQuoteInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteTraveller"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departureId",
+          "travellers"
+        ],
+        "title": "CounterQuoteRequest",
+        "type": "object"
+      },
+      "CounterTraveller": {
+        "description": "A traveller as the counter takes them: the name and an adult's age may come later.",
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for a child",
+            "title": "Age"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Blank = later",
+            "title": "Name"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          }
+        },
+        "required": [
+          "occupancy"
+        ],
+        "title": "CounterTraveller",
+        "type": "object"
+      },
+      "CounterTrips": {
+        "description": "`GET /admin/counter/trips`: every live package with its departures from today on.",
+        "properties": {
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/CounterPackage"
+            },
+            "title": "Packages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "title": "CounterTrips",
+        "type": "object"
       },
       "CouponActive": {
         "properties": {
@@ -3743,6 +4158,130 @@
           "holding"
         ],
         "title": "CouponUse",
+        "type": "object"
+      },
+      "CustomerMatch": {
+        "description": "One customer, by email: their latest details and their trips (newest first).",
+        "properties": {
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companyname"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "hasAccount": {
+            "description": "Signed in before: the booking shows in My trips",
+            "title": "Hasaccount",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "tripCount": {
+            "title": "Tripcount",
+            "type": "integer"
+          },
+          "trips": {
+            "description": "The latest three",
+            "items": {
+              "$ref": "#/components/schemas/CustomerTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "phone",
+          "state",
+          "gstin",
+          "companyName",
+          "hasAccount",
+          "tripCount",
+          "trips"
+        ],
+        "title": "CustomerMatch",
+        "type": "object"
+      },
+      "CustomerSearch": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerMatch"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CustomerSearch",
+        "type": "object"
+      },
+      "CustomerTrip": {
+        "properties": {
+          "departs": {
+            "format": "date",
+            "title": "Departs",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          }
+        },
+        "required": [
+          "ref",
+          "packageName",
+          "departs",
+          "status"
+        ],
+        "title": "CustomerTrip",
         "type": "object"
       },
       "Dashboard": {
@@ -4484,6 +5023,25 @@
           "offPaise"
         ],
         "title": "EarlyBirdTierOut",
+        "type": "object"
+      },
+      "EditTravellersInput": {
+        "description": "`PUT /admin/bookings/{ref}/travellers`: names and ages, in the booking's order; rooms and\nthe party stay as booked.",
+        "properties": {
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/TravellerDetails"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "travellers"
+        ],
+        "title": "EditTravellersInput",
         "type": "object"
       },
       "EmailStatus": {
@@ -5866,6 +6424,24 @@
         "title": "Limits",
         "type": "object"
       },
+      "LinkedEnquiry": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref"
+        ],
+        "title": "LinkedEnquiry",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -6028,6 +6604,70 @@
           "addons"
         ],
         "title": "ManifestBooking",
+        "type": "object"
+      },
+      "ManualDiscountInput": {
+        "description": "The manual discount on a booking: the reason is required — it prints on the invoice.",
+        "properties": {
+          "mode": {
+            "enum": [
+              "inr",
+              "percent"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Reason",
+            "type": "string"
+          },
+          "value": {
+            "description": "Whole rupees, or a percent 1–100",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "value"
+        ],
+        "title": "ManualDiscountInput",
+        "type": "object"
+      },
+      "ManualQuoteInput": {
+        "description": "₹ off, or a % of the trip fare after the deal, the early-bird and the coupon. The live quote\nprices it before its reason is typed; booking needs the reason (`ManualDiscountInput`).",
+        "properties": {
+          "mode": {
+            "enum": [
+              "inr",
+              "percent"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Reason",
+            "type": "string"
+          },
+          "value": {
+            "description": "Whole rupees, or a percent 1–100",
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mode",
+          "value"
+        ],
+        "title": "ManualQuoteInput",
         "type": "object"
       },
       "MarkPaidInput": {
@@ -7401,7 +8041,7 @@
             "description": "P5: the deposit option (null = pay in full only)"
           },
           "discountPaise": {
-            "description": "The deal and early-bird lines' total plus the coupon, as a positive number; never touches the add-ons",
+            "description": "The deal and early-bird lines' total plus the coupon and the counter's manual discount, as a positive number; never touches the add-ons",
             "title": "Discountpaise",
             "type": "integer"
           },
@@ -7431,6 +8071,17 @@
             "title": "Lines",
             "type": "array"
           },
+          "manual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteManual"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18: the owner's discount at the counter; null on the web"
+          },
           "packageSlug": {
             "title": "Packageslug",
             "type": "string"
@@ -7459,6 +8110,7 @@
           "deal",
           "earlyBird",
           "coupon",
+          "manual",
           "addons",
           "ladder",
           "subtotalPaise",
@@ -7700,6 +8352,40 @@
         ],
         "title": "QuoteLineKind",
         "type": "string"
+      },
+      "QuoteManual": {
+        "description": "R56 (P18): the owner's discount at the counter — after the coupon, off the trip fare only,\nwhole rupees, never taking the fare below ₹1. Printed on the invoice with its reason.",
+        "properties": {
+          "offPaise": {
+            "description": "Off the trip fare, after every other discount",
+            "title": "Offpaise",
+            "type": "integer"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the owner gave a % (1–100); null for ₹",
+            "title": "Percent"
+          },
+          "reason": {
+            "description": "Why — required to book (a live quote may not have it yet); on the invoice and in the history",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offPaise",
+          "percent",
+          "reason"
+        ],
+        "title": "QuoteManual",
+        "type": "object"
       },
       "QuoteRequest": {
         "properties": {
@@ -8367,6 +9053,34 @@
         "title": "ThemeOption",
         "type": "object"
       },
+      "TravellerDetails": {
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TravellerDetails",
+        "type": "object"
+      },
       "UpcomingDeparture": {
         "properties": {
           "badge": {
@@ -9030,6 +9744,24 @@
             }
           },
           {
+            "description": "P18: where the booking came from (web or the counter)",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BookingChannel"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "P18: where the booking came from (web or the counter)",
+              "title": "Channel"
+            }
+          },
+          {
             "description": "Departing on or after this day",
             "in": "query",
             "name": "from",
@@ -9204,6 +9936,24 @@
                 }
               ],
               "title": "Departureid"
+            }
+          },
+          {
+            "description": "P18: where the booking came from (web or the counter)",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BookingChannel"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "P18: where the booking came from (web or the counter)",
+              "title": "Channel"
             }
           },
           {
@@ -9713,6 +10463,59 @@
         ]
       }
     },
+    "/admin/bookings/{ref}/travellers": {
+      "put": {
+        "description": "P18: names and ages, in the booking's order (details taken later at the counter). A\nchild's age stays inside the child rate; the rooms stay as booked. Logged.",
+        "operationId": "editBookingTravellers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditTravellersInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Travellers Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/cancellations/{id}/resolve": {
       "post": {
         "description": "Approve (the booking is cancelled, its seats freed, the agreed refund sent) or reject\n(the booking stands). The customer is emailed either way. 409 `resolved` when already\nanswered, `not_active` when approving a booking that no longer holds its seats.",
@@ -9761,6 +10564,122 @@
           }
         },
         "summary": "Resolve Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/counter/bookings": {
+      "post": {
+        "description": "Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the\nwebsite. 409 `deposit_unavailable`, `already_converted`, or the quote's reasons.",
+        "operationId": "createCounterBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/counter/quote": {
+      "post": {
+        "description": "The website's quote for the party, plus the manual discount. 409 with the reason when\nthe date can't be booked, the party doesn't fit, or a code or the discount is refused.",
+        "operationId": "quoteCounterBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterQuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Quote Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/counter/trips": {
+      "get": {
+        "description": "Every live package with its departures from today (IST) on, seats left and add-ons.",
+        "operationId": "getCounterTrips",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CounterTrips"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Trips Route",
         "tags": [
           "admin"
         ]
@@ -10050,6 +10969,51 @@
           }
         },
         "summary": "Results Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/customers": {
+      "get": {
+        "description": "Customers by phone, email or name (2 characters or more), with their past trips.",
+        "operationId": "searchCustomers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 80,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerSearch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Customers Route",
         "tags": [
           "admin"
         ]

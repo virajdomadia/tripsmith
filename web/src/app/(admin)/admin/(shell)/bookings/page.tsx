@@ -1,4 +1,5 @@
-import { Download } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { BookingsTable } from '@/components/admin/bookings/BookingsTable';
@@ -15,6 +16,7 @@ import {
   parseDeskFilters,
 } from '@/lib/admin/booking-filters';
 import { api, ApiRequestError } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 export const metadata = { title: 'Bookings' };
 
@@ -46,15 +48,27 @@ export default async function BookingsPage({
           waiting ? ` · ${waiting} waiting on you` : ''
         }`}
         actions={
-          // A plain anchor: the CSV is an api route behind the rewrite, not a Next page.
-          <a
-            href={deskCsvHref(filters)}
-            className={buttonVariants({ size: 'sm', variant: 'outline' })}
-            download
-          >
-            <Download className="size-4" aria-hidden />
-            Export CSV
-          </a>
+          <>
+            {/* A plain anchor: the CSV is an api route behind the rewrite, not a Next page. */}
+            <a
+              href={deskCsvHref(filters)}
+              className={buttonVariants({ size: 'sm', variant: 'outline' })}
+              download
+            >
+              <Download className="size-4" aria-hidden />
+              Export CSV
+            </a>
+            <Link
+              href="/admin/bookings/new"
+              className={cn(
+                buttonVariants({ size: 'sm' }),
+                'bg-action text-ink hover:bg-action-ink',
+              )}
+            >
+              <Plus className="size-4" aria-hidden />
+              New booking
+            </Link>
+          </>
         }
       />
       <DeskFilters

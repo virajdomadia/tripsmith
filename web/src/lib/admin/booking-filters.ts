@@ -16,6 +16,14 @@ export type CancelReason = components['schemas']['CancelReason'];
 export type BookingRow = components['schemas']['BookingRow'];
 export type AdminBooking = components['schemas']['AdminBooking'];
 export type DepartureSeats = components['schemas']['DepartureSeats'];
+export type BookingChannel = components['schemas']['BookingChannel'];
+export const CHANNELS: readonly BookingChannel[] = [
+  'web',
+  'phone',
+  'walk_in',
+  'whatsapp',
+  'enquiry',
+] as const;
 
 export const DESK_PATH = '/admin/bookings';
 export const CSV_PATH = '/api/admin/bookings.csv';
@@ -78,6 +86,8 @@ export interface DeskFilters {
   flag?: BookingFlag;
   packageId?: string;
   departureId?: string;
+  /** P18: where the booking came from — the web, or how the counter took it. */
+  channel?: BookingChannel;
   /** Departing on or after (the departure's date, not the booked date — decided 2026-09-26). */
   from?: string;
   to?: string;
@@ -100,6 +110,7 @@ export function parseDeskFilters(params: RawParams): DeskFilters {
     flag: oneOf(FLAGS, one(params.flag)),
     packageId: bounded(one(params.packageId), ID_MAX),
     departureId: bounded(one(params.departureId), ID_MAX),
+    channel: oneOf(CHANNELS, one(params.channel)),
     from,
     to,
     q: one(params.q)?.slice(0, SEARCH_MAX),
@@ -114,6 +125,7 @@ export function deskQuery(f: DeskFilters): Record<string, string | undefined> {
     flag: f.flag,
     packageId: f.packageId,
     departureId: f.departureId,
+    channel: f.channel,
     from: f.from,
     to: f.to,
     q: f.q,

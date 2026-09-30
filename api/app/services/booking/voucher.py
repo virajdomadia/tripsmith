@@ -73,7 +73,7 @@ def link_is_valid(
 @dataclass(frozen=True)
 class Traveller:
     name: str
-    age: int
+    age: int | None  # null = left for later at the counter (P18)
     room: str
 
 
@@ -113,6 +113,8 @@ class BookingFacts:
     paid_offline: bool = False  # B10: at least one payment was marked paid on the desk
     coupon_code: str | None = None  # B15
     coupon_off_paise: int = 0  # from the booking's quote snapshot
+    manual_off_paise: int = 0  # P18: the counter's discount, from the snapshot
+    manual_reason: str | None = None
     addons: tuple[AddonFact, ...] = ()  # P8: what the booking still has, in the order bought
     deposit_paise: int | None = None  # P5: made on a deposit
     balance_due_on: dt.date | None = None  # P5: the balance's due day (IST)
@@ -196,6 +198,8 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         paid_offline=any(p.provider == PaymentProvider.OFFLINE for p in paid),
         coupon_code=booking.coupon_code,
         coupon_off_paise=coupon_off_of(booking.quote),
+        manual_off_paise=manual_of(booking.quote)[0],
+        manual_reason=manual_of(booking.quote)[1],
         addons=addon_facts(booking.addons),
         deposit_paise=booking.deposit_paise,
         balance_due_on=booking.balance_due_on,
@@ -206,6 +210,16 @@ def coupon_off_of(quote: dict[str, Any]) -> int:
     """The coupon's discount in a quote snapshot; 0 before B15 or without one."""
     coupon = quote.get("coupon")
     return int(coupon.get("offPaise", 0)) if isinstance(coupon, dict) else 0
+
+
+def manual_of(quote: dict[str, Any]) -> tuple[int, str | None]:
+    """The counter's manual discount in a quote snapshot (P18) and its reason; (0, None)
+    without one."""
+    manual = quote.get("manual")
+    if not isinstance(manual, dict):
+        return 0, None
+    reason = manual.get("reason")
+    return int(manual.get("offPaise", 0)), reason if isinstance(reason, str) else None
 
 
 def offline_reference(payment: Payment) -> str | None:

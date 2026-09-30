@@ -11,7 +11,7 @@ Trip:        {{ b.package_name }} · {{ duration }}
              {{ package_url }}
 Departs:     {{ departs }}
 Lead:        {{ b.lead_name }} · {{ b.lead_phone }} · {{ b.lead_email }}
-Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
+Travellers:  {% for t in b.travellers %}{{ t.name }} ({% if t.age is not none %}{{ t.age }}, {% endif %}{{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
 
 Paid:        {{ paid }} of {{ total }}
 

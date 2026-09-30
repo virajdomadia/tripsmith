@@ -3,7 +3,9 @@ import { Search } from 'lucide-react';
 import { NativeSelect } from '@/components/admin/NativeSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import {
+  CHANNELS,
   DESK_PATH,
   STATUSES,
   STATUS_LABELS,
@@ -129,6 +131,7 @@ export function DeskFilters({
               q: undefined,
               packageId: undefined,
               departureId: undefined,
+              channel: undefined,
               from: undefined,
               to: undefined,
             })}
@@ -181,6 +184,19 @@ export function DeskFilters({
             {departures.map((d) => (
               <option key={d.id} value={d.id}>
                 {shortDate(d.date)} {d.date.slice(0, 4)} · {d.packageName}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="grid gap-1">
+          <label htmlFor="channel" className="text-xs font-bold text-mute">
+            Channel
+          </label>
+          <NativeSelect id="channel" name="channel" defaultValue={filters.channel ?? ''}>
+            <option value="">Any channel</option>
+            {CHANNELS.map((c) => (
+              <option key={c} value={c}>
+                {CHANNEL_LABEL[c]}
               </option>
             ))}
           </NativeSelect>

@@ -5,6 +5,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { travellersLabel, voucherHref } from '@/lib/account';
 import { manifestHref, type AdminBooking } from '@/lib/admin/booking-filters';
 import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
+import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { nextStep } from '@/lib/admin/lifecycle';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -141,6 +142,17 @@ export function DeskPanel({ b, closeHref }: { b: AdminBooking | null; closeHref:
             ['Total', inr(b.totalPaise)],
             ['Paid', inr(b.paidPaise)],
             ...(b.quote.coupon ? [['Coupon', b.quote.coupon.code] as [string, string]] : []),
+            ...(b.quote.manual
+              ? [['Discount', `−${inr(b.quote.manual.offPaise)}`] as [string, string]]
+              : []),
+            ...(b.channel && b.channel !== 'web'
+              ? [
+                  [
+                    'Channel',
+                    `${CHANNEL_LABEL[b.channel]}${b.createdBy ? ` · ${b.createdBy}` : ''}`,
+                  ] as [string, string],
+                ]
+              : []),
             ...(b.status === 'pending' && b.holdLive
               ? [['Held until', istTime(b.holdExpiresAt)] as [string, string]]
               : []),

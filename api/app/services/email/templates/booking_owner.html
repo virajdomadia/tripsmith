@@ -13,11 +13,12 @@
 {% call row("Trip") %}<a href="{{ package_url }}" style="color:#1b4fd8;">{{ b.package_name }}</a> · {{ duration }}{% endcall %}
 {% call row("Departs") %}{{ departs }}{% endcall %}
 {% call row("Lead") %}{{ b.lead_name }} · <a href="tel:+91{{ b.lead_phone }}" style="color:#1b4fd8;">{{ b.lead_phone }}</a> · <a href="mailto:{{ b.lead_email }}" style="color:#1b4fd8;">{{ b.lead_email }}</a>{% endcall %}
-{% call row("Travellers") %}{% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}<br>{% endif %}{% endfor %}{% endcall %}
+{% call row("Travellers") %}{% for t in b.travellers %}{{ t.name }} ({% if t.age is not none %}{{ t.age }}, {% endif %}{{ t.room }}){% if not loop.last %}<br>{% endif %}{% endfor %}{% endcall %}
 {% if addons %}{% call row("Add-ons") %}{% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endcall %}{% endif %}
 {% call row("Total") %}{{ total }}{% endcall %}
 {% call row("Paid") %}{{ paid }}{% endcall %}
 {% if coupon %}{% call row("Coupon") %}{{ coupon }}{% endcall %}{% endif %}
+{% if discount %}{% call row("Discount") %}{{ discount }}{% endcall %}{% endif %}
 {% call row("Payment") %}{{ payment_id }}{% endcall %}
 </table>
 <p style="margin:14px 0 0;font-size:13px;color:#5e6b76;">Reply to this email to write to {{ b.first_name }} directly.</p>

@@ -48,7 +48,7 @@ class AccountBookings(ApiModel):
 
 class AccountTraveller(ApiModel):
     name: str
-    age: int
+    age: int | None = Field(description="Null when the counter left it for later (P18)")
     occupancy: Occupancy
 
 

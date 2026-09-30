@@ -208,6 +208,8 @@ class _GstDoc:
         desc = f"{what} {b.package_name}, {long_date(b.departs)} to {long_date(b.returns)}, {party}"
         if f.doc.kind == "invoice" and f.invoice_addons:  # P8: the add-ons it covers
             desc += f"{': ' if extras else ', with '}{summary(f.invoice_addons)}"
+        if f.doc.kind == "invoice" and not extras and b.manual_off_paise:  # P18
+            desc += f" · after a discount of {inr(b.manual_off_paise // 100)}: {b.manual_reason}"
         y = d.get_y() + 2
         d.set_xy(MARGIN, y)
         d.font(10, "", INK)

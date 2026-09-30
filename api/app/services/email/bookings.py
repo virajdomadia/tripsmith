@@ -68,6 +68,11 @@ def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
             if facts.coupon_code
             else None
         ),
+        "discount": (
+            f"−{inr(facts.manual_off_paise // 100)} · {facts.manual_reason}"
+            if facts.manual_off_paise
+            else None
+        ),
         "addons": [(a.label, inr(a.amount_paise // 100)) for a in facts.addons],
         "booked_at": _ist(facts.booked_at),
         # P5: still on its deposit — the balance and its due day

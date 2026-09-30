@@ -145,6 +145,13 @@ class _Voucher:
             d.set_xy(MARGIN, y + 2)
             d.font(9, "", MUTE)
             d.cell(0, 5, f"Coupon {f.coupon_code} · {inr(f.coupon_off_paise // 100)} off the total")
+            y += 5
+            d.set_y(y + 2)
+        if f.manual_off_paise:  # P18: the counter's discount, with its reason
+            d.set_xy(MARGIN, y + 2)
+            d.font(9, "", MUTE)
+            line = f"Discount {inr(f.manual_off_paise // 100)} · {f.manual_reason}"
+            d.cell(0, 5, _clip(d, line, d.epw))
             d.set_y(y + 7)
 
     def travellers(self) -> None:
@@ -160,7 +167,7 @@ class _Voucher:
         d.hairline(d.get_y())
         for i, t in enumerate(f.travellers, start=1):
             y = d.get_y() + 1.5
-            values = (str(i), t.name, str(t.age), t.room)
+            values = (str(i), t.name, "—" if t.age is None else str(t.age), t.room)
             x = MARGIN
             for k, ((_, w), value) in enumerate(zip(cols, values, strict=True)):
                 d.set_xy(x, y)
