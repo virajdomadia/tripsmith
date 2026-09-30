@@ -27,6 +27,7 @@ import { AddonsEditor } from './AddonsEditor';
 import { BasicsPanel } from './BasicsPanel';
 import { DeletePackage } from './DeletePackage';
 import { DealPanel } from './DealPanel';
+import { DepositPanel } from './DepositPanel';
 import { EarlyBirdPanel } from './EarlyBirdPanel';
 import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
@@ -83,6 +84,7 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
     'eb1OffPaise',
     'eb2Days',
     'eb2OffPaise',
+    'depositOn',
   ],
   addons: ['addons'],
   stays: ['hotels'],
@@ -117,7 +119,7 @@ function LiveSub({
   else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
   else if (k === 'prices') text = plural(count(v.departures), 'date');
   else if (k === 'deal')
-    text = `${v.dealPricePaise ? 'Deal set' : 'No deal'} · ${v.ebOn ? 'Early bird on' : 'No early bird'}`;
+    text = `${v.dealPricePaise ? 'Deal set' : 'No deal'} · ${v.ebOn ? 'Early bird on' : 'No early bird'}${v.depositOn === false ? ' · No deposit' : ''}`;
   else if (k === 'addons') {
     const all = Array.isArray(v.addons) ? (v.addons as { active?: boolean }[]) : [];
     const on = all.filter((a) => a?.active).length;
@@ -215,6 +217,7 @@ const FIELDS = new Set<string>([
   'eb1OffPaise',
   'eb2Days',
   'eb2OffPaise',
+  'depositOn',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures', 'addons']);
@@ -258,6 +261,7 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     hotels: pkg.hotels,
     faq: pkg.faq,
     featured: pkg.featured,
+    depositOn: pkg.depositOn ?? true, // an api from before P5 sends none
     itinerary: pkg.itinerary.map((d) => ({
       title: d.title,
       description: d.description,
@@ -570,6 +574,7 @@ export function PackageForm(props: Props) {
               <>
                 <DealPanel saved={pkg} />
                 <EarlyBirdPanel />
+                <DepositPanel />
               </>,
             )}
             {section(

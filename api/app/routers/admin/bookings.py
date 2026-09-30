@@ -4,7 +4,7 @@ Same shape as the enquiry inbox (routers/admin/enquiries.py): a plain `/admin` p
 export can sit at `/admin/bookings.csv`, beside the collection. There is no free status change
 (`PATCH …/status` was dropped from 06 on 2026-09-26): every move goes through a guarded path —
 mark paid, release, send a refund or record an offline one (P13), answer a cancellation request
-(B11), or the daily sweep.
+(B11), settle or extend a deposit booking's balance (P5), or the daily sweep.
 """
 
 from typing import Annotated
@@ -20,6 +20,7 @@ from app.schemas.admin_bookings import (
     AdminBooking,
     BookingFilters,
     BookingList,
+    ExtendDueInput,
     Manifest,
     MarkPaidInput,
     RefundMadeInput,
@@ -27,7 +28,7 @@ from app.schemas.admin_bookings import (
 )
 from app.schemas.extras import RemoveAddonInput
 from app.services.auth.deps import require_owner
-from app.services.booking import desk, extras, refunds, resolve
+from app.services.booking import balance, desk, extras, refunds, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -82,6 +83,44 @@ async def mark_paid_route(
     response.headers.update(NO_STORE)
     notify = Notify.of(request.app.state)
     return await desk.mark_paid(db, ref, payload.reference, notify, by=owner.id)
+
+
+@router.post(
+    "/bookings/{ref}/balance-paid",
+    operation_id="markBalancePaid",
+    response_model_by_alias=True,
+)
+async def balance_paid_route(
+    ref: str,
+    payload: MarkPaidInput,
+    request: Request,
+    response: Response,
+    db: Db,
+    owner: Owner,
+) -> AdminBooking:
+    """P5: record a deposit booking's whole balance paid offline (cash, UPI, bank). The booking
+    is confirmed and the invoice issued; the customer gets the paid-in-full email. 409
+    `not_on_deposit` when there is no balance to settle."""
+    response.headers.update(NO_STORE)
+    await balance.mark_balance_paid(
+        db, ref, payload.reference, Notify.of(request.app.state), by=owner.id
+    )
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
+    "/bookings/{ref}/balance-due",
+    operation_id="extendBalanceDue",
+    response_model_by_alias=True,
+)
+async def balance_due_route(
+    ref: str, payload: ExtendDueInput, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
+    """P5: move the balance's due day later, up to the departure day (logged). The reminders
+    re-arm for the new day."""
+    response.headers.update(NO_STORE)
+    await balance.extend_due(db, ref, payload.due_on, by=owner.id)
+    return await desk.get_booking(db, ref)
 
 
 @router.post(

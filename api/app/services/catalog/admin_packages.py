@@ -421,6 +421,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         deal_state=deals.state(pkg, base, now),
         deal_base_paise=base,
         early_bird=early_bird_admin(pkg),
+        deposit_on=pkg.deposit_on,
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -526,6 +527,7 @@ async def list_packages(db: AsyncSession) -> list[AdminPackageRow]:
             deal_state=deals.state(p, base.get(p.id, 0), now),
             deal_base_paise=base.get(p.id, 0),
             early_bird_on=p.early_bird_on,
+            deposit_on=p.deposit_on,
             departure_count=int(departures),
             recent_enquiry_count=int(enquiries),
             status=p.status,
@@ -670,6 +672,11 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     pkg.deal_label = payload.deal_label
     pkg.deal_ends_at = _deal_ends_at(payload)
     _apply_early_bird(pkg, payload)
+    # P5: omitted = unchanged (a form from before P5 cannot switch it off); a new package: on.
+    if payload.deposit_on is not None:
+        pkg.deposit_on = payload.deposit_on
+    elif pkg.deposit_on is None:
+        pkg.deposit_on = True
 
 
 def _apply_early_bird(pkg: Package, payload: PackageInput) -> None:
@@ -919,6 +926,7 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         status=PackageStatus.DRAFT,
         featured=False,
         starting_price_paise=source.starting_price_paise,
+        deposit_on=source.deposit_on,  # P5
     )
     copy.itinerary = [
         ItineraryDay(

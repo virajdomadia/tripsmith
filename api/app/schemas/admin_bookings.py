@@ -25,7 +25,7 @@ from app.schemas.reviews import AdminReview
 
 NOTE_MAX = 80
 
-BookingFlag = Literal["refund", "cancellation"]
+BookingFlag = Literal["refund", "cancellation", "balance"]
 PaymentVia = Literal["checkout", "sync", "webhook", "desk"]
 HistoryGroup = Literal["booking", "payment", "email"]
 Decision = Literal["approve", "reject"]
@@ -41,7 +41,7 @@ class BookingFilters(ApiModel):
     flag: BookingFlag | None = Field(
         default=None,
         description="`refund` = refund needed; `cancellation` = the customer asked to cancel "
-        "and the owner has not answered yet",
+        "and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
     )
     package_id: str | None = Field(default=None, max_length=40)
     departure_id: str | None = Field(default=None, max_length=40)
@@ -68,12 +68,14 @@ class BookingCounts(ApiModel):
     themselves out, so a tab's number is what clicking it would show."""
 
     pending: int
+    partially_paid: int = Field(default=0, description="P5: on its deposit (seats held)")
     confirmed: int
     completed: int
     cancelled: int
     all: int
     refund: int = Field(description="Refund needed")
     cancellation: int = Field(description="Cancellation requested, not yet answered")
+    balance: int = Field(default=0, description="P5: on its deposit, a balance still to pay")
 
 
 class DepartureSeats(ApiModel):
@@ -117,6 +119,9 @@ class BookingRow(ApiModel):
     paid_paise: int
     coupon_code: str | None = Field(description="B15: the coupon the booking was quoted with")
     booked_at: dt.datetime
+    balance_due_on: dt.date | None = Field(
+        default=None, description="P5: on its deposit — the day the balance is due"
+    )
 
 
 class BookingList(ApiModel):
@@ -265,6 +270,31 @@ class AdminBooking(ApiModel):
         description="P8: every add-on the booking bought, oldest first, taken-off ones included"
     )
     can_remove_addons: bool = Field(description="Confirmed or part paid (P8b)")
+    balance: "AdminBalance | None" = Field(
+        default=None, description="P5: made on a deposit (null = paid in full at booking)"
+    )
+
+
+class AdminBalance(ApiModel):
+    """R43 (P5): a booking made on a deposit, as the owner runs it."""
+
+    deposit_paise: int
+    balance_paise: int = Field(description="Still to pay; 0 once paid in full or cancelled")
+    due_on: dt.date
+    last_day_on: dt.date = Field(description="The grace's last day; the tidy cancels after it")
+    days_left: int = Field(description="From today (IST) to the due day; negative = overdue")
+    can_mark_paid: bool = Field(description="On its deposit: record the balance paid offline")
+    can_extend: bool = Field(description="On its deposit: move the due day later")
+    extend_until: dt.date = Field(description="The latest due day allowed: the departure day")
+
+
+class ExtendDueInput(ApiModel):
+    """Move the balance's due day later (P5): after the current one, by the departure day."""
+
+    due_on: dt.date
+
+
+AdminBooking.model_rebuild()  # `balance` names AdminBalance, defined after it
 
 
 def short_note(v: object) -> str | None:

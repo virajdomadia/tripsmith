@@ -71,6 +71,7 @@ from app.services.analytics import ist_today
 from app.services.booking import extras
 from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.balance import admin_balance, held_on_deposit
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, booking_history, money, record
 from app.services.booking.payments import (
@@ -186,7 +187,16 @@ def _open_request() -> ColumnElement[bool]:
     )
 
 
+def _balance_due() -> ColumnElement[bool]:
+    """P5: on its deposit, with a balance still to pay."""
+    return and_(
+        Booking.status == BookingStatus.PARTIALLY_PAID, Booking.paid_paise < Booking.total_paise
+    )
+
+
 def _flag_clause(flag: str) -> ColumnElement[bool]:
+    if flag == "balance":
+        return _balance_due()
     return Booking.refund_needed.is_(True) if flag == "refund" else _open_request()
 
 
@@ -242,17 +252,20 @@ async def counts(db: AsyncSession, f: BookingFilters) -> BookingCounts:
             _counted(f, with_flag=False).with_only_columns(
                 func.count().filter(Booking.refund_needed.is_(True)),
                 func.count().filter(_open_request()),
+                func.count().filter(_balance_due()),
             )
         )
     ).one()
     return BookingCounts(
         pending=by_status.get(BookingStatus.PENDING, 0),
+        partially_paid=by_status.get(BookingStatus.PARTIALLY_PAID, 0),
         confirmed=by_status.get(BookingStatus.CONFIRMED, 0),
         completed=by_status.get(BookingStatus.COMPLETED, 0),
         cancelled=by_status.get(BookingStatus.CANCELLED, 0),
         all=sum(by_status.values()),
         refund=int(flags[0]),
         cancellation=int(flags[1]),
+        balance=int(flags[2]),
     )
 
 
@@ -301,6 +314,7 @@ def _row(b: Booking, pkg: str, departs: dt.date, party: int, live: bool, asked: 
         paid_paise=b.paid_paise,
         coupon_code=b.coupon_code,
         booked_at=b.created_at,
+        balance_due_on=b.balance_due_on if b.status == BookingStatus.PARTIALLY_PAID else None,
     )
 
 
@@ -496,6 +510,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         review=await review_for_booking(db, b.id),
         addons=await extras.booked(db, b.id),
         can_remove_addons=b.status in extras.TAKES_EXTRAS,
+        balance=admin_balance(b, seats.date),
     )
 
 
@@ -694,11 +709,14 @@ CSV_HEADERS = (
     "Coupon",
     "Add-ons",
     "Add-ons (₹)",
+    "Deposit (₹)",
+    "Balance due (₹)",
+    "Balance due by",
 )
 STATUS_LABELS = {
     BookingStatus.PENDING: "Pending",
     BookingStatus.CONFIRMED: "Confirmed",
-    BookingStatus.PARTIALLY_PAID: "Part paid",
+    BookingStatus.PARTIALLY_PAID: "Deposit paid",
     BookingStatus.CANCELLED: "Cancelled",
     BookingStatus.COMPLETED: "Completed",
 }
@@ -726,6 +744,7 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         for p in b.payments
         if p.status != PaymentStatus.CREATED and (label := payment_label(p))
     )
+    on_deposit = b.status == BookingStatus.PARTIALLY_PAID  # P5: a balance still open
     fields = [
         b.ref,
         b.created_at.astimezone(IST).strftime("%Y-%m-%d %H:%M"),
@@ -746,6 +765,9 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         b.coupon_code or "",
         "; ".join(f"{a.label} {inr(a.amount_paise // 100)}" for a in addons),
         str(sum(a.amount_paise for a in addons) // 100) if addons else "",
+        str(b.deposit_paise // 100) if held_on_deposit(b) and b.deposit_paise else "",
+        str((b.total_paise - b.paid_paise) // 100) if on_deposit else "",
+        b.balance_due_on.isoformat() if on_deposit and b.balance_due_on else "",
     ]
     return [csv_safe(field) for field in fields]
 

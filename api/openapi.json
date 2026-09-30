@@ -875,6 +875,64 @@
         "title": "AdminAddon",
         "type": "object"
       },
+      "AdminBalance": {
+        "description": "R43 (P5): a booking made on a deposit, as the owner runs it.",
+        "properties": {
+          "balancePaise": {
+            "description": "Still to pay; 0 once paid in full or cancelled",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "canExtend": {
+            "description": "On its deposit: move the due day later",
+            "title": "Canextend",
+            "type": "boolean"
+          },
+          "canMarkPaid": {
+            "description": "On its deposit: record the balance paid offline",
+            "title": "Canmarkpaid",
+            "type": "boolean"
+          },
+          "daysLeft": {
+            "description": "From today (IST) to the due day; negative = overdue",
+            "title": "Daysleft",
+            "type": "integer"
+          },
+          "depositPaise": {
+            "title": "Depositpaise",
+            "type": "integer"
+          },
+          "dueOn": {
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          },
+          "extendUntil": {
+            "description": "The latest due day allowed: the departure day",
+            "format": "date",
+            "title": "Extenduntil",
+            "type": "string"
+          },
+          "lastDayOn": {
+            "description": "The grace's last day; the tidy cancels after it",
+            "format": "date",
+            "title": "Lastdayon",
+            "type": "string"
+          }
+        },
+        "required": [
+          "depositPaise",
+          "balancePaise",
+          "dueOn",
+          "lastDayOn",
+          "daysLeft",
+          "canMarkPaid",
+          "canExtend",
+          "extendUntil"
+        ],
+        "title": "AdminBalance",
+        "type": "object"
+      },
       "AdminBooking": {
         "description": "`GET /admin/bookings/{ref}` and every desk action's answer.",
         "properties": {
@@ -885,6 +943,17 @@
             },
             "title": "Addons",
             "type": "array"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminBalance"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: made on a deposit (null = paid in full at booking)"
           },
           "bookedAt": {
             "format": "date-time",
@@ -1883,6 +1952,11 @@
             "title": "Departures",
             "type": "array"
           },
+          "depositOn": {
+            "description": "P5: the sheet offers a 25 % deposit on this trip",
+            "title": "Depositon",
+            "type": "boolean"
+          },
           "destination": {
             "$ref": "#/components/schemas/DestinationRef"
           },
@@ -2041,6 +2115,7 @@
           "dealState",
           "dealBasePaise",
           "earlyBird",
+          "depositOn",
           "enquiryCount",
           "publishRules",
           "canPublish",
@@ -2118,6 +2193,11 @@
             "description": "Dated today or later",
             "title": "Departurecount",
             "type": "integer"
+          },
+          "depositOn": {
+            "description": "P5: deposits offered",
+            "title": "Depositon",
+            "type": "boolean"
           },
           "destination": {
             "$ref": "#/components/schemas/DestinationRef"
@@ -2202,6 +2282,7 @@
           "dealState",
           "dealBasePaise",
           "earlyBirdOn",
+          "depositOn",
           "departureCount",
           "recentEnquiryCount",
           "status",
@@ -2874,6 +2955,12 @@
             "title": "All",
             "type": "integer"
           },
+          "balance": {
+            "default": 0,
+            "description": "P5: on its deposit, a balance still to pay",
+            "title": "Balance",
+            "type": "integer"
+          },
           "cancellation": {
             "description": "Cancellation requested, not yet answered",
             "title": "Cancellation",
@@ -2889,6 +2976,12 @@
           },
           "confirmed": {
             "title": "Confirmed",
+            "type": "integer"
+          },
+          "partiallyPaid": {
+            "default": 0,
+            "description": "P5: on its deposit (seats held)",
+            "title": "Partiallypaid",
             "type": "integer"
           },
           "pending": {
@@ -3153,6 +3246,19 @@
       },
       "BookingRow": {
         "properties": {
+          "balanceDueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: on its deposit — the day the balance is due",
+            "title": "Balancedueon"
+          },
           "bookedAt": {
             "format": "date-time",
             "title": "Bookedat",
@@ -4979,6 +5085,21 @@
         ],
         "title": "ErrorCode",
         "type": "string"
+      },
+      "ExtendDueInput": {
+        "description": "Move the balance's due day later (P5): after the current one, by the departure day.",
+        "properties": {
+          "dueOn": {
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dueOn"
+        ],
+        "title": "ExtendDueInput",
+        "type": "object"
       },
       "ExtrasOffer": {
         "description": "My trips → Add extras: open or not (and why), until when, and what can still be added.",
@@ -6825,6 +6946,18 @@
             "maxItems": 60,
             "title": "Departures",
             "type": "array"
+          },
+          "depositOn": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P5: offer the 25 % deposit; omitted = left as saved (a new package: on)",
+            "title": "Depositon"
           },
           "destinationId": {
             "maxLength": 40,
@@ -8840,7 +8973,7 @@
             }
           },
           {
-            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
             "in": "query",
             "name": "flag",
             "required": false,
@@ -8849,7 +8982,8 @@
                 {
                   "enum": [
                     "refund",
-                    "cancellation"
+                    "cancellation",
+                    "balance"
                   ],
                   "type": "string"
                 },
@@ -8857,7 +8991,7 @@
                   "type": "null"
                 }
               ],
-              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
               "title": "Flag"
             }
           },
@@ -9016,7 +9150,7 @@
             }
           },
           {
-            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
             "in": "query",
             "name": "flag",
             "required": false,
@@ -9025,7 +9159,8 @@
                 {
                   "enum": [
                     "refund",
-                    "cancellation"
+                    "cancellation",
+                    "balance"
                   ],
                   "type": "string"
                 },
@@ -9033,7 +9168,7 @@
                   "type": "null"
                 }
               ],
-              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet",
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
               "title": "Flag"
             }
           },
@@ -9266,6 +9401,112 @@
           }
         },
         "summary": "Remove Addon Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/balance-due": {
+      "post": {
+        "description": "P5: move the balance's due day later, up to the departure day (logged). The reminders\nre-arm for the new day.",
+        "operationId": "extendBalanceDue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendDueInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Balance Due Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/balance-paid": {
+      "post": {
+        "description": "P5: record a deposit booking's whole balance paid offline (cash, UPI, bank). The booking\nis confirmed and the invoice issued; the customer gets the paid-in-full email. 409\n`not_on_deposit` when there is no balance to settle.",
+        "operationId": "markBalancePaid",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPaidInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Balance Paid Route",
         "tags": [
           "admin"
         ]

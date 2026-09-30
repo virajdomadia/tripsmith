@@ -257,6 +257,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/balance-due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Balance Due Route
+         * @description P5: move the balance's due day later, up to the departure day (logged). The reminders
+         *     re-arm for the new day.
+         */
+        post: operations["extendBalanceDue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/balance-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Balance Paid Route
+         * @description P5: record a deposit booking's whole balance paid offline (cash, UPI, bank). The booking
+         *     is confirmed and the invoice issued; the customer gets the paid-in-full email. 409
+         *     `not_on_deposit` when there is no balance to settle.
+         */
+        post: operations["markBalancePaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings/{ref}/mark-paid": {
         parameters: {
             query?: never;
@@ -1652,6 +1695,51 @@ export interface components {
             pricePaise: number;
         };
         /**
+         * AdminBalance
+         * @description R43 (P5): a booking made on a deposit, as the owner runs it.
+         */
+        AdminBalance: {
+            /**
+             * Balancepaise
+             * @description Still to pay; 0 once paid in full or cancelled
+             */
+            balancePaise: number;
+            /**
+             * Canextend
+             * @description On its deposit: move the due day later
+             */
+            canExtend: boolean;
+            /**
+             * Canmarkpaid
+             * @description On its deposit: record the balance paid offline
+             */
+            canMarkPaid: boolean;
+            /**
+             * Daysleft
+             * @description From today (IST) to the due day; negative = overdue
+             */
+            daysLeft: number;
+            /** Depositpaise */
+            depositPaise: number;
+            /**
+             * Dueon
+             * Format: date
+             */
+            dueOn: string;
+            /**
+             * Extenduntil
+             * Format: date
+             * @description The latest due day allowed: the departure day
+             */
+            extendUntil: string;
+            /**
+             * Lastdayon
+             * Format: date
+             * @description The grace's last day; the tidy cancels after it
+             */
+            lastDayOn: string;
+        };
+        /**
          * AdminBooking
          * @description `GET /admin/bookings/{ref}` and every desk action's answer.
          */
@@ -1661,6 +1749,8 @@ export interface components {
              * @description P8: every add-on the booking bought, oldest first, taken-off ones included
              */
             addons: components["schemas"]["BookedAddon"][];
+            /** @description P5: made on a deposit (null = paid in full at booking) */
+            balance?: components["schemas"]["AdminBalance"] | null;
             /**
              * Bookedat
              * Format: date-time
@@ -2097,6 +2187,11 @@ export interface components {
              * @description All departures, soonest first
              */
             departures: components["schemas"]["AdminDeparture"][];
+            /**
+             * Depositon
+             * @description P5: the sheet offers a 25 % deposit on this trip
+             */
+            depositOn: boolean;
             destination: components["schemas"]["DestinationRef"];
             /** Destinationid */
             destinationId: string;
@@ -2183,6 +2278,11 @@ export interface components {
              * @description Dated today or later
              */
             departureCount: number;
+            /**
+             * Depositon
+             * @description P5: deposits offered
+             */
+            depositOn: boolean;
             destination: components["schemas"]["DestinationRef"];
             /**
              * Earlybirdon
@@ -2511,6 +2611,12 @@ export interface components {
             /** All */
             all: number;
             /**
+             * Balance
+             * @description P5: on its deposit, a balance still to pay
+             * @default 0
+             */
+            balance: number;
+            /**
              * Cancellation
              * @description Cancellation requested, not yet answered
              */
@@ -2521,6 +2627,12 @@ export interface components {
             completed: number;
             /** Confirmed */
             confirmed: number;
+            /**
+             * Partiallypaid
+             * @description P5: on its deposit (seats held)
+             * @default 0
+             */
+            partiallyPaid: number;
             /** Pending */
             pending: number;
             /**
@@ -2637,6 +2749,11 @@ export interface components {
         };
         /** BookingRow */
         BookingRow: {
+            /**
+             * Balancedueon
+             * @description P5: on its deposit — the day the balance is due
+             */
+            balanceDueOn?: string | null;
             /**
              * Bookedat
              * Format: date-time
@@ -3497,6 +3614,17 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
+        /**
+         * ExtendDueInput
+         * @description Move the balance's due day later (P5): after the current one, by the departure day.
+         */
+        ExtendDueInput: {
+            /**
+             * Dueon
+             * Format: date
+             */
+            dueOn: string;
+        };
         /**
          * ExtrasOffer
          * @description My trips → Add extras: open or not (and why), until when, and what can still be added.
@@ -4369,6 +4497,11 @@ export interface components {
             departureCity: string;
             /** Departures */
             departures?: components["schemas"]["DepartureInput"][];
+            /**
+             * Depositon
+             * @description P5: offer the 25 % deposit; omitted = left as saved (a new package: on)
+             */
+            depositOn?: boolean | null;
             /** Destinationid */
             destinationId: string;
             /** @description P17; omitted = left as saved (a new package: off, no tiers) */
@@ -5420,8 +5553,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["BookingStatus"] | null;
-                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet */
-                flag?: ("refund" | "cancellation") | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5) */
+                flag?: ("refund" | "cancellation" | "balance") | null;
                 packageId?: string | null;
                 departureId?: string | null;
                 /** @description Departing on or after this day */
@@ -5463,8 +5596,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["BookingStatus"] | null;
-                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet */
-                flag?: ("refund" | "cancellation") | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5) */
+                flag?: ("refund" | "cancellation" | "balance") | null;
                 packageId?: string | null;
                 departureId?: string | null;
                 /** @description Departing on or after this day */
@@ -5546,6 +5679,76 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RemoveAddonInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    extendBalanceDue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtendDueInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    markBalancePaid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkPaidInput"];
             };
         };
         responses: {

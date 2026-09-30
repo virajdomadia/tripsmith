@@ -150,6 +150,8 @@ export const packageSchema = z
     hotels: z.array(hotelSchema).max(10),
     faq: z.array(faqSchema).max(15),
     featured: z.boolean(),
+    /** P5: the sheet offers a 25 % deposit. */
+    depositOn: z.boolean(),
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
     addons: z.array(addonSchema).max(ADDONS_MAX),
@@ -319,6 +321,7 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   hotels: [],
   faq: [],
   featured: false,
+  depositOn: true,
   itinerary: [],
   departures: [],
   addons: [],
@@ -348,6 +351,7 @@ export function toInput(v: PackageFormValues): PackageInput {
     hotels: v.hotels,
     faq: v.faq,
     featured: v.featured,
+    depositOn: v.depositOn,
     itinerary: v.itinerary,
     departures: v.departures,
     addons: v.addons.map((a) => ({

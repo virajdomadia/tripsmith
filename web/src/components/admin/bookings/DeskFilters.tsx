@@ -20,7 +20,7 @@ type Counts = components['schemas']['BookingCounts'];
 type DepartureOption = components['schemas']['DepartureOption'];
 
 /** Desk A's attention tiles: what is waiting on the owner, counted with the other filters on.
- *  v2.5 adds "Balance due" (P5) and "Details missing" (P9) beside these. */
+ *  "Balance due" is P5's; "Details missing" (P9) joins them later. */
 const TILES: { flag: BookingFlag; label: string; hint: string; tone: string }[] = [
   { flag: 'refund', label: 'Refund needed', hint: 'Money in, no seat behind it', tone: 'text-bad' },
   {
@@ -28,6 +28,12 @@ const TILES: { flag: BookingFlag; label: string; hint: string; tone: string }[] 
     label: 'Cancellation requested',
     hint: 'Seats held until you decide',
     tone: 'text-warn',
+  },
+  {
+    flag: 'balance',
+    label: 'Balance due',
+    hint: 'On a deposit, the rest still to pay',
+    tone: 'text-primary',
   },
 ];
 
@@ -49,14 +55,19 @@ export function DeskFilters({
 }) {
   const tabs = [
     { value: undefined, label: 'All', count: counts.all },
-    ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s], count: counts[s] })),
+    ...STATUSES.map((s) => ({
+      value: s,
+      label: STATUS_LABELS[s],
+      // `?? 0`: an api from before P5 has no deposit count (the web/api deploy race).
+      count: (s === 'partially_paid' ? counts.partiallyPaid : counts[s]) ?? 0,
+    })),
   ];
   return (
     <div className="grid gap-3">
-      <nav aria-label="Needs attention" className="grid gap-2.5 sm:grid-cols-2">
+      <nav aria-label="Needs attention" className="grid gap-2.5 sm:grid-cols-3">
         {TILES.map((t) => {
           const active = filters.flag === t.flag;
-          const n = counts[t.flag];
+          const n = counts[t.flag] ?? 0;
           return (
             <Link
               key={t.flag}

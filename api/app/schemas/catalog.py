@@ -531,6 +531,10 @@ class PackageInput(ApiModel):
     early_bird: EarlyBirdInput | None = Field(
         default=None, description="P17; omitted = left as saved (a new package: off, no tiers)"
     )
+    deposit_on: bool | None = Field(
+        default=None,
+        description="P5: offer the 25 % deposit; omitted = left as saved (a new package: on)",
+    )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
         description=(
@@ -698,6 +702,7 @@ class AdminPackage(ApiModel):
         "ignored; 0 when nothing is priced"
     )
     early_bird: EarlyBirdAdmin = Field(description="P17")
+    deposit_on: bool = Field(description="P5: the sheet offers a 25 % deposit on this trip")
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
@@ -722,6 +727,7 @@ class AdminPackageRow(ApiModel):
     deal_state: DealState
     deal_base_paise: int
     early_bird_on: bool = Field(description="P17: early-bird switched on")
+    deposit_on: bool = Field(description="P5: deposits offered")
     departure_count: int = Field(description="Dated today or later")
     recent_enquiry_count: int = Field(description="Enquiries in the last 30 days")
     status: PackageStatus
