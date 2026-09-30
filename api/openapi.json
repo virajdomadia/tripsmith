@@ -3561,6 +3561,12 @@
             "description": "Converting: marked converted and linked",
             "title": "Enquiryid"
           },
+          "expectedTotalPaise": {
+            "description": "The total on the owner's receipt: refused with 409 `price_changed` when the server's price differs now (a deal or tier ended, an add-on changed), so the money taken at the counter always matches the booking",
+            "minimum": 1.0,
+            "title": "Expectedtotalpaise",
+            "type": "integer"
+          },
           "manual": {
             "anyOf": [
               {
@@ -3617,6 +3623,7 @@
           "contact",
           "channel",
           "settle",
+          "expectedTotalPaise",
           "method"
         ],
         "title": "CounterBookingRequest",

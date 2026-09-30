@@ -148,6 +148,12 @@ class CounterBookingRequest(ApiModel):
         default=None, max_length=40, description="Converting: marked converted and linked"
     )
     settle: SettleKind
+    expected_total_paise: int = Field(
+        ge=1,
+        description="The total on the owner's receipt: refused with 409 `price_changed` when the "
+        "server's price differs now (a deal or tier ended, an add-on changed), so the money taken "
+        "at the counter always matches the booking",
+    )
     method: OfflineMethod
     reference: str | None = Field(
         default=None,
@@ -169,6 +175,15 @@ class CounterBookingRequest(ApiModel):
     @classmethod
     def _reference(cls, v: object) -> str | None:
         return short_note(v)
+
+    @model_validator(mode="after")
+    def _enquiry_channel(self) -> "CounterBookingRequest":
+        # A converted enquiry is the `enquiry` channel, and only a converted one is.
+        if self.enquiry_id:
+            self.channel = "enquiry"
+        elif self.channel == "enquiry":
+            raise ValueError("The Enquiry channel is for bookings converted from an enquiry")
+        return self
 
     @field_validator("reference")
     @classmethod

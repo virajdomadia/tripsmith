@@ -326,7 +326,7 @@ export function ConvertPreview({
               )
             }
           >
-            <Check className="size-4" aria-hidden /> Mark Won
+            <Check className="size-4" aria-hidden /> Mark Won only
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>

@@ -195,14 +195,15 @@ async def _claim_enquiry(db: AsyncSession, enquiry_id: str) -> Enquiry:
     ).scalar_one_or_none()
     if enquiry is None:
         raise ApiError("not_found", NO_ENQUIRY)
-    if enquiry.status == EnquiryStatus.CONVERTED:
-        linked = (
-            await db.execute(select(Booking.ref).where(Booking.enquiry_id == enquiry.id).limit(1))
-        ).scalar_one_or_none()
+    # Marked Won by hand (no booking behind it) can still be converted and linked; one with a
+    # booking already can't be converted twice.
+    linked = (
+        await db.execute(select(Booking.ref).where(Booking.enquiry_id == enquiry.id).limit(1))
+    ).scalar_one_or_none()
+    if linked:
         raise ApiError(
             "conflict",
-            f"Enquiry {enquiry.ref} was already converted"
-            + (f" to booking {linked}" if linked else ""),
+            f"Enquiry {enquiry.ref} was already converted to booking {linked}",
             reason="already_converted",
         )
     return enquiry
@@ -251,6 +252,13 @@ async def create_counter_booking(
         chosen = offer.deposit if req.settle == "deposit" else None
         if req.settle == "deposit" and chosen is None:
             raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
+        if offer.total_paise != req.expected_total_paise:
+            raise ApiError(
+                "conflict",
+                f"The price is now {history.money(offer.total_paise)}, not "
+                f"{history.money(req.expected_total_paise)} — check the receipt and confirm again",
+                reason="price_changed",
+            )
         quote = offer.model_copy(update={"deposit": chosen})
         enquiry = await _claim_enquiry(db, req.enquiry_id) if req.enquiry_id else None
 
@@ -483,7 +491,8 @@ def _matches(name: Any, email: Any, phone: Any, q: str) -> Any:
     text = q.strip()
     if PHONE_QUERY_RE.match(text):
         digits = normalise_phone(text) or re.sub(r"\D", "", text)
-        return phone.contains(digits)
+        if digits:
+            return phone.contains(digits)
     pattern = f"%{like_escape(text)}%"
     return or_(name.ilike(pattern), email.ilike(pattern.lower()))
 

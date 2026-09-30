@@ -57,7 +57,7 @@ function Seg<T extends string>({
 }) {
   return (
     <div
-      role="radiogroup"
+      role="group"
       aria-label={label}
       className={cn(
         'inline-flex flex-wrap overflow-hidden rounded-[10px] border-[1.5px] border-line',
@@ -68,8 +68,7 @@ function Seg<T extends string>({
         <button
           key={v}
           type="button"
-          role="radio"
-          aria-checked={v === value}
+          aria-pressed={v === value}
           onClick={() => onChange(v)}
           className={cn(
             'px-3 py-1.5 text-[13.5px] font-bold transition-colors [&+&]:border-l-[1.5px] [&+&]:border-line',
@@ -192,7 +191,7 @@ export function TripStep({
           No departures ahead on this package — add one on the package first.
         </p>
       )}
-      <div role="radiogroup" aria-label="Departure" className="grid gap-2.5 sm:grid-cols-2">
+      <div role="group" aria-label="Departure" className="grid gap-2.5 sm:grid-cols-2">
         {pkg?.departures.map((d) => {
           const booked = d.seatsTotal - d.seatsLeft;
           const off = d.onRequest || d.seatsLeft <= 0;
@@ -201,8 +200,7 @@ export function TripStep({
             <button
               key={d.id}
               type="button"
-              role="radio"
-              aria-checked={on}
+              aria-pressed={on}
               disabled={off}
               onClick={() => onDeparture(d.id)}
               className={cn(
@@ -549,6 +547,10 @@ export function DiscountsStep({
             <span className="font-bold text-warn">
               A reason is required. It prints on the invoice and in the history.
             </span>
+          ) : quote?.manual && manual.mode === 'inr' && quote.manual.offPaise < value * 100 ? (
+            <span className="font-bold text-warn">
+              Capped at −{inr(quote.manual.offPaise)}: fares can’t go below ₹1.
+            </span>
           ) : quote?.manual ? (
             <span className="font-bold text-ok">
               −{inr(quote.manual.offPaise)} · shows on the invoice and in the booking history
@@ -884,11 +886,14 @@ export function SettleStep({
   quote,
   draft,
   owner,
+  enquiryRef,
   onChange,
 }: {
   quote: Quote | null;
   draft: Draft;
   owner: string;
+  /** Converting: the channel is the enquiry, fixed. */
+  enquiryRef: string | null;
   onChange: (p: Partial<Draft>) => void;
 }) {
   const id = useId();
@@ -896,8 +901,7 @@ export function SettleStep({
   const opt = (v: Draft['settle'], title: string, detail: string, disabled = false) => (
     <button
       type="button"
-      role="radio"
-      aria-checked={draft.settle === v}
+      aria-pressed={draft.settle === v}
       disabled={disabled}
       onClick={() => onChange({ settle: v })}
       className={cn(
@@ -913,7 +917,7 @@ export function SettleStep({
   const amount = draft.settle === 'deposit' ? dep?.amountPaise : quote?.totalPaise;
   return (
     <div className="grid gap-4">
-      <div role="radiogroup" aria-label="How to settle" className="grid gap-2.5 sm:grid-cols-2">
+      <div role="group" aria-label="How to settle" className="grid gap-2.5 sm:grid-cols-2">
         {opt('paid', 'Paid now', 'Cash, UPI or bank · confirms at once')}
         {opt(
           'deposit',
@@ -963,12 +967,20 @@ export function SettleStep({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className={labelCls}>Channel</span>
-        <Seg
-          label="Channel"
-          value={draft.channel}
-          options={COUNTER_CHANNELS.map((c) => [c, CHANNEL_LABEL[c]] as const)}
-          onChange={(channel) => onChange({ channel })}
-        />
+        {enquiryRef ? (
+          <span className="rounded-full bg-bg2 px-2.5 py-1 text-[13px] font-bold text-ink2">
+            Enquiry {enquiryRef}
+          </span>
+        ) : (
+          <Seg
+            label="Channel"
+            value={draft.channel}
+            options={COUNTER_CHANNELS.filter((c) => c !== 'enquiry').map(
+              (c) => [c, CHANNEL_LABEL[c]] as const,
+            )}
+            onChange={(channel) => onChange({ channel })}
+          />
+        )}
         <span className="text-[12.5px] text-mute">
           Created by <b className="text-ink">{owner}</b>
         </span>

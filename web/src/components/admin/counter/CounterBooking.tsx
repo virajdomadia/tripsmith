@@ -149,7 +149,7 @@ export function CounterBooking({
     };
   }, [departure, pkg, party, kidsReady, draft, email]);
 
-  const { quote, error, loading } = useCounterQuote(request, {
+  const { quote, error, loading, requote } = useCounterQuote(request, {
     onCouponRefused: (message) => {
       setCouponMsg(message);
       setDraft((d) => ({ ...d, coupon: null }));
@@ -183,6 +183,8 @@ export function CounterBooking({
       const body = {
         ...bookingBody(draft, enquiry?.id ?? null),
         addons: request.addons,
+        // The total on the receipt: the api refuses (409 price_changed) if it has moved since.
+        expectedTotalPaise: quote.totalPaise,
       };
       const booked = await adminRequest<AdminBooking>('/admin/counter/bookings', {
         method: 'POST',
@@ -192,6 +194,9 @@ export function CounterBooking({
       router.refresh();
     } catch (e) {
       reportAdminError(e, { router, pathname, fallback: 'Could not book — try again' });
+      // Whatever refused it (price, seats, coupon), show the owner today's numbers.
+      requote();
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -272,7 +277,14 @@ export function CounterBooking({
       onDetailsNow={(detailsNow) => set({ detailsNow })}
       onNames={(names) => set({ names })}
     />,
-    <SettleStep key="settle" quote={quote} draft={draft} owner={owner} onChange={set} />,
+    <SettleStep
+      key="settle"
+      quote={quote}
+      draft={draft}
+      owner={owner}
+      enquiryRef={enquiry?.ref ?? null}
+      onChange={set}
+    />,
   ][step];
 
   return (

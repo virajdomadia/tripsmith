@@ -92,12 +92,30 @@ def counter_body(departure_id: str, **overrides: Any) -> dict[str, Any]:
         "settle": "paid",
         "method": "upi",
         "reference": "4271 9953 0187",
+        "expectedTotalPaise": 1,  # `post_booking` puts the quoted total here
     }
     return body | overrides
 
 
+QUOTE_KEYS = ("departureId", "travellers", "couponCode", "addons", "manual")
+
+
+async def post_booking(client: AsyncClient, owner: dict[str, str], body: dict[str, Any]) -> Any:
+    """Book as the page does: quote the draft first and send the total the receipt showed."""
+    ask = {k: body[k] for k in QUOTE_KEYS if k in body} | {"email": body["contact"]["email"]}
+    ask["travellers"] = [
+        {k: v for k, v in t.items() if k in ("occupancy", "age") and v is not None}
+        for t in body["travellers"]
+    ]
+    quoted = await client.post("/admin/counter/quote", json=ask, headers=owner)
+    total = quoted.json()["totalPaise"] if quoted.status_code == 200 else 1
+    return await client.post(
+        "/admin/counter/bookings", json={**body, "expectedTotalPaise": total}, headers=owner
+    )
+
+
 async def book(client: AsyncClient, owner: dict[str, str], body: dict[str, Any]) -> Any:
-    res = await client.post("/admin/counter/bookings", json=body, headers=owner)
+    res = await post_booking(client, owner, body)
     assert res.status_code == 201, res.text
     return res.json()
 
@@ -290,12 +308,12 @@ async def test_deposit_now_leaves_the_balance_due_as_on_the_website(
     assert body["payments"][0]["reference"] == "Cash"
     assert [d["kind"] for d in body["documents"]] == ["receipt"]
 
-    near = await db_client.post(
-        "/admin/counter/bookings",
-        json=counter_body(
+    near = await post_booking(
+        db_client,
+        owner,
+        counter_body(
             (await seeded_near(db, pkg.id)), settle="deposit", method="cash", reference=None
         ),
-        headers=owner,
     )
     assert near.status_code == 409 and near.json()["error"]["reason"] == "deposit_unavailable"
 
@@ -346,10 +364,8 @@ async def test_converting_an_enquiry_marks_it_links_it_and_only_once(
     assert note == f"Converted to booking {body['ref']}"
     assert "enquiry.converted" in [e.kind for e in await events(db, body["ref"])]
 
-    again = await db_client.post(
-        "/admin/counter/bookings",
-        json=counter_body(dep_id, channel="enquiry", enquiryId=enquiry_id),
-        headers=owner,
+    again = await post_booking(
+        db_client, owner, counter_body(dep_id, channel="enquiry", enquiryId=enquiry_id)
     )
     assert again.status_code == 409
     assert again.json()["error"]["reason"] == "already_converted"
@@ -483,3 +499,44 @@ async def test_web_bookings_read_as_web(
     ).scalar_one()
     assert b.channel == BookingChannel.WEB and b.created_by_user_id is None
     assert b.status == BookingStatus.PENDING
+
+
+@pytest.mark.db
+async def test_a_price_that_moved_since_the_receipt_is_refused_and_nothing_is_recorded(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    mailing(db_app)
+    _, dep = await seeded(db, seats=6)
+    dep_id = dep.id
+    owner = await owner_cookie(db)
+    stale = await db_client.post(
+        "/admin/counter/bookings",
+        json=counter_body(dep_id, expectedTotalPaise=39_000_00),  # the receipt the owner saw
+        headers=owner,
+    )
+    assert stale.status_code == 409 and stale.json()["error"]["reason"] == "price_changed"
+    assert "₹39,000" in stale.json()["error"]["message"]
+    assert (await db.execute(select(Booking.id))).first() is None
+
+
+@pytest.mark.db
+async def test_an_enquiry_marked_won_by_hand_still_converts_and_links(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    mailing(db_app)
+    _, dep = await seeded(db, seats=6)
+    dep_id = dep.id
+    won = await make_enquiry(db, ref="TS-WON001", status=EnquiryStatus.CONVERTED)
+    won_id = won.id
+    await db.commit()
+    owner = await owner_cookie(db)
+    body = await book(db_client, owner, counter_body(dep_id, channel="phone", enquiryId=won_id))
+    assert body["enquiry"]["ref"] == "TS-WON001"
+    assert body["channel"] == "enquiry"  # a converted enquiry is always the enquiry channel
+
+    no_enquiry = await db_client.post(
+        "/admin/counter/bookings", json=counter_body(dep_id, channel="enquiry"), headers=owner
+    )
+    assert no_enquiry.status_code == 400
+    punctuation = await db_client.get("/admin/customers", params={"q": "()"}, headers=owner)
+    assert punctuation.json()["items"] == []  # not "every phone number"

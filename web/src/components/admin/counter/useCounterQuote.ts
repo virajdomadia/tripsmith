@@ -23,7 +23,8 @@ export function useCounterQuote(
   request: object | null,
   opts: { onCouponRefused: (message: string) => void },
 ) {
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quote, setQuote] = useState<{ key: string; quote: Quote } | null>(null);
+  const [nonce, setNonce] = useState(0);
   const [error, setError] = useState<QuoteProblem | null>(null);
   const [loading, setLoading] = useState(false);
   const key = request ? JSON.stringify(request) : null;
@@ -51,7 +52,7 @@ export function useCounterQuote(
         const raw = await res.json().catch(() => undefined);
         if (ctl.signal.aborted) return;
         if (res.ok) {
-          setQuote(raw as Quote);
+          setQuote({ key, quote: raw as Quote });
           setError(null);
         } else {
           const err = errorFromResponse(res.status, res.statusText, raw);
@@ -83,7 +84,13 @@ export function useCounterQuote(
       clearTimeout(timer);
       ctl.abort();
     };
-  }, [key]);
+  }, [key, nonce]);
 
-  return { quote: key ? quote : null, error: key ? error : null, loading };
+  return {
+    quote: key ? (quote?.quote ?? null) : null,
+    error: key ? error : null,
+    // Until the answer for this exact request is in, the one on screen is stale: not bookable.
+    loading: loading || (!!key && quote?.key !== key),
+    requote: () => setNonce((n) => n + 1),
+  };
 }

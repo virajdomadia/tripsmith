@@ -2990,6 +2990,11 @@ export interface components {
              * @description Converting: marked converted and linked
              */
             enquiryId?: string | null;
+            /**
+             * Expectedtotalpaise
+             * @description The total on the owner's receipt: refused with 409 `price_changed` when the server's price differs now (a deal or tier ended, an add-on changed), so the money taken at the counter always matches the booking
+             */
+            expectedTotalPaise: number;
             manual?: components["schemas"]["ManualDiscountInput"] | null;
             /**
              * Method
