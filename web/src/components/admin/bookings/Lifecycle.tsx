@@ -11,6 +11,7 @@ import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DeskActions } from './DeskActions';
+import { EditTravellers } from './EditTravellers';
 import { RemoveAddon } from './RemoveAddon';
 import { ResolveDialog } from './ResolveCancellation';
 
@@ -291,6 +292,17 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
               <span className="num">−{inr(b.quote.coupon.offPaise)}</span>
             </div>
           )}
+          {b.quote.manual && (
+            <div className="flex justify-between gap-3 font-bold text-ok">
+              <span className="min-w-0">
+                Manual discount{b.quote.manual.percent ? ` (${b.quote.manual.percent} %)` : ''}
+                <span className="block text-[12px] font-semibold text-mute">
+                  “{b.quote.manual.reason}”
+                </span>
+              </span>
+              <span className="num">−{inr(b.quote.manual.offPaise)}</span>
+            </div>
+          )}
           <BookedAddons
             quote={b.quote}
             addons={b.addons ?? []}
@@ -307,12 +319,18 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
           {b.travellers.map((t, i) => (
             <li key={`${t.name}-${i}`} className="flex justify-between gap-2">
               <span>
-                {i + 1}. <b>{t.name}</b> <span className="text-mute">· {t.age}</span>
+                {i + 1}. <b>{t.name}</b>{' '}
+                {t.age != null && <span className="text-mute">· {t.age}</span>}
               </span>
               <span className="text-mute">{OCCUPANCY_LABEL[t.occupancy]}</span>
             </li>
           ))}
         </ol>
+        {b.canEditTravellers && (
+          <div>
+            <EditTravellers booking={b} />
+          </div>
+        )}
         {list}
       </>
     );

@@ -129,3 +129,13 @@ class AddonBasis(StrEnum):
     BOOKING = "booking"  # once per booking
     TRAVELLER = "traveller"  # per traveller who takes it
     NIGHT = "night"  # per traveller per night, for the whole party, up to `max_nights`
+
+
+class BookingChannel(StrEnum):
+    """Where a booking came from (R56, P18): the Book-now sheet, or the owner's counter."""
+
+    WEB = "web"
+    PHONE = "phone"
+    WALK_IN = "walk_in"
+    WHATSAPP = "whatsapp"
+    ENQUIRY = "enquiry"  # converted from an enquiry

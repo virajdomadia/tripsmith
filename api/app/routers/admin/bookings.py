@@ -26,9 +26,10 @@ from app.schemas.admin_bookings import (
     RefundMadeInput,
     ResolveCancellationInput,
 )
+from app.schemas.counter import EditTravellersInput
 from app.schemas.extras import RemoveAddonInput
 from app.services.auth.deps import require_owner
-from app.services.booking import balance, desk, extras, refunds, resolve
+from app.services.booking import balance, counter, desk, extras, refunds, resolve
 from app.services.booking.after_capture import Notify
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -120,6 +121,21 @@ async def balance_due_route(
     re-arm for the new day."""
     response.headers.update(NO_STORE)
     await balance.extend_due(db, ref, payload.due_on, by=owner.id)
+    return await desk.get_booking(db, ref)
+
+
+@router.put(
+    "/bookings/{ref}/travellers",
+    operation_id="editBookingTravellers",
+    response_model_by_alias=True,
+)
+async def travellers_route(
+    ref: str, payload: EditTravellersInput, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
+    """P18: names and ages, in the booking's order (details taken later at the counter). A
+    child's age stays inside the child rate; the rooms stay as booked. Logged."""
+    response.headers.update(NO_STORE)
+    await counter.edit_travellers(db, ref, payload, by=owner.id)
     return await desk.get_booking(db, ref)
 
 

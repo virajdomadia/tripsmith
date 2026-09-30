@@ -88,6 +88,7 @@ describe('the price ladder', () => {
       deal: null,
       earlyBird: null,
       coupon: null,
+      manual: null,
       addons: [],
       ladder,
       subtotalPaise: 0,

@@ -251,3 +251,151 @@
     animation: none;
   }
 }
+
+/*
+ * P18 counter booking — mockup C (wizard + receipt): the progress rail, the step card's entrance,
+ * the till-slip receipt with its torn edge, and the "Paid" stamp.
+ */
+.ctr-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(112px, 1fr));
+  gap: 6px;
+  position: relative;
+  overflow-x: auto;
+}
+.ctr-rail::before,
+.ctr-rail::after {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: 17px;
+  height: 2px;
+}
+.ctr-rail::before {
+  right: 22px;
+  background: var(--color-line);
+}
+.ctr-rail::after {
+  width: calc(100% - 44px);
+  transform: scaleX(var(--p));
+  transform-origin: left;
+  background: var(--color-primary);
+  transition: transform 0.5s var(--ease-out);
+}
+.ctr-rail button {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 0 4px;
+  text-align: left;
+  cursor: pointer;
+}
+.ctr-rail button:disabled {
+  cursor: default;
+}
+.ctr-rail .dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg);
+  border: 2px solid var(--color-line);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--color-mute);
+  margin-bottom: 4px;
+  transition:
+    background 0.25s,
+    border-color 0.25s;
+}
+.ctr-rail .past .dot {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.ctr-rail [aria-current='step'] .dot {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
+}
+.ctr-rail b {
+  font-size: 13px;
+}
+.ctr-rail small {
+  font-size: 11.5px;
+  color: var(--color-mute);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ctr-big {
+  box-shadow: 0 18px 40px -28px rgb(20 32 42 / 0.35);
+  animation: ctr-in 0.45s var(--ease-out);
+}
+@keyframes ctr-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.ctr-meter {
+  transition: width 0.5s var(--ease-out);
+}
+.ctr-rc {
+  background: #fffdf7;
+  border: 1px solid #ede6d6;
+  border-bottom: 0;
+  padding: 22px 22px 18px;
+  box-shadow: 0 24px 40px -30px rgb(20 32 42 / 0.45);
+}
+.ctr-rc::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -10px;
+  height: 10px;
+  background:
+    linear-gradient(-45deg, transparent 7px, #fffdf7 0) 0 0 / 14px 10px repeat-x,
+    linear-gradient(45deg, transparent 7px, #fffdf7 0) 0 0 / 14px 10px repeat-x;
+}
+.ctr-stamp {
+  position: absolute;
+  top: 90px;
+  right: 14px;
+  transform: rotate(-12deg);
+  border: 3px solid var(--color-ok);
+  color: var(--color-ok);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  mix-blend-mode: multiply; /* ink on paper: the lines under it stay readable */
+  pointer-events: none;
+  animation: ctr-stamp 0.5s var(--ease-out);
+}
+@keyframes ctr-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-12deg) scale(1.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctr-big,
+  .ctr-stamp {
+    animation: none;
+  }
+  .ctr-rail::after,
+  .ctr-meter {
+    transition: none;
+  }
+}

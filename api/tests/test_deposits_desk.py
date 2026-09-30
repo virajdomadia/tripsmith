@@ -54,8 +54,8 @@ async def test_the_desk_filters_shows_and_exports_balances_due(
 
     csv = (await db_client.get("/admin/bookings.csv?flag=balance", headers=owner)).text
     header, line = csv.splitlines()[:2]
-    assert header.endswith('"Deposit (₹)","Balance due (₹)","Balance due by"')
-    assert line.endswith(f'"{DEPOSIT // 100}","{BALANCE // 100}","{due.isoformat()}"')
+    assert header.endswith('"Deposit (₹)","Balance due (₹)","Balance due by","Channel"')
+    assert line.endswith(f'"{DEPOSIT // 100}","{BALANCE // 100}","{due.isoformat()}","Web"')
     assert ',"Deposit paid",' in line
 
 

@@ -1,11 +1,12 @@
 'use client';
 
 import { Check, Lock, Mail, Ticket } from 'lucide-react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { NativeSelect } from '@/components/admin/NativeSelect';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
@@ -299,13 +300,20 @@ export function ConvertPreview({
         ))}
       </ol>
       <p className="text-[12px] text-mute">
-        The counter booking wizard arrives with its own v2.5 row; until then, book it from the desk
-        and mark this enquiry Won.
+        The counter booking opens with these filled in; booking marks this enquiry Won and links the
+        two. Already booked some other way? Mark it Won instead.
       </p>
       <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/admin/bookings/new?enquiry=${encodeURIComponent(enquiryId)}`}
+          className={cn(buttonVariants({ size: 'sm' }), 'bg-action text-ink hover:bg-action-ink')}
+        >
+          <Ticket className="size-4" aria-hidden /> Open the counter booking
+        </Link>
         {canWin && (
           <Button
             size="sm"
+            variant="outline"
             disabled={pending}
             onClick={() =>
               run(
@@ -318,7 +326,7 @@ export function ConvertPreview({
               )
             }
           >
-            <Check className="size-4" aria-hidden /> Mark Won
+            <Check className="size-4" aria-hidden /> Mark Won only
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>

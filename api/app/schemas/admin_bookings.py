@@ -8,6 +8,7 @@ from pydantic import Field, ValidationInfo, field_validator
 
 from app.models.enums import (
     BookingActor,
+    BookingChannel,
     BookingStatus,
     CancellationStatus,
     CancelReason,
@@ -45,6 +46,9 @@ class BookingFilters(ApiModel):
     )
     package_id: str | None = Field(default=None, max_length=40)
     departure_id: str | None = Field(default=None, max_length=40)
+    channel: BookingChannel | None = Field(
+        default=None, description="P18: where the booking came from (web or the counter)"
+    )
     from_: dt.date | None = Field(
         default=None, alias="from", description="Departing on or after this day"
     )
@@ -121,6 +125,9 @@ class BookingRow(ApiModel):
     booked_at: dt.datetime
     balance_due_on: dt.date | None = Field(
         default=None, description="P5: on its deposit — the day the balance is due"
+    )
+    channel: BookingChannel = Field(
+        default=BookingChannel.WEB, description="P18: web, or how the counter took it"
     )
 
 
@@ -273,6 +280,21 @@ class AdminBooking(ApiModel):
     balance: "AdminBalance | None" = Field(
         default=None, description="P5: made on a deposit (null = paid in full at booking)"
     )
+    channel: BookingChannel = Field(default=BookingChannel.WEB, description="P18")
+    created_by: str | None = Field(
+        default=None, description="P18: the owner who made it at the counter, by name"
+    )
+    enquiry: "LinkedEnquiry | None" = Field(
+        default=None, description="P18: the enquiry it was converted from"
+    )
+    can_edit_travellers: bool = Field(
+        default=False, description="P18: pending, part paid or confirmed — names and ages"
+    )
+
+
+class LinkedEnquiry(ApiModel):
+    id: str
+    ref: str
 
 
 class AdminBalance(ApiModel):

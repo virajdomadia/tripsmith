@@ -88,6 +88,7 @@ const QUOTE = {
   deal: null,
   earlyBird: null,
   coupon: null,
+  manual: null,
   addons: [],
   ladder: [],
   subtotalPaise: 29_998_00,

@@ -29,6 +29,21 @@ export async function adminRequest<T = undefined>(
   return settle<T>(res);
 }
 
+/** A browser-side owner read that must follow typing (the counter's customer search). */
+export async function adminGet<T>(
+  path: `/admin/${string}`,
+  searchParams: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<T> {
+  const qs = new URLSearchParams(searchParams).toString();
+  const res = await fetch(`/api${path}${qs ? `?${qs}` : ''}`, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    signal,
+  });
+  return settle<T>(res);
+}
+
 export async function uploadCover(file: File): Promise<UploadedImage> {
   const form = new FormData();
   form.append('file', file, file.name);

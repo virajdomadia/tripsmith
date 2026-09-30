@@ -32,6 +32,7 @@ from app.models.base import Base, CreatedMixin, IdMixin, TextEnum, TimestampsMix
 from app.models.enums import (
     AddonBasis,
     BookingActor,
+    BookingChannel,
     BookingStatus,
     CancellationStatus,
     CancelReason,
@@ -64,6 +65,14 @@ class Booking(IdMixin, TimestampsMixin, Base):
             "ix_bookings_balance_due_on",
             "balance_due_on",
             postgresql_where=text("status = 'partially_paid'"),
+        ),
+        CheckConstraint(  # 0017 (P18)
+            "channel IN ('web', 'phone', 'walk_in', 'whatsapp', 'enquiry')", name="channel"
+        ),
+        Index(
+            "ix_bookings_enquiry_id",
+            "enquiry_id",
+            postgresql_where=text("enquiry_id IS NOT NULL"),
         ),
     )
 
@@ -109,6 +118,13 @@ class Booking(IdMixin, TimestampsMixin, Base):
     balance_due_on: Mapped[date | None] = mapped_column(Date)
     # The refund the policy gave when the balance went unpaid (`balance_unpaid`).
     balance_refund_paise: Mapped[int | None] = mapped_column(Integer)
+    # 0017 (P18, R56): where it came from, the owner who made it at the counter, and the enquiry
+    # it was converted from.
+    channel: Mapped[BookingChannel] = mapped_column(
+        TextEnum(BookingChannel), nullable=False, server_default=BookingChannel.WEB.value
+    )
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    enquiry_id: Mapped[str | None] = mapped_column(ForeignKey("enquiries.id", ondelete="SET NULL"))
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
         back_populates="booking",
@@ -133,7 +149,8 @@ class BookingTraveller(IdMixin, Base):
         ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    age: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    # Null = left for later at the counter (P18, 0017); a child's age is always known.
+    age: Mapped[int | None] = mapped_column(SmallInteger)
     occupancy: Mapped[Occupancy] = mapped_column(pg_enum(Occupancy, "occupancy"), nullable=False)
     # 0006: the traveller's place in the booking form, 0 first (ids are random cuid2s).
     position: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
@@ -146,6 +163,12 @@ class Payment(IdMixin, TimestampsMixin, Base):
     __table_args__ = (
         Index("ix_payments_booking_id", "booking_id"),
         Index("ix_payments_razorpay_order_id", "razorpay_order_id"),
+        Index(  # 0017 (P18b)
+            "uq_payments_razorpay_link_id",
+            "razorpay_link_id",
+            unique=True,
+            postgresql_where=text("razorpay_link_id IS NOT NULL"),
+        ),
     )
 
     booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
@@ -153,6 +176,8 @@ class Payment(IdMixin, TimestampsMixin, Base):
         pg_enum(PaymentProvider, "payment_provider"), nullable=False
     )
     razorpay_order_id: Mapped[str | None] = mapped_column(Text)
+    # 0017 (P18b): a Payment Link's id; its order appears only once the payer opens the link.
+    razorpay_link_id: Mapped[str | None] = mapped_column(Text)
     # Unique so a replayed webhook can never record the same capture twice (nulls don't clash).
     razorpay_payment_id: Mapped[str | None] = mapped_column(Text, unique=True)
     amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)

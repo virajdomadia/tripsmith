@@ -22,6 +22,10 @@ flat ₹ amount, or a % of the fare after both, capped, rounded down to the rupe
 the fare below ₹1 — Razorpay refuses a ₹0 order. Whether the code may be used at all is
 `services/booking/coupons.py`; `apply_coupon` only does the sum.
 
+The counter's manual discount (R56, P18) comes last: ₹ off, or a % of the fare after the deal,
+the early-bird and the coupon, rounded down to the rupee and never taking the fare below ₹1. A
+discount the fare has no room for is refused rather than shown as ₹0.
+
 Add-ons (R46, P8) are priced here from the package's switched-on add-ons and added after every
 discount, at full price: deals, coupons and early-bird never touch them. Per booking = the
 price once; per traveller = × how many take it; per night = × the whole party × the nights.
@@ -44,6 +48,7 @@ from app.schemas.bookings import (
     QuoteEarlyBird,
     QuoteLine,
     QuoteLineKind,
+    QuoteManual,
     QuoteTraveller,
     UnbookableReason,
 )
@@ -180,6 +185,30 @@ def apply_coupon(quote: Quote, coupon: Coupon) -> Quote:
     )
 
 
+def manual_off(fare_paise: int, *, mode: str, value: int) -> int:
+    """What the counter's manual discount takes off `fare_paise`, in whole rupees."""
+    off = value * RUPEE if mode == "inr" else fare_paise * value // 100
+    return max(0, min(off, fare_paise - MIN_TOTAL_PAISE)) // RUPEE * RUPEE
+
+
+def apply_manual(quote: Quote, *, mode: str, value: int, reason: str) -> Quote:
+    off = manual_off(quote.fare_paise, mode=mode, value=value)
+    if off <= 0:
+        message = "The fare is already at ₹1 — there is nothing left to take off"
+        raise ApiError(
+            "conflict", message, reason="manual_no_room", field_errors={"manual": message}
+        )
+    return quote.model_copy(
+        update={
+            "manual": QuoteManual(
+                off_paise=off, percent=value if mode == "percent" else None, reason=reason
+            ),
+            "discount_paise": quote.discount_paise + off,
+            "total_paise": quote.total_paise - off,
+        }
+    )
+
+
 def unit_price(dep: Departure, occupancy: Occupancy) -> int:
     """One traveller's full price in this occupancy (a single includes the supplement)."""
     match occupancy:
@@ -255,6 +284,7 @@ def build_quote(
         deal=deal,
         early_bird=early_bird,
         coupon=None,
+        manual=None,
         addons=list(addons),
         ladder=[],
         subtotal_paise=subtotal,

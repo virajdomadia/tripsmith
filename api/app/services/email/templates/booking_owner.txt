@@ -11,13 +11,14 @@ Trip:        {{ b.package_name }} · {{ duration }}
              {{ package_url }}
 Departs:     {{ departs }}
 Lead:        {{ b.lead_name }} · {{ b.lead_phone }} · {{ b.lead_email }}
-Travellers:  {% for t in b.travellers %}{{ t.name }} ({{ t.age }}, {{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
+Travellers:  {% for t in b.travellers %}{{ t.name }} ({% if t.age is not none %}{{ t.age }}, {% endif %}{{ t.room }}){% if not loop.last %}; {% endif %}{% endfor %}
 
 {% if addons %}Add-ons:     {% for label, amount in addons %}{{ label }} · {{ amount }}{% if not loop.last %}
              {% endif %}{% endfor %}
 {% endif %}Total:       {{ total }}
 Paid:        {{ paid }}
 {% if coupon %}Coupon:      {{ coupon }}
+{% endif %}{% if discount %}Discount:    {{ discount }}
 {% endif %}Payment:     {{ payment_id }}
 
 Reply to this email to write to {{ b.first_name }} directly.

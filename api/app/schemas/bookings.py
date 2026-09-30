@@ -349,6 +349,18 @@ class QuoteCoupon(ApiModel):
     )
 
 
+class QuoteManual(ApiModel):
+    """R56 (P18): the owner's discount at the counter — after the coupon, off the trip fare only,
+    whole rupees, never taking the fare below ₹1. Printed on the invoice with its reason."""
+
+    off_paise: int = Field(description="Off the trip fare, after every other discount")
+    percent: int | None = Field(description="Set when the owner gave a % (1–100); null for ₹")
+    reason: str = Field(
+        description="Why — required to book (a live quote may not have it yet); on the invoice "
+        "and in the history"
+    )
+
+
 class QuoteAddon(ApiModel):
     """One add-on line on the quote (P8): the server's price, never discounted."""
 
@@ -382,6 +394,9 @@ class Quote(ApiModel):
     deal: QuoteDeal | None
     early_bird: QuoteEarlyBird | None = Field(description="P17: null when no tier applies")
     coupon: QuoteCoupon | None
+    manual: QuoteManual | None = Field(
+        description="P18: the owner's discount at the counter; null on the web"
+    )
     addons: list[QuoteAddon] = Field(description="P8: the add-ons, after the trip fare")
     ladder: list[LadderRung] = Field(
         description="P17: today's fare, then the fare from the day after each running tier ends; "
@@ -389,8 +404,8 @@ class Quote(ApiModel):
     )
     subtotal_paise: int = Field(description="The trip fare before its discounts")
     discount_paise: int = Field(
-        description="The deal and early-bird lines' total plus the coupon, as a positive number; "
-        "never touches the add-ons"
+        description="The deal and early-bird lines' total plus the coupon and the counter's "
+        "manual discount, as a positive number; never touches the add-ons"
     )
     addons_paise: int = Field(description="The add-on lines' total, at full price")
     total_paise: int = Field(description="subtotal − discount + add-ons")
@@ -408,12 +423,15 @@ class Quote(ApiModel):
     @classmethod
     def _older_snapshot(cls, data: object) -> object:
         """Bookings snapshotted before B15 have no `coupon` key, before P8 no add-ons, and before
-        P17 no early-bird or ladder; the fields stay required on the wire."""
+        P17 no early-bird or ladder, and every web booking has no manual discount (P18); the fields
+        stay required on the wire."""
         if not isinstance(data, dict):
             return data
         filled: dict[str, object] = {}
         if "coupon" not in data:
             filled["coupon"] = None
+        if "manual" not in data:
+            filled["manual"] = None
         if "earlyBird" not in data and "early_bird" not in data:
             filled["earlyBird"] = None
         if "ladder" not in data:

@@ -123,7 +123,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
                 <tr key={`${b.ref}-${i}`}>
                   <td className="num py-1 pr-2 text-mute">{starts[g]! + i + 1}</td>
                   <td className="py-1 pr-2 font-semibold">{t.name}</td>
-                  <td className="num py-1 pr-2">{t.age}</td>
+                  <td className="num py-1 pr-2">{t.age ?? '—'}</td>
                   <td className="py-1 pr-2">{OCCUPANCY_LABEL[t.occupancy]}</td>
                 </tr>
               ))}

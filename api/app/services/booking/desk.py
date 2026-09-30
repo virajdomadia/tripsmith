@@ -29,9 +29,11 @@ from app.models import (
     BookingCancellation,
     BookingTraveller,
     Departure,
+    Enquiry,
     Package,
     Payment,
     Refund,
+    User,
 )
 from app.models.catalog import departure_availability
 from app.models.enums import (
@@ -57,6 +59,7 @@ from app.schemas.admin_bookings import (
     BookingRow,
     DepartureOption,
     DepartureSeats,
+    LinkedEnquiry,
     Manifest,
     ManifestAddon,
     ManifestBooking,
@@ -72,6 +75,7 @@ from app.services.booking import extras
 from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.balance import admin_balance, held_on_deposit
+from app.services.booking.counter import CHANNEL_WORDS, EDITABLE
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, booking_history, money, record
 from app.services.booking.payments import (
@@ -213,6 +217,8 @@ def _filtered[S: Select[Any]](
         stmt = stmt.where(Booking.package_id == f.package_id)
     if f.departure_id is not None:
         stmt = stmt.where(Booking.departure_id == f.departure_id)
+    if f.channel is not None:
+        stmt = stmt.where(Booking.channel == f.channel)
     if f.from_ is not None:
         stmt = stmt.where(Departure.date >= f.from_)
     if f.to is not None:
@@ -315,6 +321,7 @@ def _row(b: Booking, pkg: str, departs: dt.date, party: int, live: bool, asked: 
         coupon_code=b.coupon_code,
         booked_at=b.created_at,
         balance_due_on=b.balance_due_on if b.status == BookingStatus.PARTIALLY_PAID else None,
+        channel=b.channel,
     )
 
 
@@ -511,7 +518,24 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         addons=await extras.booked(db, b.id),
         can_remove_addons=b.status in extras.TAKES_EXTRAS,
         balance=admin_balance(b, seats.date),
+        channel=b.channel,
+        created_by=(
+            await db.execute(select(User.name).where(User.id == b.created_by_user_id))
+        ).scalar_one_or_none()
+        if b.created_by_user_id
+        else None,
+        enquiry=await _linked_enquiry(db, b.enquiry_id),
+        can_edit_travellers=b.status in EDITABLE,
     )
+
+
+async def _linked_enquiry(db: AsyncSession, enquiry_id: str | None) -> LinkedEnquiry | None:
+    if enquiry_id is None:
+        return None
+    ref = (
+        await db.execute(select(Enquiry.ref).where(Enquiry.id == enquiry_id))
+    ).scalar_one_or_none()
+    return LinkedEnquiry(id=enquiry_id, ref=ref) if ref else None
 
 
 # --- writes -------------------------------------------------------------------------------------
@@ -712,6 +736,7 @@ CSV_HEADERS = (
     "Deposit (₹)",
     "Balance due (₹)",
     "Balance due by",
+    "Channel",
 )
 STATUS_LABELS = {
     BookingStatus.PENDING: "Pending",
@@ -738,7 +763,10 @@ CANCELLATION_LABELS = {
 def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
     """One booking per line; the travellers' names in entry order, each with their room."""
     addons = addon_facts(b.addons)
-    names = "; ".join(f"{t.name} ({t.age}, {OCCUPANCY_LABEL[t.occupancy]})" for t in b.travellers)
+    names = "; ".join(
+        f"{t.name} ({'' if t.age is None else f'{t.age}, '}{OCCUPANCY_LABEL[t.occupancy]})"
+        for t in b.travellers
+    )
     payments = "; ".join(
         f"{label} {p.status.value}"
         for p in b.payments
@@ -768,6 +796,7 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         str(b.deposit_paise // 100) if held_on_deposit(b) and b.deposit_paise else "",
         str((b.total_paise - b.paid_paise) // 100) if on_deposit else "",
         b.balance_due_on.isoformat() if on_deposit and b.balance_due_on else "",
+        CHANNEL_WORDS[b.channel],
     ]
     return [csv_safe(field) for field in fields]
 

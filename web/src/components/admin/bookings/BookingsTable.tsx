@@ -1,5 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { phoneLabel, receivedLabel } from '@/lib/admin/labels';
 import {
   Table,
@@ -82,6 +83,11 @@ export function BookingsTable({
               <TableCell>
                 <b className="block">{b.leadName}</b>
                 <span className="text-xs text-mute">{phoneLabel(b.leadPhone)}</span>
+                {b.channel && b.channel !== 'web' && (
+                  <span className="mt-0.5 block w-fit rounded-full bg-bg2 px-1.5 py-px text-[11px] font-bold text-ink2">
+                    {CHANNEL_LABEL[b.channel]}
+                  </span>
+                )}
               </TableCell>
               <TableCell className="hidden text-ink2 2xl:table-cell">
                 <span className="block">{b.packageName}</span>

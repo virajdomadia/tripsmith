@@ -140,7 +140,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   className="flex items-center justify-between gap-3 border-t border-line pt-2 first:border-0 first:pt-0"
                 >
                   <span className="font-semibold">
-                    {t.name} <span className="font-normal text-mute">· {t.age}</span>
+                    {t.name}{' '}
+                    {t.age != null && <span className="font-normal text-mute">· {t.age}</span>}
                   </span>
                   <span className="text-[13px] text-mute">{OCCUPANCY_LABEL[t.occupancy]}</span>
                 </li>
@@ -178,6 +179,19 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   </span>
                   <span className="num shrink-0 whitespace-nowrap">
                     −{inr(b.quote.coupon.offPaise)}
+                  </span>
+                </div>
+              )}
+              {b.quote.manual && (
+                <div className="flex justify-between gap-3 font-bold text-ok">
+                  <span className="min-w-0">
+                    Discount
+                    <span className="block text-[12px] font-semibold text-mute">
+                      {b.quote.manual.reason}
+                    </span>
+                  </span>
+                  <span className="num shrink-0 whitespace-nowrap">
+                    −{inr(b.quote.manual.offPaise)}
                   </span>
                 </div>
               )}
