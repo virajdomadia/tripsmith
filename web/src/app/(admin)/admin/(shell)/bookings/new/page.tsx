@@ -29,6 +29,7 @@ export default async function NewBookingPage({
   return (
     <CounterBooking
       packages={trips.packages}
+      linkMaxPaise={trips.linkMaxPaise ?? null}
       enquiry={enquiry}
       owner={session.user.name}
       key={enquiryId ?? 'new'}

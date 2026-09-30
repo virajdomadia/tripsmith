@@ -71,12 +71,26 @@ export function Receipt({
   waiting: string;
 }) {
   const quote = done ? done.quote : live;
-  const stamp = done ? (done.status === 'partially_paid' ? 'Deposit paid' : 'Paid') : null;
+  const stamp = !done
+    ? null
+    : done.status === 'pending'
+      ? 'Link sent'
+      : done.status === 'cancelled'
+        ? 'Cancelled'
+        : done.status === 'partially_paid'
+          ? 'Deposit paid'
+          : 'Paid';
   const karnataka = !state || state === 'Karnataka';
   return (
     <div className="ctr-rc relative text-[13.5px]" aria-busy={loading}>
       {stamp && (
-        <span className="ctr-stamp" role="status">
+        <span
+          className={cn(
+            'ctr-stamp',
+            (done?.status === 'pending' || done?.status === 'cancelled') && 'wait',
+          )}
+          role="status"
+        >
           {stamp}
         </span>
       )}
@@ -150,7 +164,14 @@ export function Receipt({
             998555
           </p>
           <div className="mt-3 grid gap-1 text-[13px]">
-            {done ? (
+            {done?.paymentLink && done.status === 'pending' ? (
+              <div className="flex justify-between">
+                <span className="text-mute">
+                  Payment link{done.paymentLink.amountPaise < done.totalPaise ? ' · deposit' : ''}
+                </span>
+                <b className="num">{inr(done.paymentLink.amountPaise)}</b>
+              </div>
+            ) : done ? (
               <>
                 <div className="flex justify-between">
                   <span className="text-mute">

@@ -45,6 +45,7 @@ from app.models import (
 from app.models.catalog import departure_availability
 from app.models.enums import (
     BookingActor,
+    BookingChannel,
     BookingStatus,
     PackageStatus,
     PaymentProvider,
@@ -210,6 +211,7 @@ async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Relea
             .where(
                 Booking.status == BookingStatus.PENDING,
                 Booking.hold_expires_at > func.now(),
+                Booking.channel == BookingChannel.WEB,  # a counter link's hold is the owner's
                 or_(Booking.contact_email == email, Booking.contact_phone == phone),
             )
             .with_for_update()

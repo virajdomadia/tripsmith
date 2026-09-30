@@ -4,6 +4,10 @@ import {
   bookingBody,
   canAddCounter,
   childAgeError,
+  countdown,
+  linkAmount,
+  linkMessage,
+  linkProblem,
   counterTravellers,
   manualInput,
   newCustomerErrors,
@@ -23,6 +27,7 @@ const draft = (over: Partial<Draft> = {}): Draft => ({
     draft: { name: 'Priya Nair', phone: '98450 11223', email: 'Priya@Customer.in', state: '' },
   },
   settle: 'paid',
+  linkPay: 'full',
   method: 'upi',
   reference: '4271 9953 0187',
   channel: 'phone',
@@ -64,7 +69,7 @@ describe('manual discount', () => {
 
 describe('what still stops the booking', () => {
   it('is nothing on a complete draft', () => {
-    expect(blockers(draft(), true)).toEqual([]);
+    expect(blockers(draft(), { deposit: true })).toEqual([]);
   });
 
   it('names each missing piece in step order', () => {
@@ -77,7 +82,7 @@ describe('what still stops the booking', () => {
           settle: 'deposit',
           reference: '',
         }),
-        false,
+        { deposit: false },
       ),
     ).toEqual([
       'Pick a departure',
@@ -86,7 +91,7 @@ describe('what still stops the booking', () => {
       'Deposit closes 30 days before departure: take the full amount',
       'Add the UPI reference (UTR)',
     ]);
-    expect(blockers(draft({ method: 'cash', reference: '' }), true)).toEqual([]);
+    expect(blockers(draft({ method: 'cash', reference: '' }), { deposit: true })).toEqual([]);
     expect(newCustomerErrors({ name: 'P', phone: '12345', email: 'nope', state: '' })).toEqual({
       name: 'Enter their name',
       phone: 'Enter a 10-digit Indian mobile',
@@ -133,5 +138,62 @@ describe('the booking request', () => {
       { occupancy: 'double', name: 'Priya Nair', age: 34 },
       { occupancy: 'double', name: null, age: null },
     ]);
+  });
+});
+
+describe('payment links (P18b)', () => {
+  const offer = {
+    deposit: true,
+    totalPaise: 40_000_00,
+    depositPaise: 10_000_00,
+    linkUntil: '2026-10-02T06:00:00Z',
+    linkMaxPaise: 15_000_00,
+  };
+
+  it('asks for the total or the deposit, and says why a link can’t go', () => {
+    expect(linkAmount({ linkPay: 'deposit' }, offer)).toBe(10_000_00);
+    expect(linkAmount({ linkPay: 'full' }, offer)).toBe(40_000_00);
+    expect(linkProblem({ linkPay: 'deposit' }, offer)).toBeNull();
+    expect(linkProblem({ linkPay: 'full' }, offer)).toMatch(/caps a link at ₹15,000/);
+    expect(linkProblem({ linkPay: 'deposit' }, { ...offer, deposit: false })).toMatch(
+      /Deposit closes/,
+    );
+    expect(linkProblem({ linkPay: 'deposit' }, { ...offer, linkUntil: null })).toMatch(
+      /Too close to departure/,
+    );
+    expect(linkProblem({ linkPay: 'full' }, { ...offer, linkMaxPaise: null })).toBeNull();
+  });
+
+  it('needs no method or reference, and sends none', () => {
+    const d = draft({ settle: 'link', linkPay: 'deposit', method: 'upi', reference: '' });
+    expect(blockers(d, offer)).toEqual([]);
+    expect(bookingBody(d, null)).toMatchObject({
+      settle: 'link',
+      linkPay: 'deposit',
+      method: null,
+      reference: null,
+    });
+    expect(blockers({ ...d, linkPay: 'full' }, offer)).toEqual([
+      "Razorpay's test mode caps a link at ₹15,000: send the deposit link, or take the payment now",
+    ]);
+  });
+
+  it('counts down and words the WhatsApp message', () => {
+    expect(countdown(7 * 3600_000 + 42 * 60_000 + 10_000)).toBe('07:42:10');
+    expect(countdown(-5)).toBe('00:00:00');
+    expect(
+      linkMessage({
+        firstName: 'Priya',
+        packageName: 'Munnar',
+        when: 'Fri 13 Nov 2026',
+        party: '3 travellers',
+        amount: '₹15,875',
+        deposit: true,
+        held: '14:12 · Thu 1 Oct 2026',
+        url: 'https://rzp.io/rzp/x',
+      }),
+    ).toBe(
+      'Hi Priya, here is your Tripsmith payment link for Munnar (Fri 13 Nov 2026, 3 travellers): ₹15,875 deposit. Your seats are held until 14:12 · Thu 1 Oct 2026. https://rzp.io/rzp/x',
+    );
   });
 });

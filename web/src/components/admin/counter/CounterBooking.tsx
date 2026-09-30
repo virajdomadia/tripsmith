@@ -14,7 +14,9 @@ import {
   bookingBody,
   counterAddonChoices,
   counterTravellers,
+  linkAmount,
   manualInput,
+  type Offer,
   type CounterPackage,
   type Customer,
   type Draft,
@@ -89,7 +91,8 @@ function initialDraft(packages: CounterPackage[], e: EnquiryPrefill | null): Dra
     customer: e
       ? { kind: 'new', draft: { name: e.name, phone: e.phone, email: e.email, state: '' } }
       : null,
-    settle: 'paid',
+    settle: 'link', // mockup C: the link is the counter's usual way to take money
+    linkPay: 'deposit',
     method: 'upi',
     reference: '',
     channel: e ? 'enquiry' : 'phone',
@@ -106,8 +109,11 @@ export function CounterBooking({
   packages,
   enquiry,
   owner,
+  linkMaxPaise,
 }: {
   packages: CounterPackage[];
+  /** P18b: Razorpay's largest link (test mode), or null. */
+  linkMaxPaise: number | null;
   enquiry: EnquiryPrefill | null;
   owner: string;
 }) {
@@ -157,7 +163,14 @@ export function CounterBooking({
   });
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
-  const pending = blockers(draft, !!quote?.deposit);
+  const offer: Offer = {
+    deposit: !!quote?.deposit,
+    totalPaise: quote?.totalPaise ?? null,
+    depositPaise: quote?.deposit?.amountPaise ?? null,
+    linkUntil: departure ? (departure.linkUntil ?? null) : undefined,
+    linkMaxPaise,
+  };
+  const pending = blockers(draft, offer);
   if (request && error && !error.coupon) pending.unshift(error.message);
 
   const summaries = [
@@ -173,7 +186,11 @@ export function CounterBooking({
         : draft.customer.draft.name || 'New customer'
       : 'Not picked',
     draft.detailsNow ? 'Entering now' : 'Later',
-    draft.settle === 'paid' ? 'Paid now' : 'Deposit now',
+    draft.settle === 'link'
+      ? `Link · ${draft.linkPay === 'deposit' ? 'deposit' : 'full'}`
+      : draft.settle === 'paid'
+        ? 'Paid now'
+        : 'Deposit now',
   ];
 
   async function submit() {
@@ -203,14 +220,18 @@ export function CounterBooking({
   }
 
   const amountNow = quote
-    ? draft.settle === 'deposit'
-      ? quote.deposit?.amountPaise
-      : quote.totalPaise
+    ? draft.settle === 'link'
+      ? linkAmount(draft, offer)
+      : draft.settle === 'deposit'
+        ? quote.deposit?.amountPaise
+        : quote.totalPaise
     : null;
   const cta =
-    draft.settle === 'paid'
-      ? `Record ${amountNow ? inr(amountNow) : ''} & confirm`
-      : `Record deposit ${amountNow ? inr(amountNow) : ''} & confirm`;
+    draft.settle === 'link'
+      ? `Send payment link · ${amountNow ? inr(amountNow) : ''}`
+      : draft.settle === 'paid'
+        ? `Record ${amountNow ? inr(amountNow) : ''} & confirm`
+        : `Record deposit ${amountNow ? inr(amountNow) : ''} & confirm`;
 
   const rail = done ? STEPS.length - 1 : step;
   const railRef = useRef<HTMLOListElement>(null);
@@ -281,6 +302,7 @@ export function CounterBooking({
       key="settle"
       quote={quote}
       draft={draft}
+      offer={offer}
       owner={owner}
       enquiryRef={enquiry?.ref ?? null}
       onChange={set}
@@ -334,6 +356,7 @@ export function CounterBooking({
           {done ? (
             <Done
               booking={done}
+              onChanged={setDone}
               onNew={() => {
                 if (enquiry) router.push('/admin/bookings/new');
                 setDraft(initialDraft(packages, null));

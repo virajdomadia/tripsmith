@@ -29,6 +29,7 @@ from app.models import User
 from app.schemas.bookings import (
     BookingOrder,
     BookingRequest,
+    LinkCallback,
     PaymentCallback,
     PaymentResult,
     Quote,
@@ -37,6 +38,7 @@ from app.schemas.bookings import (
 )
 from app.services.auth.deps import require_user
 from app.services.booking.after_capture import Notify
+from app.services.booking.links import link_callback, payment_result
 from app.services.booking.orders import create_booking_order, quote_booking
 from app.services.booking.payments import confirm_payment, sync_payment
 from app.services.booking.voucher import HAS_VOUCHER, booking_has_order, voucher_path
@@ -154,6 +156,39 @@ async def post_confirm(
     response.headers["Cache-Control"] = "no-store"
     result = await confirm_payment(db, ref, payload, rzp, notify(request))
     return with_voucher(request, result)  # the signature verified: this caller paid
+
+
+@router.post(
+    "/bookings/{ref}/link-callback",
+    operation_id="paymentLinkCallback",
+    response_model_by_alias=True,
+    dependencies=[Depends(sync_rate_limit)],
+)
+async def post_link_callback(
+    ref: BookingRef,
+    payload: LinkCallback,
+    request: Request,
+    response: Response,
+    rzp: Annotated[Razorpay, Depends(razorpay)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> PaymentResult:
+    """P18b: the customer's browser, back from a paid Payment Link with Razorpay's signed
+    redirect. A signature that verifies syncs the link (the one capture path); a confirmed
+    answer carries the voucher link, since the signature proves this caller paid."""
+    response.headers["Cache-Control"] = "no-store"
+    await link_callback(
+        db,
+        ref,
+        link_id=payload.razorpay_payment_link_id,
+        reference_id=payload.razorpay_payment_link_reference_id,
+        status=payload.razorpay_payment_link_status,
+        payment_id=payload.razorpay_payment_id,
+        signature=payload.razorpay_signature,
+        razorpay=rzp,
+        notify=notify(request),
+    )
+    result = await payment_result(db, ref)
+    return with_voucher(request, result)
 
 
 @router.post(

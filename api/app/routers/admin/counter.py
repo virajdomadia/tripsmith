@@ -32,10 +32,12 @@ Owner = Annotated[User, Depends(require_owner)]
 
 
 @router.get("/counter/trips", operation_id="getCounterTrips", response_model_by_alias=True)
-async def trips_route(response: Response, db: Db) -> CounterTrips:
-    """Every live package with its departures from today (IST) on, seats left and add-ons."""
+async def trips_route(request: Request, response: Response, db: Db) -> CounterTrips:
+    """Every live package with its departures from today (IST) on, seats left and add-ons;
+    when a payment link made now would end, and the largest link Razorpay will create."""
     response.headers.update(NO_STORE)
-    return await counter.counter_trips(db)
+    rzp = getattr(request.app.state, "razorpay", None)
+    return await counter.counter_trips(db, link_max_paise=rzp.link_max_paise if rzp else None)
 
 
 @router.post("/counter/quote", operation_id="quoteCounterBooking", response_model_by_alias=True)
@@ -60,7 +62,10 @@ async def create_route(
     owner: Owner,
 ) -> AdminBooking:
     """Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the
-    website. 409 `deposit_unavailable`, `already_converted`, or the quote's reasons."""
+    website, `link` holds the seats and sends a Razorpay Payment Link (P18b). 409
+    `deposit_unavailable`, `already_converted`, `price_changed`, `link_unavailable`,
+    `link_over_cap`, or the quote's reasons; 502 when Razorpay can't make the link (the seats
+    are released)."""
     response.headers.update(NO_STORE)
     ref = await counter.create_counter_booking(
         db, payload, by=owner.id, notify=Notify.of(request.app.state)

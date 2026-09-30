@@ -12,6 +12,8 @@ the raw body before anything here runs.
   its Razorpay id or, when the call's answer was lost, by the `refund_id` note we sent. A failed
   refund's money goes back onto the booking, so the desk offers "Send refund" again. A refund
   made by hand in the Razorpay dashboard is not ours and is ignored.
+- a paid Payment Link (P18b): its order is opened by Razorpay, so it is unknown here; the
+  payment's notes name our link row, which learns the order id, and the capture goes on as above;
 - anything else, or an order that is not one of ours (the dev api creates orders with the same
   test keys, but the webhook is registered on production only) → ignored, still a 200, so
   Razorpay does not retry it for a day.
@@ -27,6 +29,7 @@ from app.models import Booking, Payment, Refund
 from app.models.enums import BookingActor, PaymentProvider, PaymentStatus, RefundStatus
 from app.services.booking import history
 from app.services.booking.after_capture import Notify, on_new_capture
+from app.services.booking.links import ref_for_link_event
 from app.services.booking.payments import (
     SETTLED_PAYMENT,
     capture_razorpay_payment,
@@ -40,12 +43,17 @@ REFUND_EVENTS = {"refund.processed": RefundStatus.PROCESSED, "refund.failed": Re
 log = logging.getLogger(__name__)
 
 
-def _payment_entity(event: dict[str, Any]) -> tuple[str, str] | None:
-    """`(order_id, payment_id)` from `payload.payment.entity`, or None when either is missing."""
+def _entity(event: dict[str, Any]) -> dict[str, Any]:
     payload = event.get("payload")
     payment = payload.get("payment") if isinstance(payload, dict) else None
     entity = payment.get("entity") if isinstance(payment, dict) else None
-    if not isinstance(entity, dict):
+    return entity if isinstance(entity, dict) else {}
+
+
+def _payment_entity(event: dict[str, Any]) -> tuple[str, str] | None:
+    """`(order_id, payment_id)` from `payload.payment.entity`, or None when either is missing."""
+    entity = _entity(event)
+    if not entity:
         return None
     order_id, payment_id = entity.get("order_id"), entity.get("id")
     if not (isinstance(order_id, str) and order_id.startswith("order_")):
@@ -76,6 +84,8 @@ async def handle_razorpay_event(
             .limit(1)
         )
     ).scalar_one_or_none()
+    if ref is None:  # P18b: a paid link's order, named by the link's notes
+        ref = await ref_for_link_event(db, _entity(event), order_id)
     if ref is None:
         log.warning("Razorpay %s for order %s, which is not ours — ignored", kind, order_id)
         await db.rollback()

@@ -383,6 +383,10 @@
   pointer-events: none;
   animation: ctr-stamp 0.5s var(--ease-out);
 }
+.ctr-stamp.wait {
+  border-color: var(--color-bad);
+  color: var(--color-bad);
+}
 @keyframes ctr-stamp {
   from {
     opacity: 0;

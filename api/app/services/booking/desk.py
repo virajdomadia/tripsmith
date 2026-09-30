@@ -78,6 +78,7 @@ from app.services.booking.balance import admin_balance, held_on_deposit
 from app.services.booking.counter import CHANNEL_WORDS, EDITABLE
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, booking_history, money, record
+from app.services.booking.links import link_out
 from app.services.booking.payments import (
     awaiting_payment,
     lock_booking,
@@ -468,6 +469,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
     seats = await departure_seats(db, b.departure_id)
     assert seats is not None  # bookings.departure_id is ON DELETE RESTRICT
     live = bool((await db.execute(select(hold_live()).where(Booking.id == b.id))).scalar_one())
+    link = link_out(b, live=live)  # P18b: read before later reads can expire `b.payments`
     payable = awaiting_payment(b)
     refundable = await refundable_by_payment(db, b.id)
     short = await seats_short(db, b, hold_live=live) if payable else 0
@@ -525,6 +527,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         if b.created_by_user_id
         else None,
         enquiry=await _linked_enquiry(db, b.enquiry_id),
+        payment_link=link,
         can_edit_travellers=b.status in EDITABLE,
     )
 

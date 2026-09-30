@@ -20,7 +20,10 @@ import {
   type Customer,
   type CustomerMatch,
   type Draft,
+  linkAmount,
+  linkProblem,
   type Manual,
+  type Offer,
   type Method,
   type NewCustomer,
   type Traveller,
@@ -39,6 +42,7 @@ import {
 import { formatDate, inr } from '@/lib/format';
 import { STATE_NAMES } from '@/lib/gst';
 import { cn } from '@/lib/utils';
+import { heldUntil } from './LinkPanel';
 
 /* ------------------------------------------------------------- controls */
 
@@ -885,12 +889,14 @@ export function TravellersStep({
 export function SettleStep({
   quote,
   draft,
+  offer,
   owner,
   enquiryRef,
   onChange,
 }: {
   quote: Quote | null;
   draft: Draft;
+  offer: Offer;
   owner: string;
   /** Converting: the channel is the enquiry, fixed. */
   enquiryRef: string | null;
@@ -915,9 +921,19 @@ export function SettleStep({
     </button>
   );
   const amount = draft.settle === 'deposit' ? dep?.amountPaise : quote?.totalPaise;
+  const problem = draft.settle === 'link' ? linkProblem(draft, offer) : null;
+  const linkNow = linkAmount(draft, offer);
   return (
     <div className="grid gap-4">
-      <div role="group" aria-label="How to settle" className="grid gap-2.5 sm:grid-cols-2">
+      <div role="group" aria-label="How to settle" className="grid gap-2.5 sm:grid-cols-3">
+        {opt(
+          'link',
+          'Send payment link',
+          offer.linkUntil === null
+            ? 'Closed: too close to departure'
+            : 'Full or 25% deposit · holds seats 24 h',
+          offer.linkUntil === null,
+        )}
         {opt('paid', 'Paid now', 'Cash, UPI or bank · confirms at once')}
         {opt(
           'deposit',
@@ -928,43 +944,72 @@ export function SettleStep({
           !dep,
         )}
       </div>
-      <div className="grid gap-3 rounded-[14px] bg-bg2 p-3.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={labelCls}>Received by</span>
-          <Seg<Method>
-            label="Received by"
-            value={draft.method}
-            options={(['cash', 'upi', 'bank'] as const).map((m) => [m, METHOD_LABEL[m]] as const)}
-            onChange={(method) => onChange({ method })}
-          />
+      {draft.settle === 'link' ? (
+        <div className="grid gap-3 rounded-[14px] bg-bg2 p-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={labelCls}>Link amount</span>
+            <Seg
+              label="Link amount"
+              value={draft.linkPay}
+              options={[
+                ['full', `Full ${offer.totalPaise ? inr(offer.totalPaise) : ''}`.trim()],
+                ['deposit', `Deposit ${offer.depositPaise ? inr(offer.depositPaise) : ''}`.trim()],
+              ]}
+              onChange={(linkPay) => onChange({ linkPay })}
+            />
+          </div>
+          <p className="text-[13px] text-ink2">
+            A Razorpay Payment Link
+            {linkNow ? ` for ${inr(linkNow)}` : ''} · seats held until{' '}
+            {offer.linkUntil ? heldUntil(offer.linkUntil) : '—'} · share by copy, WhatsApp or email.
+            A paid link settles through the same capture as the website; if it lapses the seats are
+            released.
+          </p>
+          {problem && (
+            <p role="status" className="text-[13px] font-bold text-warn">
+              {problem}
+            </p>
+          )}
         </div>
-        <div className={field}>
-          <label htmlFor={`${id}-ref`} className={labelCls}>
-            {REFERENCE_LABEL[draft.method]}
-          </label>
-          <Input
-            id={`${id}-ref`}
-            value={draft.reference}
-            maxLength={80}
-            autoComplete="off"
-            placeholder={
-              draft.method === 'upi'
-                ? '4271 9953 0187'
-                : draft.method === 'bank'
-                  ? 'NEFT UTR'
-                  : 'Counter book no.'
-            }
-            onChange={(e) => onChange({ reference: e.target.value })}
-          />
+      ) : (
+        <div className="grid gap-3 rounded-[14px] bg-bg2 p-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={labelCls}>Received by</span>
+            <Seg<Method>
+              label="Received by"
+              value={draft.method}
+              options={(['cash', 'upi', 'bank'] as const).map((m) => [m, METHOD_LABEL[m]] as const)}
+              onChange={(method) => onChange({ method })}
+            />
+          </div>
+          <div className={field}>
+            <label htmlFor={`${id}-ref`} className={labelCls}>
+              {REFERENCE_LABEL[draft.method]}
+            </label>
+            <Input
+              id={`${id}-ref`}
+              value={draft.reference}
+              maxLength={80}
+              autoComplete="off"
+              placeholder={
+                draft.method === 'upi'
+                  ? '4271 9953 0187'
+                  : draft.method === 'bank'
+                    ? 'NEFT UTR'
+                    : 'Counter book no.'
+              }
+              onChange={(e) => onChange({ reference: e.target.value })}
+            />
+          </div>
+          <p className="text-[13px] text-ink2">
+            {amount === undefined || !quote
+              ? 'The amount comes from the server quote.'
+              : draft.settle === 'paid'
+                ? `${inr(amount)} received. Confirms at once and issues the receipt and the tax invoice.`
+                : `${inr(amount)} received today; ${inr(dep!.balancePaise)} balance due ${formatDate(dep!.dueOn)}, with reminders at 7 and 3 days. The customer can pay it in parts from My trips.`}
+          </p>
         </div>
-        <p className="text-[13px] text-ink2">
-          {amount === undefined || !quote
-            ? 'The amount comes from the server quote.'
-            : draft.settle === 'paid'
-              ? `${inr(amount)} received. Confirms at once and issues the receipt and the tax invoice.`
-              : `${inr(amount)} received today; ${inr(dep!.balancePaise)} balance due ${formatDate(dep!.dueOn)}, with reminders at 7 and 3 days. The customer can pay it in parts from My trips.`}
-        </p>
-      </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <span className={labelCls}>Channel</span>
         {enquiryRef ? (

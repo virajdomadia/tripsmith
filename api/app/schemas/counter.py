@@ -32,7 +32,8 @@ MANUAL_MAX_RUPEES = 10_00_000
 SEARCH_MIN = 2
 
 ManualMode = Literal["inr", "percent"]
-SettleKind = Literal["paid", "deposit"]
+SettleKind = Literal["paid", "deposit", "link"]  # link: P18b, a Razorpay Payment Link
+LinkPay = Literal["full", "deposit"]
 OfflineMethod = Literal["cash", "upi", "bank"]
 CounterChannel = Literal["phone", "walk_in", "whatsapp", "enquiry"]
 
@@ -154,7 +155,12 @@ class CounterBookingRequest(ApiModel):
         "server's price differs now (a deal or tier ended, an add-on changed), so the money taken "
         "at the counter always matches the booking",
     )
-    method: OfflineMethod
+    link_pay: LinkPay = Field(
+        default="full", description="`link` only: the link is for the total, or the deposit"
+    )
+    method: OfflineMethod | None = Field(
+        default=None, validate_default=True, description="How the money came; not for `link`"
+    )
     reference: str | None = Field(
         default=None,
         max_length=80,
@@ -169,6 +175,15 @@ class CounterBookingRequest(ApiModel):
     @classmethod
     def _party(cls, v: list[CounterTraveller]) -> list[CounterTraveller]:
         _counter_party(v)
+        return v
+
+    @field_validator("method")
+    @classmethod
+    def _method_given(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if info.data.get("settle") == "link":
+            return None
+        if v is None:
+            raise ValueError("Say how the money came: cash, UPI or bank")
         return v
 
     @field_validator("reference", mode="before")
@@ -188,6 +203,8 @@ class CounterBookingRequest(ApiModel):
     @field_validator("reference")
     @classmethod
     def _reference_given(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if info.data.get("settle") == "link":
+            return None
         method = info.data.get("method")
         if v is None and method in ("upi", "bank"):
             raise ValueError(
@@ -216,6 +233,11 @@ class CounterDeparture(ApiModel):
     seats_left: int
     price_double_paise: int = Field(description="0 = on request")
     on_request: bool = Field(description="A price is 0: not bookable")
+    link_until: dt.datetime | None = Field(
+        default=None,
+        description="P18b: when a payment link made now would end (24 h, capped at 00:00 IST on "
+        "the departure day); null = too close for a link",
+    )
 
 
 class CounterPackage(ApiModel):
@@ -235,6 +257,9 @@ class CounterTrips(ApiModel):
     """`GET /admin/counter/trips`: every live package with its departures from today on."""
 
     packages: list[CounterPackage]
+    link_max_paise: int | None = Field(
+        default=None, description="P18b: the largest link Razorpay will create (test mode)"
+    )
 
 
 # --- customers ---------------------------------------------------------------------------------

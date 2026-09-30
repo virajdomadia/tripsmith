@@ -1089,6 +1089,17 @@
             "title": "Paidpaise",
             "type": "integer"
           },
+          "paymentLink": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminPaymentLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18b: the counter's payment link, if it sent one"
+          },
           "payments": {
             "description": "Every attempt, oldest first",
             "items": {
@@ -2449,6 +2460,67 @@
         "title": "AdminPayment",
         "type": "object"
       },
+      "AdminPaymentLink": {
+        "description": "P18b: the counter's Razorpay Payment Link on a booking.",
+        "properties": {
+          "amountPaise": {
+            "title": "Amountpaise",
+            "type": "integer"
+          },
+          "canCancel": {
+            "title": "Cancancel",
+            "type": "boolean"
+          },
+          "canCheck": {
+            "description": "Ask Razorpay whether it was paid (open or lapsed)",
+            "title": "Cancheck",
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "description": "When the seats and the link end",
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "paid",
+              "expired",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the link to share (rzp.io)",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "amountPaise",
+          "expiresAt",
+          "status",
+          "canCancel",
+          "canCheck"
+        ],
+        "title": "AdminPaymentLink",
+        "type": "object"
+      },
       "AdminRefund": {
         "description": "One refund of one payment (R51, P13).",
         "properties": {
@@ -3567,6 +3639,16 @@
             "title": "Expectedtotalpaise",
             "type": "integer"
           },
+          "linkPay": {
+            "default": "full",
+            "description": "`link` only: the link is for the total, or the deposit",
+            "enum": [
+              "full",
+              "deposit"
+            ],
+            "title": "Linkpay",
+            "type": "string"
+          },
           "manual": {
             "anyOf": [
               {
@@ -3578,13 +3660,21 @@
             ]
           },
           "method": {
-            "enum": [
-              "cash",
-              "upi",
-              "bank"
+            "anyOf": [
+              {
+                "enum": [
+                  "cash",
+                  "upi",
+                  "bank"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Method",
-            "type": "string"
+            "description": "How the money came; not for `link`",
+            "title": "Method"
           },
           "reference": {
             "anyOf": [
@@ -3602,7 +3692,8 @@
           "settle": {
             "enum": [
               "paid",
-              "deposit"
+              "deposit",
+              "link"
             ],
             "title": "Settle",
             "type": "string"
@@ -3623,8 +3714,7 @@
           "contact",
           "channel",
           "settle",
-          "expectedTotalPaise",
-          "method"
+          "expectedTotalPaise"
         ],
         "title": "CounterBookingRequest",
         "type": "object"
@@ -3639,6 +3729,19 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "linkUntil": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18b: when a payment link made now would end (24 h, capped at 00:00 IST on the departure day); null = too close for a link",
+            "title": "Linkuntil"
           },
           "onRequest": {
             "description": "A price is 0: not bookable",
@@ -3855,6 +3958,18 @@
       "CounterTrips": {
         "description": "`GET /admin/counter/trips`: every live package with its departures from today on.",
         "properties": {
+          "linkMaxPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P18b: the largest link Razorpay will create (test mode)",
+            "title": "Linkmaxpaise"
+          },
           "packages": {
             "items": {
               "$ref": "#/components/schemas/CounterPackage"
@@ -6429,6 +6544,48 @@
           "imageMaxBytes"
         ],
         "title": "Limits",
+        "type": "object"
+      },
+      "LinkCallback": {
+        "description": "What Razorpay appends to the callback URL after a Payment Link is paid (P18b), posted\nback as-is. The signature covers the link id, its reference id, the status and the payment.",
+        "properties": {
+          "razorpayPaymentId": {
+            "pattern": "^pay_[A-Za-z0-9]{1,40}$",
+            "title": "Razorpaypaymentid",
+            "type": "string"
+          },
+          "razorpayPaymentLinkId": {
+            "pattern": "^plink_[A-Za-z0-9]{1,40}$",
+            "title": "Razorpaypaymentlinkid",
+            "type": "string"
+          },
+          "razorpayPaymentLinkReferenceId": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Razorpaypaymentlinkreferenceid",
+            "type": "string"
+          },
+          "razorpayPaymentLinkStatus": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Razorpaypaymentlinkstatus",
+            "type": "string"
+          },
+          "razorpaySignature": {
+            "description": "Hex HMAC-SHA256",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Razorpaysignature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "razorpayPaymentId",
+          "razorpayPaymentLinkId",
+          "razorpayPaymentLinkReferenceId",
+          "razorpayPaymentLinkStatus",
+          "razorpaySignature"
+        ],
+        "title": "LinkCallback",
         "type": "object"
       },
       "LinkedEnquiry": {
@@ -10269,6 +10426,135 @@
         ]
       }
     },
+    "/admin/bookings/{ref}/link/cancel": {
+      "post": {
+        "description": "P18b: cancel the link at Razorpay, then release the seats. 409 `link_paid` when the\ncustomer paid it meanwhile (the booking is confirmed instead), `no_link` when none is open.",
+        "operationId": "cancelPaymentLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Link Cancel Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/link/check": {
+      "post": {
+        "description": "P18b: ask Razorpay whether the booking's payment link was paid, and apply it through\nthe one capture path (as the webhook would).",
+        "operationId": "checkPaymentLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Link Check Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/link/email": {
+      "post": {
+        "description": "P18b: email the open link to the customer (logged in the history).",
+        "operationId": "emailPaymentLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Link Email Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/bookings/{ref}/mark-paid": {
       "post": {
         "description": "409 `seats_short` with the shortfall when the party no longer fits; nothing recorded.",
@@ -10578,7 +10864,7 @@
     },
     "/admin/counter/bookings": {
       "post": {
-        "description": "Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the\nwebsite. 409 `deposit_unavailable`, `already_converted`, or the quote's reasons.",
+        "description": "Book and settle: `paid` confirms at once, `deposit` leaves the balance due as on the\nwebsite, `link` holds the seats and sends a Razorpay Payment Link (P18b). 409\n`deposit_unavailable`, `already_converted`, `price_changed`, `link_unavailable`,\n`link_over_cap`, or the quote's reasons; 502 when Razorpay can't make the link (the seats\nare released).",
         "operationId": "createCounterBooking",
         "requestBody": {
           "content": {
@@ -10662,7 +10948,7 @@
     },
     "/admin/counter/trips": {
       "get": {
-        "description": "Every live package with its departures from today (IST) on, seats left and add-ons.",
+        "description": "Every live package with its departures from today (IST) on, seats left and add-ons;\nwhen a payment link made now would end, and the largest link Razorpay will create.",
         "operationId": "getCounterTrips",
         "responses": {
           "200": {
@@ -13016,6 +13302,63 @@
           }
         },
         "summary": "Post Confirm",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/bookings/{ref}/link-callback": {
+      "post": {
+        "description": "P18b: the customer's browser, back from a paid Payment Link with Razorpay's signed\nredirect. A signature that verifies syncs the link (the one capture path); a confirmed\nanswer carries the voucher link, since the signature proves this caller paid.",
+        "operationId": "paymentLinkCallback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCallback"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Link Callback",
         "tags": [
           "public"
         ]
