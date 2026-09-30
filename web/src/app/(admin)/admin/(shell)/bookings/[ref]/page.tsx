@@ -139,7 +139,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               <h2 id="balance" className={heading}>
                 Deposit &amp; balance
               </h2>
-              <BalanceActions booking={b} />
+              {/* Keyed on the due day: after an extension the dialog starts afresh. */}
+              <BalanceActions key={b.balance.dueOn} booking={b} />
             </section>
           )}
 

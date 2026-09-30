@@ -68,6 +68,7 @@ class BookingCounts(ApiModel):
     themselves out, so a tab's number is what clicking it would show."""
 
     pending: int
+    partially_paid: int = Field(default=0, description="P5: on its deposit (seats held)")
     confirmed: int
     completed: int
     cancelled: int

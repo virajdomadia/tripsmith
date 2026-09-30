@@ -16,8 +16,8 @@ the reminders again, since the day is part of the claim.
 
 **Owner (P5b).** The desk shows the balance and can record it paid offline (the whole
 balance, as one `offline` payment through `settle_capture`, so the booking is confirmed and the
-invoice issued like any clearing part) or move the due day later, up to the departure day
-(logged; the reminders re-arm for the new day).
+invoice issued like any clearing part) or move the due day later — not past departure − 3
+days, so the grace ends before the trip (logged; the reminders re-arm for the new day).
 
 **Overdue.** The day after the 2-day grace, the tidy cancels the booking as `balance_unpaid`,
 which frees its seats. The refund is the cancellation policy's tier applied to what was paid, as
@@ -178,14 +178,37 @@ async def create_balance_order(
 
 NOT_ON_DEPOSIT = "Only a booking on its deposit has a balance to settle"
 DUE_NOT_LATER = "Pick a day after the current due day"
-DUE_AFTER_DEPARTURE = "The balance can be due on the departure day at the latest"
+DUE_TOO_LATE = "Too close to departure — the grace would run past the trip"
+DUE_PAST = "Pick today or a later day"
+# The deposit held the seats at some point: the desk shows the balance block (never on a booking
+# that only chose a deposit and never paid it).
+HELD_ON_DEPOSIT = (
+    BookingStatus.PARTIALLY_PAID,
+    BookingStatus.CONFIRMED,
+    BookingStatus.COMPLETED,
+)
+
+
+def latest_due(departs: dt.date) -> dt.date:
+    """The latest due day an extension may set: its grace ends the day before departure, so the
+    tidy's cancel (the day after the grace) lands on the departure day at the latest."""
+    return departs - dt.timedelta(days=deposit.GRACE_DAYS + 1)
+
+
+def held_on_deposit(booking: Booking) -> bool:
+    return booking.deposit_paise is not None and (
+        booking.status in HELD_ON_DEPOSIT or booking.cancel_reason == CancelReason.BALANCE_UNPAID
+    )
 
 
 def admin_balance(
     booking: Booking, departs: dt.date, today: dt.date | None = None
 ) -> AdminBalance | None:
-    """The desk's balance block; None for a booking paid in full at booking."""
-    if booking.deposit_paise is None or booking.balance_due_on is None:
+    """The desk's balance block; None for a booking paid in full at booking, or one whose deposit
+    never held its seats (still pending, lapsed, released)."""
+    if booking.balance_due_on is None or booking.deposit_paise is None:
+        return None
+    if booking.status not in HELD_ON_DEPOSIT:
         return None
     today = today or ist_today()
     open_ = booking.status == BookingStatus.PARTIALLY_PAID
@@ -196,8 +219,8 @@ def admin_balance(
         last_day_on=deposit.overdue_after(booking.balance_due_on),
         days_left=(booking.balance_due_on - today).days,
         can_mark_paid=open_,
-        can_extend=open_ and booking.balance_due_on < departs,
-        extend_until=departs,
+        can_extend=open_ and booking.balance_due_on < latest_due(departs),
+        extend_until=latest_due(departs),
     )
 
 
@@ -255,10 +278,10 @@ async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | N
         ).scalar_one()
         if due_on <= booking.balance_due_on:
             raise ApiError("validation", DUE_NOT_LATER, field_errors={"dueOn": DUE_NOT_LATER})
-        if due_on > departs:
-            raise ApiError(
-                "validation", DUE_AFTER_DEPARTURE, field_errors={"dueOn": DUE_AFTER_DEPARTURE}
-            )
+        if due_on < ist_today():
+            raise ApiError("validation", DUE_PAST, field_errors={"dueOn": DUE_PAST})
+        if due_on > latest_due(departs):
+            raise ApiError("validation", DUE_TOO_LATE, field_errors={"dueOn": DUE_TOO_LATE})
         before = booking.balance_due_on
         booking.balance_due_on = due_on
         history.record(

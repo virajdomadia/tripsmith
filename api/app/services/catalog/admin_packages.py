@@ -926,6 +926,7 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         status=PackageStatus.DRAFT,
         featured=False,
         starting_price_paise=source.starting_price_paise,
+        deposit_on=source.deposit_on,  # P5
     )
     copy.itinerary = [
         ItineraryDay(

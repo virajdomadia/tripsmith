@@ -81,6 +81,8 @@ export default async function BookingsPage({
           />
         </div>
         <DeskPanel
+          // Keyed on the booking: a dialog's typed reference or picked day never carries over.
+          key={selected?.ref ?? 'none'}
           b={selected}
           closeHref={deskHref(filters, { sel: undefined, page: filters.page })}
         />

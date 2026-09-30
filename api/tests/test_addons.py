@@ -356,9 +356,10 @@ async def test_quote_hold_and_capture_charge_exactly_the_add_ons_and_every_surfa
         {"name": "Extra night", "bookings": 1, "travellers": 2},
     ]
     records = await desk.csv_records(db, desk.BookingFilters())
-    assert desk.CSV_HEADERS[-2:] == ("Add-ons", "Add-ons (₹)")
-    assert records[0][-1] == str(extras // 100)
-    assert records[0][-2].startswith("Airport transfers (per booking) ₹1,800; Rafting")
+    at = desk.CSV_HEADERS.index("Add-ons")  # P5's deposit columns follow
+    assert desk.CSV_HEADERS[at : at + 2] == ("Add-ons", "Add-ons (₹)")
+    assert records[0][at + 1] == str(extras // 100)
+    assert records[0][at].startswith("Airport transfers (per booking) ₹1,800; Rafting")
     history = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()["history"]
     assert any("with Airport transfers (per booking)" in e["text"] for e in history["entries"])
 

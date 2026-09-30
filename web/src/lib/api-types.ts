@@ -2627,6 +2627,12 @@ export interface components {
             completed: number;
             /** Confirmed */
             confirmed: number;
+            /**
+             * Partiallypaid
+             * @description P5: on its deposit (seats held)
+             * @default 0
+             */
+            partiallyPaid: number;
             /** Pending */
             pending: number;
             /**

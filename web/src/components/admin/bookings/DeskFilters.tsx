@@ -55,14 +55,19 @@ export function DeskFilters({
 }) {
   const tabs = [
     { value: undefined, label: 'All', count: counts.all },
-    ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s], count: counts[s] })),
+    ...STATUSES.map((s) => ({
+      value: s,
+      label: STATUS_LABELS[s],
+      // `?? 0`: an api from before P5 has no deposit count (the web/api deploy race).
+      count: (s === 'partially_paid' ? counts.partiallyPaid : counts[s]) ?? 0,
+    })),
   ];
   return (
     <div className="grid gap-3">
       <nav aria-label="Needs attention" className="grid gap-2.5 sm:grid-cols-3">
         {TILES.map((t) => {
           const active = filters.flag === t.flag;
-          const n = counts[t.flag];
+          const n = counts[t.flag] ?? 0;
           return (
             <Link
               key={t.flag}

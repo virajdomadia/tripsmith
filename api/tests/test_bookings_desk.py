@@ -142,6 +142,7 @@ async def test_the_desk_numbers_match_departure_availability(
     assert rows[paid["bookingRef"]]["travellers"] == 3
     assert body["counts"] | {} == {
         "pending": 2,
+        "partiallyPaid": 0,  # P5
         "confirmed": 1,
         "completed": 0,
         "cancelled": 0,

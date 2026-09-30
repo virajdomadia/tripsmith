@@ -22,10 +22,15 @@ export const CSV_PATH = '/api/admin/bookings.csv';
 export const manifestHref = (departureId: string) =>
   `/admin/departures/${encodeURIComponent(departureId)}/manifest`;
 
-/** The tabs, in desk order. `partially_paid` (P5: on its deposit) is filterable, and the
- *  "Balance due" tile shows it; it has no tab of its own. */
-export const STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'] as const;
-const ALL_STATUSES = [...STATUSES, 'partially_paid'] as const satisfies readonly BookingStatus[];
+/** The tabs, in desk order. `partially_paid` (P5) = on its deposit, seats held. */
+export const STATUSES = [
+  'pending',
+  'partially_paid',
+  'confirmed',
+  'completed',
+  'cancelled',
+] as const satisfies readonly BookingStatus[];
+const ALL_STATUSES = STATUSES;
 export const FLAGS = [
   'refund',
   'cancellation',

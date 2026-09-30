@@ -122,9 +122,10 @@ function ExtendDue({ bookingRef, balance }: { bookingRef: string; balance: Balan
         <DialogHeader>
           <DialogTitle>Move {bookingRef}&rsquo;s balance due day</DialogTitle>
           <DialogDescription>
-            Now due {formatDate(balance.dueOn)}. Pick a later day, up to the departure on{' '}
-            {formatDate(balance.extendUntil)}. The customer sees the new day in My trips, the
-            reminders start again for it, and the history logs the change.
+            Now due {formatDate(balance.dueOn)}. Pick a later day, up to{' '}
+            {formatDate(balance.extendUntil)} — 3 days before departure, so the 2-day grace ends
+            before the trip. The customer sees the new day in My trips, the reminders start again
+            for it, and the history logs the change.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-1.5">

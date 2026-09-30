@@ -71,7 +71,7 @@ from app.services.analytics import ist_today
 from app.services.booking import extras
 from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
-from app.services.booking.balance import admin_balance
+from app.services.booking.balance import admin_balance, held_on_deposit
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, booking_history, money, record
 from app.services.booking.payments import (
@@ -258,6 +258,7 @@ async def counts(db: AsyncSession, f: BookingFilters) -> BookingCounts:
     ).one()
     return BookingCounts(
         pending=by_status.get(BookingStatus.PENDING, 0),
+        partially_paid=by_status.get(BookingStatus.PARTIALLY_PAID, 0),
         confirmed=by_status.get(BookingStatus.CONFIRMED, 0),
         completed=by_status.get(BookingStatus.COMPLETED, 0),
         cancelled=by_status.get(BookingStatus.CANCELLED, 0),
@@ -764,7 +765,7 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         b.coupon_code or "",
         "; ".join(f"{a.label} {inr(a.amount_paise // 100)}" for a in addons),
         str(sum(a.amount_paise for a in addons) // 100) if addons else "",
-        str(b.deposit_paise // 100) if b.deposit_paise else "",
+        str(b.deposit_paise // 100) if held_on_deposit(b) and b.deposit_paise else "",
         str((b.total_paise - b.paid_paise) // 100) if on_deposit else "",
         b.balance_due_on.isoformat() if on_deposit and b.balance_due_on else "",
     ]

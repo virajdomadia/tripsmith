@@ -49,7 +49,7 @@ async def test_the_desk_filters_shows_and_exports_balances_due(
         "daysLeft": (due - ist_today()).days,
         "canMarkPaid": True,
         "canExtend": True,
-        "extendUntil": FAR.isoformat(),
+        "extendUntil": (FAR - dt.timedelta(days=3)).isoformat(),  # grace ends before the trip
     }
 
     csv = (await db_client.get("/admin/bookings.csv?flag=balance", headers=owner)).text
@@ -106,7 +106,7 @@ async def test_the_owner_moves_the_due_day_later_up_to_departure(
             f"/admin/bookings/{ref}/balance-due", json={"dueOn": day.isoformat()}, headers=owner
         )
 
-    for bad, words in ((due, "after the current"), (FAR + dt.timedelta(days=1), "departure day")):
+    for bad, words in ((due, "after the current"), (FAR - dt.timedelta(days=2), "Too close")):
         res = await move(bad)
         assert res.status_code == 400, res.text
         assert words in res.json()["error"]["fieldErrors"]["dueOn"]
@@ -125,7 +125,8 @@ async def test_the_owner_moves_the_due_day_later_up_to_departure(
     ).scalar_one()
     assert moved.before == {"balanceDueOn": due.isoformat()}
     assert moved.customer_text and later.strftime("%b") in moved.customer_text
-    assert (await move(FAR)).json()["balance"]["canExtend"] is False  # on the departure day
+    last = await move(FAR - dt.timedelta(days=3))  # the latest: its cancel lands on departure
+    assert last.status_code == 200 and last.json()["balance"]["canExtend"] is False
 
 
 async def test_deposits_switch_off_per_package_and_an_old_form_leaves_them_alone(

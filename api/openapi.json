@@ -2978,6 +2978,12 @@
             "title": "Confirmed",
             "type": "integer"
           },
+          "partiallyPaid": {
+            "default": 0,
+            "description": "P5: on its deposit (seats held)",
+            "title": "Partiallypaid",
+            "type": "integer"
+          },
           "pending": {
             "title": "Pending",
             "type": "integer"

@@ -97,6 +97,7 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **Reminders are built in this row:** `/cron/daily` sends −7, −3 and due-day reminders, each recorded once in the history log so a re-run sends nothing twice, and the customer is emailed when the booking is cancelled. P15 later puts them under its switches and previews.
   - **GST as P13:** a receipt for every part, the tax invoice once paid in full. A `balance_unpaid` cancellation never had an invoice, so its refund has no credit note. The cancel lands 28 days out (the 50 %-retained tier), so the refund is paid − half the price, usually ₹0: the deposit is kept.
   - **Two PRs:** P5a customer path (0016 with all the schema, pay choice on the sheet, deposit capture, pay the balance in My trips, voucher "Balance due", reminders and the overdue cancel), then P5b owner (desk filter and column, CSV, mark the balance paid offline, extend the due date up to the departure day, logged, and the per-package switch).
+  - **Built in P5b (2026-10-01):** an extension may move the due day as late as departure − 3 days (not the departure day itself), so the 2-day grace ends before the trip and the tidy's cancel lands on the departure day at the latest; it can't be set in the past. The desk gets a "Deposit paid" tab and a "Balance due" tile; marking the balance paid records the whole balance as one offline payment.
 
 ### R44. Waitlist (P6)
 - **Joining:**
