@@ -351,3 +351,58 @@ async def test_sweep_hands_the_freed_departures_on(
     await db.commit()
     swept = await sweep_bookings(db, today=SOON - dt.timedelta(days=30))
     assert swept.freed_departures == (dep_id,)
+
+
+async def test_a_retry_after_a_failed_attempt_reads_as_paid_and_stops_asking(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    body, owner, _ = await link_booking(db, db_app, db_client)
+    ref = body["ref"]
+    _, row = await row_of(db, ref)
+    order_id, pay_id = rzp.pay_link(row.razorpay_link_id or "")
+    failed = link_event("payment.failed", order_id, "pay_FirstTry0001", 10_000_00, row.id)
+    assert (await deliver(db_client, failed)).status_code == 200  # first attempt failed
+    ok = link_event("payment.captured", order_id, pay_id, 10_000_00, row.id)
+    assert (await deliver(db_client, ok)).status_code == 200  # the retry, a new row
+    detail = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()
+    assert detail["status"] == "confirmed"
+    assert detail["paymentLink"]["status"] == "paid"
+    calls = len(rzp.requests)
+    check = await db_client.post(f"/admin/bookings/{ref}/link/check", headers=owner)
+    assert check.status_code == 200 and len(rzp.requests) == calls  # nothing left to ask
+
+
+async def test_the_webhook_maps_only_our_amount_onto_a_link_row(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    body, _, _ = await link_booking(db, db_app, db_client)
+    ref = body["ref"]
+    _, row = await row_of(db, ref)
+    stray = link_event("payment.captured", "order_Stray000001", "pay_Stray000001", 500_00, row.id)
+    assert (await deliver(db_client, stray)).status_code == 200  # ignored, still a 200
+    b, row = await row_of(db, ref)
+    assert b.status == BookingStatus.PENDING and row.razorpay_order_id is None
+
+
+async def test_a_link_made_but_not_recorded_is_cancelled_and_the_seats_released(
+    db: AsyncSession,
+    db_app: FastAPI,
+    db_client: AsyncClient,
+    rzp: FakeRazorpay,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.booking import links
+
+    async def broken(*_: object, **__: object) -> None:
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(links, "_record_link", broken)
+    mailing(db_app)
+    _, dep = await seeded(db, seats=6)
+    dep_id = dep.id
+    owner = await owner_cookie(db)
+    res = await post_booking(db_client, owner, link_body(dep_id))
+    assert res.status_code == 502
+    [made] = rzp.links.values()
+    assert made["status"] == "cancelled"  # nobody can pay a link we can't match
+    assert await seats_left(db, dep_id) == 6

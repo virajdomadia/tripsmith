@@ -45,15 +45,17 @@ export function LinkPanel({
   const pathname = usePathname();
   const link = b.paymentLink;
   const [busy, setBusy] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  // The clock starts after hydration: the server's render and the browser's first one match.
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     if (link?.status !== 'open') return;
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [link?.status]);
   if (!link) return null;
 
-  const left = new Date(link.expiresAt).getTime() - now;
+  const left = now === null ? null : new Date(link.expiresAt).getTime() - now;
   const first = b.leadName.split(' ')[0] ?? b.leadName;
   const deposit = link.amountPaise < b.totalPaise;
   const message = link.url
@@ -75,8 +77,12 @@ export function LinkPanel({
       const next = await adminRequest<AdminBooking>(`/admin/bookings/${b.ref}/link/${what}`, {
         method: 'POST',
       });
-      if (what === 'check' && next.status === 'pending') toast.info('Not paid yet');
-      else toast.success(what === 'check' ? 'Paid — booking confirmed' : done);
+      if (what !== 'check') toast.success(done);
+      else if (next.status === 'confirmed' || next.status === 'partially_paid')
+        toast.success('Paid — booking confirmed');
+      else if (next.status === 'cancelled' && next.refundNeeded)
+        toast.warning('Paid after the seats had gone — the payment is being refunded');
+      else toast.info('Not paid yet');
       if (onChanged) onChanged(next);
       else router.refresh();
     } catch (e) {
@@ -155,15 +161,17 @@ export function LinkPanel({
       <div className="grid gap-2">
         <div className="flex flex-wrap items-baseline gap-2.5">
           <span className="text-[13px] font-bold text-mute">Link expires in</span>
-          <b className="num text-[26px] tracking-tight" aria-live="off" suppressHydrationWarning>
-            {countdown(left)}
+          <b className="num text-[26px] tracking-tight" aria-live="off">
+            {left === null ? '--:--:--' : countdown(left)}
           </b>
           <small className="text-[12.5px] text-mute">{heldUntil(link.expiresAt)}</small>
         </div>
         <span aria-hidden className="h-2 overflow-hidden rounded-full bg-bg2">
           <i
             className="block h-full rounded-full bg-warn"
-            style={{ width: `${Math.max(0, Math.min(100, (left / DAY_MS) * 100)).toFixed(2)}%` }}
+            style={{
+              width: `${left === null ? 100 : Math.max(0, Math.min(100, (left / DAY_MS) * 100)).toFixed(2)}%`,
+            }}
           />
         </span>
       </div>

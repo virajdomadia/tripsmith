@@ -23,8 +23,9 @@ import datetime as dt
 import logging
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.errors import ApiError
 from app.infra.razorpay import LinkAlreadyPaid, Razorpay, RazorpayError
@@ -85,7 +86,12 @@ def link_out(booking: Booking, *, live: bool) -> AdminPaymentLink | None:
     if p is None or not p.razorpay_link_id:
         return None
     raw = _link_raw(p)
-    if p.status in SETTLED_PAYMENT:
+    paid = p.status in SETTLED_PAYMENT or any(
+        q.status in SETTLED_PAYMENT and q.razorpay_order_id == p.razorpay_order_id
+        for q in booking.payments
+        if p.razorpay_order_id  # a retry after a failed attempt is a new row on the same order
+    )
+    if paid:
         state = "paid"
     elif booking.status == BookingStatus.PENDING and live:
         state = "open"
@@ -149,6 +155,31 @@ async def issue_link(
         await _undo(db, booking_id, ref, by=by, enquiry_reverts=enquiry_reverts)
         await refresh_quietly(db, {package_id}, after=f"releasing {ref}")
         raise ApiError("internal", LINK_DOWN, status=502) from None
+    try:
+        await _record_link(db, row_id, booking_id, entity, amount_paise, expires, by)
+    except Exception:
+        # The link exists but isn't ours on record: nothing could match its payment. Stop it,
+        # then release the seats as for a link that was never made.
+        log.exception("Recording the payment link for %s failed; cancelling it", ref)
+        await db.rollback()
+        try:
+            await razorpay.cancel_payment_link(entity["id"])
+        except RazorpayError:
+            log.exception("Could not cancel the unrecorded link %s", entity["id"])
+        await _undo(db, booking_id, ref, by=by, enquiry_reverts=enquiry_reverts)
+        await refresh_quietly(db, {package_id}, after=f"releasing {ref}")
+        raise ApiError("internal", LINK_DOWN, status=502) from None
+
+
+async def _record_link(
+    db: AsyncSession,
+    row_id: str,
+    booking_id: str,
+    entity: dict[str, Any],
+    amount_paise: int,
+    expires: dt.datetime,
+    by: str,
+) -> None:
     try:
         await db.execute(
             update(Payment)
@@ -229,39 +260,30 @@ async def _undo(
 # --- the money coming back ----------------------------------------------------------------------
 
 
-async def _map_order(db: AsyncSession, row_id: str, order_id: str) -> str | None:
-    """Write the link's order id onto its row (once); returns the booking's ref, or None when
-    the row is not a link row of ours."""
-    await db.execute(
-        update(Payment)
-        .where(
-            Payment.id == row_id,
-            Payment.razorpay_link_id.is_not(None),
-            Payment.razorpay_order_id.is_(None),
-        )
-        .values(razorpay_order_id=order_id, updated_at=func.now())
-    )
-    return (
+async def ref_for_link_event(
+    db: AsyncSession, entity: dict[str, Any], order_id: str
+) -> tuple[str, str] | None:
+    """The webhook met an order it doesn't know: a paid link's, if its notes name one of our link
+    rows and the amount is that row's. Returns (booking ref, row id); nothing is written here —
+    the capture maps the order under the booking's lock."""
+    notes = entity.get("notes")
+    row_id = notes.get("payment_row") if isinstance(notes, dict) else None
+    amount = entity.get("amount")
+    if not isinstance(row_id, str) or not row_id or not isinstance(amount, int):
+        return None
+    ref = (
         await db.execute(
             select(Booking.ref)
             .join(Payment, Payment.booking_id == Booking.id)
             .where(
                 Payment.id == row_id,
                 Payment.razorpay_link_id.is_not(None),
-                Payment.razorpay_order_id == order_id,
+                Payment.amount_paise == amount,
+                or_(Payment.razorpay_order_id.is_(None), Payment.razorpay_order_id == order_id),
             )
         )
     ).scalar_one_or_none()
-
-
-async def ref_for_link_event(db: AsyncSession, entity: dict[str, Any], order_id: str) -> str | None:
-    """The webhook met an order it doesn't know: a paid link's, if its notes name one of our
-    link rows. Maps the order onto the row (in the caller's transaction) and returns the ref."""
-    notes = entity.get("notes")
-    row_id = notes.get("payment_row") if isinstance(notes, dict) else None
-    if not isinstance(row_id, str) or not row_id:
-        return None
-    return await _map_order(db, row_id, order_id)
+    return (ref, row_id) if ref else None
 
 
 async def sync_link(
@@ -274,6 +296,7 @@ async def sync_link(
 ) -> bool:
     """Ask Razorpay whether the booking's link was paid and apply each captured payment through
     the one capture path. True when something new was applied."""
+    settled = aliased(Payment)
     rows = (
         await db.execute(
             select(Payment.id, Payment.razorpay_link_id)
@@ -282,6 +305,13 @@ async def sync_link(
                 Booking.ref == ref,
                 Payment.razorpay_link_id.is_not(None),
                 Payment.status.not_in(SETTLED_PAYMENT),
+                # A failed first attempt keeps the link row; a retry paid on the same order
+                # is a new row — then the link is paid, and there is nothing left to ask.
+                ~exists().where(
+                    settled.booking_id == Payment.booking_id,
+                    settled.razorpay_order_id == Payment.razorpay_order_id,
+                    settled.status.in_(SETTLED_PAYMENT),
+                ),
             )
         )
     ).all()
@@ -308,12 +338,8 @@ async def sync_link(
             if not isinstance(payment_id, str):
                 continue
             try:
-                await lock_booking(db, ref)
-                if await _map_order(db, row_id, order_id) is None:
-                    await db.rollback()
-                    continue
                 booking, capture = await capture_razorpay_payment(
-                    db, ref, order_id=order_id, payment_id=payment_id, via=via
+                    db, ref, order_id=order_id, payment_id=payment_id, via=via, link_row=row_id
                 )
                 package_id = booking.package_id
                 await db.commit()
@@ -398,7 +424,8 @@ async def _open_link(db: AsyncSession, ref: str) -> tuple[Booking, Payment]:
             .limit(1)
         )
     ).scalar_one_or_none()
-    if row is None or booking.status != BookingStatus.PENDING:
+    lapsed = booking.hold_expires_at <= dt.datetime.now(dt.UTC)
+    if row is None or booking.status != BookingStatus.PENDING or lapsed:
         raise ApiError("conflict", NO_LINK, reason="no_link")
     return booking, row
 

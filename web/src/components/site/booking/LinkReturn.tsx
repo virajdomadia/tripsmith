@@ -73,6 +73,21 @@ export function LinkReturn({ bookingRef, callback }: { bookingRef: string; callb
     );
   const r = state.result;
   const confirmed = r.status === 'confirmed' || r.status === 'partially_paid';
+  if (r.status === 'cancelled')
+    return (
+      <div className="grid max-w-md gap-4 text-center">
+        <h1 className="text-[28px] leading-tight font-extrabold">Sorry — the seats had gone</h1>
+        <p className="text-ink2">
+          {r.refundNeeded
+            ? `Your payment reached us after the hold on ${bookingRef} ended and the seats were taken, so it is being refunded in full to the same account.`
+            : `Booking ${bookingRef} is no longer active.`}{' '}
+          We’d love to find you another date.
+        </p>
+        <a href={wa} className={`${BTN} bg-wa text-white`}>
+          <MessageCircle className="size-4" aria-hidden /> WhatsApp us
+        </a>
+      </div>
+    );
   return (
     <div className="grid max-w-md gap-4 text-center">
       <span className="mx-auto grid size-14 place-items-center rounded-full bg-ok-soft text-ok">

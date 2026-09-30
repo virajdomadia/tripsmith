@@ -243,6 +243,23 @@ def _log_capture(
         )
 
 
+async def map_link_order(db: AsyncSession, booking_id: str, row_id: str, order_id: str) -> None:
+    """P18b: a Payment Link's order exists only once the payer opens the link — write it onto
+    the link's row (once) so the capture below finds it. Called under the booking's lock, so every
+    path (webhook, redirect back, Check payment) takes the locks in the same order."""
+    await db.execute(
+        update(Payment)
+        .where(
+            Payment.id == row_id,
+            Payment.booking_id == booking_id,
+            Payment.razorpay_link_id.is_not(None),
+            Payment.razorpay_order_id.is_(None),
+        )
+        .values(razorpay_order_id=order_id, updated_at=func.now())
+        .execution_options(synchronize_session=False)
+    )
+
+
 async def capture_razorpay_payment(
     db: AsyncSession,
     ref: str,
@@ -251,6 +268,7 @@ async def capture_razorpay_payment(
     payment_id: str,
     via: CaptureVia,
     raw: dict[str, Any] | None = None,
+    link_row: str | None = None,
 ) -> tuple[Booking, Capture | None]:
     """Record a verified Razorpay capture on the booking and apply it. Returns the booking and
     what the new capture did — None on a replay, so the after-capture hook (emails included)
@@ -258,8 +276,11 @@ async def capture_razorpay_payment(
 
     The order must be one of this booking's; the payment fills the order's `created` row, or a
     new row when that one is taken (a failed attempt, or a second capture on the same order).
+    `link_row` (P18b): the Payment Link row whose order this is, mapped first.
     """
     booking, hold_live = await lock_booking(db, ref)
+    if link_row is not None:
+        await map_link_order(db, booking.id, link_row, order_id)
     rows = (
         (
             await db.execute(

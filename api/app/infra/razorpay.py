@@ -140,7 +140,7 @@ class Razorpay:
         if res.status_code // 100 == 2:
             return
         text = res.text.lower()
-        if res.status_code == 400 and "paid" in text:
+        if res.status_code == 400 and ("already paid" in text or "partially paid" in text):
             raise LinkAlreadyPaid(res.text[:300])
         if res.status_code == 400 and ("cancelled" in text or "expired" in text):
             return
