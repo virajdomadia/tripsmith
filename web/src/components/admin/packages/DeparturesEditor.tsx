@@ -38,7 +38,8 @@ const PRICES = [
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 /** Mockup A4's departures table: date, seats, the occupancy pricing grid, guaranteed. */
-export function DeparturesEditor() {
+/** `waiting` (P6): places on each saved date's waitlist, by departure id. */
+export function DeparturesEditor({ waiting = {} }: { waiting?: Record<string, number> }) {
   const form = useFormContext<PackageFieldValues>();
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'departures' });
   const rows = form.watch('departures') ?? [];
@@ -186,6 +187,16 @@ export function DeparturesEditor() {
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       {/* Only a saved row has an id for the manifest to read. */}
+                      {savedId && (waiting[savedId] ?? 0) > 0 && (
+                        <a
+                          href={`${manifestHref(savedId)}#waitlist`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-1 rounded-chip bg-primary-soft px-2 py-0.5 text-[12px] font-bold text-primary-ink no-underline"
+                        >
+                          {waiting[savedId]} waiting
+                        </a>
+                      )}
                       {savedId && (
                         <Button asChild variant="ghost" size="icon">
                           <a

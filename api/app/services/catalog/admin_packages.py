@@ -48,6 +48,7 @@ from app.schemas.catalog import (
     PublishRule,
 )
 from app.services.analytics import ist_today
+from app.services.booking import waitlist
 from app.services.catalog import deals, early_bird
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
@@ -376,6 +377,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
     today = ist_today(now)
     base = deals.base_of(pkg.departures, today)
     left = await _seats_left(db, pkg)
+    waiting = await waitlist.waiting_counts(db, [d.id for d in pkg.departures])
     images = sorted(pkg.images, key=lambda i: i.position)
     rules = publish_rules(pkg, image_count=len(images), today=today)
     return AdminPackage(
@@ -406,6 +408,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
                 price_triple_paise=d.price_triple_paise,
                 price_child_paise=d.price_child_paise,
                 single_supplement_paise=d.single_supplement_paise,
+                waiting=waiting.get(d.id, 0),
             )
             for d in sorted(pkg.departures, key=lambda d: d.date)
         ],

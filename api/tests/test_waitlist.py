@@ -628,3 +628,111 @@ async def test_my_trips_lists_the_offer_with_its_claim_link(
     [offer] = res.json()["waitlist"]
     assert offer["state"] == "offered" and offer["offerExpiresAt"]
     assert offer["claimPath"].startswith("/packages/") and "?claim=" in offer["claimPath"]
+
+
+# --- the owner (P6b) ---------------------------------------------------------------------------
+
+
+@pytest.mark.db
+async def test_the_owner_sees_the_list_removes_a_place_and_offers_by_hand(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    from tests.test_bookings_desk import owner_cookie
+
+    db_app.state.settings = SETTINGS
+    sender = FakeSender()
+    db_app.state.email_sender = sender
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 4)  # never fits 2 seats
+    await join(db, dep_id, "bina", 2)
+    await join(db, dep_id, "chet", 2)
+    owner = await owner_cookie(db)
+
+    assert (await db_client.get(f"/admin/departures/{dep_id}/waitlist")).status_code == 401
+    res = await db_client.get(f"/admin/departures/{dep_id}/waitlist", headers=owner)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert [(e["name"], e["position"], e["state"]) for e in body["live"]] == [
+        ("Asha Rao", 1, "waiting"),
+        ("Bina Rao", 2, "waiting"),
+        ("Chet Rao", 3, "waiting"),
+    ]
+    assert body["seatsLeft"] == 0 and body["canOffer"] is True
+
+    # Seats free up: reading the list walks it — Bina (the first who fits) is offered.
+    await lapse_holds(db, dep_id)
+    body = (await db_client.get(f"/admin/departures/{dep_id}/waitlist", headers=owner)).json()
+    states = {e["name"]: e["state"] for e in body["live"]}
+    assert states == {"Asha Rao": "waiting", "Bina Rao": "offered", "Chet Rao": "waiting"}
+    assert len(sender.sent) == 1  # Bina's offer email went with the read
+    ids = {e["name"]: e["id"] for e in body["live"]}
+
+    # By hand: Chet can't be offered while Bina holds the seats; Asha's party never fits.
+    res = await db_client.post(f"/admin/waitlist/{ids['Chet Rao']}/offer", headers=owner)
+    assert (res.status_code, res.json()["error"]["reason"]) == (409, "seats_short")
+    res = await db_client.post(f"/admin/waitlist/{ids['Bina Rao']}/offer", headers=owner)
+    assert res.json()["error"]["reason"] == "not_waiting"
+
+    # Removing Bina frees her offer's seats, which go straight to Chet.
+    res = await db_client.post(f"/admin/waitlist/{ids['Bina Rao']}/remove", headers=owner)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert [(e["name"], e["state"]) for e in body["live"]] == [
+        ("Asha Rao", "waiting"),
+        ("Chet Rao", "offered"),
+    ]
+    assert body["done"][0]["name"] == "Bina Rao" and body["done"][0]["state"] == "removed"
+    assert body["done"][0]["lastEvent"] == "Removed by Meera N."
+    res = await db_client.post(f"/admin/waitlist/{ids['Bina Rao']}/remove", headers=owner)
+    assert res.json()["error"]["reason"] == "not_live"
+
+
+@pytest.mark.db
+async def test_an_offer_by_hand_skips_the_line_and_the_automatic_cap(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    from tests.test_bookings_desk import owner_cookie
+
+    db_app.state.settings = SETTINGS
+    db_app.state.email_sender = FakeSender()
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    await join(db, dep_id, "bina", 2)
+    e = await entries(db, dep_id)
+    e["asha"].offer_no = waitlist.MAX_AUTO_OFFERS  # ran out of automatic offers
+    await db.commit()
+    await lapse_holds(db, dep_id)
+    await walk(db, dep_id)
+    e = await entries(db, dep_id)
+    assert e["asha"].state == WaitlistState.WAITING and e["bina"].state == WaitlistState.OFFERED
+    bina_id, asha_id = e["bina"].id, e["asha"].id
+
+    owner = await owner_cookie(db)
+    await db_client.post(f"/admin/waitlist/{bina_id}/remove", headers=owner)  # Bina declined
+    # The freed seats don't go to Asha on their own (cap) — the owner offers them by hand.
+    e = await entries(db, dep_id)
+    assert e["asha"].state == WaitlistState.WAITING
+    res = await db_client.post(f"/admin/waitlist/{asha_id}/offer", headers=owner)
+    assert res.status_code == 200, res.text
+    [asha] = res.json()["live"]
+    assert (asha["state"], asha["offeredByOwner"], asha["offerNo"]) == ("offered", True, 4)
+    assert await seats_left(db, dep_id) == 0
+
+
+@pytest.mark.db
+async def test_the_desk_and_the_package_editor_count_the_waiting(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    from tests.test_bookings_desk import owner_cookie
+
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    owner = await owner_cookie(db)
+    manifest = await db_client.get(f"/admin/departures/{dep_id}/manifest", headers=owner)
+    assert manifest.json()["seats"]["waiting"] == 1
+    pkg_id = (
+        await db.execute(select(Departure.package_id).where(Departure.id == dep_id))
+    ).scalar_one()
+    pkg = await db_client.get(f"/admin/packages/{pkg_id}", headers=owner)
+    row = next(d for d in pkg.json()["departures"] if d["id"] == dep_id)
+    assert row["waiting"] == 1

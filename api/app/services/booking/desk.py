@@ -159,6 +159,7 @@ async def departure_seats(db: AsyncSession, departure_id: str) -> DepartureSeats
         booked=int(booked),
         held=int(held),
         seats_left=int(left),
+        waiting=(await waitlist.waiting_counts(db, [dep_id])).get(dep_id, 0),
     )
 
 

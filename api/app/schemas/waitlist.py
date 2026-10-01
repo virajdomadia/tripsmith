@@ -88,3 +88,37 @@ class WaitlistTick(ApiModel):
     lapsed: int
     closed: int
     emails: int
+
+
+class AdminWaitlistEntry(ApiModel):
+    """One place on a departure's waitlist, for the owner (R44, P6b)."""
+
+    id: str
+    position: int | None = Field(description="1 = next in line; null once the place is done")
+    name: str
+    email: str
+    party: int
+    state: Literal["waiting", "offered", "claimed", "booked", "removed", "closed"]
+    offer_expires_at: dt.datetime | None
+    offer_no: int = Field(description="How many offers this place has had")
+    offered_by_owner: bool = Field(description="The current or last offer was made by hand")
+    auto_offers_done: bool = Field(
+        description="Ran out of automatic offers (3 unclaimed): only an offer by hand now"
+    )
+    joined_at: dt.datetime
+    last_event: str | None = Field(description="The place's latest log line")
+
+
+class DepartureWaitlist(ApiModel):
+    """`GET /admin/departures/{id}/waitlist`: the list, walked just before it was read."""
+
+    departure_id: str
+    seats_left: int = Field(description="Free seats right now (the view: holds and offers out)")
+    can_offer: bool = Field(
+        description="An offer made now would run at least 6 hours and the date is on sale"
+    )
+    offer_ends_at: dt.datetime | None = Field(description="When an offer made now would end")
+    live: list[AdminWaitlistEntry] = Field(description="Waiting, offered or claiming, in order")
+    done: list[AdminWaitlistEntry] = Field(
+        description="Booked, removed or closed places, newest first (up to 20)"
+    )

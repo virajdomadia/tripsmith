@@ -35,6 +35,15 @@ export function SeatStrip({
           </div>
         ))}
       </dl>
+      {seats.waiting > 0 && (
+        <Link
+          href={`${manifestHref(seats.departureId)}#waitlist`}
+          target="_blank"
+          className="rounded-chip bg-primary-soft px-2.5 py-1 text-[12.5px] font-bold text-primary-ink no-underline"
+        >
+          {seats.waiting} waiting
+        </Link>
+      )}
       {manifest && (
         <Link
           href={manifestHref(seats.departureId)}

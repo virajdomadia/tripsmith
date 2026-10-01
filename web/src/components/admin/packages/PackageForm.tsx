@@ -102,9 +102,12 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function LiveSub({
   k,
   destinations,
+  waiting = 0,
 }: {
   k: Key;
   destinations: readonly { id: string; name: string }[];
+  /** P6: places on the saved dates' waitlists, shown on the collapsed dates section. */
+  waiting?: number;
 }) {
   const names = FIELDS_OF[k] ?? [];
   const values = useWatch<PackageFieldValues>({ name: names }) as unknown[];
@@ -117,7 +120,8 @@ function LiveSub({
     text = `${dest} · ${String(v.nights || '…')} nights · ${String(v.departureCity || '…')}${v.featured ? ' · Featured' : ''}`;
   } else if (k === 'highlights') text = plural(count(v.highlights), 'line');
   else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
-  else if (k === 'prices') text = plural(count(v.departures), 'date');
+  else if (k === 'prices')
+    text = `${plural(count(v.departures), 'date')}${waiting ? ` · ${waiting} waiting` : ''}`;
   else if (k === 'deal')
     text = `${v.dealPricePaise ? 'Deal set' : 'No deal'} · ${v.ebOn ? 'Early bird on' : 'No early bird'}${v.depositOn === false ? ' · No deposit' : ''}`;
   else if (k === 'addons') {
@@ -490,11 +494,12 @@ export function PackageForm(props: Props) {
       }),
     );
   };
+  const waitingTotal = (pkg?.departures ?? []).reduce((n, d) => n + d.waiting, 0);
   const section = (k: Key, children: React.ReactNode, title = LABEL[k as SectionKey]) => (
     <Section
       k={k}
       title={title}
-      sub={sub[k] ?? <LiveSub k={k} destinations={props.destinations} />}
+      sub={sub[k] ?? <LiveSub k={k} destinations={props.destinations} waiting={waitingTotal} />}
       open={open.has(k)}
       onToggle={toggle}
     >
@@ -568,7 +573,12 @@ export function PackageForm(props: Props) {
               />,
             )}
             {section('itinerary', <ItineraryEditor />)}
-            {section('prices', <DeparturesEditor />)}
+            {section(
+              'prices',
+              <DeparturesEditor
+                waiting={Object.fromEntries((pkg?.departures ?? []).map((d) => [d.id, d.waiting]))}
+              />,
+            )}
             {section(
               'deal',
               <>

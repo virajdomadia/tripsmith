@@ -1609,6 +1609,12 @@
           "singleSupplementPaise": {
             "title": "Singlesupplementpaise",
             "type": "integer"
+          },
+          "waiting": {
+            "default": 0,
+            "description": "P6: places on the date's waitlist; read only",
+            "title": "Waiting",
+            "type": "integer"
           }
         },
         "required": [
@@ -2853,6 +2859,111 @@
           "totalPages"
         ],
         "title": "AdminReviewList",
+        "type": "object"
+      },
+      "AdminWaitlistEntry": {
+        "description": "One place on a departure's waitlist, for the owner (R44, P6b).",
+        "properties": {
+          "autoOffersDone": {
+            "description": "Ran out of automatic offers (3 unclaimed): only an offer by hand now",
+            "title": "Autooffersdone",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "title": "Joinedat",
+            "type": "string"
+          },
+          "lastEvent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The place's latest log line",
+            "title": "Lastevent"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "offerExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offerexpiresat"
+          },
+          "offerNo": {
+            "description": "How many offers this place has had",
+            "title": "Offerno",
+            "type": "integer"
+          },
+          "offeredByOwner": {
+            "description": "The current or last offer was made by hand",
+            "title": "Offeredbyowner",
+            "type": "boolean"
+          },
+          "party": {
+            "title": "Party",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1 = next in line; null once the place is done",
+            "title": "Position"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "offered",
+              "claimed",
+              "booked",
+              "removed",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "name",
+          "email",
+          "party",
+          "state",
+          "offerExpiresAt",
+          "offerNo",
+          "offeredByOwner",
+          "autoOffersDone",
+          "joinedAt",
+          "lastEvent"
+        ],
+        "title": "AdminWaitlistEntry",
         "type": "object"
       },
       "ApiErrorBody": {
@@ -4920,6 +5031,12 @@
           "seatsTotal": {
             "title": "Seatstotal",
             "type": "integer"
+          },
+          "waiting": {
+            "default": 0,
+            "description": "P6: places on the date's waitlist",
+            "title": "Waiting",
+            "type": "integer"
           }
         },
         "required": [
@@ -4933,6 +5050,64 @@
           "seatsLeft"
         ],
         "title": "DepartureSeats",
+        "type": "object"
+      },
+      "DepartureWaitlist": {
+        "description": "`GET /admin/departures/{id}/waitlist`: the list, walked just before it was read.",
+        "properties": {
+          "canOffer": {
+            "description": "An offer made now would run at least 6 hours and the date is on sale",
+            "title": "Canoffer",
+            "type": "boolean"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "done": {
+            "description": "Booked, removed or closed places, newest first (up to 20)",
+            "items": {
+              "$ref": "#/components/schemas/AdminWaitlistEntry"
+            },
+            "title": "Done",
+            "type": "array"
+          },
+          "live": {
+            "description": "Waiting, offered or claiming, in order",
+            "items": {
+              "$ref": "#/components/schemas/AdminWaitlistEntry"
+            },
+            "title": "Live",
+            "type": "array"
+          },
+          "offerEndsAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When an offer made now would end",
+            "title": "Offerendsat"
+          },
+          "seatsLeft": {
+            "description": "Free seats right now (the view: holds and offers out)",
+            "title": "Seatsleft",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "seatsLeft",
+          "canOffer",
+          "offerEndsAt",
+          "live",
+          "done"
+        ],
+        "title": "DepartureWaitlist",
         "type": "object"
       },
       "DestinationCard": {
@@ -11659,6 +11834,49 @@
         ]
       }
     },
+    "/admin/departures/{id}/waitlist": {
+      "get": {
+        "description": "The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are\noffered) — the emails that owes go before the answer.",
+        "operationId": "getDepartureWaitlist",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartureWaitlist"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Waitlist Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/destinations": {
       "get": {
         "operationId": "listAdminDestinations",
@@ -13259,6 +13477,92 @@
           }
         },
         "summary": "Publish Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/waitlist/{entry_id}/offer": {
+      "post": {
+        "description": "Offer seats to a waiting place by hand: out of order, and past the 3 automatic offers.\n409 `not_waiting`, `offers_closed` (too close to departure, or not on sale) or\n`seats_short` (its party needs more seats than are free).",
+        "operationId": "offerWaitlistSeats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartureWaitlist"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Waitlist Offer Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/waitlist/{entry_id}/remove": {
+      "post": {
+        "description": "Take a place off the list; seats its offer held go down the list at once.",
+        "operationId": "removeWaitlistEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartureWaitlist"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Waitlist Remove Route",
         "tags": [
           "admin"
         ]

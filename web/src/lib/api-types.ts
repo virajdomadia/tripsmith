@@ -679,6 +679,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/departures/{id}/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Waitlist Route
+         * @description The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are
+         *     offered) — the emails that owes go before the answer.
+         */
+        get: operations["getDepartureWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/destinations": {
         parameters: {
             query?: never;
@@ -1062,6 +1083,48 @@ export interface paths {
         put?: never;
         /** Publish Route */
         post: operations["publishReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/waitlist/{entry_id}/offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Waitlist Offer Route
+         * @description Offer seats to a waiting place by hand: out of order, and past the 3 automatic offers.
+         *     409 `not_waiting`, `offers_closed` (too close to departure, or not on sale) or
+         *     `seats_short` (its party needs more seats than are free).
+         */
+        post: operations["offerWaitlistSeats"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/waitlist/{entry_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Waitlist Remove Route
+         * @description Take a place off the list; seats its offer held go down the list at once.
+         */
+        post: operations["removeWaitlistEntry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2286,6 +2349,12 @@ export interface components {
             seatsTotal: number;
             /** Singlesupplementpaise */
             singleSupplementPaise: number;
+            /**
+             * Waiting
+             * @description P6: places on the date's waitlist; read only
+             * @default 0
+             */
+            waiting: number;
         };
         /**
          * AdminDestination
@@ -2784,6 +2853,57 @@ export interface components {
             total: number;
             /** Totalpages */
             totalPages: number;
+        };
+        /**
+         * AdminWaitlistEntry
+         * @description One place on a departure's waitlist, for the owner (R44, P6b).
+         */
+        AdminWaitlistEntry: {
+            /**
+             * Autooffersdone
+             * @description Ran out of automatic offers (3 unclaimed): only an offer by hand now
+             */
+            autoOffersDone: boolean;
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /**
+             * Joinedat
+             * Format: date-time
+             */
+            joinedAt: string;
+            /**
+             * Lastevent
+             * @description The place's latest log line
+             */
+            lastEvent: string | null;
+            /** Name */
+            name: string;
+            /** Offerexpiresat */
+            offerExpiresAt: string | null;
+            /**
+             * Offerno
+             * @description How many offers this place has had
+             */
+            offerNo: number;
+            /**
+             * Offeredbyowner
+             * @description The current or last offer was made by hand
+             */
+            offeredByOwner: boolean;
+            /** Party */
+            party: number;
+            /**
+             * Position
+             * @description 1 = next in line; null once the place is done
+             */
+            position: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "waiting" | "offered" | "claimed" | "booked" | "removed" | "closed";
         };
         /** ApiErrorBody */
         ApiErrorBody: {
@@ -3778,6 +3898,45 @@ export interface components {
             seatsLeft: number;
             /** Seatstotal */
             seatsTotal: number;
+            /**
+             * Waiting
+             * @description P6: places on the date's waitlist
+             * @default 0
+             */
+            waiting: number;
+        };
+        /**
+         * DepartureWaitlist
+         * @description `GET /admin/departures/{id}/waitlist`: the list, walked just before it was read.
+         */
+        DepartureWaitlist: {
+            /**
+             * Canoffer
+             * @description An offer made now would run at least 6 hours and the date is on sale
+             */
+            canOffer: boolean;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Done
+             * @description Booked, removed or closed places, newest first (up to 20)
+             */
+            done: components["schemas"]["AdminWaitlistEntry"][];
+            /**
+             * Live
+             * @description Waiting, offered or claiming, in order
+             */
+            live: components["schemas"]["AdminWaitlistEntry"][];
+            /**
+             * Offerendsat
+             * @description When an offer made now would end
+             */
+            offerEndsAt: string | null;
+            /**
+             * Seatsleft
+             * @description Free seats right now (the view: holds and offers out)
+             */
+            seatsLeft: number;
         };
         /** DestinationCard */
         DestinationCard: {
@@ -7235,6 +7394,37 @@ export interface operations {
             };
         };
     };
+    getDepartureWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureWaitlist"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     listAdminDestinations: {
         parameters: {
             query?: never;
@@ -8192,6 +8382,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminReview"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    offerWaitlistSeats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureWaitlist"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    removeWaitlistEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureWaitlist"];
                 };
             };
             /** @description Error envelope (06 C0) */

@@ -106,6 +106,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
       priceTriplePaise: 1_349_900,
       priceChildPaise: 899_900,
       singleSupplementPaise: 600_000,
+      waiting: 0,
     },
   ],
   images: [],
