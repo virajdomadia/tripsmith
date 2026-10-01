@@ -793,7 +793,9 @@ async def _owner_entry(db: AsyncSession, entry_id: str) -> tuple[WaitlistEntry, 
             .with_for_update()
             .execution_options(populate_existing=True)
         )
-    ).scalar_one()
+    ).scalar_one_or_none()
+    if entry is None:
+        raise ApiError("not_found", "That waitlist place no longer exists")
     return entry, dep
 
 
@@ -823,7 +825,15 @@ async def owner_offer(db: AsyncSession, entry_id: str, *, by: str, by_name: str)
     when its party fits the free seats and the date can still take an offer. Committed; returns
     the departure id."""
     try:
+        before = (
+            await db.execute(select(WaitlistEntry.offer_no).where(WaitlistEntry.id == entry_id))
+        ).scalar_one_or_none()
         entry, dep = await _owner_entry(db, entry_id)
+        if entry.state == WaitlistState.OFFERED and entry.offer_no != before:
+            # The walk just before this offered it on its own: the owner's wish is done.
+            departure_id = dep.id
+            await db.commit()
+            return departure_id
         if entry.state != WaitlistState.WAITING:
             raise ApiError("conflict", NOT_WAITING, reason="not_waiting")
         now = await _db_now(db)

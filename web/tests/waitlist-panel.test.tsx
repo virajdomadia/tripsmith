@@ -55,11 +55,12 @@ describe('WaitlistPanel', () => {
     render(<WaitlistPanel initial={LIST as never} />);
 
     const [asha, bina] = screen.getAllByRole('listitem');
-    const askAsha = within(asha!).getByRole('button', { name: 'Offer seats' });
+    const askAsha = within(asha!).getByRole('button', { name: 'Offer seats to Asha Rao' });
     expect((askAsha as HTMLButtonElement).disabled).toBe(true);
+    expect(askAsha.getAttribute('aria-describedby')).toBe('why-e1');
     expect(within(asha!).getByText('Needs 4 seats — 2 free')).toBeTruthy();
 
-    await user.click(within(bina!).getByRole('button', { name: 'Offer seats' }));
+    await user.click(within(bina!).getByRole('button', { name: 'Offer seats to Bina Shah' }));
     expect(fetchMock.mock.calls[0]![0]).toBe('/api/admin/waitlist/e2/offer');
     expect(await screen.findByText('Offered · by hand')).toBeTruthy();
   });
@@ -72,9 +73,13 @@ describe('WaitlistPanel', () => {
     render(<WaitlistPanel initial={LIST as never} />);
     await user.click(screen.getByRole('button', { name: 'Remove Asha Rao from the waitlist' }));
     expect(fetchMock).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }));
+    // Focus moves to the safe choice.
+    expect(document.activeElement?.textContent).toBe('Keep');
+    await user.click(screen.getByRole('button', { name: 'Yes, remove Asha Rao' }));
     expect(fetchMock.mock.calls[0]![0]).toBe('/api/admin/waitlist/e1/remove');
     expect((await screen.findByRole('alert')).textContent).toContain('already removed');
+    // Refused: the list is read again, since the place moved on somewhere else.
+    expect(String(fetchMock.mock.calls[1]![0])).toBe('/api/admin/departures/d1/waitlist');
   });
 
   it('says when offers have closed for the date', () => {

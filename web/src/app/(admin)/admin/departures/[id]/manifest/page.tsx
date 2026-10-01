@@ -22,11 +22,14 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
   if (!session) redirect(LOGIN_PATH);
   if (session.user.role !== 'owner') redirect(ACCOUNT_PATH);
   const { id } = await params;
+  // The waitlist first: reading it walks the list, so the seat counts below include its
+  // offers. Best effort — the printable manifest must never depend on it.
+  const waitlist = await api('/admin/departures/{id}/waitlist', {
+    auth: true,
+    params: { id },
+  }).catch(() => null);
   let m;
-  let waitlist;
   try {
-    // The waitlist first: reading it walks the list, so the seat counts below include its offers.
-    waitlist = await api('/admin/departures/{id}/waitlist', { auth: true, params: { id } });
     m = await api('/admin/departures/{id}/manifest', { auth: true, params: { id } });
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404) notFound();
@@ -136,7 +139,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
         </table>
       )}
 
-      <WaitlistPanel initial={waitlist} />
+      {waitlist && <WaitlistPanel initial={waitlist} />}
 
       <p className="mt-6 text-xs text-mute">
         Printed {istFullDate(m.generatedAt)}, {istTime(m.generatedAt)} IST · confirmed and completed

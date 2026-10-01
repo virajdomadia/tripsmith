@@ -736,3 +736,24 @@ async def test_the_desk_and_the_package_editor_count_the_waiting(
     pkg = await db_client.get(f"/admin/packages/{pkg_id}", headers=owner)
     row = next(d for d in pkg.json()["departures"] if d["id"] == dep_id)
     assert row["waiting"] == 1
+
+
+@pytest.mark.db
+async def test_an_offer_by_hand_the_walk_just_made_is_a_success(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    from tests.test_bookings_desk import owner_cookie
+
+    db_app.state.settings = SETTINGS
+    db_app.state.email_sender = FakeSender()
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    asha_id = (await entries(db, dep_id))["asha"].id
+    owner = await owner_cookie(db)
+    await lapse_holds(db, dep_id)  # the owner's page still shows Asha waiting
+    res = await db_client.post(f"/admin/waitlist/{asha_id}/offer", headers=owner)
+    assert res.status_code == 200, res.text
+    [asha] = res.json()["live"]
+    assert (asha["state"], asha["offeredByOwner"]) == ("offered", False)
+    res = await db_client.post("/admin/waitlist/nope/offer", headers=owner)
+    assert res.status_code == 404

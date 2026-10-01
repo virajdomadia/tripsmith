@@ -1,9 +1,9 @@
 'use client';
 
 import { BellRing, Hand, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
-import { adminRequest } from '@/lib/admin/client';
+import { adminGet, adminRequest } from '@/lib/admin/client';
 import { ApiRequestError } from '@/lib/api-errors';
 import type { components } from '@/lib/api-types';
 import { seatsWord } from '@/lib/waitlist';
@@ -35,6 +35,11 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) keepRef.current?.focus();
+  }, [confirming]);
+
   async function act(entry: Entry, action: 'offer' | 'remove') {
     setBusy(entry.id);
     setProblem(null);
@@ -46,6 +51,13 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
       );
     } catch (e) {
       setProblem(e instanceof ApiRequestError ? e.body.message : 'That didn’t go through.');
+      // The place may have moved on in another tab or by the list's own walk: read it again.
+      await adminGet<Waitlist>(
+        `/admin/departures/${encodeURIComponent(list.departureId)}/waitlist`,
+        {},
+      )
+        .then(setList)
+        .catch(() => {});
     }
     setBusy(null);
     setConfirming(null);
@@ -89,6 +101,13 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
         </p>
       )}
 
+      {list.live.length > 0 && (
+        <p className="text-[12.5px] text-mute">
+          Removing a place that holds an offer passes its seats down the list at once; a booking a
+          place has already started is left to finish or lapse on its own.
+        </p>
+      )}
+
       {list.live.length === 0 ? (
         <p className="text-sm text-mute">
           No one is waiting. When this date sells out, the Book-now sheet offers its waitlist.
@@ -114,7 +133,7 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
                     </span>
                     {e.autoOffersDone && e.state === 'waiting' && (
                       <span className="rounded-chip bg-warn-soft px-2 py-0.5 text-[11.5px] font-bold text-warn">
-                        3 offers unclaimed — by hand only
+                        3 offers ran out — by hand only
                       </span>
                     )}
                   </span>
@@ -133,8 +152,10 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
                     <button
                       type="button"
                       onClick={() => void act(e, 'offer')}
-                      disabled={!!blocked || busy === e.id}
+                      disabled={!!blocked || busy !== null}
                       title={blocked ?? undefined}
+                      aria-label={`Offer seats to ${e.name}`}
+                      aria-describedby={blocked ? `why-${e.id}` : undefined}
                       className="inline-flex items-center gap-1.5 rounded-btn bg-primary px-3 py-2 text-[13px] font-bold text-white transition-colors hover:bg-primary-ink disabled:opacity-45"
                     >
                       <Hand className="size-3.5" aria-hidden />
@@ -146,12 +167,14 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
                       <button
                         type="button"
                         onClick={() => void act(e, 'remove')}
-                        disabled={busy === e.id}
+                        disabled={busy !== null}
+                        aria-label={`Yes, remove ${e.name}`}
                         className="rounded-btn bg-warn px-3 py-2 text-[13px] font-bold text-white disabled:opacity-45"
                       >
                         Yes, remove
                       </button>
                       <button
+                        ref={keepRef}
                         type="button"
                         onClick={() => setConfirming(null)}
                         className="rounded-btn px-2 py-2 text-[13px] font-bold text-ink2"
@@ -163,6 +186,7 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
                     <button
                       type="button"
                       onClick={() => setConfirming(e.id)}
+                      disabled={busy !== null}
                       aria-label={`Remove ${e.name} from the waitlist`}
                       className="inline-flex items-center gap-1.5 rounded-btn border border-line px-3 py-2 text-[13px] font-bold text-ink2 transition-colors hover:border-ink"
                     >
@@ -171,7 +195,9 @@ export function WaitlistPanel({ initial }: { initial: Waitlist }) {
                     </button>
                   )}
                   {blocked && (
-                    <span className="w-full text-[12px] text-mute sm:text-right">{blocked}</span>
+                    <span id={`why-${e.id}`} className="w-full text-[12px] text-mute sm:text-right">
+                      {blocked}
+                    </span>
                   )}
                 </div>
               </li>
