@@ -96,6 +96,7 @@ const QUOTE = {
   subtotalPaise: 29_998_00,
   discountPaise: 0,
   addonsPaise: 0,
+  changeFeePaise: 0,
   totalPaise: 29_998_00,
 };
 const ORDER = {
@@ -395,6 +396,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
             },
           ],
           addonsPaise: 1_800_00,
+          changeFeePaise: 0,
           totalPaise: 31_798_00,
         });
       return json(200, QUOTE);

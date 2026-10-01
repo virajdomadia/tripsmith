@@ -153,6 +153,12 @@ class _Voucher:
             line = f"Discount {inr(f.manual_off_paise // 100)} · {f.manual_reason}"
             d.cell(0, 5, _clip(d, line, d.epw))
             d.set_y(y + 7)
+            y += 5
+        if f.change_fee_paise:  # P7: the date-change fee is part of the total
+            d.set_xy(MARGIN, y + 2)
+            d.font(9, "", MUTE)
+            d.cell(0, 5, f"Includes a date-change fee of {inr(f.change_fee_paise // 100)}")
+            d.set_y(y + 7)
 
     def travellers(self) -> None:
         d, f = self.doc, self.f

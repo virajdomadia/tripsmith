@@ -1,0 +1,22 @@
+{% if moved %}Your trip has moved, {{ b.first_name }}.
+
+Booking {{ b.ref }} — {{ b.package_name }} now departs {{ departs }} (it was {{ old_date }}).
+
+New dates:   {{ departs }} – {{ returns }}
+{% if fee %}Change fee:  {{ fee }}
+{% endif %}{% if paid_now %}Paid now:    {{ paid_now }}
+{% endif %}{% if refund %}Refund:      {{ refund }} — banks take 5–7 working days to show it
+{% endif %}Trip total:  {{ total }} · paid {{ paid }}
+{% if balance %}Balance:     {{ balance }} due by {{ due }}
+{% endif %}
+{% if voucher_attached %}Your new voucher is attached{% else %}Your new voucher is in My trips{% endif %}{% if invoice_attached %}, with the GST tax invoice{% endif %}. The old one no longer applies.
+{% else %}We couldn’t move your trip, {{ b.first_name }}.
+
+Your payment of {{ paid_now }} for booking {{ b.ref }} arrived after the hold on the new date had ended, so the change couldn’t be made and your trip stays on {{ departs }}. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.
+{% endif %}
+{{ demo_note }}
+
+Open your booking: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

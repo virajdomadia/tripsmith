@@ -36,6 +36,7 @@ from app.models.enums import (
     BookingStatus,
     CancellationStatus,
     CancelReason,
+    DateChangeState,
     Occupancy,
     PaymentProvider,
     PaymentStatus,
@@ -163,6 +164,11 @@ class Payment(IdMixin, TimestampsMixin, Base):
     __table_args__ = (
         Index("ix_payments_booking_id", "booking_id"),
         Index("ix_payments_razorpay_order_id", "razorpay_order_id"),
+        Index(  # 0019 (P7)
+            "ix_payments_date_change_id",
+            "date_change_id",
+            postgresql_where=text("date_change_id IS NOT NULL"),
+        ),
         Index(  # 0017 (P18b)
             "uq_payments_razorpay_link_id",
             "razorpay_link_id",
@@ -189,6 +195,8 @@ class Payment(IdMixin, TimestampsMixin, Base):
     raw: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # last webhook payload
     # 0014 (P8b): the priced "Add extras" selection this order pays for; null on a booking order.
     extras: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
+    # 0019 (P7): the date change this order pays the difference of; null on any other order.
+    date_change_id: Mapped[str | None] = mapped_column(ForeignKey("date_changes.id"))
 
     booking: Mapped[Booking] = relationship(back_populates="payments")
     refunds: Mapped[list["Refund"]] = relationship(
@@ -402,3 +410,49 @@ class GstDocument(IdMixin, Base):
     issued_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class DateChange(IdMixin, TimestampsMixin, Base):
+    """A move of a booking to another departure of its trip (R45, P7, 0019) — written through
+    `services/booking/changes.py`, never directly.
+
+    `held` keeps `party` seats on `to_departure_id` until `hold_expires_at` while the customer
+    pays the difference: the `departure_availability` view subtracts them, so the hold lapses by
+    itself like a booking's. `quote` is the booking's new price snapshot; `net_paise` = new fare
+    − current fare + fee (signed), `pay_paise` what was asked for now. `invoiced` = the booking
+    was paid in full (its tax invoice exists) when the change was made, so the change is a supply
+    of its own: a price-up gets a supplementary invoice, a price-down refund a credit note.
+    `travellers` = the new party when the owner changed it (P7b); null = the same party.
+    """
+
+    __tablename__ = "date_changes"
+    __table_args__ = (
+        Index("ix_date_changes_booking_id", "booking_id"),
+        Index(
+            "ix_date_changes_held",
+            "to_departure_id",
+            "hold_expires_at",
+            postgresql_where=text("state = 'held'"),
+        ),
+        CheckConstraint("state IN ('held', 'done', 'lapsed', 'cancelled')", name="state"),
+        CheckConstraint("actor IN ('customer', 'owner')", name="actor"),
+        CheckConstraint("party BETWEEN 1 AND 12", name="party"),
+        CheckConstraint("fee_paise >= 0 AND pay_paise >= 0", name="amounts"),
+        CheckConstraint("state <> 'held' OR hold_expires_at IS NOT NULL", name="hold_ends"),
+    )
+
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), nullable=False)
+    from_departure_id: Mapped[str] = mapped_column(ForeignKey("departures.id"), nullable=False)
+    to_departure_id: Mapped[str] = mapped_column(ForeignKey("departures.id"), nullable=False)
+    party: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    state: Mapped[DateChangeState] = mapped_column(TextEnum(DateChangeState), nullable=False)
+    hold_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fee_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    net_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    pay_paise: Mapped[int] = mapped_column(Integer, nullable=False)
+    quote: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    invoiced: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    actor: Mapped[str] = mapped_column(Text, nullable=False)  # customer | owner
+    by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str | None] = mapped_column(Text)  # the owner's, for a changed fee
+    travellers: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))

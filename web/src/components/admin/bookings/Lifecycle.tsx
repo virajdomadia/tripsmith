@@ -303,6 +303,12 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
               <span className="num">−{inr(b.quote.manual.offPaise)}</span>
             </div>
           )}
+          {b.quote.changeFeePaise > 0 && (
+            <div className="flex justify-between gap-3">
+              <span className="text-ink2">Date-change fee</span>
+              <span className="num">{inr(b.quote.changeFeePaise)}</span>
+            </div>
+          )}
           <BookedAddons
             quote={b.quote}
             addons={b.addons ?? []}

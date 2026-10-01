@@ -83,6 +83,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Change Options
+         * @description P7: the dates this booking can move to, each re-quoted for it (the earned discounts kept
+         *     in ₹, today's fee, what to pay now or get back). 409 `change_closed` with the reason.
+         */
+        get: operations["getChangeOptions"];
+        put?: never;
+        /**
+         * Post Change
+         * @description P7: move the booking to another date of the trip. Nothing to pay → moved now (`done`; any
+         *     refund goes out at once). Something to pay → the new date's seats are held for 10 minutes
+         *     and a Razorpay order is opened (`pay`); Checkout's success handler posts to `confirmPayment`
+         *     and `syncPayment` checks it on close, like any payment — the move happens on the capture.
+         *     409 `change_closed` / `price_changed` / `sold_out` / `too_soon` / `same_date`.
+         */
+        post: operations["changeDate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/documents/{key}.pdf": {
         parameters: {
             query?: never;
@@ -1710,6 +1739,8 @@ export interface components {
              */
             canReview: boolean;
             cancellation?: components["schemas"]["AccountCancellation"] | null;
+            /** @description P7: Change date — open or not, and the fee rule */
+            change: components["schemas"]["ChangeOffer"];
             /** Coverurl */
             coverUrl?: string | null;
             /** Days */
@@ -3288,6 +3319,166 @@ export interface components {
          * @enum {string}
          */
         CancellationStatus: "requested" | "approved" | "rejected";
+        /**
+         * ChangeOffer
+         * @description The "Change date" card on a booking: open or not, and the fee rule in dates.
+         */
+        ChangeOffer: {
+            /**
+             * Feepaise
+             * @description Today's fee for the whole party
+             */
+            feePaise: number | null;
+            /**
+             * Feepertravellerpaise
+             * @description Today's fee per traveller (0 = free); null = no longer online
+             */
+            feePerTravellerPaise: number | null;
+            /**
+             * Freeuntil
+             * Format: date
+             * @description The last IST day a change is free (departure − 30)
+             */
+            freeUntil: string;
+            /**
+             * Lastday
+             * Format: date
+             * @description The last IST day to change online (departure − 15)
+             */
+            lastDay: string;
+            /** Open */
+            open: boolean;
+            /**
+             * Reason
+             * @description Why it is closed, in the customer's words
+             */
+            reason: string | null;
+            /**
+             * Used
+             * @description The booking's one self-serve change is spent
+             */
+            used: boolean;
+        };
+        /**
+         * ChangeOption
+         * @description One date the booking could move to, re-quoted for this booking.
+         */
+        ChangeOption: {
+            /**
+             * Balancepaise
+             * @description What would still be owed after the move
+             */
+            balancePaise: number;
+            /** Bookable */
+            bookable: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Differencepaise
+             * @description This date's fare − the current fare (signed)
+             */
+            differencePaise: number;
+            /**
+             * Dueon
+             * @description When that balance would be due
+             */
+            dueOn: string | null;
+            /**
+             * Farepaise
+             * @description The trip fare on this date, the earned discounts kept
+             */
+            farePaise: number;
+            /** Feepaise */
+            feePaise: number;
+            /**
+             * Netpaise
+             * @description difference + fee: above 0 = to pay, below = back
+             */
+            netPaise: number;
+            /**
+             * Paynowpaise
+             * @description What the move asks for now (0 = instant)
+             */
+            payNowPaise: number;
+            /**
+             * Refundpaise
+             * @description What goes back to the customer
+             */
+            refundPaise: number;
+            /** Seatsleft */
+            seatsLeft: number;
+            /**
+             * Totalpaise
+             * @description The booking's total after the move
+             */
+            totalPaise: number;
+            /** @description Why it can't be picked */
+            unbookable: components["schemas"]["UnbookableReason"] | null;
+        };
+        /**
+         * ChangeOptions
+         * @description `GET /account/bookings/{ref}/change`: the dates, nearest first.
+         */
+        ChangeOptions: {
+            /**
+             * Currentdate
+             * Format: date
+             */
+            currentDate: string;
+            /** Currentfarepaise */
+            currentFarePaise: number;
+            /** Feepaise */
+            feePaise: number;
+            /** Options */
+            options: components["schemas"]["ChangeOption"][];
+            /** Party */
+            party: number;
+        };
+        /** ChangeRequest */
+        ChangeRequest: {
+            /** Departureid */
+            departureId: string;
+            /**
+             * Expectednetpaise
+             * @description The net the customer was shown; a different one now = 409 price_changed
+             */
+            expectedNetPaise: number;
+        };
+        /**
+         * ChangeResult
+         * @description The move: made at once (`done`), or waiting for the difference (`pay` — open Checkout
+         *     with the order; the new date's seats are held until `holdExpiresAt`).
+         */
+        ChangeResult: {
+            /** Bookingref */
+            bookingRef: string;
+            /**
+             * Date
+             * Format: date
+             * @description The new date
+             */
+            date: string;
+            /** Holdexpiresat */
+            holdExpiresAt?: string | null;
+            /** Keyid */
+            keyId?: string | null;
+            /** Orderid */
+            orderId?: string | null;
+            /** Paynowpaise */
+            payNowPaise: number;
+            /** Refundpaise */
+            refundPaise: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "pay";
+        };
         /**
          * CounterBookingRequest
          * @description `POST /admin/counter/bookings`: book and settle in one step.
@@ -5481,6 +5672,12 @@ export interface components {
              * @description The add-on lines' total, at full price
              */
             addonsPaise: number;
+            /**
+             * Changefeepaise
+             * @description P7: date-change fees paid on this booking so far (0 = none)
+             * @default 0
+             */
+            changeFeePaise: number;
             coupon: components["schemas"]["QuoteCoupon"] | null;
             /**
              * Date
@@ -5519,7 +5716,7 @@ export interface components {
             subtotalPaise: number;
             /**
              * Totalpaise
-             * @description subtotal − discount + add-ons
+             * @description subtotal − discount + add-ons + change fees
              */
             totalPaise: number;
         };
@@ -6004,6 +6201,12 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * UnbookableReason
+         * @description Why a departure cannot be booked — the 409's `reason`, and the picker's grey label.
+         * @enum {string}
+         */
+        UnbookableReason: "on_request" | "too_soon" | "sold_out";
         /** UpcomingDeparture */
         UpcomingDeparture: {
             /** @description `pricing.badge_for`, the same rule the public departure table shows */
@@ -6250,6 +6453,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountCancellation"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getChangeOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeOptions"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    changeDate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeResult"];
                 };
             };
             /** @description Error envelope (06 C0) */

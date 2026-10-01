@@ -216,6 +216,7 @@ const QUOTE = {
   subtotalPaise: 11_998_00,
   discountPaise: 0,
   addonsPaise: 1_800_00,
+  changeFeePaise: 0,
   totalPaise: 13_798_00,
 };
 const BOOKED = [

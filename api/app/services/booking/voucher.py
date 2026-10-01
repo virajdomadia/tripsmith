@@ -115,6 +115,7 @@ class BookingFacts:
     coupon_off_paise: int = 0  # from the booking's quote snapshot
     manual_off_paise: int = 0  # P18: the counter's discount, from the snapshot
     manual_reason: str | None = None
+    change_fee_paise: int = 0  # P7: date-change fees in the total, from the snapshot
     addons: tuple[AddonFact, ...] = ()  # P8: what the booking still has, in the order bought
     deposit_paise: int | None = None  # P5: made on a deposit
     balance_due_on: dt.date | None = None  # P5: the balance's due day (IST)
@@ -200,6 +201,7 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         coupon_off_paise=coupon_off_of(booking.quote),
         manual_off_paise=manual_of(booking.quote)[0],
         manual_reason=manual_of(booking.quote)[1],
+        change_fee_paise=int(booking.quote.get("changeFeePaise") or 0),
         addons=addon_facts(booking.addons),
         deposit_paise=booking.deposit_paise,
         balance_due_on=booking.balance_due_on,

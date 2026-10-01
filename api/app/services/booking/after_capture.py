@@ -91,6 +91,20 @@ async def on_new_capture(
     # that no longer takes it, an add-on it already had (P8b), or the part of two balance parts
     # paid at once that went beyond the total (P5). Nothing planned = one read, no call.
     await send_refunds(db, ref, notify.razorpay)
+    if capture.settled in (Settled.DATE_CHANGED, Settled.CHANGE_LAPSED):  # P7
+        # Imported here: the change emails reuse this module's voucher attachment.
+        from app.services.email.changes import send_change_emails_for_payment
+        from app.services.email.waitlist import send_due
+
+        await send_change_emails_for_payment(
+            db,
+            notify,
+            ref,
+            capture.payment_id,
+            lapsed=capture.settled == Settled.CHANGE_LAPSED,
+        )
+        await send_due(db, notify)  # the old date's freed seats may have made offers
+        return
     try:
         facts = await load_booking_facts(db, ref)
     except Exception as exc:

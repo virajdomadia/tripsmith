@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.email import EmailAttachment
-from app.models import Booking, BookingAddon, GstDocument, Payment, Refund
+from app.models import Booking, BookingAddon, DateChange, GstDocument, Payment, Refund
 from app.models.enums import PaymentProvider
 from app.services.booking.addons import AddonFact
+from app.services.booking.changes import departure_dates
 from app.services.booking.voucher import load_booking_facts, offline_reference
+from app.services.format import inr, long_date
 from app.services.gst.documents import NO_DOCUMENT, DocRef, issue, off_the_bill
 from app.services.pdf.gst import GstFacts, gst_filename, render_gst_document
 
@@ -28,9 +30,11 @@ async def gst_facts(db: AsyncSession, ref: str, doc: DocRef) -> GstFacts:
         facts = await load_booking_facts(db, ref)
         if facts is None:
             raise ApiError("not_found", NO_DOCUMENT)
-        payment_label = invoice_number = invoice_dated = reason = None
+        payment_label = invoice_number = invoice_dated = reason = date_change = None
         if doc.payment_id:
             p = (await db.execute(select(Payment).where(Payment.id == doc.payment_id))).scalar_one()
+            if doc.kind == "invoice" and p.date_change_id is not None:
+                date_change = await _change_words(db, p.date_change_id)
             if p.provider == PaymentProvider.OFFLINE:
                 offline = offline_reference(p)
                 payment_label = f"Offline · {offline}" if offline else "Offline"
@@ -89,9 +93,22 @@ async def gst_facts(db: AsyncSession, ref: str, doc: DocRef) -> GstFacts:
             invoice_dated=invoice_dated,
             refund_reason=reason,
             invoice_addons=invoice_addons,
+            date_change=date_change,
         )
     finally:
         await db.rollback()
+
+
+async def _change_words(db: AsyncSession, change_id: str) -> str:
+    """P7: "moved from 13 Nov 2026 to 20 Nov 2026 · fee ₹2,000" for a supplementary invoice
+    (words, not an arrow: the PDF font has none)."""
+    c = (await db.execute(select(DateChange).where(DateChange.id == change_id))).scalar_one()
+    dates = await departure_dates(db, [c.from_departure_id, c.to_departure_id])
+    fee = f" · fee {inr(c.fee_paise // 100)}" if c.fee_paise else ""
+    return (
+        f"moved from {long_date(dates[c.from_departure_id])} to "
+        f"{long_date(dates[c.to_departure_id])}{fee}"
+    )
 
 
 async def document_pdf(

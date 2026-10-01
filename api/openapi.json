@@ -241,6 +241,10 @@
               }
             ]
           },
+          "change": {
+            "$ref": "#/components/schemas/ChangeOffer",
+            "description": "P7: Change date — open or not, and the fee rule"
+          },
           "coverUrl": {
             "anyOf": [
               {
@@ -400,7 +404,8 @@
           "canReview",
           "activity",
           "addons",
-          "extras"
+          "extras",
+          "change"
         ],
         "title": "AccountBookingDetail",
         "type": "object"
@@ -3787,6 +3792,315 @@
         ],
         "title": "CancellationStatus",
         "type": "string"
+      },
+      "ChangeOffer": {
+        "description": "The \"Change date\" card on a booking: open or not, and the fee rule in dates.",
+        "properties": {
+          "feePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Today's fee for the whole party",
+            "title": "Feepaise"
+          },
+          "feePerTravellerPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Today's fee per traveller (0 = free); null = no longer online",
+            "title": "Feepertravellerpaise"
+          },
+          "freeUntil": {
+            "description": "The last IST day a change is free (departure − 30)",
+            "format": "date",
+            "title": "Freeuntil",
+            "type": "string"
+          },
+          "lastDay": {
+            "description": "The last IST day to change online (departure − 15)",
+            "format": "date",
+            "title": "Lastday",
+            "type": "string"
+          },
+          "open": {
+            "title": "Open",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is closed, in the customer's words",
+            "title": "Reason"
+          },
+          "used": {
+            "description": "The booking's one self-serve change is spent",
+            "title": "Used",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "open",
+          "reason",
+          "feePerTravellerPaise",
+          "feePaise",
+          "freeUntil",
+          "lastDay",
+          "used"
+        ],
+        "title": "ChangeOffer",
+        "type": "object"
+      },
+      "ChangeOption": {
+        "description": "One date the booking could move to, re-quoted for this booking.",
+        "properties": {
+          "balancePaise": {
+            "description": "What would still be owed after the move",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "bookable": {
+            "title": "Bookable",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "differencePaise": {
+            "description": "This date's fare − the current fare (signed)",
+            "title": "Differencepaise",
+            "type": "integer"
+          },
+          "dueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When that balance would be due",
+            "title": "Dueon"
+          },
+          "farePaise": {
+            "description": "The trip fare on this date, the earned discounts kept",
+            "title": "Farepaise",
+            "type": "integer"
+          },
+          "feePaise": {
+            "title": "Feepaise",
+            "type": "integer"
+          },
+          "netPaise": {
+            "description": "difference + fee: above 0 = to pay, below = back",
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "payNowPaise": {
+            "description": "What the move asks for now (0 = instant)",
+            "title": "Paynowpaise",
+            "type": "integer"
+          },
+          "refundPaise": {
+            "description": "What goes back to the customer",
+            "title": "Refundpaise",
+            "type": "integer"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "totalPaise": {
+            "description": "The booking's total after the move",
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "unbookable": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnbookableReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it can't be picked"
+          }
+        },
+        "required": [
+          "departureId",
+          "date",
+          "seatsLeft",
+          "bookable",
+          "unbookable",
+          "farePaise",
+          "differencePaise",
+          "feePaise",
+          "netPaise",
+          "totalPaise",
+          "payNowPaise",
+          "refundPaise",
+          "balancePaise",
+          "dueOn"
+        ],
+        "title": "ChangeOption",
+        "type": "object"
+      },
+      "ChangeOptions": {
+        "description": "`GET /account/bookings/{ref}/change`: the dates, nearest first.",
+        "properties": {
+          "currentDate": {
+            "format": "date",
+            "title": "Currentdate",
+            "type": "string"
+          },
+          "currentFarePaise": {
+            "title": "Currentfarepaise",
+            "type": "integer"
+          },
+          "feePaise": {
+            "title": "Feepaise",
+            "type": "integer"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "party": {
+            "title": "Party",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currentDate",
+          "currentFarePaise",
+          "party",
+          "feePaise",
+          "options"
+        ],
+        "title": "ChangeOptions",
+        "type": "object"
+      },
+      "ChangeRequest": {
+        "properties": {
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "expectedNetPaise": {
+            "description": "The net the customer was shown; a different one now = 409 price_changed",
+            "title": "Expectednetpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "expectedNetPaise"
+        ],
+        "title": "ChangeRequest",
+        "type": "object"
+      },
+      "ChangeResult": {
+        "description": "The move: made at once (`done`), or waiting for the difference (`pay` — open Checkout\nwith the order; the new date's seats are held until `holdExpiresAt`).",
+        "properties": {
+          "bookingRef": {
+            "title": "Bookingref",
+            "type": "string"
+          },
+          "date": {
+            "description": "The new date",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "holdExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holdexpiresat"
+          },
+          "keyId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyid"
+          },
+          "orderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orderid"
+          },
+          "payNowPaise": {
+            "title": "Paynowpaise",
+            "type": "integer"
+          },
+          "refundPaise": {
+            "title": "Refundpaise",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "pay"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookingRef",
+          "state",
+          "date",
+          "payNowPaise",
+          "refundPaise"
+        ],
+        "title": "ChangeResult",
+        "type": "object"
       },
       "CounterBookingRequest": {
         "description": "`POST /admin/counter/bookings`: book and settle in one step.\n\n`paid` = the whole total taken now (cash, UPI or bank), confirmed at once with a receipt;\n`deposit` = the quote's deposit taken now, the balance due later as on the website.",
@@ -8450,6 +8764,12 @@
             "title": "Addonspaise",
             "type": "integer"
           },
+          "changeFeePaise": {
+            "default": 0,
+            "description": "P7: date-change fees paid on this booking so far (0 = none)",
+            "title": "Changefeepaise",
+            "type": "integer"
+          },
           "coupon": {
             "anyOf": [
               {
@@ -8546,7 +8866,7 @@
             "type": "integer"
           },
           "totalPaise": {
-            "description": "subtotal − discount + add-ons",
+            "description": "subtotal − discount + add-ons + change fees",
             "title": "Totalpaise",
             "type": "integer"
           }
@@ -9544,6 +9864,16 @@
         "title": "TravellerDetails",
         "type": "object"
       },
+      "UnbookableReason": {
+        "description": "Why a departure cannot be booked — the 409's `reason`, and the picker's grey label.",
+        "enum": [
+          "on_request",
+          "too_soon",
+          "sold_out"
+        ],
+        "title": "UnbookableReason",
+        "type": "string"
+      },
       "UpcomingDeparture": {
         "properties": {
           "badge": {
@@ -9995,6 +10325,108 @@
           }
         },
         "summary": "Post Cancellation",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/change": {
+      "get": {
+        "description": "P7: the dates this booking can move to, each re-quoted for it (the earned discounts kept\nin ₹, today's fee, what to pay now or get back). 409 `change_closed` with the reason.",
+        "operationId": "getChangeOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Change Options",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "description": "P7: move the booking to another date of the trip. Nothing to pay → moved now (`done`; any\nrefund goes out at once). Something to pay → the new date's seats are held for 10 minutes\nand a Razorpay order is opened (`pay`); Checkout's success handler posts to `confirmPayment`\nand `syncPayment` checks it on close, like any payment — the move happens on the capture.\n409 `change_closed` / `price_changed` / `sold_out` / `too_soon` / `same_date`.",
+        "operationId": "changeDate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Change",
         "tags": [
           "account"
         ]

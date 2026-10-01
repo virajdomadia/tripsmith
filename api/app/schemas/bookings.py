@@ -420,7 +420,10 @@ class Quote(ApiModel):
         "manual discount, as a positive number; never touches the add-ons"
     )
     addons_paise: int = Field(description="The add-on lines' total, at full price")
-    total_paise: int = Field(description="subtotal − discount + add-ons")
+    change_fee_paise: int = Field(
+        default=0, description="P7: date-change fees paid on this booking so far (0 = none)"
+    )
+    total_paise: int = Field(description="subtotal − discount + add-ons + change fees")
     deposit: QuoteDeposit | None = Field(
         default=None, description="P5: the deposit option (null = pay in full only)"
     )
@@ -428,8 +431,8 @@ class Quote(ApiModel):
     @property
     def fare_paise(self) -> int:
         """The trip fare after its discounts — what a coupon's %, cap and minimum are measured
-        on. Add-ons are never discounted (R46)."""
-        return self.total_paise - self.addons_paise
+        on. Add-ons are never discounted (R46); a date-change fee (P7) is not fare."""
+        return self.total_paise - self.addons_paise - self.change_fee_paise
 
     @model_validator(mode="before")
     @classmethod

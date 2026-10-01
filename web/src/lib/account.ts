@@ -184,6 +184,39 @@ export const orderBalance = (ref: string, amountPaise: number) =>
     amountPaise,
   });
 
+/** P7: move the booking to another date — done at once, or a Razorpay order for the rise. */
+export const changeDate = (ref: string, departureId: string, expectedNetPaise: number) =>
+  postJson<components['schemas']['ChangeResult']>(
+    `/api/account/bookings/${encodeURIComponent(ref)}/change`,
+    { departureId, expectedNetPaise },
+  );
+
+/** P7: the dates the booking can move to, each re-quoted by the server. */
+export async function loadChangeOptions(
+  ref: string,
+): Promise<Result<components['schemas']['ChangeOptions']>> {
+  try {
+    const res = await fetch(`/api/account/bookings/${encodeURIComponent(ref)}/change`, {
+      cache: 'no-store',
+    });
+    const json = (await res.json().catch(() => undefined)) as
+      | components['schemas']['ChangeOptions']
+      | { error?: { message?: string; reason?: string | null } }
+      | undefined;
+    if (res.ok) return { ok: true, data: json as components['schemas']['ChangeOptions'] };
+    const error = (json as { error?: { message?: string; reason?: string | null } })?.error;
+    return {
+      ok: false,
+      error: {
+        message: error?.message ?? 'Something went wrong — try again',
+        reason: error?.reason,
+      },
+    };
+  } catch {
+    return { ok: false, error: { message: 'Could not reach the server — check your connection' } };
+  }
+}
+
 export const sendReview = (ref: string, rating: number, text: string) =>
   postJson<AccountReview>(`/api/account/bookings/${encodeURIComponent(ref)}/review`, {
     rating,

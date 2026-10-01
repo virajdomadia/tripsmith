@@ -81,6 +81,7 @@ const QUOTE = {
   subtotalPaise: 29_998_00,
   discountPaise: 0,
   addonsPaise: 0,
+  changeFeePaise: 0,
   totalPaise: 29_998_00,
 };
 const TOKEN = 'ckentry01.1.0123456789abcdef0123456789abcdef';

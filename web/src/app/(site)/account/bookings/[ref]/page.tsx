@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Activity } from '@/components/site/account/Activity';
 import { BalancePanel } from '@/components/site/account/BalancePanel';
 import { CancelPanel } from '@/components/site/account/CancelPanel';
+import { ChangeDatePanel } from '@/components/site/account/ChangeDatePanel';
 import { ReviewPanel } from '@/components/site/account/ReviewPanel';
 import { PILL } from '@/components/site/account/TripRow';
 import { Container } from '@/components/site/Container';
@@ -34,7 +35,8 @@ const REF = /^TB-[A-Z0-9]{6}$/;
  * and the cancellation block — the policy tier that applies today, and the request form while
  * a request can still be made. A completed trip leads with its review (R21, B13), and the
  * booking's customer-safe history closes the page as "Activity" (R54, P16). A booking made on
- * a deposit leads with its balance: paid, left, due by, and Pay now in parts (R43, P5).
+ * a deposit leads with its balance: paid, left, due by, and Pay now in parts (R43, P5). The rail
+ * offers Change date (R45, P7) above the cancellation block.
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -195,6 +197,14 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                   </span>
                 </div>
               )}
+              {b.quote.changeFeePaise > 0 && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-ink2">Date-change fee</span>
+                  <span className="num shrink-0 whitespace-nowrap">
+                    {inr(b.quote.changeFeePaise)}
+                  </span>
+                </div>
+              )}
               <BookedAddons quote={b.quote} addons={b.addons ?? []} />
               <div className="mt-1 flex items-baseline justify-between border-t-[1.5px] border-ink pt-2.5">
                 <span className="font-bold">Total</span>
@@ -270,6 +280,14 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
                 refund goes out.
               </p>
             </section>
+          )}
+          {upcoming && (b.status === 'confirmed' || b.status === 'partially_paid') && (
+            <ChangeDatePanel
+              bookingRef={b.ref}
+              offer={b.change}
+              contact={{ name: b.leadName, email: b.leadEmail, phone: b.leadPhone }}
+              packageName={b.packageName}
+            />
           )}
           <CancelPanel
             bookingRef={b.ref}

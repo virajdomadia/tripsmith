@@ -208,6 +208,9 @@ async def record_failed_payment(
             razorpay_order_id=order_id,
             amount_paise=rows[0].amount_paise,
             extras=next((p.extras for p in rows if p.extras is not None), None),  # P8b
+            date_change_id=next(  # P7: a late authorisation on this row still pays the change
+                (p.date_change_id for p in rows if p.date_change_id is not None), None
+            ),
         )
         db.add(payment)
     payment.razorpay_payment_id = payment_id
