@@ -2,8 +2,8 @@
 {% set title = ("Your trip has moved — " if moved else "About your date change — ") ~ b.ref %}
 {% block body %}
 {% if moved %}
-<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Your trip has moved, {{ b.first_name }}.</h1>
-<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }} now departs <b>{{ departs }}</b> (it was {{ old_date }}).</p>
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">{% if same_date %}Your booking has been updated, {{ b.first_name }}.{% else %}Your trip has moved, {{ b.first_name }}.{% endif %}</h1>
+<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }}{% if same_date %}, {{ departs }}: we updated your party and price.{% else %} now departs <b>{{ departs }}</b> (it was {{ old_date }}).{% endif %}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
 <tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">New dates</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;font-weight:700;">{{ departs }} – {{ returns }}</td></tr>
 {% if fee %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Change fee</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ fee }}</td></tr>{% endif %}

@@ -1070,6 +1070,11 @@
             "title": "Canmarkpaid",
             "type": "boolean"
           },
+          "canMove": {
+            "description": "P7b: confirmed or part paid — Move on the desk",
+            "title": "Canmove",
+            "type": "boolean"
+          },
           "canRelease": {
             "description": "Pending",
             "title": "Canrelease",
@@ -1297,7 +1302,8 @@
           "seatsShort",
           "review",
           "addons",
-          "canRemoveAddons"
+          "canRemoveAddons",
+          "canMove"
         ],
         "title": "AdminBooking",
         "type": "object"
@@ -7843,6 +7849,308 @@
         "title": "MoneyRisk",
         "type": "object"
       },
+      "MoveDate": {
+        "description": "One date of the trip the owner can move a booking to (its own date included, for a\nchange of party only).",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "seatsLeft": {
+            "description": "Free seats, counting this booking's own on its date",
+            "title": "Seatsleft",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "date",
+          "seatsLeft",
+          "current"
+        ],
+        "title": "MoveDate",
+        "type": "object"
+      },
+      "MoveOptions": {
+        "description": "`GET /admin/bookings/{ref}/move`: the dates, the party and the fee the tier suggests.",
+        "properties": {
+          "currentDate": {
+            "format": "date",
+            "title": "Currentdate",
+            "type": "string"
+          },
+          "dates": {
+            "items": {
+              "$ref": "#/components/schemas/MoveDate"
+            },
+            "title": "Dates",
+            "type": "array"
+          },
+          "suggestedFeePaise": {
+            "description": "The self-serve tier on the booking's date: 30+ days free, else ₹1,000 a traveller",
+            "title": "Suggestedfeepaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "items": {
+              "$ref": "#/components/schemas/CounterTraveller"
+            },
+            "title": "Travellers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "currentDate",
+          "travellers",
+          "suggestedFeePaise",
+          "dates"
+        ],
+        "title": "MoveOptions",
+        "type": "object"
+      },
+      "MoveQuote": {
+        "description": "The owner's preview of a move.",
+        "properties": {
+          "addonsChangePaise": {
+            "description": "What a party change does to the add-ons",
+            "title": "Addonschangepaise",
+            "type": "integer"
+          },
+          "currentFarePaise": {
+            "title": "Currentfarepaise",
+            "type": "integer"
+          },
+          "dueOn": {
+            "description": "When an amount added to the balance would be due",
+            "format": "date",
+            "title": "Dueon",
+            "type": "string"
+          },
+          "farePaise": {
+            "description": "The fare on the new date, the earned discounts kept",
+            "title": "Farepaise",
+            "type": "integer"
+          },
+          "feePaise": {
+            "title": "Feepaise",
+            "type": "integer"
+          },
+          "fits": {
+            "title": "Fits",
+            "type": "boolean"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "owedPaise": {
+            "description": "What the customer would owe after the move",
+            "title": "Owedpaise",
+            "type": "integer"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "refundPaise": {
+            "description": "What would go back after the move",
+            "title": "Refundpaise",
+            "type": "integer"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          },
+          "suggestedFeePaise": {
+            "description": "The tier's fee for this party (0 for a fee-only change on the same date)",
+            "title": "Suggestedfeepaise",
+            "type": "integer"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currentFarePaise",
+          "farePaise",
+          "addonsChangePaise",
+          "feePaise",
+          "suggestedFeePaise",
+          "netPaise",
+          "totalPaise",
+          "paidPaise",
+          "owedPaise",
+          "refundPaise",
+          "dueOn",
+          "seatsLeft",
+          "fits"
+        ],
+        "title": "MoveQuote",
+        "type": "object"
+      },
+      "MoveQuoteRequest": {
+        "properties": {
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "feePaise": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = the suggested fee",
+            "title": "Feepaise"
+          },
+          "travellers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CounterTraveller"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The new party; null = the same travellers",
+            "title": "Travellers"
+          }
+        },
+        "required": [
+          "departureId"
+        ],
+        "title": "MoveQuoteRequest",
+        "type": "object"
+      },
+      "MoveRequest": {
+        "description": "`POST /admin/bookings/{ref}/move`. A rise is settled now offline, or added to the\nbalance; a fall is refunded through Razorpay (or comes off the balance).",
+        "properties": {
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "expectedNetPaise": {
+            "title": "Expectednetpaise",
+            "type": "integer"
+          },
+          "feePaise": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = the suggested fee",
+            "title": "Feepaise"
+          },
+          "feeReason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when the fee differs from the tier",
+            "title": "Feereason"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cash",
+                  "upi",
+                  "bank"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "settle": {
+            "anyOf": [
+              {
+                "enum": [
+                  "offline",
+                  "balance"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when the price rises",
+            "title": "Settle"
+          },
+          "travellers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CounterTraveller"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The new party; null = the same travellers",
+            "title": "Travellers"
+          }
+        },
+        "required": [
+          "departureId",
+          "expectedNetPaise"
+        ],
+        "title": "MoveRequest",
+        "type": "object"
+      },
       "NextDeparture": {
         "description": "A package card's seat fill (R59, P20 · Packages B).",
         "properties": {
@@ -11483,6 +11791,153 @@
           }
         },
         "summary": "Mark Paid Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/move": {
+      "get": {
+        "description": "P7b: the trip's dates (its own included, for a party change), the party, and the fee the\nself-serve tier suggests. 409 `not_movable` unless confirmed or part paid.",
+        "operationId": "getMoveOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Move Options Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "P7b: move the booking now — to another date and/or party. A rise is paid now offline or\nadded to the balance; a fall is refunded through Razorpay (or comes off the balance). The\ncustomer gets \"Your trip has moved\" with the new voucher. 409 `price_changed` / `sold_out`\n/ `not_movable` / `nothing_to_move`.",
+        "operationId": "moveBooking",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Move Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/move/quote": {
+      "post": {
+        "description": "P7b: what a move would do — the new fare (earned discounts kept in ₹), the add-ons after\na party change, the fee, and what the customer would then owe or get back.",
+        "operationId": "quoteMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveQuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveQuote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Move Quote Route",
         "tags": [
           "admin"
         ]

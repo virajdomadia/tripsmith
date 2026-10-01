@@ -152,6 +152,11 @@ def reprice(
     unit_off: dict[tuple[QuoteLineKind, Occupancy], int] = {
         (li.kind, li.occupancy): -li.unit_paise for li in old.lines if li.kind in DISCOUNTS
     }
+    # A room type new to the party (P7b) gets the biggest per-head amount the booking earned.
+    for kind in DISCOUNTS:
+        earned = max((v for (k, _), v in unit_off.items() if k == kind), default=0)
+        for occ in ORDER:
+            unit_off.setdefault((kind, occ), earned)
     lines: list[QuoteLine] = []
 
     def line(kind: QuoteLineKind, occ: Occupancy, unit: int) -> None:
@@ -551,7 +556,7 @@ async def start_change(
         asked = await _open_request(db, booking.id)
         if why := refusal(booking, departs, today, asked=asked, used=await _used(db, booking.id)):
             raise ApiError("conflict", why, reason="change_closed")
-        await _end_holds(db, booking.id)  # a newer pick replaces a hold not yet paid for
+        await end_holds(db, booking.id)  # a newer pick replaces a hold not yet paid for
         dep = (await db.execute(select(Departure).where(Departure.id == departure_id))).scalar_one()
         party = await _party(db, booking.id)
         fee = (fee_per_traveller(departs, today) or 0) * party
@@ -667,7 +672,7 @@ async def start_change(
     )
 
 
-async def _end_holds(db: AsyncSession, booking_id: str) -> None:
+async def end_holds(db: AsyncSession, booking_id: str) -> None:
     """End the booking's change holds not yet paid for (a newer pick replaces them). A payment
     that still lands on one is refunded by `settle_change`."""
     await db.execute(
@@ -745,6 +750,8 @@ async def apply_swap(
     await db.flush()
     await db.refresh(booking)
     fee = f" · fee {money(change.fee_paise)}" if change.fee_paise else ""
+    if change.reason:  # the owner's, for a fee off the tier (P7b)
+        fee += f" ({change.reason})"
     sign = "+" if change.net_paise > 0 else "−" if change.net_paise < 0 else "±"
     diff = f"{sign}{money(abs(change.net_paise))}"
     still = (
@@ -758,9 +765,17 @@ async def apply_swap(
         "date.changed",
         actor=actor,
         by=by,
-        text=f"Date changed: {history.day(old_date)} → {history.day(new_date)} · "
-        f"{history.travellers(change.party)} · {diff}{fee} · total {money(total)}{still}",
-        customer=f"Your trip moved from {history.day(old_date)} to {history.day(new_date)}"
+        text=(
+            f"Date changed: {history.day(old_date)} → {history.day(new_date)}"
+            if old_id != change.to_departure_id
+            else f"Re-priced on {history.day(old_date)}"
+        )
+        + f" · {history.travellers(change.party)} · {diff}{fee} · total {money(total)}{still}",
+        customer=(
+            f"Your trip moved from {history.day(old_date)} to {history.day(new_date)}"
+            if old_id != change.to_departure_id
+            else f"Your booking was updated — the total is now {money(total)}"
+        )
         + (f" — {money(total - paid)} is due by {history.day(due)}" if still and due else ""),
         before=before,
         after={

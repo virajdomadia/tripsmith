@@ -520,6 +520,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         review=await review_for_booking(db, b.id),
         addons=await extras.booked(db, b.id),
         can_remove_addons=b.status in extras.TAKES_EXTRAS,
+        can_move=b.status in extras.TAKES_EXTRAS,  # the same two states as a date change
         balance=admin_balance(b, seats.date),
         channel=b.channel,
         created_by=(

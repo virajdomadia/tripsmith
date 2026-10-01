@@ -640,3 +640,12 @@ async def test_two_bookings_swapping_dates_in_opposite_directions_both_move(
         a_date, b_date = b_date, a_date
     no_orders = select(Payment).where(Payment.date_change_id.is_not(None))
     assert (await db.execute(no_orders)).first() is None  # same price: nothing to pay
+
+
+def test_a_room_type_new_to_the_party_gets_the_per_head_discount_the_booking_earned() -> None:
+    old = _quote(20_000_00, deal=1_000_00, eb=500_00)
+    party = Counter({Occupancy.DOUBLE: 2, Occupancy.SINGLE: 1})
+    new = reprice(old, _dep(20_000_00), fee_paise=0, seats_left=8, party=party)
+    single = {li.kind: li.unit_paise for li in new.lines if li.occupancy == Occupancy.SINGLE}
+    assert single[QuoteLineKind.DEAL] == -1_000_00
+    assert single[QuoteLineKind.EARLY_BIRD] == -500_00

@@ -18,7 +18,7 @@ export interface Step {
   /** History kinds shown when this step is opened. */
   kinds: readonly string[];
 }
-export type MoveKey = 'mark-paid' | 'release' | 'refund-made' | 'approve' | 'reject';
+export type MoveKey = 'mark-paid' | 'release' | 'refund-made' | 'approve' | 'reject' | 'move';
 export interface Move {
   key: MoveKey;
   title: string;
@@ -394,6 +394,19 @@ export function moves(b: AdminBooking): Move[] {
             ],
     });
   }
+  if (b.canMove) {
+    out.push({
+      key: 'move',
+      title: 'Move to another date or party',
+      becomes: b.status === 'partially_paid' ? 'Deposit paid · new date' : 'Confirmed · new date',
+      tone: 'ok',
+      effects: [
+        ['Seats', 'Freed on the old date (its waitlist is offered them), taken on the new one'],
+        ['Money', 'Re-priced, discounts kept in ₹ — a rise paid offline or added to the balance'],
+        ['Email', '“Your trip has moved” with the new voucher'],
+      ],
+    });
+  }
   return out;
 }
 
@@ -417,6 +430,8 @@ export function blocked(b: AdminBooking): [string, string][] {
       b.cancellation ? `Already ${b.cancellation.status}` : 'No request from the customer',
     ]);
   }
+  if (!b.canMove)
+    out.push(['Move to another date', 'Only a confirmed or part-paid booking can be moved']);
   if (b.status === 'confirmed')
     out.push(['Mark completed', `The daily tidy does it after ${formatDate(b.departs)}`]);
   return out;
