@@ -33,8 +33,17 @@ log = logging.getLogger(__name__)
 
 
 async def send_change_emails(
-    db: AsyncSession, notify: Notify | None, ref: str, change_id: str, *, refund_paise: int = 0
+    db: AsyncSession,
+    notify: Notify | None,
+    ref: str,
+    change_id: str,
+    *,
+    refund_paise: int = 0,
+    razorpay_payment_id: str | None = None,
+    lapsed: bool = False,
 ) -> None:
+    """`razorpay_payment_id` = the payment these emails are about (after a capture); `lapsed` =
+    that payment did not move the booking and is going back."""
     if notify is None:
         return
     try:
@@ -42,15 +51,14 @@ async def send_change_emails(
             await db.execute(select(DateChange).where(DateChange.id == change_id))
         ).scalar_one()
         dates = await departure_dates(db, [change.from_departure_id, change.to_departure_id])
-        payment = (
-            await db.execute(
-                select(Payment.razorpay_payment_id, Payment.amount_paise).where(
-                    Payment.date_change_id == change_id,
-                    Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
-                )
-            )
-        ).first()
-        moved = change.state.value == "done"
+        paid = select(Payment.razorpay_payment_id, Payment.amount_paise).where(
+            Payment.date_change_id == change_id,
+            Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
+        )
+        if razorpay_payment_id is not None:
+            paid = paid.where(Payment.razorpay_payment_id == razorpay_payment_id)
+        payment = (await db.execute(paid.order_by(Payment.created_at.desc()).limit(1))).first()
+        moved = change.state.value == "done" and not lapsed
         invoiced, fee = change.invoiced, change.fee_paise
         old_date = dates[change.from_departure_id]
         new_date = dates[change.to_departure_id]
@@ -113,7 +121,7 @@ async def send_change_emails(
                 **vars,
                 "heading": heading,
                 "refund": None if moved else paid_now,
-                "refund_why": "The new date's seats had gone when the payment arrived."
+                "refund_why": "The change's hold had ended when the payment arrived."
                 if not moved
                 else "",
                 "payment_id": payment[0] if payment and payment[0] else "no payment needed",
@@ -124,7 +132,12 @@ async def send_change_emails(
 
 
 async def send_change_emails_for_payment(
-    db: AsyncSession, notify: Notify | None, ref: str, razorpay_payment_id: str
+    db: AsyncSession,
+    notify: Notify | None,
+    ref: str,
+    razorpay_payment_id: str,
+    *,
+    lapsed: bool = False,
 ) -> None:
     """After a change's difference was captured (`on_new_capture`): the emails of the change
     that payment paid for."""
@@ -143,4 +156,6 @@ async def send_change_emails_for_payment(
     finally:
         await db.rollback()
     if change_id is not None:
-        await send_change_emails(db, notify, ref, change_id)
+        await send_change_emails(
+            db, notify, ref, change_id, razorpay_payment_id=razorpay_payment_id, lapsed=lapsed
+        )

@@ -15,7 +15,7 @@
 <p style="margin:0 0 16px;">{% if voucher_attached %}Your new voucher is attached{% else %}Your new voucher is in My trips{% endif %}{% if invoice_attached %}, with the GST tax invoice{% endif %}. The old one no longer applies.</p>
 {% else %}
 <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">We couldn’t move your trip, {{ b.first_name }}.</h1>
-<p style="margin:0 0 16px;">Your payment of {{ paid_now }} for booking <b>{{ b.ref }}</b> arrived after the seats held on the new date had gone, so your trip stays on <b>{{ departs }}</b>. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.</p>
+<p style="margin:0 0 16px;">Your payment of {{ paid_now }} for booking <b>{{ b.ref }}</b> arrived after the hold on the new date had ended, so the change couldn’t be made and your trip stays on <b>{{ departs }}</b>. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.</p>
 {% endif %}
 <p style="margin:0 0 18px;color:#5e6b76;">{{ demo_note }}</p>
 <p style="margin:0 0 8px;">

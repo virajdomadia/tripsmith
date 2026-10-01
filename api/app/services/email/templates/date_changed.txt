@@ -12,7 +12,7 @@ New dates:   {{ departs }} – {{ returns }}
 {% if voucher_attached %}Your new voucher is attached{% else %}Your new voucher is in My trips{% endif %}{% if invoice_attached %}, with the GST tax invoice{% endif %}. The old one no longer applies.
 {% else %}We couldn’t move your trip, {{ b.first_name }}.
 
-Your payment of {{ paid_now }} for booking {{ b.ref }} arrived after the seats held on the new date had gone, so your trip stays on {{ departs }}. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.
+Your payment of {{ paid_now }} for booking {{ b.ref }} arrived after the hold on the new date had ended, so the change couldn’t be made and your trip stays on {{ departs }}. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.
 {% endif %}
 {{ demo_note }}
 

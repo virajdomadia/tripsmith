@@ -358,6 +358,46 @@ async def test_a_payment_after_the_hold_lapsed_and_the_seats_went_is_refunded_in
     assert await seats_left(db, high) == 0 and await seats_left(db, low) == 7
 
 
+@pytest.mark.db
+async def test_a_payment_long_after_the_change_goes_back_even_with_seats_free(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """A Razorpay order never expires: a capture hours later must not move the booking at a
+    stale quote."""
+    (low, high), ref, cookie, sender = await setup(
+        db, db_app, db_client, (40, 8, 20_000_00), (47, 12, 25_000_00)
+    )
+    started = (await move(db_client, ref, cookie, high, UP)).json()
+    long_ago = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
+    await db.execute(update(DateChange).values(hold_expires_at=long_ago, created_at=long_ago))
+    await db.commit()
+    body = event("payment.captured", started["orderId"], "pay_Change00006", UP)
+    assert (await deliver(db_client, body)).status_code == 200
+    stayed = await fresh(db, ref)
+    assert stayed.departure_id == low and stayed.paid_paise == SINGLE_LOW
+    assert (await db.execute(select(DateChange.state))).scalar_one() == DateChangeState.LAPSED
+    assert any("your payment is coming back" in m.subject for m in sender.sent)
+    assert not any("Your trip has moved" in m.subject for m in sender.sent)
+
+
+@pytest.mark.db
+async def test_a_late_authorisation_after_a_failed_attempt_still_moves_the_booking(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    (low, high), ref, cookie, _ = await setup(
+        db, db_app, db_client, (40, 8, 20_000_00), (47, 12, 25_000_00)
+    )
+    started = (await move(db_client, ref, cookie, high, UP)).json()
+    for pay in ("pay_Change00007", "pay_Change00008"):  # two failed attempts on the order
+        body = event("payment.failed", started["orderId"], pay, UP)
+        assert (await deliver(db_client, body)).status_code == 200
+    rows = await db.execute(select(Payment.date_change_id).where(Payment.amount_paise == UP))
+    assert all(r is not None for r in rows.scalars())
+    body = event("payment.captured", started["orderId"], "pay_Change00008", UP)
+    assert (await deliver(db_client, body)).status_code == 200
+    assert (await fresh(db, ref)).departure_id == high
+
+
 # --- db: price down ----------------------------------------------------------------------------
 
 

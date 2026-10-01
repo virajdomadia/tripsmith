@@ -96,7 +96,13 @@ async def on_new_capture(
         from app.services.email.changes import send_change_emails_for_payment
         from app.services.email.waitlist import send_due
 
-        await send_change_emails_for_payment(db, notify, ref, capture.payment_id)
+        await send_change_emails_for_payment(
+            db,
+            notify,
+            ref,
+            capture.payment_id,
+            lapsed=capture.settled == Settled.CHANGE_LAPSED,
+        )
         await send_due(db, notify)  # the old date's freed seats may have made offers
         return
     try:

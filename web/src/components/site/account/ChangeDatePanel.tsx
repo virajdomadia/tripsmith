@@ -124,7 +124,7 @@ export function ChangeDatePanel({
     if (paid && (confirmed || synced) && departs) {
       // Paid, but the move was not made (the seats went after the hold): the money goes back.
       setProblem(
-        `Your payment arrived after the seats on ${formatDate(o.date)} had gone — your trip stays as it was and the ${inr(o.payNowPaise)} is on its way back.`,
+        `Your payment arrived after the hold on ${formatDate(o.date)} had ended, so the change couldn’t be made — your trip stays as it was and the ${inr(o.payNowPaise)} is on its way back.`,
       );
     } else if (paid) {
       setProblem(

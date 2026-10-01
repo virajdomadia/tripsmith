@@ -83,6 +83,7 @@ from app.services.booking.settled import Settled
 from app.services.gst.documents import issue_due_safely
 
 HOLD = dt.timedelta(minutes=10)
+LATE_CAPTURE = dt.timedelta(hours=1)  # after this, a change's payment goes back, never moves it
 FREE_DAYS = 30
 ONLINE_DAYS = 15  # the last self-serve day is departure − 15
 FEE_PER_TRAVELLER_PAISE = 1_000_00
@@ -805,18 +806,26 @@ async def settle_change(
     )
     await db.flush()
     await db.refresh(booking)
-    hold_live = bool(
-        (
-            await db.execute(
-                select(DateChange.hold_expires_at > func.now()).where(DateChange.id == change.id)
-            )
-        ).scalar_one()
-    )
+    hold_live, recent = (
+        await db.execute(
+            select(
+                DateChange.hold_expires_at > func.now(),
+                DateChange.created_at > func.now() - LATE_CAPTURE,
+            ).where(DateChange.id == change.id)
+        )
+    ).one()
+    # A capture after the hold still moves the booking while the seats are free — but only soon
+    # after (a Razorpay order never expires: days later, the quote and the fee tier are stale),
+    # and never once the customer has asked to cancel.
     fits = (
         change.state == DateChangeState.HELD
         and booking.status in CHANGES
         and booking.departure_id == change.from_departure_id
-        and (hold_live or await _seats_left(db, change.to_departure_id) >= change.party)
+        and not await _open_request(db, booking.id)
+        and (
+            bool(hold_live)
+            or (bool(recent) and await _seats_left(db, change.to_departure_id) >= change.party)
+        )
     )
     history.record(
         db,
@@ -841,10 +850,12 @@ async def settle_change(
         booking.id,
         "change.lapsed",
         actor=BookingActor.SYSTEM,
-        text=f"Date change not made — the seats on the new date had gone · refunding "
+        text="Date change not made — the hold had ended and the new date could no longer be "
+        f"held for it · refunding "
         f"{money(amount_paise)} in full",
-        customer=f"Your payment arrived after the new date's seats had gone, so your trip stays "
-        f"as it was — {money(amount_paise)} will be refunded in full",
+        customer="Your payment arrived after the hold on the new date had ended, so the change "
+        f"couldn't be made and your trip stays as it was — {money(amount_paise)} will be refunded "
+        "in full",
     )
     await plan_refund(db, booking, amount_paise, reason="surplus", actor=BookingActor.SYSTEM)
     await issue_due_safely(db, booking)  # the payment's receipt
