@@ -172,6 +172,7 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
     - A fall refunds exactly what the booking then holds beyond its new total; it isn't editable (a smaller refund would only leave the rest flagged as owed).
     - GST: payments captured after a change made on an invoiced booking fund its rise first (the change's own payment, then later ones), each getting a supplementary invoice — so a rise added to the balance is invoiced when the balance is paid.
     - A party change on the same date re-prices the booking in place; the customer gets "Your booking has been updated".
+    - After the P7b review: a party change re-counts only the add-ons that came with the booking (Add extras purchases keep their count and their own invoice; the owner takes one off if the party shrank); a room type new to the party gets the biggest per-head deal and early-bird the booking earned; renames ride on a move; the same date with the same party suggests no fee (a typed fee needs a reason); the owner's move ends a customer change still waiting for its payment (a late payment is refunded in full).
 
 ### R46. Add-ons (P8)
 - **Owner, in the package form:** an Add-ons panel. Each add-on has a name, description and price, is charged per booking, per traveller, or per traveller per night (with a maximum number of nights), and can be switched on or off.

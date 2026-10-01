@@ -3,8 +3,10 @@ time — to another date of its trip and/or with a different party.
 
 The price is `changes.reprice` (the base fare re-priced, the earned discounts kept in ₹ — per
 head for the deal and the early-bird, flat for the coupon and the manual discount). A party
-change re-counts the add-ons: a per-night one is charged for the new party, a per-traveller one
-for at most the new party. The fee is the self-serve tier on the booking's date (30+ days free,
+change re-counts the add-ons that came with the booking: a per-night one is charged for the new
+party, a per-traveller one for at most the new party. Add-ons bought later through Add extras
+keep their count and their own invoice — the owner takes one off from the desk if the party
+shrank. The fee is the self-serve tier on the booking's date for the new party (30+ days free,
 else ₹1,000 a traveller), which the owner may change or waive with a reason.
 
 The move is made at once, under both departures' locks, by `changes.apply_swap`:
@@ -52,6 +54,7 @@ from app.services.booking.changes import (
     FEE_PER_TRAVELLER_PAISE,
     apply_swap,
     departure_dates,
+    end_holds,
     fee_per_traveller,
     reprice,
 )
@@ -180,9 +183,9 @@ async def _plan(
     rows = await _rows(db, booking.id)
     current = _travellers_of(rows)
     party = req.travellers if req.travellers is not None else current
-    party_changed = [(t.occupancy, t.age) for t in party] != [
-        (t.occupancy, t.age) for t in current
-    ] or len(party) != len(current)
+    party_changed = [(t.name or None, t.occupancy, t.age) for t in party] != [
+        (t.name or None, t.occupancy, t.age) for t in current
+    ]  # a rename alone counts: the names are replaced with the party
     counts: Counter[Occupancy] = Counter(t.occupancy for t in party)
 
     from app.models.catalog import departure_availability
@@ -200,7 +203,10 @@ async def _plan(
         left += len(rows)
     dates = await departure_dates(db, [booking.departure_id])
     old_date = dates[booking.departure_id]
-    suggested = suggested_fee(old_date, today, len(party))
+    same_trip = dep.id == booking.departure_id and not party_changed
+    # Nothing moves on its own date with the same party: no tier fee to suggest (one can still be
+    # typed in, with a reason).
+    suggested = 0 if same_trip else suggested_fee(old_date, today, len(party))
     fee = suggested if req.fee_paise is None else req.fee_paise
     old = Quote.model_validate(booking.quote)
     quote = reprice(old, dep, fee_paise=fee, seats_left=max(0, left - len(party)), party=counts)
@@ -216,16 +222,15 @@ async def _plan(
         ).scalars()
     )
     amounts: dict[str, tuple[int, int]] = {}
-    extras_change = 0
     checkout_ids = set()
     for r in addon_rows:
+        if r.payment_id is not None:
+            continue  # bought later through Add extras: its own supply, its own invoice
         t = _rescaled(r.basis, r.travellers, len(party))
         amount = r.unit_paise * t * r.nights
         if (t, amount) != (r.travellers, r.amount_paise):
             amounts[r.id] = (t, amount)
-            if r.payment_id is not None:
-                extras_change += amount - r.amount_paise
-        if r.payment_id is None and r.addon_id:
+        if r.addon_id:
             checkout_ids.add(r.addon_id)
     lines: list[QuoteAddon] = []
     for a in quote.addons:
@@ -241,8 +246,8 @@ async def _plan(
             "total_paise": quote.total_paise - quote.addons_paise + addons_paise,
         }
     )
-    net = quote.total_paise - old.total_paise + extras_change
-    addons_change = (addons_paise - old.addons_paise) + extras_change
+    net = quote.total_paise - old.total_paise
+    addons_change = addons_paise - old.addons_paise
     # The owner may move inside the website's 2-day window, but never onto a date priced on
     # request, one already gone, or one without seats for the whole party.
     priced = min(dep.price_double_paise, dep.price_triple_paise, dep.price_child_paise) > 0
@@ -271,6 +276,7 @@ def _quote_out(booking: Booking, plan: Plan, old: Quote) -> MoveQuote:
         fare_paise=plan.quote.fare_paise,
         addons_change_paise=plan.addons_change_paise,
         fee_paise=plan.fee_paise,
+        suggested_fee_paise=plan.suggested_fee_paise,
         net_paise=plan.net_paise,
         total_paise=total,
         paid_paise=booking.paid_paise,
@@ -323,6 +329,9 @@ async def move_booking(
         booking, _ = await lock_change(db, ref, req.departure_id)
         if booking.status not in CHANGES:
             raise ApiError("conflict", NOT_MOVABLE, reason="not_movable")
+        # The customer's change still waiting for its payment is overtaken: a payment that lands
+        # on it later is refunded in full, never applied over this move.
+        await end_holds(db, booking.id)
         plan = await _plan(db, booking, req, now=now)
         if not plan.fits:
             raise ApiError("conflict", NO_SEATS, reason="sold_out")

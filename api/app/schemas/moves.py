@@ -66,6 +66,9 @@ class MoveQuote(ApiModel):
     fare_paise: int = Field(description="The fare on the new date, the earned discounts kept")
     addons_change_paise: int = Field(description="What a party change does to the add-ons")
     fee_paise: int
+    suggested_fee_paise: int = Field(
+        description="The tier's fee for this party (0 for a fee-only change on the same date)"
+    )
     net_paise: int
     total_paise: int
     paid_paise: int

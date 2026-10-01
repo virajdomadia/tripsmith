@@ -259,3 +259,65 @@ async def test_a_pending_booking_is_not_moved(
     assert (got.status_code, got.json()["error"]["reason"]) == (409, "not_movable")
     assert (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()["canMove"] is False
     assert high
+
+
+async def test_an_owner_move_overtakes_a_customer_change_still_waiting_for_payment(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    from tests.test_auth import with_cookie
+    from tests.test_customer_accounts import signed_in
+
+    (low, high, other), ref, owner, _ = await ready(
+        db, db_app, db_client, (40, 8, 20_000_00), (47, 12, 25_000_00), (54, 12, 20_000_00)
+    )
+    db_app.state.settings = db_app.state.settings.model_copy(
+        update={"email_from": "Tripsmith <onboarding@resend.dev>"}  # the code shows on screen
+    )
+    cookie = with_cookie(await signed_in(db_client))
+    started = (
+        await db_client.post(
+            f"/account/bookings/{ref}/change",
+            json={"departureId": high, "expectedNetPaise": UP},
+            headers=cookie,
+        )
+    ).json()
+    assert started["state"] == "pay"
+    res = await move(db_client, ref, owner, departureId=other, expectedNetPaise=0)
+    assert res.status_code == 200, res.text
+    assert await seats_left(db, high) == 12  # the customer's hold ended with the move
+    body = event("payment.captured", started["orderId"], "pay_Move000003", UP)
+    assert (await deliver(db_client, body)).status_code == 200
+    stayed = await fresh(db, ref)
+    assert stayed.departure_id == other and stayed.total_paise == SINGLE_LOW
+    assert stayed.paid_paise == SINGLE_LOW  # the late payment went back
+
+
+async def test_renames_ride_on_a_move_and_a_same_date_move_with_nothing_changed_is_refused(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    (low, high), ref, owner, _ = await ready(
+        db, db_app, db_client, (20, 8, 20_000_00), (27, 12, 20_000_00)
+    )
+    q = await quote(db_client, ref, owner, departureId=low)
+    assert (q["feePaise"], q["suggestedFeePaise"]) == (0, 0)  # nothing moves: no tier fee
+    same = await move(db_client, ref, owner, departureId=low, expectedNetPaise=0)
+    assert (same.status_code, same.json()["error"]["reason"]) == (409, "nothing_to_move")
+
+    renamed = [{"name": "Asha R. Iyer", "age": 30, "occupancy": "single"}]
+    q = await quote(db_client, ref, owner, departureId=high, travellers=renamed)
+    assert q["feePaise"] == FEE_PER_TRAVELLER_PAISE  # blank fee = the tier, no reason needed
+    res = await move(
+        db_client,
+        ref,
+        owner,
+        departureId=high,
+        travellers=renamed,
+        expectedNetPaise=q["netPaise"],
+        settle="balance",
+    )
+    assert res.status_code == 200, res.text
+    b = await fresh(db, ref)
+    names = (
+        await db.execute(select(BookingTraveller.name).where(BookingTraveller.booking_id == b.id))
+    ).scalars()
+    assert list(names) == ["Asha R. Iyer"]

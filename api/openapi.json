@@ -7970,6 +7970,11 @@
             "title": "Seatsleft",
             "type": "integer"
           },
+          "suggestedFeePaise": {
+            "description": "The tier's fee for this party (0 for a fee-only change on the same date)",
+            "title": "Suggestedfeepaise",
+            "type": "integer"
+          },
           "totalPaise": {
             "title": "Totalpaise",
             "type": "integer"
@@ -7980,6 +7985,7 @@
           "farePaise",
           "addonsChangePaise",
           "feePaise",
+          "suggestedFeePaise",
           "netPaise",
           "totalPaise",
           "paidPaise",

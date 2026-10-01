@@ -63,15 +63,15 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
         setOptions(o);
         setDate(o.dates.find((d) => !d.current)?.departureId ?? o.dates[0]?.departureId ?? '');
         setParty(o.travellers);
-        setFee(rupees(o.suggestedFeePaise));
       })
       .catch((e: unknown) =>
         setFailed(e instanceof Error ? e.message : 'The dates could not be loaded'),
       );
   }, [bookingRef]);
 
+  // Blank = the tier's fee for whatever party is picked (the server's); typed = the owner's.
   const feePaise = fee === '' ? null : Number(fee) * 100;
-  const feeOff = options && feePaise !== null && feePaise !== options.suggestedFeePaise;
+  const feeOff = !!quote && feePaise !== null && feePaise !== quote.suggestedFeePaise;
   const body = {
     departureId: date,
     travellers: editParty ? party : null,
@@ -243,10 +243,13 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
           id={`${id}-fee`}
           inputMode="numeric"
           value={fee}
+          placeholder={quote ? rupees(quote.suggestedFeePaise) : ''}
           onChange={(e) => setFee(e.target.value.replace(/\D/g, '').slice(0, 7))}
         />
         <span className="text-[12px] text-mute">
-          The tier suggests {inr(options.suggestedFeePaise)}. Set 0 to waive it.
+          {quote
+            ? `Blank = the tier’s ${inr(quote.suggestedFeePaise)} for this party. Type 0 to waive it.`
+            : 'Blank = the tier’s fee for this party.'}
         </span>
       </div>
       {feeOff && (

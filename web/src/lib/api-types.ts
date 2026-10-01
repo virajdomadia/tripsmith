@@ -5417,6 +5417,11 @@ export interface components {
             refundPaise: number;
             /** Seatsleft */
             seatsLeft: number;
+            /**
+             * Suggestedfeepaise
+             * @description The tier's fee for this party (0 for a fee-only change on the same date)
+             */
+            suggestedFeePaise: number;
             /** Totalpaise */
             totalPaise: number;
         };

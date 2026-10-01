@@ -152,6 +152,11 @@ def reprice(
     unit_off: dict[tuple[QuoteLineKind, Occupancy], int] = {
         (li.kind, li.occupancy): -li.unit_paise for li in old.lines if li.kind in DISCOUNTS
     }
+    # A room type new to the party (P7b) gets the biggest per-head amount the booking earned.
+    for kind in DISCOUNTS:
+        earned = max((v for (k, _), v in unit_off.items() if k == kind), default=0)
+        for occ in ORDER:
+            unit_off.setdefault((kind, occ), earned)
     lines: list[QuoteLine] = []
 
     def line(kind: QuoteLineKind, occ: Occupancy, unit: int) -> None:
@@ -551,7 +556,7 @@ async def start_change(
         asked = await _open_request(db, booking.id)
         if why := refusal(booking, departs, today, asked=asked, used=await _used(db, booking.id)):
             raise ApiError("conflict", why, reason="change_closed")
-        await _end_holds(db, booking.id)  # a newer pick replaces a hold not yet paid for
+        await end_holds(db, booking.id)  # a newer pick replaces a hold not yet paid for
         dep = (await db.execute(select(Departure).where(Departure.id == departure_id))).scalar_one()
         party = await _party(db, booking.id)
         fee = (fee_per_traveller(departs, today) or 0) * party
@@ -667,7 +672,7 @@ async def start_change(
     )
 
 
-async def _end_holds(db: AsyncSession, booking_id: str) -> None:
+async def end_holds(db: AsyncSession, booking_id: str) -> None:
     """End the booking's change holds not yet paid for (a newer pick replaces them). A payment
     that still lands on one is refunded by `settle_change`."""
     await db.execute(

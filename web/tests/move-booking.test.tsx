@@ -42,6 +42,7 @@ const QUOTE = {
   farePaise: 34_000_00,
   addonsChangePaise: 0,
   feePaise: 0,
+  suggestedFeePaise: 0,
   netPaise: 5_000_00,
   totalPaise: 34_000_00,
   paidPaise: 29_000_00,
@@ -71,7 +72,7 @@ describe('MoveBooking', { timeout: 30_000 }, () => {
     expect(move![1].body).toEqual({
       departureId: 'dep_up',
       travellers: null,
-      feePaise: 0,
+      feePaise: null,
       feeReason: null,
       settle: 'offline',
       method: 'upi',
@@ -87,7 +88,6 @@ describe('MoveBooking', { timeout: 30_000 }, () => {
     const user = userEvent.setup();
     render(<MoveBooking bookingRef="TB-7K2M9Q" />);
     const fee = await screen.findByLabelText('Change fee (₹)');
-    await user.clear(fee);
     await user.type(fee, '500');
     expect(await screen.findByLabelText('Why the fee differs')).toBeTruthy();
   });
