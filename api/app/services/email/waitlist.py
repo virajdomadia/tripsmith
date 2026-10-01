@@ -79,7 +79,12 @@ def render_lapsed(f: WaitlistFacts, settings: Settings) -> EmailMessage:
     return _message(f.email, subject, "waitlist_lapsed", vars)
 
 
-async def _claim_one(db: AsyncSession) -> tuple[WaitlistFacts, WaitlistMail] | None:
+SKIPPED = "skipped"
+
+
+async def _claim_one(
+    db: AsyncSession,
+) -> tuple[WaitlistFacts, WaitlistMail] | str | None:
     """Take the next owed email off its row (committed), with what it needs."""
     try:
         picked = (
@@ -93,7 +98,7 @@ async def _claim_one(db: AsyncSession) -> tuple[WaitlistFacts, WaitlistMail] | N
         ).one_or_none()
         if picked is None:
             await db.rollback()
-            return None
+            return None  # nothing owed (or every owed row is being written right now)
         entry_id, due = picked
         await db.execute(
             update(WaitlistEntry)
@@ -122,13 +127,20 @@ async def _claim_one(db: AsyncSession) -> tuple[WaitlistFacts, WaitlistMail] | N
             offer_expires_at=entry.offer_expires_at,
             rank=await waitlist.rank(db, entry),
         )
-        live_offer = entry.state == WaitlistState.OFFERED
+        live_offer = (
+            entry.state == WaitlistState.OFFERED
+            and entry.offer_expires_at is not None
+            and entry.offer_expires_at > dt.datetime.now(dt.UTC)
+        )
+        waiting = entry.state == WaitlistState.WAITING
         await db.commit()
     except BaseException:
         await db.rollback()
         raise
-    if due == WaitlistMail.OFFER and not live_offer:
-        return None  # moved on before the email went: nothing to say
+    if (due == WaitlistMail.OFFER and not live_offer) or (
+        due == WaitlistMail.LAPSE and not waiting
+    ):
+        return SKIPPED  # moved on before the email went: nothing to say
     return facts, due
 
 
@@ -155,16 +167,9 @@ async def send_due(db: AsyncSession, notify: Notify | None, *, limit: int = BATC
         for _ in range(limit):
             claimed = await _claim_one(db)
             if claimed is None:
-                # An offer that moved on was taken too: look again unless nothing is owed.
-                owed = (
-                    await db.execute(
-                        select(WaitlistEntry.id).where(WaitlistEntry.mail_due.is_not(None)).limit(1)
-                    )
-                ).first()
-                await db.rollback()
-                if owed is None:
-                    break
-                continue
+                break
+            if isinstance(claimed, str):
+                continue  # owed no longer: taken off the row, nothing sent
             facts, due = claimed
             if due == WaitlistMail.OFFER:
                 token = waitlist.claim_token(facts.entry_id, facts.offer_no, key)

@@ -33,6 +33,7 @@ from app.schemas.extras import RemoveAddonInput
 from app.services.auth.deps import require_owner
 from app.services.booking import balance, counter, desk, extras, links, refunds, resolve
 from app.services.booking.after_capture import Notify
+from app.services.email.waitlist import send_due
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
 
@@ -154,6 +155,7 @@ async def link_cancel_route(
     customer paid it meanwhile (the booking is confirmed instead), `no_link` when none is open."""
     response.headers.update(NO_STORE)
     await links.cancel_link(db, ref, _razorpay(request), Notify.of(request.app.state), by=owner.id)
+    await send_due(db, Notify.of(request.app.state))  # P6: the freed seats' offers
     return await desk.get_booking(db, ref)
 
 
@@ -185,9 +187,13 @@ async def travellers_route(
 @router.post(
     "/bookings/{ref}/release", operation_id="releaseBookingHold", response_model_by_alias=True
 )
-async def release_route(ref: str, response: Response, db: Db, owner: Owner) -> AdminBooking:
+async def release_route(
+    ref: str, request: Request, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
     response.headers.update(NO_STORE)
-    return await desk.release_hold(db, ref, by=owner.id)
+    out = await desk.release_hold(db, ref, by=owner.id)
+    await send_due(db, Notify.of(request.app.state))  # P6: the freed seats' offers
+    return out
 
 
 @router.post(

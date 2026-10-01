@@ -149,9 +149,11 @@ async def post_booking(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> BookingOrder:
     response.headers["Cache-Control"] = "no-store"
-    order = await create_booking_order(db, payload, rzp, secret=session_secret(request))
-    await send_due(db, notify(request))  # P6: the walk before the hold may have made offers
-    return order
+    try:
+        return await create_booking_order(db, payload, rzp, secret=session_secret(request))
+    finally:
+        # P6: the walk before the hold may have made offers — refused orders included.
+        await send_due(db, notify(request))
 
 
 @router.post("/bookings/{ref}/confirm", operation_id="confirmPayment", response_model_by_alias=True)

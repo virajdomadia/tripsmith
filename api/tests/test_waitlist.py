@@ -337,8 +337,130 @@ async def test_an_unpaid_claim_goes_back_in_line_and_a_paid_one_is_booked(
     await walk(db, dep_id)
     e = await entries(db, dep_id)
     assert e["bina"].state == WaitlistState.BOOKED
-    # Asha's seat came back to the list — and she is the list, so it's hers again.
+    # Asha goes to the back; the walk that lapsed her doesn't re-offer her at once…
+    assert e["asha"].state == WaitlistState.WAITING and e["asha"].mail_due == WaitlistMail.LAPSE
+    # …the next one does, since she is the whole list (at most MAX_AUTO_OFFERS times).
+    await walk(db, dep_id)
+    e = await entries(db, dep_id)
     assert e["asha"].state == WaitlistState.OFFERED and e["asha"].offer_no == 2
+
+
+@pytest.mark.db
+async def test_automatic_offers_stop_after_three_lapses(db: AsyncSession) -> None:
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    await lapse_holds(db, dep_id)
+    for n in range(1, waitlist.MAX_AUTO_OFFERS + 1):
+        await walk(db, dep_id)
+        entry = (await entries(db, dep_id))["asha"]
+        assert (entry.state, entry.offer_no) == (WaitlistState.OFFERED, n)
+        entry.offer_expires_at = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
+        await db.commit()
+        await walk(db, dep_id)  # lapses it
+    await walk(db, dep_id)
+    entry = (await entries(db, dep_id))["asha"]
+    assert entry.state == WaitlistState.WAITING  # still on the list; the owner can offer by hand
+    assert await seats_left(db, dep_id) == 2
+
+
+@pytest.mark.db
+async def test_a_list_that_closes_sends_no_back_of_the_list_email(db: AsyncSession) -> None:
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    await lapse_holds(db, dep_id)
+    await walk(db, dep_id)
+    # The offer ran to the cutoff, and the date stops taking bookings at the same moment.
+    departs = (await db.get(Departure, dep_id)).date  # type: ignore[union-attr]
+    await db.execute(
+        update(WaitlistEntry).values(offer_expires_at=dt.datetime.now(dt.UTC), mail_due=None)
+    )
+    await db.execute(
+        update(Departure)
+        .where(Departure.id == dep_id)
+        .values(date=dt.datetime.now(IST).date() + dt.timedelta(days=1))
+    )
+    await db.commit()
+    walked = await walk(db, dep_id)
+    assert (walked.lapsed, walked.closed) == (1, 1)
+    entry = (await entries(db, dep_id))["asha"]
+    assert (entry.state, entry.mail_due) == (WaitlistState.CLOSED, None)
+    sender = FakeSender()
+    assert await send_due(db, Notify(sender, SETTINGS)) == 0 and sender.sent == []
+    assert departs  # the original date, for the reader
+
+
+@pytest.mark.db
+async def test_a_claim_keeps_its_hold_when_the_same_person_books_another_date(
+    db: AsyncSession,
+) -> None:
+    dep_id = await sold_out(db, seats=2)
+    await join(db, dep_id, "asha", 2)
+    await lapse_holds(db, dep_id)
+    await walk(db, dep_id)
+    token = await offered(db, dep_id, "asha")
+    body = order(dep_id, 2, email="asha@customer.in", phone="9000000301")
+    await create_booking_order(
+        db, body.model_copy(update={"claim": token}), FakeRazorpay(), secret=SECRET
+    )
+    other = (
+        (
+            await db.execute(
+                select(Departure.id).where(Departure.id != dep_id).order_by(Departure.date)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert other
+    await create_booking_order(
+        db, order(other, 1, email="asha@customer.in", phone="9000000301"), FakeRazorpay()
+    )
+    await walk(db, dep_id)
+    assert (await entries(db, dep_id))["asha"].state == WaitlistState.CLAIMED
+    assert await seats_left(db, dep_id) == 0
+
+
+@pytest.mark.db
+async def test_razorpay_down_on_a_smaller_claim_never_oversells(db: AsyncSession) -> None:
+    dep_id = await sold_out(db, seats=4)
+    await join(db, dep_id, "asha", 4)
+    await join(db, dep_id, "bina", 2)
+    await lapse_holds(db, dep_id)
+    await walk(db, dep_id)
+    token = await offered(db, dep_id, "asha")
+    body = order(dep_id, 2, email="asha@customer.in", phone="9000000301")
+    with pytest.raises(ApiError) as down:
+        await create_booking_order(
+            db, body.model_copy(update={"claim": token}), FakeRazorpay(down=True), secret=SECRET
+        )
+    assert down.value.status == 502
+    # Nothing was offered on from the failed claim, so Asha's whole offer stands.
+    e = await entries(db, dep_id)
+    assert e["asha"].state == WaitlistState.OFFERED and e["bina"].state == WaitlistState.WAITING
+    assert await seats_left(db, dep_id) == 0
+
+    # Seats moved on meanwhile (Bina offered the claim's leftover): Asha goes to the back.
+    body = body.model_copy(update={"claim": token})
+    await create_booking_order(db, body, FakeRazorpay(), secret=SECRET)
+    e = await entries(db, dep_id)
+    assert e["bina"].state == WaitlistState.OFFERED  # the 2 seats Asha left
+    ref = (
+        await db.execute(select(Booking.ref).where(Booking.id == e["asha"].booking_id))
+    ).scalar_one()
+    from app.schemas.bookings import BookingContact
+    from app.services.booking.orders import _undo_hold
+
+    booking_row = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one()
+    await _undo_hold(
+        db,
+        booking_row,
+        [],
+        BookingContact(name="Asha Rao", phone="9000000301", email="asha@customer.in"),
+    )
+    e = await entries(db, dep_id)
+    # Her booking ended: 2 seats free again, but her offer was for 4 — back of the list.
+    assert e["asha"].state == WaitlistState.WAITING
+    assert e["asha"].position > e["bina"].position
 
 
 # --- races -------------------------------------------------------------------------------------

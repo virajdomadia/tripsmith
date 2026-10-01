@@ -27,7 +27,7 @@ import logging
 import secrets
 from typing import NamedTuple
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -218,7 +218,9 @@ async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:
         await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
 
 
-async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Released]:
+async def _release_holds(
+    db: AsyncSession, email: str, phone: str, *, keep_claim: str | None = None
+) -> list[Released]:
     """One active hold per email or phone (R16): end the previous one now.
 
     The booking stays `pending` with its hold lapsed — exactly the state an abandoned checkout
@@ -235,6 +237,12 @@ async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Relea
                 Booking.hold_expires_at > func.now(),
                 Booking.channel == BookingChannel.WEB,  # a counter link's hold is the owner's
                 or_(Booking.contact_email == email, Booking.contact_phone == phone),
+                # P6: a waitlist claim's hold is kept — unless this order re-claims that entry.
+                ~exists().where(
+                    WaitlistEntry.booking_id == Booking.id,
+                    WaitlistEntry.state == WaitlistState.CLAIMED,
+                    WaitlistEntry.id != (keep_claim or ""),
+                ),
             )
             .with_for_update()
         )
@@ -273,16 +281,8 @@ async def _undo_hold(
             .returning(Booking.id)
             .execution_options(synchronize_session=False)
         )
-        # A claim's booking that couldn't open: the offer is theirs again, until it would end.
-        await db.execute(
-            update(WaitlistEntry)
-            .where(
-                WaitlistEntry.booking_id == booking.id,
-                WaitlistEntry.state == WaitlistState.CLAIMED,
-            )
-            .values(state=WaitlistState.OFFERED, booking_id=None, updated_at=func.now())
-            .execution_options(synchronize_session=False)
-        )
+        # A claim's booking that couldn't open: its offer back if the seats are still free.
+        await waitlist.unclaim(db, booking.id, booking.departure_id)
         history.record_each(
             db,
             undone.scalars(),
@@ -350,7 +350,10 @@ async def create_booking_order(
     try:
         await _lock_contact(db, contact.email, contact.phone)
         dep, pkg = await _load(db, req.departure_id, lock=True)
-        released = await _release_holds(db, contact.email, contact.phone)
+        claim_read = waitlist.read_token(req.claim, secret) if req.claim else None
+        released = await _release_holds(
+            db, contact.email, contact.phone, keep_claim=claim_read[0] if claim_read else None
+        )
         entry: WaitlistEntry | None = None
         if req.claim:
             entry = await waitlist.claim_for_order(
@@ -469,8 +472,6 @@ async def create_booking_order(
         )
         if entry is not None:
             waitlist.claimed(entry, booking)
-            await db.flush()
-            await waitlist.walk(db, dep)  # a smaller party leaves seats for the next in line
         await db.commit()
     except BaseException:
         await db.rollback()
@@ -504,6 +505,8 @@ async def create_booking_order(
         + (" (deposit)" if booking.deposit_paise else ""),
     )
     await db.commit()
+    if req.claim:  # a smaller party leaves seats for the next in line — once the order exists
+        await waitlist.walk_departures(db, [req.departure_id])
     await refresh_quietly(db, touched, after=f"booking {booking.ref}")
     return BookingOrder(
         booking_ref=booking.ref,

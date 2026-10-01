@@ -59,6 +59,9 @@ from app.services.email.render import IST
 
 OFFER_FOR = dt.timedelta(hours=24)
 MIN_OFFER = dt.timedelta(hours=6)
+# A party that lets this many offers run out stays on the list, but only the owner offers
+# it seats again (P6b): no one is emailed a hold every day until departure.
+MAX_AUTO_OFFERS = 3
 CLOSES_DAYS = 3  # joining closes after departure − 3 days (IST)
 LIVE = (WaitlistState.WAITING, WaitlistState.OFFERED, WaitlistState.CLAIMED)
 HOLDS_SEATS = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
@@ -258,7 +261,9 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
         )
     ).all()
     position = await _next_position(db, departure.id)
+    lapsed: set[str] = set()  # not offered again in the walk that lapsed them
     for entry in lapsed_offers:
+        lapsed.add(entry.id)
         _to_back(entry, position, "The offer ran out unclaimed — back of the list")
         position += 1
         out.lapsed += 1
@@ -268,6 +273,7 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
             continue
         if status == BookingStatus.PENDING and live:
             continue
+        lapsed.add(entry.id)
         _to_back(entry, position, "The claimed booking wasn't paid in time — back of the list")
         position += 1
         out.lapsed += 1
@@ -289,6 +295,7 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
         )
         for entry in closing:
             entry.state = WaitlistState.CLOSED
+            entry.mail_due = None  # no "you're back on the list" for a list that closed
             event(entry, "closed", "The date stopped taking bookings — the list closed")
             out.closed += 1
         await db.flush()
@@ -296,7 +303,7 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
 
     ends = offer_ends(departure.date, now)
     await db.flush()
-    if ends is None:
+    if ends is None or not await _bookable(db, departure):
         return out
     free = await seats_left(db, departure.id)
     if free <= 0:
@@ -319,6 +326,8 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
     for entry in waiting:
         if entry.party > free:
             continue  # skipped, keeps its place
+        if entry.id in lapsed or entry.offer_no >= MAX_AUTO_OFFERS:
+            continue
         make_offer(entry, ends)
         free -= entry.party
         out.offered += 1
@@ -326,6 +335,59 @@ async def walk(db: AsyncSession, departure: Departure) -> Walked:
             break
     await db.flush()
     return out
+
+
+async def _bookable(db: AsyncSession, departure: Departure) -> bool:
+    """The web could sell this date: its package is live and the date is priced."""
+    status = (
+        await db.execute(select(Package.status).where(Package.id == departure.package_id))
+    ).scalar_one_or_none()
+    prices = (
+        departure.price_double_paise,
+        departure.price_triple_paise,
+        departure.price_child_paise,
+    )
+    return status == PackageStatus.LIVE and min(prices) > 0
+
+
+async def unclaim(db: AsyncSession, booking_id: str, departure_id: str) -> None:
+    """A claim's booking ended before it could be paid for (Razorpay couldn't open the order):
+    give the entry its offer back while the offer runs AND its seats are still free — seats the
+    claim left may have been offered on meanwhile — else send it to the back of the list. Under
+    the departure lock; the caller commits."""
+    entries = (
+        (
+            await db.execute(
+                select(WaitlistEntry)
+                .where(
+                    WaitlistEntry.booking_id == booking_id,
+                    WaitlistEntry.state == WaitlistState.CLAIMED,
+                )
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not entries:
+        return
+    now = await _db_now(db)
+    await db.flush()
+    free = await seats_left(db, departure_id)
+    for entry in entries:
+        ends = entry.offer_expires_at
+        if ends is not None and ends > now and free >= entry.party:
+            entry.state = WaitlistState.OFFERED
+            entry.booking_id = None
+            free -= entry.party
+            event(entry, "unclaimed", "The booking couldn't start — the offer stands")
+        else:
+            _to_back(
+                entry,
+                await _next_position(db, departure_id),
+                "The booking couldn't start and the seats had moved on — back of the list",
+            )
+    await db.flush()
 
 
 async def walk_departures(db: AsyncSession, departure_ids: Iterable[str]) -> Walked:
