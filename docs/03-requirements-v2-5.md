@@ -166,6 +166,12 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **Owner move (desk):** date and/or party, at any time, any status but cancelled or completed. Fee pre-filled from the tier, editable down to ₹0; a changed fee needs a reason (history + invoice). Price up → the move is made at once and the owner picks: paid now offline (cash/UPI/bank, through `settle_capture`) or added to the balance (the booking becomes/stays `partially_paid`, due on the new date's due day, today if that has passed — extendable as in P5). Price down → refund through R51 (amount editable) or off the balance. A party change re-prices the fare for the new party; deal and early-bird stay at their per-traveller ₹, coupon and manual as flat ₹; per-night add-ons are re-multiplied by the new party and per-traveller ones capped at it. The target date needs seats for the whole party (no overselling, as at the counter). The customer gets "Your trip has moved" with the new voucher.
   - **Owner notified** of a self-serve change by email (owner address) plus the history entry.
   - **Two PRs:** P7a — migration 0019, the engine, self-serve in My trips, emails, the swap concurrency test; P7b — the owner's Move dialog on the desk.
+  - **Built in P7b (2026-10-02):**
+    - A pending booking isn't moved — release it and book again (its Razorpay order is for the old amount). Confirmed and part-paid bookings move at any time, even inside the website's 2-day window, but never onto a date already gone or priced on request.
+    - The fee the desk suggests is the self-serve tier on the booking's date for the new party (inside 14 days, the ₹1,000-a-traveller rate).
+    - A fall refunds exactly what the booking then holds beyond its new total; it isn't editable (a smaller refund would only leave the rest flagged as owed).
+    - GST: payments captured after a change made on an invoiced booking fund its rise first (the change's own payment, then later ones), each getting a supplementary invoice — so a rise added to the balance is invoiced when the balance is paid.
+    - A party change on the same date re-prices the booking in place; the customer gets "Your booking has been updated".
 
 ### R46. Add-ons (P8)
 - **Owner, in the package form:** an Add-ons panel. Each add-on has a name, description and price, is charged per booking, per traveller, or per traveller per night (with a maximum number of nights), and can be switched on or off.

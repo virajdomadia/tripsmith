@@ -12,6 +12,7 @@ import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DeskActions } from './DeskActions';
 import { EditTravellers } from './EditTravellers';
+import { MoveBooking } from './MoveBooking';
 import { RemoveAddon } from './RemoveAddon';
 import { ResolveDialog } from './ResolveCancellation';
 
@@ -233,7 +234,9 @@ function MoveCard({
       </dl>
       {open && (
         <div className="border-t border-line px-4 py-3">
-          {(m.key === 'approve' || m.key === 'reject') && b.cancellation ? (
+          {m.key === 'move' ? (
+            <MoveBooking bookingRef={b.ref} />
+          ) : (m.key === 'approve' || m.key === 'reject') && b.cancellation ? (
             <ResolveDialog
               bookingRef={b.ref}
               c={b.cancellation}

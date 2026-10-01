@@ -4,7 +4,8 @@ Same shape as the enquiry inbox (routers/admin/enquiries.py): a plain `/admin` p
 export can sit at `/admin/bookings.csv`, beside the collection. There is no free status change
 (`PATCH …/status` was dropped from 06 on 2026-09-26): every move goes through a guarded path —
 mark paid, release, send a refund or record an offline one (P13), answer a cancellation request
-(B11), settle or extend a deposit booking's balance (P5), or the daily sweep.
+(B11), settle or extend a deposit booking's balance (P5), move it to another date or party
+(P7b), or the daily sweep.
 """
 
 from typing import Annotated
@@ -30,10 +31,23 @@ from app.schemas.admin_bookings import (
 )
 from app.schemas.counter import EditTravellersInput
 from app.schemas.extras import RemoveAddonInput
+from app.schemas.moves import MoveOptions, MoveQuote, MoveQuoteRequest, MoveRequest
 from app.schemas.waitlist import DepartureWaitlist
 from app.services.auth.deps import require_owner
-from app.services.booking import balance, counter, desk, extras, links, refunds, resolve, waitlist
+from app.services.booking import (
+    balance,
+    counter,
+    desk,
+    extras,
+    links,
+    moves,
+    refunds,
+    resolve,
+    waitlist,
+)
 from app.services.booking.after_capture import Notify
+from app.services.booking.freshness import refresh_quietly
+from app.services.email.changes import send_change_emails
 from app.services.email.waitlist import send_due, walk_and_send
 from app.services.format import short_name
 
@@ -126,6 +140,42 @@ async def balance_due_route(
     re-arm for the new day."""
     response.headers.update(NO_STORE)
     await balance.extend_due(db, ref, payload.due_on, by=owner.id)
+    return await desk.get_booking(db, ref)
+
+
+@router.get("/bookings/{ref}/move", operation_id="getMoveOptions", response_model_by_alias=True)
+async def move_options_route(ref: str, response: Response, db: Db) -> MoveOptions:
+    """P7b: the trip's dates (its own included, for a party change), the party, and the fee the
+    self-serve tier suggests. 409 `not_movable` unless confirmed or part paid."""
+    response.headers.update(NO_STORE)
+    return await moves.move_options(db, ref)
+
+
+@router.post("/bookings/{ref}/move/quote", operation_id="quoteMove", response_model_by_alias=True)
+async def move_quote_route(
+    ref: str, payload: MoveQuoteRequest, response: Response, db: Db
+) -> MoveQuote:
+    """P7b: what a move would do — the new fare (earned discounts kept in ₹), the add-ons after
+    a party change, the fee, and what the customer would then owe or get back."""
+    response.headers.update(NO_STORE)
+    return await moves.move_quote(db, ref, payload)
+
+
+@router.post("/bookings/{ref}/move", operation_id="moveBooking", response_model_by_alias=True)
+async def move_route(
+    ref: str, payload: MoveRequest, request: Request, response: Response, db: Db, owner: Owner
+) -> AdminBooking:
+    """P7b: move the booking now — to another date and/or party. A rise is paid now offline or
+    added to the balance; a fall is refunded through Razorpay (or comes off the balance). The
+    customer gets "Your trip has moved" with the new voucher. 409 `price_changed` / `sold_out`
+    / `not_movable` / `nothing_to_move`."""
+    response.headers.update(NO_STORE)
+    notify = Notify.of(request.app.state)
+    moved = await moves.move_booking(db, ref, payload, by=owner.id)
+    await refunds.send_refunds(db, ref, notify.razorpay)
+    await refresh_quietly(db, {moved.package_id}, after=f"move of {ref}")
+    await send_change_emails(db, notify, ref, moved.change_id, refund_paise=moved.refund_paise)
+    await send_due(db, notify)  # the old date's freed seats may have made offers
     return await desk.get_booking(db, ref)
 
 

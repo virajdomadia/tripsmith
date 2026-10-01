@@ -278,6 +278,7 @@ class AdminBooking(ApiModel):
         description="P8: every add-on the booking bought, oldest first, taken-off ones included"
     )
     can_remove_addons: bool = Field(description="Confirmed or part paid (P8b)")
+    can_move: bool = Field(description="P7b: confirmed or part paid — Move on the desk")
     balance: "AdminBalance | None" = Field(
         default=None, description="P5: made on a deposit (null = paid in full at booking)"
     )

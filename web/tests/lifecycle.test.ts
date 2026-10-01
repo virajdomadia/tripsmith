@@ -70,7 +70,11 @@ describe('lifecycle', () => {
     ]);
     expect(moves(b).map((m) => m.key)).toEqual(['mark-paid', 'release']);
     expect(nextStep(b).title).toBe('Never paid');
-    expect(blocked(b).map(([what]) => what)).toEqual(['Send a refund', 'Answer a cancellation']);
+    expect(blocked(b).map(([what]) => what)).toEqual([
+      'Send a refund',
+      'Answer a cancellation',
+      'Move to another date',
+    ]);
   });
 
   it('a confirmed booking with an open request waits on the owner', () => {
@@ -293,5 +297,17 @@ describe('P13 refunds', () => {
       },
     });
     expect(names(done).slice(-2)).toEqual(['Refunded:done', 'Closed:now']);
+  });
+
+  it('offers the move on a movable booking, and says why not otherwise', () => {
+    const b = booking({
+      status: 'confirmed',
+      paidPaise: 59_397_00,
+      canMarkPaid: false,
+      canMove: true,
+    });
+    const move = moves(b).find((m) => m.key === 'move');
+    expect(move?.becomes).toBe('Confirmed · new date');
+    expect(blocked(booking()).map(([what]) => what)).toContain('Move to another date');
   });
 });

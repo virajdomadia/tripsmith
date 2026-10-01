@@ -87,13 +87,16 @@ async def send_change_emails(
         vars["demo_note"] = NO_PAYMENT_NOTE
     customer = _message(
         facts.lead_email,
-        f"Your trip has moved to {long_date(new_date)} — {facts.ref}"
+        f"Your booking {facts.ref} has been updated — {facts.package_name}"
+        if moved and old_date == new_date
+        else f"Your trip has moved to {long_date(new_date)} — {facts.ref}"
         if moved
         else f"About your date change for {facts.ref} — your payment is coming back",
         "date_changed",
         {
             **vars,
             "moved": moved,
+            "same_date": old_date == new_date,
             "old_date": long_date(old_date),
             "fee": inr(fee // 100) if fee else None,
             "paid_now": paid_now,

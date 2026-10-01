@@ -163,6 +163,38 @@ def invoiced_on(
     return None
 
 
+def _fund_changes(payments: list[Payment], changes: dict[str, DateChange]) -> dict[str, int]:
+    """P7: which payments paid for each rise made after the first invoice, and how much of each
+    — the change's own payment first (self-serve, or settled offline at the desk), then any later
+    payment (a rise the owner added to the balance, paid in parts). Payment id → amount; each
+    becomes that payment's supplementary invoice."""
+    funded: dict[str, int] = {}
+    for c in sorted(changes.values(), key=lambda c: (c.created_at, c.id)):
+        left = c.net_paise
+        if left <= 0:
+            continue
+        candidates = sorted(
+            (
+                p
+                for p in payments
+                if p.extras is None
+                and (
+                    p.date_change_id == c.id
+                    or (p.date_change_id is None and captured_at(p) >= c.created_at)
+                )
+            ),
+            key=lambda p: (p.date_change_id != c.id, captured_at(p), p.id),
+        )
+        for p in candidates:
+            take = min(p.amount_paise - funded.get(p.id, 0), left)
+            if take > 0:
+                funded[p.id] = funded.get(p.id, 0) + take
+                left -= take
+            if not left:
+                break
+    return funded
+
+
 async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
     """Every document the booking has, in the order they happened (receipts, the invoice, credit
     notes), each with its number once issued."""
@@ -203,16 +235,16 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
     after_invoice = {
         cid: c for cid, c in changes.items() if c.invoiced and c.state == DateChangeState.DONE
     }
-    # P7: a change paid after the invoice is its own supply; one that never moved the booking
-    # was money going back. Neither counts towards paying the first invoice's price.
-    own_supply = frozenset(
+    funded = _fund_changes(payments, after_invoice)
+    # P7: the payments that funded a change made after the invoice are their own supply; one
+    # that paid for a change never made was money going back. Neither counts towards paying the
+    # first invoice's price.
+    own_supply = frozenset(funded) | frozenset(
         p.id
         for p in payments
         if p.date_change_id is not None
-        and (
-            p.date_change_id in after_invoice
-            or changes[p.date_change_id].state != DateChangeState.DONE
-        )
+        and p.date_change_id in changes
+        and changes[p.date_change_id].state != DateChangeState.DONE
     )
     price = booked_price(booking, await off_paise(db, booking.id)) - sum(
         c.net_paise for c in after_invoice.values()
@@ -253,13 +285,10 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
                 )
             )
         for p in sorted(payments, key=captured_at):  # P7: supplementary invoices
-            change = after_invoice.get(p.date_change_id or "")
-            if change is None:
-                continue
             d = issued.get(("invoice", p.id))
-            amount = d.amount_paise if d else min(p.amount_paise, max(0, change.net_paise))
-            if amount <= 0:
+            if p.extras is not None or (d is None and p.id not in funded):
                 continue
+            amount = d.amount_paise if d else funded[p.id]
             out.append(
                 DocRef(
                     key=f"invoice-{p.id}",

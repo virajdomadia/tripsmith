@@ -745,6 +745,8 @@ async def apply_swap(
     await db.flush()
     await db.refresh(booking)
     fee = f" · fee {money(change.fee_paise)}" if change.fee_paise else ""
+    if change.reason:  # the owner's, for a fee off the tier (P7b)
+        fee += f" ({change.reason})"
     sign = "+" if change.net_paise > 0 else "−" if change.net_paise < 0 else "±"
     diff = f"{sign}{money(abs(change.net_paise))}"
     still = (
@@ -758,9 +760,17 @@ async def apply_swap(
         "date.changed",
         actor=actor,
         by=by,
-        text=f"Date changed: {history.day(old_date)} → {history.day(new_date)} · "
-        f"{history.travellers(change.party)} · {diff}{fee} · total {money(total)}{still}",
-        customer=f"Your trip moved from {history.day(old_date)} to {history.day(new_date)}"
+        text=(
+            f"Date changed: {history.day(old_date)} → {history.day(new_date)}"
+            if old_id != change.to_departure_id
+            else f"Re-priced on {history.day(old_date)}"
+        )
+        + f" · {history.travellers(change.party)} · {diff}{fee} · total {money(total)}{still}",
+        customer=(
+            f"Your trip moved from {history.day(old_date)} to {history.day(new_date)}"
+            if old_id != change.to_departure_id
+            else f"Your booking was updated — the total is now {money(total)}"
+        )
         + (f" — {money(total - paid)} is due by {history.day(due)}" if still and due else ""),
         before=before,
         after={

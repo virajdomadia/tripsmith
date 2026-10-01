@@ -1,6 +1,6 @@
-{% if moved %}Your trip has moved, {{ b.first_name }}.
+{% if moved %}{% if same_date %}Your booking has been updated, {{ b.first_name }}.{% else %}Your trip has moved, {{ b.first_name }}.{% endif %}
 
-Booking {{ b.ref }} — {{ b.package_name }} now departs {{ departs }} (it was {{ old_date }}).
+Booking {{ b.ref }} — {{ b.package_name }}{% if same_date %}, {{ departs }}: we updated your party and price.{% else %} now departs {{ departs }} (it was {{ old_date }}).{% endif %}
 
 New dates:   {{ departs }} – {{ returns }}
 {% if fee %}Change fee:  {{ fee }}

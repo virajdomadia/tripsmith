@@ -411,6 +411,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Move Options Route
+         * @description P7b: the trip's dates (its own included, for a party change), the party, and the fee the
+         *     self-serve tier suggests. 409 `not_movable` unless confirmed or part paid.
+         */
+        get: operations["getMoveOptions"];
+        put?: never;
+        /**
+         * Move Route
+         * @description P7b: move the booking now — to another date and/or party. A rise is paid now offline or
+         *     added to the balance; a fall is refunded through Razorpay (or comes off the balance). The
+         *     customer gets "Your trip has moved" with the new voucher. 409 `price_changed` / `sold_out`
+         *     / `not_movable` / `nothing_to_move`.
+         */
+        post: operations["moveBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/move/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Quote Route
+         * @description P7b: what a move would do — the new fare (earned discounts kept in ₹), the add-ons after
+         *     a party change, the fee, and what the customer would then owe or get back.
+         */
+        post: operations["quoteMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings/{ref}/refund": {
         parameters: {
             query?: never;
@@ -2130,6 +2179,11 @@ export interface components {
              * @description Pending, or swept as hold_expired
              */
             canMarkPaid: boolean;
+            /**
+             * Canmove
+             * @description P7b: confirmed or part paid — Move on the desk
+             */
+            canMove: boolean;
             /**
              * Canrelease
              * @description Pending
@@ -5280,6 +5334,143 @@ export interface components {
             text: string;
         };
         /**
+         * MoveDate
+         * @description One date of the trip the owner can move a booking to (its own date included, for a
+         *     change of party only).
+         */
+        MoveDate: {
+            /** Current */
+            current: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /**
+             * Seatsleft
+             * @description Free seats, counting this booking's own on its date
+             */
+            seatsLeft: number;
+        };
+        /**
+         * MoveOptions
+         * @description `GET /admin/bookings/{ref}/move`: the dates, the party and the fee the tier suggests.
+         */
+        MoveOptions: {
+            /**
+             * Currentdate
+             * Format: date
+             */
+            currentDate: string;
+            /** Dates */
+            dates: components["schemas"]["MoveDate"][];
+            /**
+             * Suggestedfeepaise
+             * @description The self-serve tier on the booking's date: 30+ days free, else ₹1,000 a traveller
+             */
+            suggestedFeePaise: number;
+            /** Travellers */
+            travellers: components["schemas"]["CounterTraveller"][];
+        };
+        /**
+         * MoveQuote
+         * @description The owner's preview of a move.
+         */
+        MoveQuote: {
+            /**
+             * Addonschangepaise
+             * @description What a party change does to the add-ons
+             */
+            addonsChangePaise: number;
+            /** Currentfarepaise */
+            currentFarePaise: number;
+            /**
+             * Dueon
+             * Format: date
+             * @description When an amount added to the balance would be due
+             */
+            dueOn: string;
+            /**
+             * Farepaise
+             * @description The fare on the new date, the earned discounts kept
+             */
+            farePaise: number;
+            /** Feepaise */
+            feePaise: number;
+            /** Fits */
+            fits: boolean;
+            /** Netpaise */
+            netPaise: number;
+            /**
+             * Owedpaise
+             * @description What the customer would owe after the move
+             */
+            owedPaise: number;
+            /** Paidpaise */
+            paidPaise: number;
+            /**
+             * Refundpaise
+             * @description What would go back after the move
+             */
+            refundPaise: number;
+            /** Seatsleft */
+            seatsLeft: number;
+            /** Totalpaise */
+            totalPaise: number;
+        };
+        /** MoveQuoteRequest */
+        MoveQuoteRequest: {
+            /** Departureid */
+            departureId: string;
+            /**
+             * Feepaise
+             * @description Null = the suggested fee
+             */
+            feePaise?: number | null;
+            /**
+             * Travellers
+             * @description The new party; null = the same travellers
+             */
+            travellers?: components["schemas"]["CounterTraveller"][] | null;
+        };
+        /**
+         * MoveRequest
+         * @description `POST /admin/bookings/{ref}/move`. A rise is settled now offline, or added to the
+         *     balance; a fall is refunded through Razorpay (or comes off the balance).
+         */
+        MoveRequest: {
+            /** Departureid */
+            departureId: string;
+            /** Expectednetpaise */
+            expectedNetPaise: number;
+            /**
+             * Feepaise
+             * @description Null = the suggested fee
+             */
+            feePaise?: number | null;
+            /**
+             * Feereason
+             * @description Required when the fee differs from the tier
+             */
+            feeReason?: string | null;
+            /** Method */
+            method?: ("cash" | "upi" | "bank") | null;
+            /** Reference */
+            reference?: string | null;
+            /**
+             * Settle
+             * @description Required when the price rises
+             */
+            settle?: ("offline" | "balance") | null;
+            /**
+             * Travellers
+             * @description The new party; null = the same travellers
+             */
+            travellers?: components["schemas"]["CounterTraveller"][] | null;
+        };
+        /**
          * NextDeparture
          * @description A package card's seat fill (R59, P20 · Packages B).
          */
@@ -7070,6 +7261,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getMoveOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveOptions"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    moveBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    quoteMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveQuote"];
                 };
             };
             /** @description Error envelope (06 C0) */
