@@ -219,3 +219,33 @@ describe('errorFromResponse', () => {
     expect(errorFromResponse(503, '', undefined).body.message).toBe('HTTP 503');
   });
 });
+
+describe('api() during `next build`', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const timeout = () =>
+    Object.assign(new Error('The operation was aborted due to timeout'), {
+      name: 'TimeoutError',
+    });
+
+  it('tries a timed-out read once more while prerendering', async () => {
+    vi.stubEnv('NEXT_PHASE', 'phase-production-build');
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(timeout())
+      .mockResolvedValueOnce(jsonResponse({ items: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api('/destinations', { tags: ['destinations'] })).resolves.toEqual({ items: [] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('a live render fails fast on the first timeout', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(timeout());
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api('/destinations', { tags: ['destinations-live'] })).rejects.toThrow(/timeout/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

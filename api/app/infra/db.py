@@ -35,8 +35,10 @@ def constraint_name(exc: IntegrityError) -> str:
 
 def make_engine(url: str) -> AsyncEngine:
     """One place for engine options. Neon's pooled endpoint closes idle connections, so
-    `pool_pre_ping` re-validates before use; the pool stays small for a serverless function."""
-    return create_async_engine(url, pool_pre_ping=True, pool_size=2, max_overflow=3)
+    `pool_pre_ping` re-validates before use. The pool is sized for a burst on one instance (a
+    web build prerendering every page at once queued behind 2 + 3); Neon's pooled endpoint
+    multiplexes these onto few server connections."""
+    return create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 
 
 def get_engine(settings: Settings) -> AsyncEngine:
