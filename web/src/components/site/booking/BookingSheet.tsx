@@ -23,6 +23,7 @@ import {
 } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { formatDate, inr } from '@/lib/format';
+import { istMoment } from '@/lib/waitlist';
 import { AnimatedPrice } from './AnimatedPrice';
 import { BookingDone } from './BookingDone';
 import { ContactFields } from './ContactFields';
@@ -52,12 +53,15 @@ export function BookingSheet({
   pkg,
   open,
   onOpenChange,
+  claim = null,
 }: {
   pkg: BookingPackage;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** R44 (P6): a waitlist offer's claim token, from the link's `?claim=`. */
+  claim?: string | null;
 }) {
-  const flow = useBooking(pkg, open);
+  const flow = useBooking(pkg, open, claim);
   const { phase, quote, departure, slots, travellers, contact } = flow;
   const scope = useRef<HTMLDivElement>(null);
 
@@ -135,7 +139,7 @@ export function BookingSheet({
                 {pkg.name}
               </SheetTitle>
               <SheetDescription className="text-[13px] font-semibold text-mute">
-                {pkg.duration} · Book now
+                {pkg.duration} · {flow.claim ? 'Your waitlist seats' : 'Book now'}
               </SheetDescription>
             </div>
             <SheetClose
@@ -360,6 +364,11 @@ function Receipt({
             <CalendarClock className="size-3.5" aria-hidden /> Then{' '}
             <span className="num">{inr(deposit.balancePaise)}</span> by {formatDate(deposit.dueOn)}
           </span>
+        ) : flow.claim?.expiresAt ? (
+          <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
+            <Lock className="size-3.5" aria-hidden /> Held for you until{' '}
+            {istMoment(flow.claim.expiresAt)}
+          </span>
         ) : (
           <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
             <Lock className="size-3.5" aria-hidden /> Seats held for 10 minutes once you press Pay
@@ -430,7 +439,9 @@ function HoldNote({ expiresAt, failure }: { expiresAt: string; failure?: string 
     const t = setInterval(() => setLeft(holdSecondsLeft(expiresAt)), 1000);
     return () => clearInterval(t);
   }, [expiresAt]);
-  const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  const mm = `${Math.floor((left % 3600) / 60)}:${String(left % 60).padStart(2, '0')}`;
+  // A waitlist claim holds its seats for hours, not minutes.
+  const mmss = left >= 3600 ? `${Math.floor(left / 3600)}:${mm.padStart(5, '0')}` : mm;
   return (
     <p role="status" className="text-center text-[12.5px] font-semibold text-ink2">
       {failure ? <span className="block text-warn">{failure}</span> : null}

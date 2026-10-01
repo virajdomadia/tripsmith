@@ -56,6 +56,8 @@ export function ContactFields({ flow }: { flow: BookingFlow }) {
             autoComplete="email"
             maxLength={120}
             value={contact.email}
+            readOnly={!!flow.claim}
+            title={flow.claim ? 'Your waitlist offer was sent to this email' : undefined}
             onChange={(e) => flow.updateContact({ email: e.target.value })}
           />
         </Field>

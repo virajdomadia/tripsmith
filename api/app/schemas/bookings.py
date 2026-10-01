@@ -152,6 +152,12 @@ class QuoteRequest(ApiModel):
     addons: list[AddonChoice] = Field(
         default_factory=list, max_length=ADDON_CHOICES_MAX, description="P8: Make it yours"
     )
+    claim: str | None = Field(
+        default=None,
+        max_length=120,
+        description="P6: a waitlist claim link's token — the seats its offer holds count as free "
+        "for this quote",
+    )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)
     _addons = field_validator("addons")(_check_addons)
@@ -277,6 +283,12 @@ class BookingRequest(ApiModel):
         default="full",
         description="P5: `deposit` pays the quote's deposit now and the balance later; refused "
         "with 409 `deposit_unavailable` when the quote offers none",
+    )
+    claim: str | None = Field(
+        default=None,
+        max_length=120,
+        description="P6: a waitlist claim link's token. The booking uses the seats its offer "
+        "holds, keeps them until the offer would have ended, and must use the offer's email",
     )
 
     _code = field_validator("coupon_code", mode="before")(normalise_code)

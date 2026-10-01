@@ -64,6 +64,8 @@ const DEP = {
   priceChildPaise: 8_999_00,
   singleSupplementPaise: 6_000_00,
   badge: null,
+  waiting: 0,
+  waitlistOpen: false,
 };
 const DEC = { ...DEP, id: 'dep_dec', date: '2099-12-18', seatsLeft: 4, guaranteed: false };
 const PKG = {

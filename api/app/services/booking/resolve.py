@@ -23,6 +23,7 @@ from app.models import Booking, BookingCancellation
 from app.models.enums import BookingActor, BookingStatus, CancellationStatus, CancelReason
 from app.schemas.admin_bookings import AdminBooking, ResolveCancellationInput
 from app.services.account import CANCELLABLE
+from app.services.booking import waitlist
 from app.services.booking.after_capture import Notify
 from app.services.booking.desk import get_booking
 from app.services.booking.freshness import refresh_quietly
@@ -31,6 +32,7 @@ from app.services.booking.locking import lock_booking
 from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_resolution_email
+from app.services.email.waitlist import send_due
 from app.services.format import inr
 
 log = logging.getLogger(__name__)
@@ -117,6 +119,7 @@ async def resolve_cancellation(
                 actor=BookingActor.OWNER,
                 by=by,
             )
+            await waitlist.walk_locked(db, booking.departure_id)  # P6: the freed seats
         package_id = booking.package_id
         await db.commit()
     except BaseException:
@@ -126,6 +129,8 @@ async def resolve_cancellation(
         await send_refunds(db, ref, notify.razorpay if notify else None)
         # the seats just came back: "from ₹" and the package page may change
         await refresh_quietly(db, {package_id}, after=f"approving the cancellation of {ref}")
+    if approve:
+        await send_due(db, notify)
     if notify is not None:
         try:
             facts = await load_booking_facts(db, ref)

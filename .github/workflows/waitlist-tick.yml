@@ -1,0 +1,36 @@
+name: Waitlist tick
+
+# R44 (P6): every 15 minutes, walk every departure with a waitlist so a lapsed 10-minute hold or
+# a 24 h offer that ran out moves on even when nobody visits the site. Vercel Hobby crons run
+# once a day; a GitHub schedule is free on a public repo. GitHub may start a scheduled run late
+# (or skip one under load) — `/cron/daily` and every booking, join and claim read walk too.
+#
+# Needs the repo secret CRON_SECRET (the api's own CRON_SECRET). Without it the job is a no-op.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: waitlist-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Walk the waitlists
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          API_URL: https://tripsmith-api.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set — skipping"
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/waitlist"

@@ -26,11 +26,14 @@ from app.schemas.reviews import AccountReview, ReviewInput
 from app.services.account import get_booking, list_bookings, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
+from app.services.booking import waitlist
+from app.services.booking.after_capture import Notify
 from app.services.booking.balance import create_balance_order
 from app.services.booking.extras import create_extras_order, quote_extras
 from app.services.booking.voucher import load_booking_facts
 from app.services.email.cancellations import send_cancellation_emails
 from app.services.email.reviews import send_review_email
+from app.services.email.waitlist import send_due
 from app.services.reviews import submit_review
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -38,16 +41,22 @@ router = APIRouter(prefix="/account", tags=["account"])
 
 @router.get("/bookings", operation_id="listMyBookings", response_model_by_alias=True)
 async def get_my_bookings(
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(require_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AccountBookings:
     response.headers.update(NO_STORE)
+    # Read before the waitlist walk, whose commits and rollbacks expire `user`.
+    name, email = user.name, user.email
+    bookings = await list_bookings(db, user)
+    secret = request.app.state.settings.session_secret
+    entries = await waitlist.account_entries(
+        db, email, secret.get_secret_value() if secret else None
+    )
+    await send_due(db, Notify.of(request.app.state))  # the walk may have moved offers on
     return AccountBookings(
-        name=user.name,
-        email=user.email,
-        today=ist_today(),
-        bookings=await list_bookings(db, user),
+        name=name, email=email, today=ist_today(), bookings=bookings, waitlist=entries
     )
 
 

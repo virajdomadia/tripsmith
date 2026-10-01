@@ -37,4 +37,8 @@ class DailyReport(ApiModel):
     balances_cancelled: int = Field(
         default=0, description="Bookings cancelled for a balance unpaid past its grace (P5)"
     )
+    waitlist_offers: int = Field(default=0, description="P6: waitlist offers made by the walk")
+    waitlist_lapsed: int = Field(
+        default=0, description="P6: offers or claims that ran out, sent to the back of the list"
+    )
     balance_reminders: int = Field(default=0, description="Balance reminders sent (P5)")

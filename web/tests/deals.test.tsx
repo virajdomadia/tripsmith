@@ -52,6 +52,8 @@ const departure = (over: Partial<Departure> = {}): Departure => ({
   priceChildPaise: 2_000_00,
   singleSupplementPaise: 6_000_00,
   badge: 'filling-fast',
+  waiting: 0,
+  waitlistOpen: false,
   ...over,
 });
 

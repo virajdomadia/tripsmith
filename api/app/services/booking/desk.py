@@ -71,7 +71,7 @@ from app.schemas.enquiries import normalise_phone
 from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
 from app.services.analytics import ist_today
-from app.services.booking import extras
+from app.services.booking import extras, waitlist
 from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.balance import admin_balance, held_on_deposit
@@ -641,6 +641,7 @@ async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> 
             before={"status": BookingStatus.PENDING.value},
             after={"status": BookingStatus.CANCELLED.value, "cancelReason": "owner_released"},
         )
+        await waitlist.walk_locked(db, booking.departure_id)  # P6: the freed seats
         package_id = booking.package_id
         await db.commit()
     except BaseException:

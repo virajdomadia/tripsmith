@@ -427,13 +427,22 @@
             "format": "date",
             "title": "Today",
             "type": "string"
+          },
+          "waitlist": {
+            "description": "P6: this email's live waitlist entries, offers first to act on",
+            "items": {
+              "$ref": "#/components/schemas/AccountWaitlistEntry"
+            },
+            "title": "Waitlist",
+            "type": "array"
           }
         },
         "required": [
           "name",
           "email",
           "today",
-          "bookings"
+          "bookings",
+          "waitlist"
         ],
         "title": "AccountBookings",
         "type": "object"
@@ -589,6 +598,83 @@
           "occupancy"
         ],
         "title": "AccountTraveller",
+        "type": "object"
+      },
+      "AccountWaitlistEntry": {
+        "description": "A waitlist entry on My trips (matched by the account's email).",
+        "properties": {
+          "claimPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Book-now sheet with the offer, while one is held for you",
+            "title": "Claimpath"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "offerExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offerexpiresat"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "party": {
+            "title": "Party",
+            "type": "integer"
+          },
+          "position": {
+            "description": "1 = next in line",
+            "title": "Position",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "offered",
+              "claimed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "departureId",
+          "date",
+          "packageSlug",
+          "packageName",
+          "party",
+          "state",
+          "position",
+          "offerExpiresAt",
+          "claimPath"
+        ],
+        "title": "AccountWaitlistEntry",
         "type": "object"
       },
       "ActivityEntry": {
@@ -3320,6 +3406,19 @@
             "title": "Addons",
             "type": "array"
           },
+          "claim": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P6: a waitlist claim link's token. The booking uses the seats its offer holds, keeps them until the offer would have ended, and must use the offer's email",
+            "title": "Claim"
+          },
           "contact": {
             "$ref": "#/components/schemas/BookingContact"
           },
@@ -4755,6 +4854,18 @@
           "singleSupplementPaise": {
             "title": "Singlesupplementpaise",
             "type": "integer"
+          },
+          "waiting": {
+            "default": 0,
+            "description": "P6: people on this date's waitlist (waiting or holding an offer)",
+            "title": "Waiting",
+            "type": "integer"
+          },
+          "waitlistOpen": {
+            "default": false,
+            "description": "P6: a sold-out date takes waitlist joins until 3 days before departure",
+            "title": "Waitlistopen",
+            "type": "boolean"
           }
         },
         "required": [
@@ -8562,6 +8673,19 @@
             "title": "Addons",
             "type": "array"
           },
+          "claim": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P6: a waitlist claim link's token — the seats its offer holds count as free for this quote",
+            "title": "Claim"
+          },
           "couponCode": {
             "anyOf": [
               {
@@ -9351,6 +9475,155 @@
           "slug"
         ],
         "title": "ViewCreate",
+        "type": "object"
+      },
+      "WaitlistClaim": {
+        "description": "`getWaitlistClaim`: what a claim link's offer holds, read when the sheet opens with it.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the offer (and any hold) ends",
+            "title": "Expiresat"
+          },
+          "heldSeats": {
+            "description": "Seats held for this claim right now (the offer's party, or the started booking's): add them to the date's `seatsLeft` when choosing the party",
+            "title": "Heldseats",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "party": {
+            "title": "Party",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Place on the list when back to waiting",
+            "title": "Position"
+          },
+          "state": {
+            "description": "offered = held for you; claimed = your booking is started and still held; waiting = the offer ended and you're back on the list; booked, closed or removed = done",
+            "enum": [
+              "offered",
+              "claimed",
+              "waiting",
+              "booked",
+              "closed",
+              "removed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "departureId",
+          "date",
+          "packageSlug",
+          "packageName",
+          "name",
+          "email",
+          "party",
+          "heldSeats",
+          "expiresAt",
+          "position"
+        ],
+        "title": "WaitlistClaim",
+        "type": "object"
+      },
+      "WaitlistJoin": {
+        "description": "`joinWaitlist`: a sold-out date, and who is waiting for it. No account needed.",
+        "properties": {
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "party": {
+            "description": "How many seats the party needs",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Party",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "name",
+          "email",
+          "party"
+        ],
+        "title": "WaitlistJoin",
+        "type": "object"
+      },
+      "WaitlistJoined": {
+        "properties": {
+          "position": {
+            "description": "Where the party stands: 1 = next in line",
+            "title": "Position",
+            "type": "integer"
+          },
+          "waiting": {
+            "description": "Everyone on this date's list now, this party included",
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "waiting"
+        ],
+        "title": "WaitlistJoined",
         "type": "object"
       }
     }
@@ -14090,6 +14363,92 @@
           }
         },
         "summary": "Post View",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/waitlist": {
+      "post": {
+        "operationId": "joinWaitlist",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistJoin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistJoined"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Join",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/waitlist/claim/{token}": {
+      "get": {
+        "operationId": "getWaitlistClaim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 10,
+              "pattern": "^[A-Za-z0-9]+\\.\\d+\\.[0-9a-f]+$",
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaitlistClaim"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Claim",
         "tags": [
           "public"
         ]

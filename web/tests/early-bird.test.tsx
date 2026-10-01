@@ -188,6 +188,8 @@ describe('the card tag and the dates table', () => {
       priceChildPaise: 12_999_00,
       singleSupplementPaise: 7_999_00,
       badge: null,
+      waiting: 0,
+      waitlistOpen: false,
     };
     render(<DeparturesTable departures={[dep]} earlyBird={EB} />);
     expect(screen.getByText(/^Early bird −₹1,500 · book by/)).toBeTruthy();

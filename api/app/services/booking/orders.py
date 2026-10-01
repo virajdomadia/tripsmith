@@ -27,7 +27,7 @@ import logging
 import secrets
 from typing import NamedTuple
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,7 @@ from app.models import (
     Package,
     PackageAddon,
     Payment,
+    WaitlistEntry,
 )
 from app.models.catalog import departure_availability
 from app.models.enums import (
@@ -50,6 +51,7 @@ from app.models.enums import (
     PackageStatus,
     PaymentProvider,
     PaymentStatus,
+    WaitlistState,
 )
 from app.schemas.bookings import (
     AddonChoice,
@@ -62,7 +64,7 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.services.analytics import ist_today
-from app.services.booking import coupons, deposit, history
+from app.services.booking import coupons, deposit, history, waitlist
 from app.services.booking.addons import addon_rows
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.payments import lock_booking, seats_short
@@ -73,6 +75,7 @@ from app.services.booking.pricing import (
     price_ladder,
     unbookable_reason,
 )
+from app.services.email.links import ist_moment
 from app.services.enquiries import REF_ALPHABET
 
 HOLD = dt.timedelta(minutes=10)
@@ -162,14 +165,33 @@ async def priced_addons(
     return price_addons(list(offered), choices, party=party)
 
 
+async def _claim_seats(
+    db: AsyncSession, claim: str | None, departure_id: str, secret: str | None
+) -> int:
+    """For a quote: the seats a claim link's offer holds on this date (0 for a stale or foreign
+    link — the order is where a bad link is refused)."""
+    if not claim:
+        return 0
+    try:
+        entry = await waitlist.entry_for_token(db, claim, secret)
+    except ApiError:
+        return 0
+    return await waitlist.held_for(db, entry) if entry.departure_id == departure_id else 0
+
+
 async def quote_booking(
-    db: AsyncSession, req: QuoteRequest, *, now: dt.datetime | None = None
+    db: AsyncSession,
+    req: QuoteRequest,
+    *,
+    now: dt.datetime | None = None,
+    secret: str | None = None,
 ) -> Quote:
     """The breakdown for a party on a departure; no side effects. 404 when the trip is gone,
-    409 with the reason when it cannot be booked."""
+    409 with the reason when it cannot be booked. With a waitlist claim (P6), the seats its
+    offer holds count as free."""
     now = now or dt.datetime.now(dt.UTC)
     dep, pkg = await _load(db, req.departure_id, lock=False)
-    seats = await _seats_left(db, dep.id)
+    seats = await _seats_left(db, dep.id) + await _claim_seats(db, req.claim, dep.id, secret)
     if reason := unbookable_reason(dep, seats_left=seats, party=len(req.travellers), now=now):
         raise unbookable(reason)
     base = await _deal_base(db, pkg.id, now=now)
@@ -196,7 +218,9 @@ async def _lock_contact(db: AsyncSession, email: str, phone: str) -> None:
         await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
 
 
-async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Released]:
+async def _release_holds(
+    db: AsyncSession, email: str, phone: str, *, keep_claim: str | None = None
+) -> list[Released]:
     """One active hold per email or phone (R16): end the previous one now.
 
     The booking stays `pending` with its hold lapsed — exactly the state an abandoned checkout
@@ -213,6 +237,12 @@ async def _release_holds(db: AsyncSession, email: str, phone: str) -> list[Relea
                 Booking.hold_expires_at > func.now(),
                 Booking.channel == BookingChannel.WEB,  # a counter link's hold is the owner's
                 or_(Booking.contact_email == email, Booking.contact_phone == phone),
+                # P6: a waitlist claim's hold is kept — unless this order re-claims that entry.
+                ~exists().where(
+                    WaitlistEntry.booking_id == Booking.id,
+                    WaitlistEntry.state == WaitlistState.CLAIMED,
+                    WaitlistEntry.id != (keep_claim or ""),
+                ),
             )
             .with_for_update()
         )
@@ -251,6 +281,8 @@ async def _undo_hold(
             .returning(Booking.id)
             .execution_options(synchronize_session=False)
         )
+        # A claim's booking that couldn't open: its offer back if the seats are still free.
+        await waitlist.unclaim(db, booking.id, booking.departure_id)
         history.record_each(
             db,
             undone.scalars(),
@@ -292,24 +324,54 @@ async def _undo_hold(
 
 
 async def create_booking_order(
-    db: AsyncSession, req: BookingRequest, razorpay: Razorpay, *, now: dt.datetime | None = None
+    db: AsyncSession,
+    req: BookingRequest,
+    razorpay: Razorpay,
+    *,
+    now: dt.datetime | None = None,
+    secret: str | None = None,
 ) -> BookingOrder:
     """Hold seats for the party, then open a Razorpay order for the held amount.
 
     The hold is one transaction with the departure row locked throughout; a failed check rolls
     back, so a previous hold survives a party that no longer fits. The order's `payments` row
     (`created`) is what `confirm_payment` later matches the Checkout callback against.
+
+    The waitlist (P6) walks first (committed on its own), so seats a lapsed hold gave back go to
+    the list before this visitor. With `claim`, the booking uses the seats the offer holds and
+    keeps them until the offer would have ended; seats a smaller party leaves are walked on at
+    once.
     """
     now = now or dt.datetime.now(dt.UTC)
     contact = req.contact
+    # The list goes first, in its own transaction: an order refused below must not take the
+    # offers it made back with it.
+    await waitlist.walk_departures(db, [req.departure_id])
     try:
         await _lock_contact(db, contact.email, contact.phone)
         dep, pkg = await _load(db, req.departure_id, lock=True)
-        released = await _release_holds(db, contact.email, contact.phone)
+        claim_read = waitlist.read_token(req.claim, secret) if req.claim else None
+        released = await _release_holds(
+            db, contact.email, contact.phone, keep_claim=claim_read[0] if claim_read else None
+        )
+        entry: WaitlistEntry | None = None
+        if req.claim:
+            entry = await waitlist.claim_for_order(
+                db, req.claim, secret, departure_id=dep.id, email=contact.email
+            )
         seats = await _seats_left(db, dep.id)
+        if entry is not None:
+            seats += await waitlist.held_for(db, entry)
         party = len(req.travellers)
         if reason := unbookable_reason(dep, seats_left=seats, party=party, now=now):
+            if entry is not None and reason == UnbookableReason.SOLD_OUT:
+                raise ApiError(
+                    "conflict",
+                    f"Only {history.travellers(seats)} can be held for you on this date",
+                    reason="claim_short",
+                )
             raise unbookable(reason)
+        hold_until = entry.offer_expires_at if entry and entry.offer_expires_at else now + HOLD
         quote = build_quote(
             dep,
             pkg,
@@ -341,7 +403,7 @@ async def create_booking_order(
                 package_id=pkg.id,
                 departure_id=dep.id,
                 status=BookingStatus.PENDING,
-                hold_expires_at=now + HOLD,
+                hold_expires_at=hold_until,
                 contact_name=contact.name,
                 contact_phone=contact.phone,
                 contact_email=contact.email,
@@ -383,23 +445,33 @@ async def create_booking_order(
             if chosen
             else ""
         )
+        held_text = (
+            f"seats held until {ist_moment(hold_until)} (waitlist offer)"
+            if entry
+            else "seats held 10 minutes"
+        )
+        held_words = (
+            f"your waitlist seats are held until {ist_moment(hold_until)}"
+            if entry
+            else "seats held for 10 minutes while you pay"
+        )
         history.record(
             db,
             booking.id,
             "booked",
             actor=BookingActor.CUSTOMER,
             text=f"Booked online · {history.travellers(party)}{addons_text} · "
-            f"{history.money(booking.total_paise)}{coupon_text}{deposit_text} · seats held 10 "
-            "minutes",
+            f"{history.money(booking.total_paise)}{coupon_text}{deposit_text} · {held_text}",
             customer=f"You booked {history.travellers(party)}{addons_text} · "
-            f"{history.money(booking.total_paise)}{deposit_text} — seats held for 10 minutes "
-            "while you pay",
+            f"{history.money(booking.total_paise)}{deposit_text} — {held_words}",
             after={
                 "status": BookingStatus.PENDING.value,
                 "totalPaise": booking.total_paise,
                 **({"depositPaise": chosen.amount_paise} if chosen else {}),
             },
         )
+        if entry is not None:
+            waitlist.claimed(entry, booking)
         await db.commit()
     except BaseException:
         await db.rollback()
@@ -433,6 +505,8 @@ async def create_booking_order(
         + (" (deposit)" if booking.deposit_paise else ""),
     )
     await db.commit()
+    if req.claim:  # a smaller party leaves seats for the next in line — once the order exists
+        await waitlist.walk_departures(db, [req.departure_id])
     await refresh_quietly(db, touched, after=f"booking {booking.ref}")
     return BookingOrder(
         booking_ref=booking.ref,

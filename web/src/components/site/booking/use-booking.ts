@@ -32,6 +32,7 @@ import type { Deal } from '@/lib/deal';
 import type { EarlyBird } from '@/lib/early-bird';
 import { formatDate } from '@/lib/format';
 import { type CheckoutSuccess, loadCheckout, openCheckout } from '@/lib/razorpay-checkout';
+import { CLAIM_ENDED, claimLive, type WaitlistClaim } from '@/lib/waitlist';
 
 export type BookingPackage = {
   slug: string;
@@ -86,6 +87,8 @@ type Availability = { status: 'stale' | 'loading' | 'live' | 'error'; at?: numbe
 const json = { 'Content-Type': 'application/json' };
 /** A hold with less than this left is not worth reopening Checkout on. */
 const REUSE_MIN_SECONDS = 45;
+/** Checkout's own window: a waitlist claim holds the seats for hours, the window not. */
+const CHECKOUT_MAX_SECONDS = 15 * 60;
 
 export const MESSAGES = {
   rate_limited:
@@ -103,7 +106,13 @@ async function readError(res: Response): Promise<ApiRequestError> {
   return errorFromResponse(res.status, res.statusText, await res.json().catch(() => undefined));
 }
 
-export function useBooking(pkg: BookingPackage, open: boolean) {
+/**
+ * `claimToken` (R44, P6): the sheet was opened from a waitlist offer's link. While the offer is
+ * live the date is locked to it, the email is the one the offer went to, the seats it holds are
+ * added back to that date's count (the api's `seatsLeft` subtracts them), and the quote and the
+ * order carry the token so the api does the same.
+ */
+export function useBooking(pkg: BookingPackage, open: boolean, claimToken: string | null = null) {
   const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
   const [departureId, setDepartureId] = useState<string | null>(null);
@@ -127,6 +136,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   const [gone, setGone] = useState<string | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const [today, setToday] = useState(() => istToday());
+  const [claim, setClaim] = useState<WaitlistClaim | null>(null);
+  /** Why the claim link can't book any more (ended, booked, invalid), shown above the dates. */
+  const [claimEnded, setClaimEnded] = useState<string | null>(null);
+  const live = claim !== null && claimLive(claim);
+  const claimKey = live ? claimToken : null;
 
   /**
    * The visitor's own live hold. The api's `seatsLeft` already subtracts it, so without adding
@@ -144,12 +158,16 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   } | null>(null);
   const departures = useMemo(
     () =>
-      held && holdSecondsLeft(held.expiresAt) > 0 && (availability.at ?? 0) > held.since
+      live
         ? liveDepartures.map((d) =>
-            d.id === held.departureId ? { ...d, seatsLeft: d.seatsLeft + held.seats } : d,
+            d.id === claim.departureId ? { ...d, seatsLeft: d.seatsLeft + claim.heldSeats } : d,
           )
-        : liveDepartures,
-    [liveDepartures, held, availability.at],
+        : held && holdSecondsLeft(held.expiresAt) > 0 && (availability.at ?? 0) > held.since
+          ? liveDepartures.map((d) =>
+              d.id === held.departureId ? { ...d, seatsLeft: d.seatsLeft + held.seats } : d,
+            )
+          : liveDepartures,
+    [liveDepartures, held, availability.at, live, claim],
   );
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
@@ -165,8 +183,30 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   /** The last order and the exact body it was made from: reused only for the same booking. */
   const lastOrder = useRef<{ key: string; order: BookingOrder } | null>(null);
 
+  /* ---- the waitlist claim (P6): read with every availability read ---- */
+  const readClaim = useCallback(async () => {
+    if (!claimToken) return;
+    try {
+      const res = await fetch(`/api/waitlist/claim/${encodeURIComponent(claimToken)}`, {
+        cache: 'no-store',
+      });
+      if (res.status === 404) {
+        setClaim(null);
+        setClaimEnded(CLAIM_ENDED.invalid);
+        return;
+      }
+      if (!res.ok) return; // keep the last read; the order is where the api decides
+      const body = (await res.json()) as WaitlistClaim;
+      setClaim(body);
+      setClaimEnded(claimLive(body) ? null : (CLAIM_ENDED[body.state] ?? CLAIM_ENDED.invalid));
+    } catch {
+      // Offline: keep the last read.
+    }
+  }, [claimToken]);
+
   /* ---- live availability: every time the sheet opens, uncached (?fresh=1, docs/04 v2 §3) ---- */
   const refresh = useCallback(async () => {
+    void readClaim();
     setAvailability((a) => ({ ...a, status: 'loading' }));
     setToday(istToday());
     // Stamped when asked, not when answered: a read in flight when a hold is made may not
@@ -190,11 +230,24 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       // The list on screen is still the last good read; keep its stamp with it.
       setAvailability((a) => ({ ...a, status: 'error' }));
     }
-  }, [pkg.slug]);
+  }, [pkg.slug, readClaim]);
 
   useEffect(() => {
     if (open) void refresh();
   }, [open, refresh]);
+
+  // A live offer: its date, and the name and email it was made to (the email can't change).
+  const claimDeparture = live ? claim.departureId : null;
+  useEffect(() => {
+    if (!claim || !claimDeparture) return;
+    setDepartureId(claimDeparture);
+    setGone(null);
+    setContact((c) => ({
+      ...c,
+      name: c.name || claim.name,
+      email: claim.email,
+    }));
+  }, [claim, claimDeparture]);
 
   // Start on the first date this party can book. After a date sold out under the visitor
   // (`gone`), nothing is picked for them: R14 sends them back to choosing.
@@ -244,6 +297,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       travellers: quoteTravellers(rooms),
       couponCode,
       addons,
+      ...(claimKey ? { claim: claimKey } : {}),
     });
     if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt) > 0) {
       // Asking again would count the visitor's own hold against them: use the order's quote.
@@ -267,6 +321,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
             ...(couponCode ? { couponCode } : {}),
             ...(couponCode && couponEmail ? { email: couponEmail } : {}),
             ...(addons.length ? { addons } : {}),
+            ...(claimKey ? { claim: claimKey } : {}),
           }),
           signal: ctrl.signal,
         });
@@ -310,6 +365,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     couponEmail,
     choicesKey,
     dropGoneAddon,
+    claimKey,
   ]);
 
   /* ---- the form ---- */
@@ -318,7 +374,9 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setErrors({});
   };
   const updateContact = (patch: Partial<Contact>) => {
-    setContact((c) => ({ ...c, ...patch }));
+    // A waitlist offer is booked with the email it was sent to.
+    const { email, ...rest } = patch;
+    setContact((c) => ({ ...c, ...rest, ...(email !== undefined && !live ? { email } : {}) }));
     setErrors({});
   };
   const openCoupon = () => setCoupon((c) => ({ ...c, open: true }));
@@ -334,6 +392,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     setAddonNotice(null);
   };
   const chooseDeparture = (id: string) => {
+    if (claimDeparture && id !== claimDeparture) return; // the offer is for its own date
     setDepartureId(id);
     setGone(null);
   };
@@ -369,7 +428,10 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   };
 
   async function startOrder(): Promise<BookingOrder | null> {
-    const body = orderBody(departureId!, slots, travellers, contact, coupon.applied, choices, pay);
+    const body = {
+      ...orderBody(departureId!, slots, travellers, contact, coupon.applied, choices, pay),
+      ...(claimKey ? { claim: claimKey } : {}),
+    };
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
     if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt) > REUSE_MIN_SECONDS)
@@ -387,6 +449,11 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
     if (res.status === 201) {
       const order = (await res.json()) as BookingOrder;
       lastOrder.current = { key, order };
+      if (claimKey) {
+        // The claim now holds the seats as this booking; its next read says so.
+        void readClaim();
+        return order;
+      }
       setHeld({
         departureId: body.departureId,
         seats: body.travellers.length,
@@ -403,6 +470,14 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
       return order;
     }
     const err = await readError(res);
+    if (res.status === 409 && err.body.reason?.startsWith('claim_')) {
+      // The offer ended, or the link isn't this booking's: say so and read the claim again.
+      setBanner(err.body.message);
+      if (err.body.fieldErrors) setErrors(err.body.fieldErrors);
+      setPhase({ kind: 'choose' });
+      void refresh();
+      return null;
+    }
     if (err.body.code === 'validation' && err.body.fieldErrors) {
       setErrors(err.body.fieldErrors);
       setFocusRequest((n) => n + 1);
@@ -543,7 +618,7 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
           currency: 'INR',
           name: 'Tripsmith',
           description: `${pkg.name} · ${formatDate(order.quote.date)}`,
-          timeout: holdSecondsLeft(order.holdExpiresAt),
+          timeout: Math.min(holdSecondsLeft(order.holdExpiresAt), CHECKOUT_MAX_SECONDS),
           prefill: {
             name: contact.name.trim(),
             email: contact.email.trim(),
@@ -592,6 +667,8 @@ export function useBooking(pkg: BookingPackage, open: boolean) {
   };
 
   return {
+    claim: live ? claim : null,
+    claimEnded,
     departures,
     availability,
     today,

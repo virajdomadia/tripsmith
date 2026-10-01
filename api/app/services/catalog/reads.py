@@ -30,6 +30,7 @@ from app.schemas.catalog import (
     PackageDetail,
 )
 from app.services.analytics import ist_today
+from app.services.booking import waitlist
 from app.services.catalog import deals, early_bird
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
@@ -106,8 +107,17 @@ async def _upcoming_departures(
     if month:
         start, end = month_bounds(month)
         stmt = stmt.where(Departure.date >= start, Departure.date < end)
-    rows = await db.execute(stmt)
-    return [_departure_out(d, seats_left) for d, seats_left in rows]
+    rows = (await db.execute(stmt)).all()
+    waiting = await waitlist.waiting_counts(db, [d.id for d, _ in rows])
+    return [
+        _departure_out(d, seats_left).model_copy(
+            update={
+                "waiting": waiting.get(d.id, 0),
+                "waitlist_open": waitlist.join_open(d.date, today),
+            }
+        )
+        for d, seats_left in rows
+    ]
 
 
 async def _live_package(db: AsyncSession, slug: str) -> Package | None:
