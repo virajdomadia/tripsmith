@@ -35,9 +35,30 @@ const BASE = process.env.API_URL ?? 'http://localhost:8000';
  * the page and the footer asking for the same URL still cost one request.
  */
 export const API_TIMEOUT_MS = 8_000;
+/**
+ * `next build` prerenders every SSG page at once against the live api (from the build region,
+ * across the world from the api's), which queues the burst behind the api's small database pool:
+ * a page answering in 2 s alone can take over 8 s there. A build waits longer and tries a timed-out
+ * read once more — failing the whole deploy on one slow read left production on an old build.
+ * Live renders keep the short limit.
+ */
+export const BUILD_TIMEOUT_MS = 30_000;
+const building = () => process.env.NEXT_PHASE === 'phase-production-build';
 
 async function getJson(url: string, init: RequestInit): Promise<unknown> {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) });
+  const build = building();
+  const attempt = () =>
+    fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(build ? BUILD_TIMEOUT_MS : API_TIMEOUT_MS),
+    });
+  let res: Response;
+  try {
+    res = await attempt();
+  } catch (e) {
+    if (!build || !(e instanceof Error) || e.name !== 'TimeoutError') throw e;
+    res = await attempt();
+  }
   if (!res.ok)
     throw errorFromResponse(res.status, res.statusText, await res.json().catch(() => undefined));
   return res.json();
