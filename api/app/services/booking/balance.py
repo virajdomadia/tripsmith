@@ -49,7 +49,7 @@ from app.models.enums import (
 from app.schemas.account import AccountBalance, BalanceOrder
 from app.schemas.admin_bookings import AdminBalance
 from app.services.analytics import ist_today
-from app.services.booking import deposit, history
+from app.services.booking import deposit, history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, money
@@ -412,6 +412,7 @@ async def _cancel_overdue(
         await plan_refund(
             db, booking, await refund_owed(db, booking), reason="balance", actor=BookingActor.CRON
         )
+        await waitlist.walk_locked(db, booking.departure_id)  # P6: the freed seats
         await db.commit()
         return paid, agreed, days_out
     except BaseException:

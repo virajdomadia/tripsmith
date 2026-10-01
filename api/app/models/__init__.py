@@ -30,6 +30,7 @@ from app.models.catalog import (
 )
 from app.models.coupons import Coupon, coupon_packages
 from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
+from app.models.waitlist import WaitlistEntry
 
 __all__ = [
     "Base",
@@ -58,6 +59,7 @@ __all__ = [
     "Testimonial",
     "User",
     "Verification",
+    "WaitlistEntry",
     "coupon_packages",
     "new_id",
 ]

@@ -1,0 +1,10 @@
+Your offer ended, {{ first_name }} — you’re still on the list.
+
+The seats we held for you on {{ f.package_name }}, {{ departs }}, weren’t claimed in time, so they went to the next person. You’re now #{{ rank }} on the waitlist for {{ seats }}, and we’ll email you again if seats free up.
+
+See other dates for this trip: {{ package_url }}
+
+{{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

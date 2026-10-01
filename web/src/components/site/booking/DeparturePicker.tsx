@@ -5,7 +5,9 @@ import { type Departure, UNBOOKABLE_LABEL, unbookableReason } from '@/lib/bookin
 import { afterDiscounts, type Tier, tierFor, tierLabel } from '@/lib/early-bird';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { formatDate, inr } from '@/lib/format';
+import { istMoment, seatsWord } from '@/lib/waitlist';
 import type { BookingFlow, BookingPackage } from './use-booking';
+import { WaitlistJoin } from './WaitlistJoin';
 
 const seats = (n: number) => (n === 1 ? '1 seat left' : `${n} seats left`);
 
@@ -14,9 +16,17 @@ const seats = (n: number) => (n === 1 ? '1 seat left' : `${n} seats left`);
  * with the api's reason. The seat counts are the live read; until it lands they are the
  * prerendered page's and the caption says so. Each price is after the deal and (P17) the
  * early-bird tier that date earns today in IST; the quote has the final word.
+ *
+ * R44 (P6): a sold-out date offers "Join waitlist · N waiting" until 3 days out. Opened from a
+ * waitlist offer's link, the picker shows only that date, held for the visitor until the offer
+ * ends; an offer that has ended says why above the usual list.
  */
 export function DeparturePicker({ flow, pkg }: { flow: BookingFlow; pkg: BookingPackage }) {
-  const { departures, availability, departureId, party, today } = flow;
+  const { availability, departureId, party, today, claim } = flow;
+  // A live offer is for its own date only.
+  const departures = claim
+    ? flow.departures.filter((d) => d.id === claim.departureId)
+    : flow.departures;
   const slug = pkg.slug;
   // The page is prerendered: a deal that ended at IST midnight stays in it until the cron.
   const deal = pkg.deal && pkg.deal.endsOn >= today ? pkg.deal : null;
@@ -34,21 +44,55 @@ export function DeparturePicker({ flow, pkg }: { flow: BookingFlow; pkg: Booking
 
   return (
     <div className="grid gap-2">
+      {claim?.expiresAt && (
+        <p
+          role="status"
+          className="grid gap-0.5 rounded-btn border-[1.5px] border-ok/40 bg-ok-soft px-3 py-2.5 text-[13px] text-ink2 animate-rise"
+        >
+          <b className="text-ok">
+            {seatsWord(claim.heldSeats || claim.party)} held for you until{' '}
+            {istMoment(claim.expiresAt)}
+          </b>
+          <span>
+            From the waitlist. Book them in full or with a deposit — a smaller party is fine, and
+            the seats you don’t need go to the next person in line.
+          </span>
+        </p>
+      )}
+      {flow.claimEnded && (
+        <p
+          role="status"
+          className="rounded-btn border border-warn/40 bg-warn-soft px-3 py-2.5 text-[13px] font-semibold text-warn"
+        >
+          {flow.claimEnded}
+        </p>
+      )}
       <div role="group" aria-label="Departure dates" className="grid gap-2">
         {departures.map((d) => {
           const tier = tierFor(pkg.earlyBird, d.date, today);
+          const reason = unbookableReason(d, party, today);
           return (
-            <DepartureRow
-              key={d.id}
-              d={d}
-              price={afterDiscounts(d.priceDoublePaise, deal, tier)}
-              tier={tier}
-              tiered={!!pkg.earlyBird}
-              reason={unbookableReason(d, party, today)}
-              chosen={d.id === departureId}
-              onChoose={() => flow.chooseDeparture(d.id)}
-              slug={slug}
-            />
+            <div key={d.id} className="grid gap-2">
+              <DepartureRow
+                d={d}
+                price={afterDiscounts(d.priceDoublePaise, deal, tier)}
+                tier={tier}
+                tiered={!!pkg.earlyBird}
+                reason={reason}
+                chosen={d.id === departureId}
+                onChoose={() => flow.chooseDeparture(d.id)}
+                slug={slug}
+              />
+              {reason === 'sold_out' && d.waitlistOpen && (
+                <WaitlistJoin
+                  departure={d}
+                  party={party}
+                  name={flow.contact.name}
+                  email={flow.contact.email}
+                  onSeatsFree={() => void flow.refresh()}
+                />
+              )}
+            </div>
           );
         })}
       </div>
@@ -157,7 +201,9 @@ function DepartureRow({
           ? 'Date set, price not yet — we’ll quote you'
           : reason === 'too_soon'
             ? 'Online booking closes 2 days before departure — WhatsApp us'
-            : 'Fully booked'}
+            : d.waiting
+              ? `Fully booked · ${d.waiting} waiting`
+              : 'Fully booked'}
       </span>
     </div>
   );

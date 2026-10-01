@@ -39,7 +39,7 @@ from app.models.enums import (
 )
 from app.schemas.admin_bookings import AdminPaymentLink
 from app.schemas.bookings import PaymentResult
-from app.services.booking import history
+from app.services.booking import history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
 from app.services.booking.locking import lock_booking
@@ -477,6 +477,7 @@ async def cancel_link(
             before={"status": BookingStatus.PENDING.value},
             after={"status": BookingStatus.CANCELLED.value, "cancelReason": "owner_released"},
         )
+        await waitlist.walk_locked(db, booking.departure_id)  # P6: the freed seats
         package_id = booking.package_id
         await db.commit()
     except BaseException:

@@ -43,7 +43,7 @@ from app.models.enums import (
     PaymentStatus,
 )
 from app.schemas.bookings import PaymentCallback, PaymentResult
-from app.services.booking import history
+from app.services.booking import history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.extras import TAKES_EXTRAS, settle_extras
 from app.services.booking.history import PaymentLog, money
@@ -168,6 +168,8 @@ async def settle_capture(
         .execution_options(synchronize_session=False)
     )
     await db.refresh(booking)
+    if settled in (Settled.CONFIRMED, Settled.DEPOSIT):
+        await waitlist.mark_booked(db, booking)  # P6: this email's entry on this date is done
     _log_capture(db, booking, settled, entry, amount_paise=amount_paise, before=before)
     if settled in (Settled.SEATS_GONE, Settled.NOT_PENDING) or (
         settled in (Settled.CONFIRMED, Settled.DEPOSIT, Settled.PAID_IN_FULL)

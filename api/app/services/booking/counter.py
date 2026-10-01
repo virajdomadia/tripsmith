@@ -73,7 +73,7 @@ from app.schemas.counter import (
 from app.schemas.enquiries import normalise_phone
 from app.services.admin_enquiries import PHONE_QUERY_RE, like_escape
 from app.services.analytics import ist_today
-from app.services.booking import coupons, deposit, history
+from app.services.booking import coupons, deposit, history, waitlist
 from app.services.booking.addons import addon_rows
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
@@ -250,6 +250,8 @@ async def create_counter_booking(
     contact = req.contact
     party = len(req.travellers)
     channel = BookingChannel(req.channel)
+    # P6: freed seats go to the list first — committed on its own, so a refusal keeps the offers.
+    await waitlist.walk_departures(db, [req.departure_id])
     try:
         await _lock_contact(db, contact.email, contact.phone)
         dep, pkg = await _load(db, req.departure_id, lock=True)

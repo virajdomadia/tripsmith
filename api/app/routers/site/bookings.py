@@ -42,6 +42,7 @@ from app.services.booking.links import link_callback, payment_result
 from app.services.booking.orders import create_booking_order, quote_booking
 from app.services.booking.payments import confirm_payment, sync_payment
 from app.services.booking.voucher import HAS_VOUCHER, booking_has_order, voucher_path
+from app.services.email.waitlist import send_due
 
 BOOKING_LIMIT = 5
 BOOKING_WINDOW_SECONDS = 600
@@ -106,6 +107,11 @@ def notify(request: Request) -> Notify:
     return Notify.of(request.app.state)
 
 
+def session_secret(request: Request) -> str | None:
+    secret = request.app.state.settings.session_secret
+    return secret.get_secret_value() if secret else None
+
+
 def with_voucher(request: Request, result: PaymentResult) -> PaymentResult:
     if result.status not in HAS_VOUCHER:
         return result
@@ -120,11 +126,12 @@ router = APIRouter(tags=["public"])
 @router.post("/bookings/quote", operation_id="quoteBooking", response_model_by_alias=True)
 async def post_quote(
     payload: QuoteRequest,
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Quote:
     response.headers["Cache-Control"] = "no-store"
-    return await quote_booking(db, payload)
+    return await quote_booking(db, payload, secret=session_secret(request))
 
 
 @router.post(
@@ -136,12 +143,15 @@ async def post_quote(
 )
 async def post_booking(
     payload: BookingRequest,
+    request: Request,
     response: Response,
     rzp: Annotated[Razorpay, Depends(razorpay)],  # before the session: no keys → 503, no db
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> BookingOrder:
     response.headers["Cache-Control"] = "no-store"
-    return await create_booking_order(db, payload, rzp)
+    order = await create_booking_order(db, payload, rzp, secret=session_secret(request))
+    await send_due(db, notify(request))  # P6: the walk before the hold may have made offers
+    return order
 
 
 @router.post("/bookings/{ref}/confirm", operation_id="confirmPayment", response_model_by_alias=True)

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% set title = "Your waitlist offer ended · " ~ f.package_name %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Your offer ended, {{ first_name }} — you’re still on the list.</h1>
+<p style="margin:0 0 16px;">The seats we held for you on <strong>{{ f.package_name }}</strong>, {{ departs }}, weren’t claimed in time, so they went to the next person. You’re now <strong>#{{ rank }}</strong> on the waitlist for {{ seats }}, and we’ll email you again if seats free up.</p>
+<p style="margin:0 0 16px;"><a href="{{ package_url }}" style="color:#1b4fd8;font-weight:700;">See other dates for this trip</a></p>
+<p style="margin:0 0 16px;color:#5e6b76;">{{ demo_note }}</p>
+{% endblock %}

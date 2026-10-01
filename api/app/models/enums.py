@@ -139,3 +139,23 @@ class BookingChannel(StrEnum):
     WALK_IN = "walk_in"
     WHATSAPP = "whatsapp"
     ENQUIRY = "enquiry"  # converted from an enquiry
+
+
+class WaitlistState(StrEnum):
+    """A waitlist entry (R44, P6). `offered` holds seats until `offer_expires_at` (the
+    availability view subtracts them); `claimed` = the claim link made a pending booking;
+    `booked` = that email paid for this date; `closed` = the date stopped taking offers."""
+
+    WAITING = "waiting"
+    OFFERED = "offered"
+    CLAIMED = "claimed"
+    BOOKED = "booked"
+    REMOVED = "removed"
+    CLOSED = "closed"
+
+
+class WaitlistMail(StrEnum):
+    """The email a waitlist entry still owes (sent after the commit, claimed once)."""
+
+    OFFER = "offer"
+    LAPSE = "lapse"

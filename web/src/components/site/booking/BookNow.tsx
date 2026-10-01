@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { claimFromSearch } from '@/lib/waitlist';
 import type { BookingPackage } from './use-booking';
 
 /*
@@ -40,7 +41,8 @@ const BookNowContext = createContext<Ctx | null>(null);
 /**
  * Wraps the package page so both entry points — the desktop PriceBox and the phone's sticky
  * bar — open the one sheet, whose state (date, party, contact) survives closing it. `#book` in
- * the URL opens it on arrival, once the page has loaded (`afterLoad`).
+ * the URL opens it on arrival, once the page has loaded (`afterLoad`). A waitlist offer's link
+ * (`?claim=…#book`, R44) opens it the same way, in claim mode.
  */
 export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -48,10 +50,13 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   const [hydrated, setHydrated] = useState(false);
   // Set once the visitor opens the sheet: a late `#book` auto-open must not reopen one they closed.
   const touched = useRef(false);
+  const [claim, setClaim] = useState<string | null>(null);
 
   useEffect(() => {
     setHydrated(true);
-    if (window.location.hash !== '#book') return;
+    const token = claimFromSearch(window.location.search);
+    setClaim(token);
+    if (window.location.hash !== '#book' && !token) return;
     return afterLoad(() => {
       if (touched.current) return;
       setMounted(true);
@@ -72,7 +77,7 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   return (
     <BookNowContext.Provider value={value}>
       {children}
-      {mounted && <BookingSheet pkg={pkg} open={open} onOpenChange={setOpen} />}
+      {mounted && <BookingSheet pkg={pkg} open={open} onOpenChange={setOpen} claim={claim} />}
     </BookNowContext.Provider>
   );
 }

@@ -11,6 +11,7 @@ from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon, ExtrasOffer
 from app.schemas.reviews import AccountReview
+from app.schemas.waitlist import AccountWaitlistEntry
 
 
 class AccountBooking(ApiModel):
@@ -44,6 +45,9 @@ class AccountBookings(ApiModel):
     email: str
     today: dt.date = Field(description="The business day (IST) the list was read on")
     bookings: list[AccountBooking]
+    waitlist: list[AccountWaitlistEntry] = Field(
+        description="P6: this email's live waitlist entries, offers first to act on"
+    )
 
 
 class AccountTraveller(ApiModel):

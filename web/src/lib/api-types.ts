@@ -1474,6 +1474,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Join */
+        post: operations["joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/waitlist/claim/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Claim */
+        get: operations["getWaitlistClaim"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1696,6 +1730,11 @@ export interface components {
              * @description The business day (IST) the list was read on
              */
             today: string;
+            /**
+             * Waitlist
+             * @description P6: this email's live waitlist entries, offers first to act on
+             */
+            waitlist: components["schemas"]["AccountWaitlistEntry"][];
         };
         /** AccountCancellation */
         AccountCancellation: {
@@ -1759,6 +1798,42 @@ export interface components {
             /** Name */
             name: string;
             occupancy: components["schemas"]["Occupancy"];
+        };
+        /**
+         * AccountWaitlistEntry
+         * @description A waitlist entry on My trips (matched by the account's email).
+         */
+        AccountWaitlistEntry: {
+            /**
+             * Claimpath
+             * @description The Book-now sheet with the offer, while one is held for you
+             */
+            claimPath: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /** Offerexpiresat */
+            offerExpiresAt: string | null;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Party */
+            party: number;
+            /**
+             * Position
+             * @description 1 = next in line
+             */
+            position: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "waiting" | "offered" | "claimed";
         };
         /**
          * ActivityEntry
@@ -2982,6 +3057,11 @@ export interface components {
              * @description As on the quote
              */
             addons?: components["schemas"]["AddonChoice"][];
+            /**
+             * Claim
+             * @description P6: a waitlist claim link's token. The booking uses the seats its offer holds, keeps them until the offer would have ended, and must use the offer's email
+             */
+            claim?: string | null;
             contact: components["schemas"]["BookingContact"];
             /**
              * Couponcode
@@ -3653,6 +3733,18 @@ export interface components {
             seatsTotal: number;
             /** Singlesupplementpaise */
             singleSupplementPaise: number;
+            /**
+             * Waiting
+             * @description P6: people on this date's waitlist (waiting or holding an offer)
+             * @default 0
+             */
+            waiting: number;
+            /**
+             * Waitlistopen
+             * @description P6: a sold-out date takes waitlist joins until 3 days before departure
+             * @default false
+             */
+            waitlistOpen: boolean;
         };
         /**
          * DepartureSeats
@@ -5446,6 +5538,11 @@ export interface components {
              */
             addons?: components["schemas"]["AddonChoice"][];
             /**
+             * Claim
+             * @description P6: a waitlist claim link's token — the seats its offer holds count as free for this quote
+             */
+            claim?: string | null;
+            /**
              * Couponcode
              * @description Case-insensitive; refused with its reason
              */
@@ -5793,6 +5890,80 @@ export interface components {
         ViewCreate: {
             /** Slug */
             slug: string;
+        };
+        /**
+         * WaitlistClaim
+         * @description `getWaitlistClaim`: what a claim link's offer holds, read when the sheet opens with it.
+         */
+        WaitlistClaim: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /** Email */
+            email: string;
+            /**
+             * Expiresat
+             * @description When the offer (and any hold) ends
+             */
+            expiresAt: string | null;
+            /**
+             * Heldseats
+             * @description Seats held for this claim right now (the offer's party, or the started booking's): add them to the date's `seatsLeft` when choosing the party
+             */
+            heldSeats: number;
+            /** Name */
+            name: string;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Party */
+            party: number;
+            /**
+             * Position
+             * @description Place on the list when back to waiting
+             */
+            position: number | null;
+            /**
+             * State
+             * @description offered = held for you; claimed = your booking is started and still held; waiting = the offer ended and you're back on the list; booked, closed or removed = done
+             * @enum {string}
+             */
+            state: "offered" | "claimed" | "waiting" | "booked" | "closed" | "removed";
+        };
+        /**
+         * WaitlistJoin
+         * @description `joinWaitlist`: a sold-out date, and who is waiting for it. No account needed.
+         */
+        WaitlistJoin: {
+            /** Departureid */
+            departureId: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            /**
+             * Party
+             * @description How many seats the party needs
+             */
+            party: number;
+        };
+        /** WaitlistJoined */
+        WaitlistJoined: {
+            /**
+             * Position
+             * @description Where the party stands: 1 = next in line
+             */
+            position: number;
+            /**
+             * Waiting
+             * @description Everyone on this date's list now, this party included
+             */
+            waiting: number;
         };
     };
     responses: never;
@@ -8806,6 +8977,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistJoin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistJoined"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getWaitlistClaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitlistClaim"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

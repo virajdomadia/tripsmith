@@ -1,0 +1,10 @@
+Good news, {{ first_name }} — seats are free.
+
+{{ seats | capitalize }} on {{ f.package_name }}, {{ departs }}, opened up, and they’re held for you until {{ expires }}. Book them in full or with a 25 % deposit, where the date allows one.
+
+Claim your seats: {{ url }}
+
+Use this email address when you book. If the seats aren’t claimed by {{ expires }}, they go to the next person on the list and you go back on it, so you can still hear from us if more seats free up. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

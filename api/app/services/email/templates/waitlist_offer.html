@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% set title = "Seats are free · " ~ f.package_name %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Good news, {{ first_name }} — seats are free.</h1>
+<p style="margin:0 0 16px;">{{ seats | capitalize }} on <strong>{{ f.package_name }}</strong>, {{ departs }}, opened up, and they’re held for you until <strong>{{ expires }}</strong>. Book them in full or with a 25&nbsp;% deposit, where the date allows one.</p>
+<p style="margin:0 0 16px;">
+<a href="{{ url }}" style="display:inline-block;background:#f2a93b;color:#14202a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Claim your seats</a>
+</p>
+<p style="margin:0 0 16px;color:#5e6b76;">Use this email address when you book. If the seats aren’t claimed by {{ expires }}, they go to the next person on the list and you go back on it, so you can still hear from us if more seats free up. {{ demo_note }}</p>
+{% endblock %}

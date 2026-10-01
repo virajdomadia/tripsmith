@@ -17,6 +17,9 @@ IST midnight, so `ist_today()` is the new day:
    "Early-bird savings" tag and the date labels move on without a deploy;
 8. (P5) cancel bookings whose balance is past its 2-day grace (`balance_unpaid`, the policy's
    refund sent), then send today's balance reminders — each once (services/booking/balance.py).
+9. (P6) walk every departure with a waitlist — the backstop behind the 15-minute
+   `/cron/waitlist` — after the sweep, so seats an expired link gave back are offered, then
+   send the emails that owes.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -42,6 +45,7 @@ from app.services.catalog.admin_packages import (
     revalidate_ended_deals,
     revalidate_ended_early_birds,
 )
+from app.services.email.waitlist import walk_and_send
 from app.services.pdf.service import PdfService
 
 router = APIRouter(tags=["cron"], dependencies=[Depends(require_cron)], include_in_schema=False)
@@ -59,6 +63,7 @@ async def daily(
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
     swept = await sweep_bookings(db, today=today)
+    walked, _ = await walk_and_send(db, None, Notify.of(request.app.state))
     ended = await revalidate_ended_deals(db, now=dt.datetime.now(dt.UTC))
     return DailyReport(
         prices_updated=changed,
@@ -73,4 +78,6 @@ async def daily(
         early_birds_ended=await revalidate_ended_early_birds(db, today=today),
         balances_cancelled=balances.cancelled,
         balance_reminders=balances.reminded,
+        waitlist_offers=walked.offered,
+        waitlist_lapsed=walked.lapsed,
     )

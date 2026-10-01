@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Container } from '@/components/site/Container';
 import { TripRow } from '@/components/site/account/TripRow';
+import { WaitlistList } from '@/components/site/account/WaitlistList';
 import { groupTrips, type Tab, TABS } from '@/lib/account';
 import { api, ApiRequestError } from '@/lib/api';
 import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
@@ -87,6 +88,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           {voucher}
         </p>
       )}
+
+      {/* `?? []`: an api from before P6 (the web/api deploy race) has no waitlist. */}
+      <WaitlistList entries={trips.waitlist ?? []} />
 
       {trips.bookings.length === 0 ? (
         <section className="mt-10 grid justify-items-start gap-3 rounded-card border border-dashed border-line bg-bg2 p-8">

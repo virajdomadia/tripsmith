@@ -6,7 +6,7 @@ Route order matters — `/{id}/status` and `/{id}/duplicate` are declared before
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
@@ -18,7 +18,10 @@ from app.schemas.catalog import (
     PackageStatusInput,
 )
 from app.services.auth.deps import require_owner
+from app.services.booking import waitlist
+from app.services.booking.after_capture import Notify
 from app.services.catalog import admin_packages as svc
+from app.services.email.waitlist import walk_and_send
 
 router = APIRouter(prefix="/admin/packages", tags=["admin"], dependencies=[Depends(require_owner)])
 
@@ -68,9 +71,16 @@ async def get_route(id: str, response: Response, db: Db) -> AdminPackage:
 
 
 @router.put("/{id}", operation_id="updatePackage", response_model_by_alias=True)
-async def update_route(id: str, payload: PackageInput, response: Response, db: Db) -> AdminPackage:
+async def update_route(
+    id: str, payload: PackageInput, request: Request, response: Response, db: Db
+) -> AdminPackage:
     response.headers.update(NO_STORE)
-    return await svc.update_package(db, id, payload)
+    out = await svc.update_package(db, id, payload)
+    # P6: more seats on a date with a waitlist are offered down it at once.
+    await walk_and_send(
+        db, await waitlist.departures_with_list(db, id), Notify.of(request.app.state)
+    )
+    return out
 
 
 @router.delete(

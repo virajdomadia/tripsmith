@@ -15,6 +15,8 @@ const departure = (over: Partial<PackageDetail['departures'][number]>) => ({
   priceChildPaise: 8_999_00,
   singleSupplementPaise: 6_000_00,
   badge: 'guaranteed' as const,
+  waiting: 0,
+  waitlistOpen: false,
   ...over,
 });
 

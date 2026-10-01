@@ -211,6 +211,13 @@ class DepartureOut(ApiModel):
     price_child_paise: int = Field(description="Child 5-11 sharing the parents' room")
     single_supplement_paise: int
     badge: Badge | None
+    waiting: int = Field(
+        default=0, description="P6: people on this date's waitlist (waiting or holding an offer)"
+    )
+    waitlist_open: bool = Field(
+        default=False,
+        description="P6: a sold-out date takes waitlist joins until 3 days before departure",
+    )
 
 
 class DepartureList(ApiModel):
