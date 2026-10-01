@@ -95,6 +95,7 @@ class DepartureSeats(ApiModel):
     booked: int = Field(description="Travellers on confirmed, part-paid and completed bookings")
     held: int = Field(description="Travellers on pending bookings whose hold is still live")
     seats_left: int
+    waiting: int = Field(default=0, description="P6: places on the date's waitlist")
 
 
 class DepartureOption(ApiModel):

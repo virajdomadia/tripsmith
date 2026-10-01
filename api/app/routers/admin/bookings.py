@@ -30,10 +30,12 @@ from app.schemas.admin_bookings import (
 )
 from app.schemas.counter import EditTravellersInput
 from app.schemas.extras import RemoveAddonInput
+from app.schemas.waitlist import DepartureWaitlist
 from app.services.auth.deps import require_owner
-from app.services.booking import balance, counter, desk, extras, links, refunds, resolve
+from app.services.booking import balance, counter, desk, extras, links, refunds, resolve, waitlist
 from app.services.booking.after_capture import Notify
-from app.services.email.waitlist import send_due
+from app.services.email.waitlist import send_due, walk_and_send
+from app.services.format import short_name
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
 
@@ -280,3 +282,62 @@ async def resolve_route(
 async def manifest_route(id: str, response: Response, db: Db) -> Manifest:
     response.headers.update(NO_STORE)
     return await desk.manifest(db, id)
+
+
+# --- the waitlist (R44, P6b) --------------------------------------------------------------------
+
+
+async def _waitlist(db: AsyncSession, departure_id: str) -> DepartureWaitlist:
+    out = await waitlist.departure_list(db, departure_id)
+    await db.rollback()
+    if out is None:
+        raise ApiError("not_found", "Departure not found")
+    return out
+
+
+@router.get(
+    "/departures/{id}/waitlist",
+    operation_id="getDepartureWaitlist",
+    response_model_by_alias=True,
+)
+async def waitlist_route(
+    id: str, request: Request, response: Response, db: Db
+) -> DepartureWaitlist:
+    """The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are
+    offered) — the emails that owes go before the answer."""
+    response.headers.update(NO_STORE)
+    await walk_and_send(db, [id], Notify.of(request.app.state))
+    return await _waitlist(db, id)
+
+
+@router.post(
+    "/waitlist/{entry_id}/remove",
+    operation_id="removeWaitlistEntry",
+    response_model_by_alias=True,
+)
+async def waitlist_remove_route(
+    entry_id: str, request: Request, response: Response, db: Db, owner: Owner
+) -> DepartureWaitlist:
+    """Take a place off the list; seats its offer held go down the list at once."""
+    response.headers.update(NO_STORE)
+    departure_id = await waitlist.owner_remove(db, entry_id, by_name=short_name(owner.name))
+    await send_due(db, Notify.of(request.app.state))
+    return await _waitlist(db, departure_id)
+
+
+@router.post(
+    "/waitlist/{entry_id}/offer",
+    operation_id="offerWaitlistSeats",
+    response_model_by_alias=True,
+)
+async def waitlist_offer_route(
+    entry_id: str, request: Request, response: Response, db: Db, owner: Owner
+) -> DepartureWaitlist:
+    """Offer seats to a waiting place by hand: out of order, and past the 3 automatic offers.
+    409 `not_waiting`, `offers_closed` (too close to departure, or not on sale) or
+    `seats_short` (its party needs more seats than are free)."""
+    response.headers.update(NO_STORE)
+    owner_id, name = owner.id, short_name(owner.name)  # before any rollback expires `owner`
+    departure_id = await waitlist.owner_offer(db, entry_id, by=owner_id, by_name=name)
+    await send_due(db, Notify.of(request.app.state))
+    return await _waitlist(db, departure_id)

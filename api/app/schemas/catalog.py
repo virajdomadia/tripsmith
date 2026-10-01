@@ -636,6 +636,7 @@ class AdminDeparture(ApiModel):
     price_triple_paise: int
     price_child_paise: int
     single_supplement_paise: int
+    waiting: int = Field(default=0, description="P6: places on the date's waitlist; read only")
 
 
 class AdminAddon(ApiModel):

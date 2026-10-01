@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { PrintButton } from '@/components/admin/bookings/PrintButton';
+import { WaitlistPanel } from '@/components/admin/bookings/WaitlistPanel';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { ACCOUNT_PATH, LOGIN_PATH } from '@/lib/auth/gate';
 import { getSession } from '@/lib/auth/session';
@@ -21,6 +22,12 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
   if (!session) redirect(LOGIN_PATH);
   if (session.user.role !== 'owner') redirect(ACCOUNT_PATH);
   const { id } = await params;
+  // The waitlist first: reading it walks the list, so the seat counts below include its
+  // offers. Best effort — the printable manifest must never depend on it.
+  const waitlist = await api('/admin/departures/{id}/waitlist', {
+    auth: true,
+    params: { id },
+  }).catch(() => null);
   let m;
   try {
     m = await api('/admin/departures/{id}/manifest', { auth: true, params: { id } });
@@ -131,6 +138,8 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
           ))}
         </table>
       )}
+
+      {waitlist && <WaitlistPanel initial={waitlist} />}
 
       <p className="mt-6 text-xs text-mute">
         Printed {istFullDate(m.generatedAt)}, {istTime(m.generatedAt)} IST · confirmed and completed

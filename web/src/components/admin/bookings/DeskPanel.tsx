@@ -132,6 +132,15 @@ export function DeskPanel({ b, closeHref }: { b: AdminBooking | null; closeHref:
           >
             Manifest
           </Link>
+          {b.departure.waiting > 0 && (
+            <Link
+              href={`${manifestHref(b.departure.departureId)}#waitlist`}
+              target="_blank"
+              className="rounded-chip bg-primary-soft px-2 py-0.5 text-[12px] font-bold text-primary-ink no-underline"
+            >
+              {b.departure.waiting} waiting
+            </Link>
+          )}
         </div>
       </section>
 

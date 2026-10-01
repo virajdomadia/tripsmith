@@ -53,7 +53,12 @@ from app.models.enums import (
     WaitlistMail,
     WaitlistState,
 )
-from app.schemas.waitlist import AccountWaitlistEntry, WaitlistClaim
+from app.schemas.waitlist import (
+    AccountWaitlistEntry,
+    AdminWaitlistEntry,
+    DepartureWaitlist,
+    WaitlistClaim,
+)
 from app.services.analytics import ist_today
 from app.services.email.render import IST
 
@@ -712,3 +717,141 @@ async def package_of(db: AsyncSession, departure_id: str) -> str | None:
     return (
         await db.execute(select(Departure.package_id).where(Departure.id == departure_id))
     ).scalar_one_or_none()
+
+
+# --- the owner (P6b) ---------------------------------------------------------------------------
+
+DONE_SHOWN = 20
+NOT_WAITING = "Only a place that is waiting can be offered seats"
+NO_OFFERS = "This date can't take offers any more — it departs too soon, or isn't on sale"
+
+
+def _admin_entry(entry: WaitlistEntry, position: int | None) -> AdminWaitlistEntry:
+    last = (entry.events or [])[-1:] or [{}]
+    return AdminWaitlistEntry(
+        id=entry.id,
+        position=position,
+        name=entry.name,
+        email=entry.email,
+        party=entry.party,
+        state=entry.state.value,  # type: ignore[arg-type]
+        offer_expires_at=entry.offer_expires_at,
+        offer_no=entry.offer_no,
+        offered_by_owner=entry.offered_by_user_id is not None,
+        auto_offers_done=entry.offer_no >= MAX_AUTO_OFFERS,
+        joined_at=entry.created_at,
+        last_event=last[0].get("text"),
+    )
+
+
+async def departure_list(db: AsyncSession, departure_id: str) -> DepartureWaitlist | None:
+    """The owner's view of one date's list. Read only: callers walk first."""
+    dep = await db.get(Departure, departure_id)
+    if dep is None:
+        return None
+    rows = (
+        (
+            await db.execute(
+                select(WaitlistEntry)
+                .where(WaitlistEntry.departure_id == departure_id)
+                .order_by(WaitlistEntry.position)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    live = [e for e in rows if e.state in LIVE]
+    done = sorted(
+        (e for e in rows if e.state not in LIVE), key=lambda e: e.updated_at, reverse=True
+    )[:DONE_SHOWN]
+    now = await _db_now(db)
+    ends = offer_ends(dep.date, now) if await _bookable(db, dep) else None
+    return DepartureWaitlist(
+        departure_id=departure_id,
+        seats_left=await seats_left(db, departure_id),
+        can_offer=ends is not None,
+        offer_ends_at=ends,
+        live=[_admin_entry(e, i) for i, e in enumerate(live, start=1)],
+        done=[_admin_entry(e, None) for e in done],
+    )
+
+
+async def _owner_entry(db: AsyncSession, entry_id: str) -> tuple[WaitlistEntry, Departure]:
+    """Lock the entry's departure (walked), then the entry."""
+    departure_id = (
+        await db.execute(select(WaitlistEntry.departure_id).where(WaitlistEntry.id == entry_id))
+    ).scalar_one_or_none()
+    if departure_id is None:
+        raise ApiError("not_found", "That waitlist place no longer exists")
+    dep = await lock_departure(db, departure_id)
+    assert dep is not None  # the entry's foreign key cascades
+    await walk(db, dep)
+    entry = (
+        await db.execute(
+            select(WaitlistEntry)
+            .where(WaitlistEntry.id == entry_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if entry is None:
+        raise ApiError("not_found", "That waitlist place no longer exists")
+    return entry, dep
+
+
+async def owner_remove(db: AsyncSession, entry_id: str, *, by_name: str) -> str:
+    """Take a place off the list. An offer it held frees its seats, which go down the list at
+    once; a claim's started booking is left alone (it holds or lapses like any other).
+    Returns the departure id. Committed."""
+    try:
+        entry, dep = await _owner_entry(db, entry_id)
+        if entry.state not in LIVE:
+            raise ApiError(
+                "conflict", f"This place is already {entry.state.value}", reason="not_live"
+            )
+        await remove(db, entry, f"Removed by {by_name}")
+        await db.flush()
+        await walk(db, dep)
+        departure_id = dep.id
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return departure_id
+
+
+async def owner_offer(db: AsyncSession, entry_id: str, *, by: str, by_name: str) -> str:
+    """Offer seats to a waiting place by hand — out of order, and past the 3 automatic offers —
+    when its party fits the free seats and the date can still take an offer. Committed; returns
+    the departure id."""
+    try:
+        before = (
+            await db.execute(select(WaitlistEntry.offer_no).where(WaitlistEntry.id == entry_id))
+        ).scalar_one_or_none()
+        entry, dep = await _owner_entry(db, entry_id)
+        if entry.state == WaitlistState.OFFERED and entry.offer_no != before:
+            # The walk just before this offered it on its own: the owner's wish is done.
+            departure_id = dep.id
+            await db.commit()
+            return departure_id
+        if entry.state != WaitlistState.WAITING:
+            raise ApiError("conflict", NOT_WAITING, reason="not_waiting")
+        now = await _db_now(db)
+        ends = offer_ends(dep.date, now) if await _bookable(db, dep) else None
+        if ends is None:
+            raise ApiError("conflict", NO_OFFERS, reason="offers_closed")
+        free = await seats_left(db, dep.id)
+        if entry.party > free:
+            raise ApiError(
+                "conflict",
+                f"Only {free} seat{'s' if free != 1 else ''} free — this party needs "
+                f"{entry.party}. Add seats in the package's departures first.",
+                reason="seats_short",
+            )
+        make_offer(entry, ends, by=by, name=by_name)
+        departure_id = dep.id
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return departure_id
