@@ -17,6 +17,8 @@ class Settled(StrEnum):
     DEPOSIT = "deposit"  # P5: the deposit is in — `partially_paid`, the seats held
     BALANCE_PART = "balance_part"  # P5: a part of the balance, some still to pay
     PAID_IN_FULL = "paid_in_full"  # P5: the part that cleared the balance — `confirmed`
+    DATE_CHANGED = "date_changed"  # P7: a change's difference paid — the booking moved
+    CHANGE_LAPSED = "change_lapsed"  # P7: paid after its seats had gone — refunded, not moved
 
 
 class Capture(NamedTuple):

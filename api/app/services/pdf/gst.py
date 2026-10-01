@@ -58,6 +58,8 @@ class GstFacts:
     # payment's for an Add extras invoice. Read from the rows each covers, so a later purchase or
     # an add-on taken off never changes an invoice already issued.
     invoice_addons: tuple[AddonFact, ...] = ()
+    # P7, a supplementary invoice: the change it bills ("moved from 13 Nov 2026 to 20 Nov 2026").
+    date_change: str | None = None
 
 
 def gst_filename(ref: str, number: str) -> str:
@@ -199,14 +201,21 @@ class _GstDoc:
         d.set_y(d.get_y() + 5.5)
         d.hairline(d.get_y())
         extras = f.doc.kind == "invoice" and f.doc.payment_id is not None
+        moved = extras and f.date_change is not None
         what = {
             "receipt": "Payment received towards",
-            "invoice": "Add-ons for the tour package" if extras else "Tour package",
+            "invoice": "Date change for the tour package"
+            if moved
+            else "Add-ons for the tour package"
+            if extras
+            else "Tour package",
             "credit_note": f"Credit — {REASON_WORDS.get(f.refund_reason or '', 'refund')} ·",
         }[f.doc.kind]
         party = f"{len(b.travellers)} traveller{'s' if len(b.travellers) != 1 else ''}"
         desc = f"{what} {b.package_name}, {long_date(b.departs)} to {long_date(b.returns)}, {party}"
-        if f.doc.kind == "invoice" and f.invoice_addons:  # P8: the add-ons it covers
+        if moved:  # P7: what the change was
+            desc += f": {f.date_change}"
+        elif f.doc.kind == "invoice" and f.invoice_addons:  # P8: the add-ons it covers
             desc += f"{': ' if extras else ', with '}{summary(f.invoice_addons)}"
         if f.doc.kind == "invoice" and not extras and b.manual_off_paise:  # P18
             desc += f" · after a discount of {inr(b.manual_off_paise // 100)}: {b.manual_reason}"

@@ -8,6 +8,7 @@ from pydantic import Field, field_validator
 from app.models.enums import BookingStatus, CancellationStatus, Occupancy, PaymentProvider
 from app.schemas import ApiModel
 from app.schemas.bookings import Quote
+from app.schemas.changes import ChangeOffer
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon, ExtrasOffer
 from app.schemas.reviews import AccountReview
@@ -169,6 +170,7 @@ class AccountBookingDetail(ApiModel):
     balance: AccountBalance | None = Field(
         default=None, description="P5: made on a deposit (null = booked paying in full)"
     )
+    change: ChangeOffer = Field(description="P7: Change date — open or not, and the fee rule")
 
 
 class CancellationRequest(ApiModel):

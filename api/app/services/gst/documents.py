@@ -8,6 +8,10 @@ A booking has:
   is the price the booking was made at (its quote), which is what was paid in full;
 - (P8b) a **second tax invoice** for each Add extras payment, dated its capture, for the add-ons
   that payment bought. The first invoice never changes;
+- (P7) a **supplementary tax invoice** for each date change paid for after the first invoice
+  existed (`date_changes.invoiced`), for the rise it paid; the first invoice keeps the price
+  it was issued at. A change made while the booking was still on its deposit just moves the
+  price the first invoice will carry;
 - a **credit note** (`CN/…`) for each processed refund that gives back part of an invoiced
   supply (a cancellation, a cheaper date, an unpaid balance). A refund of money the booking
   never needed (`surplus`, `seats_gone`) is not a credit against the invoice, and the credits
@@ -34,8 +38,14 @@ from sqlalchemy import ColumnElement, and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.models import Booking, BookingAddon, GstDocument, Payment, Refund
-from app.models.enums import BookingStatus, CancelReason, PaymentStatus, RefundStatus
+from app.models import Booking, BookingAddon, DateChange, GstDocument, Payment, Refund
+from app.models.enums import (
+    BookingStatus,
+    CancelReason,
+    DateChangeState,
+    PaymentStatus,
+    RefundStatus,
+)
 from app.schemas.account import GstDocumentOut
 from app.services.booking.locking import lock_booking
 from app.services.email.render import IST
@@ -135,14 +145,17 @@ async def off_paise(db: AsyncSession, booking_id: str) -> int:
     )
 
 
-def invoiced_on(booking: Booking, payments: list[Payment], price: int) -> dt.date | None:
+def invoiced_on(
+    booking: Booking, payments: list[Payment], price: int, own_supply: frozenset[str] = frozenset()
+) -> dt.date | None:
     """The IST day the booking was paid in full (`price`), if it took up its seats; else None.
-    Add extras payments are their own supply (P8b) and never count towards it."""
+    Add extras payments are their own supply (P8b) and never count towards it, nor do the
+    payments in `own_supply` (P7: a date change's after the invoice, or one that went back)."""
     if not took_seats(booking):
         return None
     paid = 0
     for p in sorted(payments, key=captured_at):
-        if p.extras is not None:
+        if p.extras is not None or p.id in own_supply:
             continue
         paid += p.amount_paise
         if paid >= price:
@@ -181,8 +194,30 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
                 payment_id=p.id,
             )
         )
-    price = booked_price(booking, await off_paise(db, booking.id))
-    day = invoiced_on(booking, payments, price)
+    changes = {
+        c.id: c
+        for c in (
+            await db.execute(select(DateChange).where(DateChange.booking_id == booking.id))
+        ).scalars()
+    }
+    after_invoice = {
+        cid: c for cid, c in changes.items() if c.invoiced and c.state == DateChangeState.DONE
+    }
+    # P7: a change paid after the invoice is its own supply; one that never moved the booking
+    # was money going back. Neither counts towards paying the first invoice's price.
+    own_supply = frozenset(
+        p.id
+        for p in payments
+        if p.date_change_id is not None
+        and (
+            p.date_change_id in after_invoice
+            or changes[p.date_change_id].state != DateChangeState.DONE
+        )
+    )
+    price = booked_price(booking, await off_paise(db, booking.id)) - sum(
+        c.net_paise for c in after_invoice.values()
+    )
+    day = invoiced_on(booking, payments, price, own_supply)
     invoice = issued.get(("invoice", None))
     if invoice is not None or day is not None:
         out.append(
@@ -207,6 +242,24 @@ async def available(db: AsyncSession, booking: Booking) -> list[DocRef]:
             amount = d.amount_paise if d else int(bought.get(p.id) or 0)
             if amount <= 0 or not (d or took_seats(booking)):
                 continue  # nothing it paid for joined the booking: refunded, not invoiced
+            out.append(
+                DocRef(
+                    key=f"invoice-{p.id}",
+                    kind="invoice",
+                    amount_paise=amount,
+                    dated=d.dated if d else _ist(captured_at(p)),
+                    number=d.number if d else None,
+                    payment_id=p.id,
+                )
+            )
+        for p in sorted(payments, key=captured_at):  # P7: supplementary invoices
+            change = after_invoice.get(p.date_change_id or "")
+            if change is None:
+                continue
+            d = issued.get(("invoice", p.id))
+            amount = d.amount_paise if d else min(p.amount_paise, max(0, change.net_paise))
+            if amount <= 0:
+                continue
             out.append(
                 DocRef(
                     key=f"invoice-{p.id}",

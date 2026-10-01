@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
-from app.models import Booking, BookingTraveller, Payment
+from app.models import Booking, BookingTraveller, DateChange, Payment
 from app.models.catalog import departure_availability
 from app.models.enums import (
     BookingActor,
@@ -43,11 +43,11 @@ from app.models.enums import (
     PaymentStatus,
 )
 from app.schemas.bookings import PaymentCallback, PaymentResult
-from app.services.booking import history, waitlist
+from app.services.booking import changes, history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.extras import TAKES_EXTRAS, settle_extras
 from app.services.booking.history import PaymentLog, money
-from app.services.booking.locking import NOT_FOUND, lock_booking
+from app.services.booking.locking import NOT_FOUND, lock_booking, lock_change
 from app.services.booking.refunds import plan_refund, refund_owed, refunding
 from app.services.booking.settled import Capture, Settled
 from app.services.gst.documents import issue_due_safely
@@ -101,6 +101,7 @@ async def settle_capture(
     entry: PaymentLog,
     extras: list[dict[str, Any]] | None = None,
     payment_id: str | None = None,
+    date_change_id: str | None = None,
 ) -> Settled:
     """Apply newly captured money to a booking locked by `lock_booking`, and write it to the
     booking's history (`entry` + what the money did). The caller has recorded the payment row and
@@ -108,7 +109,14 @@ async def settle_capture(
 
     `extras` (P8b) = the payment was an Add extras order: on a confirmed booking its add-ons join
     the booking (`extras.settle_extras`); on any other it is money the booking does not take,
-    refunded by the rule below."""
+    refunded by the rule below.
+
+    `date_change_id` (P7) = the payment was a date change's difference: the booking moves
+    (`changes.settle_change`, which needs `lock_change`), or the money goes back in full."""
+    if date_change_id is not None:
+        return await changes.settle_change(
+            db, booking, change_id=date_change_id, amount_paise=amount_paise, entry=entry
+        )
     if extras is not None and payment_id is not None and booking.status in TAKES_EXTRAS:
         return await settle_extras(
             db,
@@ -280,7 +288,20 @@ async def capture_razorpay_payment(
     new row when that one is taken (a failed attempt, or a second capture on the same order).
     `link_row` (P18b): the Payment Link row whose order this is, mapped first.
     """
-    booking, hold_live = await lock_booking(db, ref)
+    # P7: an order paying a date change locks both dates (in id order), not just the booking's.
+    moving_to = (
+        await db.execute(
+            select(DateChange.to_departure_id)
+            .join(Payment, Payment.date_change_id == DateChange.id)
+            .join(Booking, Booking.id == Payment.booking_id)
+            .where(Booking.ref == ref, Payment.razorpay_order_id == order_id)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if moving_to is not None:
+        booking, hold_live = await lock_change(db, ref, moving_to)
+    else:
+        booking, hold_live = await lock_booking(db, ref)
     if link_row is not None:
         await map_link_order(db, booking.id, link_row, order_id)
     rows = (
@@ -313,6 +334,9 @@ async def capture_razorpay_payment(
             amount_paise=rows[0].amount_paise,
             # P8b: a retry after a failed attempt is still the Add extras order's money.
             extras=next((p.extras for p in rows if p.extras is not None), None),
+            date_change_id=next(
+                (p.date_change_id for p in rows if p.date_change_id is not None), None
+            ),
         )
         db.add(payment)
     payment.razorpay_payment_id = payment_id
@@ -328,6 +352,7 @@ async def capture_razorpay_payment(
         entry=PaymentLog.razorpay(payment_id, payment.amount_paise, via),
         extras=payment.extras,
         payment_id=payment.id,
+        date_change_id=payment.date_change_id,
     )
     return booking, Capture(settled, payment_id, payment.amount_paise)
 

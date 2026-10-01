@@ -94,6 +94,7 @@ describe('the price ladder', () => {
       subtotalPaise: 0,
       discountPaise: 0,
       addonsPaise: 0,
+      changeFeePaise: 0,
       totalPaise: 0,
     }) as Quote;
   const flow = (q: Quote) =>

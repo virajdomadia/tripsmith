@@ -41,7 +41,7 @@ from app.schemas.account import (
 )
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
-from app.services.booking import extras, history
+from app.services.booking import changes, extras, history
 from app.services.booking.balance import balance_out
 from app.services.booking.voucher import HAS_VOUCHER
 from app.services.gst.documents import documents_out
@@ -238,6 +238,7 @@ async def get_booking(
         activity=await history.customer_activity(db, booking.id),
         addons=await extras.booked(db, booking.id),
         extras=await extras.offer(db, booking, departs, today),
+        change=await changes.offer(db, booking, departs, today),
         balance=balance_out(
             booking,
             asked=asked is not None and asked.status == CancellationStatus.REQUESTED,

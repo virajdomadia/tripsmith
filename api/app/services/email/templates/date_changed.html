@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% set title = ("Your trip has moved — " if moved else "About your date change — ") ~ b.ref %}
+{% block body %}
+{% if moved %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Your trip has moved, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">Booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }} now departs <b>{{ departs }}</b> (it was {{ old_date }}).</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">New dates</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;font-weight:700;">{{ departs }} – {{ returns }}</td></tr>
+{% if fee %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Change fee</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ fee }}</td></tr>{% endif %}
+{% if paid_now %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Paid for the change</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ paid_now }}</td></tr>{% endif %}
+{% if refund %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Coming back to you</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;font-weight:700;">{{ refund }} — banks take 5–7 working days to show it</td></tr>{% endif %}
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Trip total</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;font-weight:700;">{{ total }} · paid {{ paid }}</td></tr>
+{% if balance %}<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-bottom:1px solid #e3e8ec;">Balance</td><td style="padding:7px 0;border-bottom:1px solid #e3e8ec;">{{ balance }} due by {{ due }}</td></tr>{% endif %}
+</table>
+<p style="margin:0 0 16px;">{% if voucher_attached %}Your new voucher is attached{% else %}Your new voucher is in My trips{% endif %}{% if invoice_attached %}, with the GST tax invoice{% endif %}. The old one no longer applies.</p>
+{% else %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">We couldn’t move your trip, {{ b.first_name }}.</h1>
+<p style="margin:0 0 16px;">Your payment of {{ paid_now }} for booking <b>{{ b.ref }}</b> arrived after the seats held on the new date had gone, so your trip stays on <b>{{ departs }}</b>. The {{ paid_now }} is on its way back in full — banks take 5–7 working days to show it.</p>
+{% endif %}
+<p style="margin:0 0 18px;color:#5e6b76;">{{ demo_note }}</p>
+<p style="margin:0 0 8px;">
+<a href="{{ trip_url }}" style="display:inline-block;background:#1b4fd8;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Open your booking</a>
+</p>
+{% endblock %}

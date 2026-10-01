@@ -24,6 +24,25 @@ async def lock_booking(db: AsyncSession, ref: str) -> tuple[Booking, bool]:
     if departure_id is None:
         raise ApiError("not_found", NOT_FOUND)
     await db.execute(select(Departure.id).where(Departure.id == departure_id).with_for_update())
+    return await _lock_row(db, ref, {departure_id})
+
+
+async def lock_change(db: AsyncSession, ref: str, other_departure_id: str) -> tuple[Booking, bool]:
+    """`lock_booking` for a date change (P7): both departures — the booking's and the one it
+    moves to — in id order, so two swaps between the same pair of dates never wait on each other
+    in opposite orders, then the booking."""
+    departure_id = (
+        await db.execute(select(Booking.departure_id).where(Booking.ref == ref))
+    ).scalar_one_or_none()
+    if departure_id is None:
+        raise ApiError("not_found", NOT_FOUND)
+    ids = sorted({departure_id, other_departure_id})
+    for i in ids:
+        await db.execute(select(Departure.id).where(Departure.id == i).with_for_update())
+    return await _lock_row(db, ref, set(ids))
+
+
+async def _lock_row(db: AsyncSession, ref: str, locked: set[str]) -> tuple[Booking, bool]:
     booking, live = (
         await db.execute(
             select(Booking, Booking.hold_expires_at > func.now())
@@ -32,4 +51,11 @@ async def lock_booking(db: AsyncSession, ref: str) -> tuple[Booking, bool]:
             .execution_options(populate_existing=True)
         )
     ).one()
+    if booking.departure_id not in locked:
+        # A date change (P7) moved the booking while this waited on its old departure: take the
+        # new one too, so a seat re-check below still sees every hold committed before it. Out of
+        # order, but only on that race — Postgres breaks the rare deadlock it could make.
+        await db.execute(
+            select(Departure.id).where(Departure.id == booking.departure_id).with_for_update()
+        )
     return booking, bool(live)

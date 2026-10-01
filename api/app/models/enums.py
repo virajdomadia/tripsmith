@@ -159,3 +159,15 @@ class WaitlistMail(StrEnum):
 
     OFFER = "offer"
     LAPSE = "lapse"
+
+
+class DateChangeState(StrEnum):
+    """A date change (R45, P7). `held` keeps the party's seats on the new date until
+    `hold_expires_at` while the difference is paid (the availability view subtracts them);
+    `done` = the booking moved; `lapsed` = paid too late for seats that had gone, refunded;
+    `cancelled` = replaced by a newer change, or its order never opened."""
+
+    HELD = "held"
+    DONE = "done"
+    LAPSED = "lapsed"
+    CANCELLED = "cancelled"
