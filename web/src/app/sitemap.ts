@@ -36,21 +36,23 @@ async function catalogue() {
     return await Promise.all([
       api('/packages', { tags: ['packages'] }),
       api('/destinations', { tags: ['destinations'] }),
+      api('/leaders', { tags: ['leaders'] }), // P3 (R41)
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError) throw err;
     console.warn(`sitemap: api unreachable, listing static pages only (${String(err)})`);
-    return [{ items: [] }, { items: [] }] as const;
+    return [{ items: [] }, { items: [] }, { items: [] }] as const;
   }
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [packages, destinations] = await catalogue();
+  const [packages, destinations, leaders] = await catalogue();
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: absolute('/'), changeFrequency: 'weekly', priority: 1 },
     { url: absolute('/packages'), changeFrequency: 'daily', priority: 0.9 },
     { url: absolute('/destinations'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: absolute('/leaders'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absolute('/about'), changeFrequency: 'yearly', priority: 0.5 },
     { url: absolute('/contact'), changeFrequency: 'yearly', priority: 0.5 },
     ...POLICY_SLUGS.map((slug) => ({
@@ -71,6 +73,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: absolute(`/destinations/${d.slug}`),
       changeFrequency: 'weekly' as const,
       priority: 0.7,
+    })),
+    ...leaders.items.map((l) => ({
+      url: absolute(`/leaders/${l.slug}`),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
     })),
   ];
 }

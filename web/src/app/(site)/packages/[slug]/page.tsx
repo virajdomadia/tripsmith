@@ -10,6 +10,7 @@ import { Gallery } from '@/components/site/package/Gallery';
 import { Highlights } from '@/components/site/package/Highlights';
 import { Hotels } from '@/components/site/package/Hotels';
 import { Inclusions } from '@/components/site/package/Inclusions';
+import { LeaderCard } from '@/components/site/leaders/LeaderCard';
 import { Itinerary } from '@/components/site/package/Itinerary';
 import { ItineraryMotion } from '@/components/site/package/ItineraryMotion';
 import { MobileCtaBar } from '@/components/site/package/MobileCtaBar';
@@ -118,6 +119,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             { id: 'itinerary', label: 'Itinerary' },
             { id: 'inclusions', label: 'Inclusions' },
             { id: 'hotels', label: 'Hotels' },
+            ...(pkg.leader ? [{ id: 'leader', label: 'Leader' }] : []),
             { id: 'dates', label: 'Dates & prices' },
             ...(pkg.rating ? [{ id: 'reviews', label: 'Reviews' }] : []),
             ...(pkg.faq.length ? [{ id: 'faq', label: 'FAQ' }] : []),
@@ -146,6 +148,12 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             <Section id="hotels" title="Where you stay">
               <Hotels hotels={pkg.hotels} />
             </Section>
+            {pkg.leader && (
+              // P3 (R41): the default leader; dates led by someone else are named under it.
+              <Section id="leader" title="Your trip leader">
+                <LeaderCard leader={pkg.leader} departures={pkg.departures} />
+              </Section>
+            )}
             <Section id="dates" title="Dates & prices">
               <DeparturesTable
                 departures={pkg.departures}

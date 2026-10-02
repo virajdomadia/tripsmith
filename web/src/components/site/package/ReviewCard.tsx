@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Stars } from '@/components/site/Stars';
 import { type PublicReview, travelled } from '@/lib/reviews';
 
@@ -17,6 +18,19 @@ export function ReviewCard({ review: r, index }: { review: PublicReview; index: 
       <p className="text-[15px] whitespace-pre-line">{r.text}</p>
       <p className="text-[13px] text-mute">
         <b className="text-ink">{r.name}</b> · {travelled(r.travelled)}
+        {r.ledBy && (
+          // P3 (R41): the leader of the date travelled; a switched-off leader is named, unlinked.
+          <>
+            {' · Led by '}
+            {r.ledBy.slug ? (
+              <Link href={`/leaders/${r.ledBy.slug}`} className="font-semibold text-ink">
+                {r.ledBy.name}
+              </Link>
+            ) : (
+              r.ledBy.name
+            )}
+          </>
+        )}
       </p>
     </li>
   );

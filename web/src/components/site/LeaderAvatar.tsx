@@ -44,12 +44,11 @@ export function LeaderAvatar({ leader, size, className, label, priority }: Props
     <span className={box} style={style}>
       <svg
         viewBox="0 0 100 100"
-        width={size}
-        height={size}
         role={label ? 'img' : undefined}
         aria-label={label}
         aria-hidden={label ? undefined : true}
-        className="block"
+        // Fills its box, so a className may resize the avatar (e.g. smaller on a phone).
+        className="block size-full"
       >
         <rect width="100" height="100" fill={tone.fill} />
         {detailed && (

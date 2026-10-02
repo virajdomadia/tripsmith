@@ -82,6 +82,11 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
     - **Picks must be switched on:** a package default or date leader the owner picks must exist and be switched on; a row that already has a switched-off leader keeps them when the form sends them back.
     - **Older forms are safe:** `leaderId` left out of the package body (or a departure row) leaves it as saved — a form from before P3 can't clear a leader (the web/api deploy race).
     - Routes: `GET|POST /admin/leaders`, `GET|PUT|DELETE /admin/leaders/{id}`, `POST /admin/leaders/{id}/active`, `POST /admin/leaders/photo`; `AdminPackage.leaderId`, `AdminDeparture.leaderId`, `AdminBooking.leader` and `Manifest.leader` (with the phone, owner only).
+  - **Built in P3b (2026-10-02):**
+    - Public reads: `PackageDetail.leader` (the default, as a card), `DepartureOut.leader` (each date's leader, own else default), `PublicReview.ledBy` (`slug` null once switched off — named, not linked); `GET /leaders` (switched-on, by name, with upcoming dates) and `GET /leaders/{slug}` (404 when off; live packages with upcoming dates they lead, soonest first). No phone anywhere public.
+    - The package page gets a "Your trip leader" section before Dates & prices (and a "Leader" pill in the section nav); dates led by someone else are named under the card; each departure row says "Led by <first name>" with the avatar.
+    - `/leaders` renders on request (like `/destinations`); `/leaders/[slug]` is SSG + ISR from one list read, tagged `leader:<slug>`, `leaders` and `packages` (a package change refreshes the trip cards); JSON-LD `Person` (no image for a monogram); both in the sitemap; linked from the footer and the About page.
+    - Leaders are not drawn on the itinerary PDF, so they are left out of its version hash — a leader change never mints a new PDF.
 
 ### R42. Verified traveller label (P4)
 - Each review card shows: ★ · name · **✓ Verified traveller** · Travelled <Mon YYYY> · with N others · Led by X.
