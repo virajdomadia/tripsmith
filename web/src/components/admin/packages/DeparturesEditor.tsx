@@ -4,6 +4,9 @@ import { Plus, Printer, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { Badge } from '@/components/ui/badge';
 import { NativeCheckbox } from '@/components/admin/NativeCheckbox';
+import { NativeSelect } from '@/components/admin/NativeSelect';
+import { LeaderAvatar } from '@/components/site/LeaderAvatar';
+import type { components } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -37,12 +40,24 @@ const PRICES = [
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
+type AdminLeader = components['schemas']['AdminLeader'];
+
 /** Mockup A4's departures table: date, seats, the occupancy pricing grid, guaranteed. */
 /** `waiting` (P6): places on each saved date's waitlist, by departure id. */
-export function DeparturesEditor({ waiting = {} }: { waiting?: Record<string, number> }) {
+/** `leaders` (P3): who can lead a date; '' = the package's default leader. */
+export function DeparturesEditor({
+  waiting = {},
+  leaders = [],
+}: {
+  waiting?: Record<string, number>;
+  leaders?: AdminLeader[];
+}) {
   const form = useFormContext<PackageFieldValues>();
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'departures' });
   const rows = form.watch('departures') ?? [];
+  const defaultId = form.watch('leaderId') ?? '';
+  const byId = new Map(leaders.map((l) => [l.id, l]));
+  const defaultName = byId.get(defaultId)?.name;
 
   return (
     <div className="grid gap-3">
@@ -70,6 +85,7 @@ export function DeparturesEditor({ waiting = {} }: { waiting?: Record<string, nu
                   </TableHead>
                 ))}
                 <TableHead className="min-w-[90px]">Guaranteed</TableHead>
+                <TableHead className="min-w-[200px]">Leader</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -185,6 +201,48 @@ export function DeparturesEditor({ waiting = {} }: { waiting?: Record<string, nu
                         )}
                       />
                     </TableCell>
+                    <TableCell>
+                      <FormField
+                        control={form.control}
+                        name={`departures.${i}.leaderId`}
+                        render={({ field }) => {
+                          const shown = byId.get(field.value || defaultId);
+                          return (
+                            <FormItem>
+                              <div className="flex items-center gap-2">
+                                {shown ? (
+                                  <LeaderAvatar leader={shown} size={24} />
+                                ) : (
+                                  <span className="size-6 shrink-0" aria-hidden />
+                                )}
+                                <FormControl>
+                                  <NativeSelect
+                                    {...field}
+                                    aria-label={`Leader, departure ${i + 1}`}
+                                    className="w-[170px]"
+                                  >
+                                    <option value="">
+                                      {defaultName
+                                        ? `Package default (${defaultName})`
+                                        : 'Package default (none)'}
+                                    </option>
+                                    {leaders
+                                      .filter((l) => l.active || l.id === field.value)
+                                      .map((l) => (
+                                        <option key={l.id} value={l.id}>
+                                          {l.name}
+                                          {l.active ? '' : ' (off)'}
+                                        </option>
+                                      ))}
+                                  </NativeSelect>
+                                </FormControl>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       {/* Only a saved row has an id for the manifest to read. */}
                       {savedId && (waiting[savedId] ?? 0) > 0 && (
@@ -241,7 +299,8 @@ export function DeparturesEditor({ waiting = {} }: { waiting?: Record<string, nu
         </Button>
         <span className="text-[13px] text-mute">
           Seats total is the capacity: online bookings count against it — lower it only for seats
-          sold outside the site. The printer icon opens a saved date&rsquo;s passenger manifest.
+          sold outside the site. Leader: a date can switch from the package&rsquo;s default to
+          someone else. The printer icon opens a saved date&rsquo;s passenger manifest.
         </span>
       </div>
     </div>

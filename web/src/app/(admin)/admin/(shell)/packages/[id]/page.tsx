@@ -14,10 +14,12 @@ export default async function EditPackagePage({ params }: { params: Promise<{ id
   const { id } = await params;
   let pkg;
   let destinations;
+  let leaders;
   try {
-    [pkg, destinations] = await Promise.all([
+    [pkg, destinations, leaders] = await Promise.all([
       api('/admin/packages/{id}', { params: { id }, auth: true }),
       api('/admin/destinations', { auth: true }),
+      api('/admin/leaders', { auth: true }),
     ]);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404) notFound();
@@ -46,7 +48,12 @@ export default async function EditPackagePage({ params }: { params: Promise<{ id
           </>
         }
       />
-      <PackageForm mode="edit" pkg={pkg} destinations={destinations.items} />
+      <PackageForm
+        mode="edit"
+        pkg={pkg}
+        destinations={destinations.items}
+        leaders={leaders.items}
+      />
     </>
   );
 }

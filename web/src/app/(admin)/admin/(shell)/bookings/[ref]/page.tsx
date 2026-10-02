@@ -11,6 +11,7 @@ import { RemoveAddon } from '@/components/admin/bookings/RemoveAddon';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { SeatStrip } from '@/components/admin/bookings/SeatStrip';
 import { CancelRequested, RefundFlag, StateBadge } from '@/components/admin/bookings/StateBadge';
+import { LeaderAvatar } from '@/components/site/LeaderAvatar';
 import { Stars } from '@/components/site/Stars';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { mailtoHref, telHref, waHref } from '@/lib/admin/enquiry-links';
@@ -140,6 +141,23 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             <p className="text-[13px] text-mute">
               {b.package.departureCity} · {formatDate(b.departs)} → {formatDate(b.returns)}
             </p>
+            {b.leader && (
+              // P3: who leads this date now — read live, so a change shows here at once.
+              <p className="flex items-center gap-2 text-[13px] text-ink2">
+                <LeaderAvatar leader={b.leader} size={24} />
+                <span className="min-w-0">
+                  Led by{' '}
+                  <Link
+                    href={`/admin/leaders?sel=${encodeURIComponent(b.leader.id)}`}
+                    className="font-bold text-ink"
+                  >
+                    {b.leader.name}
+                  </Link>{' '}
+                  · {b.leader.phone}
+                  {b.leader.byDefault ? '' : ' · this date only'}
+                </span>
+              </p>
+            )}
             <Link
               href={`/packages/${b.package.slug}`}
               target="_blank"

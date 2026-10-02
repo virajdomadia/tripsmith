@@ -7,7 +7,10 @@ import { api } from '@/lib/api';
 export const metadata = { title: 'New package' };
 
 export default async function NewPackagePage() {
-  const { items } = await api('/admin/destinations', { auth: true });
+  const [{ items }, leaders] = await Promise.all([
+    api('/admin/destinations', { auth: true }),
+    api('/admin/leaders', { auth: true }),
+  ]);
 
   // A <Select> with no options would make the form unsubmittable with no visible reason.
   if (items.length === 0) {
@@ -29,7 +32,7 @@ export default async function NewPackagePage() {
   return (
     <>
       <PageHead title="New package" subtitle="Save the draft first, then add photos and publish." />
-      <PackageForm mode="create" destinations={items} />
+      <PackageForm mode="create" destinations={items} leaders={leaders.items} />
     </>
   );
 }

@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 export type SectionKey =
   | 'photos'
   | 'title'
+  | 'leader'
   | 'highlights'
   | 'itinerary'
   | 'prices'
@@ -24,6 +25,7 @@ export type SectionKey =
 export const LABEL: Record<SectionKey, string> = {
   photos: 'Photos',
   title: 'Title and summary',
+  leader: 'Trip leader',
   highlights: 'Highlights',
   itinerary: 'Day by day',
   prices: 'Dates and prices',

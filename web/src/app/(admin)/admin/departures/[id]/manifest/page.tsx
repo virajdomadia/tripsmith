@@ -60,6 +60,12 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
             {formatDate(seats.date)} → {formatDate(m.returns)} · {duration(m.nights, m.days)} ·{' '}
             {m.departureCity}
           </p>
+          {m.leader && (
+            // P3: the date's leader, with the phone the team calls on the day.
+            <p className="mt-1 text-sm text-ink2">
+              Trip leader: <b className="text-ink">{m.leader.name}</b> · {m.leader.phone}
+            </p>
+          )}
         </div>
         <PrintButton />
       </header>
