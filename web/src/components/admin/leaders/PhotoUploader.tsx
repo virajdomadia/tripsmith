@@ -2,7 +2,7 @@
 
 import { ImagePlus, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useRef, useState, type Ref } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LeaderAvatar } from '@/components/site/LeaderAvatar';
@@ -10,6 +10,8 @@ import { uploadLeaderPhoto } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
 
 type Props = {
+  /** react-hook-form's field ref, so a server error on `photoUrl` focuses the button. */
+  ref?: Ref<HTMLButtonElement>;
   value: string;
   onChange: (url: string) => void;
   /** What the monogram is drawn from while there is no photo. */
@@ -22,7 +24,7 @@ type Props = {
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 /** The leader's face: their photo, or the monogram the site draws until one is uploaded. */
-export function PhotoUploader({ value, onChange, slug, name, id, ...rest }: Props) {
+export function PhotoUploader({ ref, value, onChange, slug, name, id, ...rest }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const input = useRef<HTMLInputElement>(null);
@@ -55,6 +57,7 @@ export function PhotoUploader({ value, onChange, slug, name, id, ...rest }: Prop
             type="button"
             variant="outline"
             size="sm"
+            ref={ref}
             id={id}
             aria-describedby={rest['aria-describedby']}
             disabled={busy}

@@ -321,7 +321,13 @@ async def check_assignable(
     ids = {picked for _, picked, _ in wanted}
     if not ids:
         return {}
-    rows = await db.execute(select(TripLeader.id, TripLeader.active).where(TripLeader.id.in_(ids)))
+    # FOR SHARE: a concurrent switch-off (`set_active` locks the row FOR UPDATE) waits for this
+    # save, or this save sees them already off — never "off but still picked".
+    rows = await db.execute(
+        select(TripLeader.id, TripLeader.active)
+        .where(TripLeader.id.in_(ids))
+        .with_for_update(read=True)
+    )
     state = {str(i): bool(a) for i, a in rows.tuples().all()}
     errors: dict[str, str] = {}
     for field, picked, saved in wanted:

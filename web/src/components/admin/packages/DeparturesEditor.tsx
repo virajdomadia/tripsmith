@@ -143,7 +143,14 @@ export function DeparturesEditor({
                                           : 'Default · none'}
                                       </option>
                                       {leaders
-                                        .filter((l) => l.active || l.id === field.value)
+                                        .filter(
+                                          (l) =>
+                                            l.active ||
+                                            l.id === field.value ||
+                                            l.id ===
+                                              form.formState.defaultValues?.departures?.[i]
+                                                ?.leaderId,
+                                        )
                                         .map((l) => (
                                           <option key={l.id} value={l.id}>
                                             {l.name}

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useId } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import { FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { LeaderAvatar } from '@/components/site/LeaderAvatar';
@@ -16,9 +17,13 @@ type AdminLeader = components['schemas']['AdminLeader'];
  * "Dates and prices". Switched-off leaders are not offered (the one saved here still shows).
  */
 export function LeaderPanel({ leaders }: { leaders: AdminLeader[] }) {
-  const { control } = useFormContext<PackageFieldValues>();
+  const { control, formState } = useFormContext<PackageFieldValues>();
   const value = useWatch({ control, name: 'leaderId' });
-  const offered = leaders.filter((l) => l.active || l.id === value);
+  const hint = useId();
+  // The saved pick stays offered even if they were switched off since, so picking someone else
+  // and back does not need a reload.
+  const saved = formState.defaultValues?.leaderId;
+  const offered = leaders.filter((l) => l.active || l.id === value || l.id === saved);
   const option =
     'flex cursor-pointer items-center gap-3 rounded-card border border-line bg-bg p-3 transition-colors hover:border-ink has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50 has-[:checked]:border-primary has-[:checked]:bg-primary-soft/40';
   return (
@@ -27,11 +32,12 @@ export function LeaderPanel({ leaders }: { leaders: AdminLeader[] }) {
       name="leaderId"
       render={({ field }) => (
         <FormItem>
-          <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm text-mute">
+          <fieldset className="grid gap-2" aria-describedby={hint}>
+            <legend className="sr-only">Default trip leader</legend>
+            <p id={hint} className="mb-1 text-sm text-mute">
               Leads every date unless a date picks someone else. Shown on the package page and the
               voucher.
-            </legend>
+            </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {offered.map((l) => (
                 <label key={l.id} className={option}>

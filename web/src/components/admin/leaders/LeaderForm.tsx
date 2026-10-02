@@ -111,6 +111,7 @@ export function LeaderForm(props: Props) {
               <FormItem>
                 <FormControl>
                   <PhotoUploader
+                    ref={field.ref}
                     value={field.value}
                     onChange={field.onChange}
                     slug={slug}
