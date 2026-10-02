@@ -46,6 +46,29 @@ class Destination(IdMixin, TimestampsMixin, Base):
     packages: Mapped[list["Package"]] = relationship(back_populates="destination")
 
 
+class TripLeader(IdMixin, TimestampsMixin, Base):
+    """0020 (P3, R41): who leads a trip. A package has a default leader and any departure can
+    switch to another; a booking's leader is read live (departure's, else the package's)."""
+
+    __tablename__ = "trip_leaders"
+    __table_args__ = (
+        CheckConstraint("years_leading BETWEEN 0 AND 60", name="years_leading"),
+        CheckConstraint("char_length(bio) <= 300", name="bio_length"),
+        CheckConstraint("char_length(fun_fact) <= 140", name="fun_fact_length"),
+    )
+
+    slug: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    photo_url: Mapped[str | None] = mapped_column(Text)  # none = the drawn monogram
+    languages: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
+    years_leading: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    regions: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
+    bio: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    fun_fact: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    phone: Mapped[str] = mapped_column(Text, nullable=False, server_default="")  # trip pack only
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
 class Package(IdMixin, TimestampsMixin, Base):
     __tablename__ = "packages"
     __table_args__ = (
@@ -119,6 +142,10 @@ class Package(IdMixin, TimestampsMixin, Base):
     deposit_on: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     rating_avg: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))  # ⏩ v2 reviews
     rating_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # ⏩ v2
+    # 0020 (P3, R41): the default trip leader; a departure's own `leader_id` overrides it.
+    leader_id: Mapped[str | None] = mapped_column(
+        ForeignKey("trip_leaders.id", ondelete="RESTRICT"), index=True
+    )
 
     destination: Mapped[Destination] = relationship(back_populates="packages")
     itinerary: Mapped[list["ItineraryDay"]] = relationship(
@@ -182,6 +209,10 @@ class Departure(IdMixin, TimestampsMixin, Base):
     price_child_paise: Mapped[int] = mapped_column(Integer, nullable=False)
     single_supplement_paise: Mapped[int] = mapped_column(Integer, nullable=False)
     whatsapp_group_url: Mapped[str | None] = mapped_column(Text)  # ⏩ add-on C
+    # 0020 (P3, R41): this date's leader when not the package's default (null = the default).
+    leader_id: Mapped[str | None] = mapped_column(
+        ForeignKey("trip_leaders.id", ondelete="RESTRICT"), index=True
+    )
 
     package: Mapped[Package] = relationship(back_populates="departures")
 

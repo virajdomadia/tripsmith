@@ -32,6 +32,13 @@ on an existing one they are the owner's, like a deal. Redeploy the web afterward
 
     uv run python scripts/seed.py --early-bird --database-url …
 
+`--leaders` (P3) writes only the demo trip leaders (upserted by slug; an uploaded photo is
+kept) and gives each package its default leader and the content's per-date leaders — but only
+where none is set yet, so a leader the owner picked is never replaced. A full seed does the
+same. Redeploy the web afterwards:
+
+    uv run python scripts/seed.py --leaders --database-url …
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -58,6 +65,7 @@ from PIL import Image  # noqa: E402
 from sqlalchemy import delete, exists, select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: E402
 
+from app.business import BUSINESS  # noqa: E402
 from app.config import Settings, get_settings  # noqa: E402
 from app.infra.db import make_engine  # noqa: E402
 from app.infra.storage import BlobStore, LocalStore, StorageNotConfigured, Store  # noqa: E402
@@ -74,6 +82,7 @@ from app.models import (  # noqa: E402
     Payment,
     Review,
     Testimonial,
+    TripLeader,
     User,
     coupon_packages,
 )
@@ -332,6 +341,7 @@ async def seed(
         p.slug: await _seed_package(db, p, destinations, store, today) for p in content.packages
     }
     await _seed_testimonials(db, content, packages)
+    await _seed_leaders(db, content, result)
     await db.commit()
     result.counts.update(
         destinations=len(destinations),
@@ -512,6 +522,65 @@ async def seed_early_bird(db: AsyncSession, content: Content) -> SeedResult:
         written += 1
     await db.commit()
     result.counts["early_bird"] = written
+    return result
+
+
+async def _seed_leaders(db: AsyncSession, content: Content, result: SeedResult) -> None:
+    """Upsert the demo leaders by slug, then fill package defaults and per-date leaders that
+    are still empty. The phone is the business number for all four (R41)."""
+    leaders: dict[str, TripLeader] = {}
+    for src in content.leaders:
+        row = (
+            await db.execute(select(TripLeader).where(TripLeader.slug == src.slug))
+        ).scalar_one_or_none()
+        if row is None:
+            row = TripLeader(slug=src.slug, active=True)
+            db.add(row)
+        row.name = src.name
+        row.languages = list(src.languages)
+        row.years_leading = src.years_leading
+        row.regions = list(src.regions)
+        row.bio = src.bio
+        row.fun_fact = src.fun_fact
+        row.phone = str(BUSINESS["phone_display"])
+        leaders[src.slug] = row
+    await db.flush()
+    defaults = overrides = 0
+    for src in content.leaders:
+        leader = leaders[src.slug]
+        for slug in src.packages:
+            pkg = (
+                await db.execute(select(Package).where(Package.slug == slug))
+            ).scalar_one_or_none()
+            if pkg is None:
+                result.warnings.append(f"{slug}: not in this database — no default leader")
+            elif pkg.leader_id is None:
+                pkg.leader_id = leader.id
+                defaults += 1
+        for o in src.overrides:
+            dep = (
+                await db.execute(
+                    select(Departure)
+                    .join(Package, Package.id == Departure.package_id)
+                    .where(Package.slug == o.package, Departure.date == o.date)
+                )
+            ).scalar_one_or_none()
+            if dep is None:
+                result.warnings.append(f"{o.package} {o.date}: no such departure — skipped")
+            elif dep.leader_id is None:
+                dep.leader_id = leader.id
+                overrides += 1
+    await db.flush()
+    result.counts.update(leaders=len(leaders), leader_defaults=defaults, leader_dates=overrides)
+
+
+async def seed_leaders(db: AsyncSession, content: Content) -> SeedResult:
+    """Just the trip leaders (R41, P3), for a database that already has its packages —
+    production after migration 0020. Nothing else is touched; like `--addons` it does not
+    revalidate: redeploy the web afterwards."""
+    result = SeedResult()
+    await _seed_leaders(db, content, result)
+    await db.commit()
     return result
 
 
@@ -725,6 +794,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="seed just the packages' early-bird tiers (P17); leaves everything else untouched",
     )
     parser.add_argument(
+        "--leaders",
+        action="store_true",
+        help="seed just the demo trip leaders and empty leader picks (P3); nothing else",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -741,11 +815,13 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.addons or args.early_bird:  # no photo store: nothing is uploaded
+    if args.addons or args.early_bird or args.leaders:  # no photo store: nothing is uploaded
         engine = make_engine(url)
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-                if args.early_bird:
+                if args.leaders:
+                    result = await seed_leaders(db, load_content())
+                elif args.early_bird:
                     result = await seed_early_bird(db, load_content())
                 else:
                     result = await seed_addons(db, load_content())

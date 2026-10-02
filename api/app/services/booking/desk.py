@@ -94,6 +94,7 @@ from app.services.booking.voucher import (
     offline_reference,
     payment_label,
 )
+from app.services.catalog.admin_leaders import departure_leader
 from app.services.email.render import IST
 from app.services.format import inr
 from app.services.gst.documents import documents_out
@@ -497,6 +498,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         departure=seats,
         departs=seats.date,
         returns=seats.date + dt.timedelta(days=pkg.nights),
+        leader=await departure_leader(db, b.departure_id),
         travellers=[
             AccountTraveller(name=t.name, age=t.age, occupancy=t.occupancy) for t in b.travellers
         ],
@@ -709,6 +711,7 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
         days=pkg.days,
         departure_city=pkg.departure_city,
         returns=seats.date + dt.timedelta(days=pkg.nights),
+        leader=await departure_leader(db, departure_id),
         bookings=out,
         travellers=sum(len(b.travellers) for b in out),
         addons=list(totals.values()),

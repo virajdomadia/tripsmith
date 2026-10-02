@@ -130,6 +130,12 @@ class _Voucher:
             d.cell(cw - 8, 6, value)
         d.set_y(top + h)
         y = top + h
+        if f.leader:  # P3: who leads this departure, read live (no phone: that is the trip pack)
+            d.set_xy(MARGIN, y + 2)
+            d.font(10, "B", INK2)
+            d.cell(0, 5, _clip(d, f"Trip leader: {f.leader.line}", d.epw))
+            y += 6
+            d.set_y(y)
         if f.balance_paise and f.balance_due_on:  # P5: under the strip, in the pill's warn tone
             d.set_xy(MARGIN, y + 2)
             d.font(10, "B", WARN)

@@ -28,6 +28,7 @@ from app.models.catalog import (
     PackageAddon,
     PackageImage,
     Testimonial,
+    TripLeader,
 )
 from app.models.coupons import Coupon, coupon_packages
 from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
@@ -59,6 +60,7 @@ __all__ = [
     "Review",
     "Session",
     "Testimonial",
+    "TripLeader",
     "User",
     "Verification",
     "WaitlistEntry",

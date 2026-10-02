@@ -428,6 +428,12 @@ class DepartureInput(ApiModel):
     price_triple_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
     price_child_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
     single_supplement_paise: int = Field(ge=0, le=PRICE_MAX_PAISE)
+    leader_id: str | None = Field(
+        default=None,
+        max_length=40,
+        description="P3: this date's own trip leader; null = the package's default. Omitted = "
+        "left as saved",
+    )
 
 
 class EarlyBirdTierInput(ApiModel):
@@ -542,6 +548,11 @@ class PackageInput(ApiModel):
         default=None,
         description="P5: offer the 25 % deposit; omitted = left as saved (a new package: on)",
     )
+    leader_id: str | None = Field(
+        default=None,
+        max_length=40,
+        description="P3: the default trip leader; null = none. Omitted = left as saved",
+    )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
         description=(
@@ -637,6 +648,9 @@ class AdminDeparture(ApiModel):
     price_child_paise: int
     single_supplement_paise: int
     waiting: int = Field(default=0, description="P6: places on the date's waitlist; read only")
+    leader_id: str | None = Field(
+        default=None, description="P3: this date's own leader; null = the package's default"
+    )
 
 
 class AdminAddon(ApiModel):
@@ -711,6 +725,7 @@ class AdminPackage(ApiModel):
     )
     early_bird: EarlyBirdAdmin = Field(description="P17")
     deposit_on: bool = Field(description="P5: the sheet offers a 25 % deposit on this trip")
+    leader_id: str | None = Field(default=None, description="P3: the default trip leader")
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
