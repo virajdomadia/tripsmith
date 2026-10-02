@@ -83,7 +83,8 @@ export function LeaderCards({ items, selected }: { items: AdminLeader[]; selecte
                 {l.active ? leadsLabel(l) : 'Switched off'}
               </small>
               <span className="ml-auto">
-                <LeaderActive leader={l} />
+                {/* Keyed on the saved state: a refresh after an edit starts it afresh. */}
+                <LeaderActive key={`${l.id}-${l.active}`} leader={l} />
               </span>
             </div>
           </li>

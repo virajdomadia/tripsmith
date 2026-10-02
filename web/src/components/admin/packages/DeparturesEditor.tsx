@@ -77,7 +77,7 @@ export function DeparturesEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[150px]">Date</TableHead>
+                <TableHead className="min-w-[200px]">Date · leader</TableHead>
                 <TableHead className="min-w-[90px]">Seats total</TableHead>
                 {PRICES.map((p) => (
                   <TableHead key={p.key} className="min-w-[110px]">
@@ -85,7 +85,6 @@ export function DeparturesEditor({
                   </TableHead>
                 ))}
                 <TableHead className="min-w-[90px]">Guaranteed</TableHead>
-                <TableHead className="min-w-[200px]">Leader</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -116,6 +115,49 @@ export function DeparturesEditor({
                             Past
                           </Badge>
                         )}
+                      </div>
+                      {/* P3: under the date, so it stays in view in the editor's narrow column. */}
+                      <div className="mt-1.5">
+                        <FormField
+                          control={form.control}
+                          name={`departures.${i}.leaderId`}
+                          render={({ field }) => {
+                            const shown = byId.get(field.value || defaultId);
+                            return (
+                              <FormItem>
+                                <div className="flex items-center gap-2">
+                                  {shown ? (
+                                    <LeaderAvatar leader={shown} size={24} />
+                                  ) : (
+                                    <span className="size-6 shrink-0" aria-hidden />
+                                  )}
+                                  <FormControl>
+                                    <NativeSelect
+                                      {...field}
+                                      aria-label={`Leader, departure ${i + 1}`}
+                                      className="w-[170px]"
+                                    >
+                                      <option value="">
+                                        {defaultName
+                                          ? `Default · ${defaultName.split(' ')[0]}`
+                                          : 'Default · none'}
+                                      </option>
+                                      {leaders
+                                        .filter((l) => l.active || l.id === field.value)
+                                        .map((l) => (
+                                          <option key={l.id} value={l.id}>
+                                            {l.name}
+                                            {l.active ? '' : ' (off)'}
+                                          </option>
+                                        ))}
+                                    </NativeSelect>
+                                  </FormControl>
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
+                        />
                       </div>
                     </TableCell>
                     <TableCell>
@@ -199,48 +241,6 @@ export function DeparturesEditor({
                             </FormControl>
                           </FormItem>
                         )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <FormField
-                        control={form.control}
-                        name={`departures.${i}.leaderId`}
-                        render={({ field }) => {
-                          const shown = byId.get(field.value || defaultId);
-                          return (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                {shown ? (
-                                  <LeaderAvatar leader={shown} size={24} />
-                                ) : (
-                                  <span className="size-6 shrink-0" aria-hidden />
-                                )}
-                                <FormControl>
-                                  <NativeSelect
-                                    {...field}
-                                    aria-label={`Leader, departure ${i + 1}`}
-                                    className="w-[170px]"
-                                  >
-                                    <option value="">
-                                      {defaultName
-                                        ? `Package default (${defaultName})`
-                                        : 'Package default (none)'}
-                                    </option>
-                                    {leaders
-                                      .filter((l) => l.active || l.id === field.value)
-                                      .map((l) => (
-                                        <option key={l.id} value={l.id}>
-                                          {l.name}
-                                          {l.active ? '' : ' (off)'}
-                                        </option>
-                                      ))}
-                                  </NativeSelect>
-                                </FormControl>
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          );
-                        }}
                       />
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
