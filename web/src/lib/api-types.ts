@@ -988,6 +988,80 @@ export interface paths {
         patch: operations["setEnquiryStatus"];
         trace?: never;
     };
+    "/admin/leaders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminLeaders"];
+        put?: never;
+        /** Create Route */
+        post: operations["createLeader"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/leaders/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Photo Route
+         * @description Multipart proxy, the destination cover's path: validate + resize in a thread, one PUT.
+         */
+        post: operations["uploadLeaderPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/leaders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getAdminLeader"];
+        /** Update Route */
+        put: operations["updateLeader"];
+        post?: never;
+        /** Delete Route */
+        delete: operations["deleteLeader"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/leaders/{id}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Active Route */
+        post: operations["setLeaderActive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/money": {
         parameters: {
             query?: never;
@@ -2236,6 +2310,8 @@ export interface components {
             leadName: string;
             /** Leadphone */
             leadPhone: string;
+            /** @description P3: who leads the booking's departure now (read live) */
+            leader?: components["schemas"]["DeskLeader"] | null;
             package: components["schemas"]["BookingPackage"];
             /** Paidpaise */
             paidPaise: number;
@@ -2419,6 +2495,11 @@ export interface components {
             guaranteed: boolean;
             /** Id */
             id: string;
+            /**
+             * Leaderid
+             * @description P3: this date's own leader; null = the package's default
+             */
+            leaderId?: string | null;
             /** Pricechildpaise */
             priceChildPaise: number;
             /** Pricedoublepaise */
@@ -2595,6 +2676,59 @@ export interface components {
             /** Width */
             width: number;
         };
+        /** AdminLeader */
+        AdminLeader: {
+            /** Active */
+            active: boolean;
+            /** Bio */
+            bio: string;
+            /**
+             * Defaultfor
+             * @description Packages with this leader as their default
+             */
+            defaultFor: number;
+            /**
+             * Deletable
+             * @description Never assigned to a package or a departure (past ones included)
+             */
+            deletable: boolean;
+            /** Funfact */
+            funFact: string;
+            /** Id */
+            id: string;
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+            /** Photourl */
+            photoUrl: string | null;
+            /** Regions */
+            regions: string[];
+            /** Slug */
+            slug: string;
+            /**
+             * Upcoming
+             * @description Departures from today on that this leader leads (their own or by default)
+             */
+            upcoming: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Yearsleading */
+            yearsLeading: number;
+        };
+        /** AdminLeaderList */
+        AdminLeaderList: {
+            /**
+             * Items
+             * @description Active first, then by name
+             */
+            items: components["schemas"]["AdminLeader"][];
+        };
         /** AdminPackage */
         AdminPackage: {
             /**
@@ -2672,6 +2806,11 @@ export interface components {
             inclusions: string[];
             /** Itinerary */
             itinerary: components["schemas"]["ItineraryDayOut"][];
+            /**
+             * Leaderid
+             * @description P3: the default trip leader
+             */
+            leaderId?: string | null;
             /** Name */
             name: string;
             /** Nights */
@@ -3057,6 +3196,11 @@ export interface components {
         };
         /** Body_uploadDestinationCover */
         Body_uploadDestinationCover: {
+            /** File */
+            file: string;
+        };
+        /** Body_uploadLeaderPhoto */
+        Body_uploadLeaderPhoto: {
             /** File */
             file: string;
         };
@@ -4031,6 +4175,11 @@ export interface components {
             guaranteed: boolean;
             /** Id */
             id?: string | null;
+            /**
+             * Leaderid
+             * @description P3: this date's own trip leader; null = the package's default. Omitted = left as saved
+             */
+            leaderId?: string | null;
             /** Pricechildpaise */
             priceChildPaise: number;
             /** Pricedoublepaise */
@@ -4182,6 +4331,33 @@ export interface components {
              * @description Free seats right now (the view: holds and offers out)
              */
             seatsLeft: number;
+        };
+        /**
+         * DeskLeader
+         * @description The leader on the owner's desk and manifest — with the phone, which travellers only see
+         *     in the trip pack (R48).
+         */
+        DeskLeader: {
+            /** Active */
+            active: boolean;
+            /**
+             * Bydefault
+             * @description True = the package's default; false = this date's own
+             */
+            byDefault: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram
+             */
+            photoUrl: string | null;
+            /** Slug */
+            slug: string;
         };
         /** DestinationCard */
         DestinationCard: {
@@ -4949,6 +5125,42 @@ export interface components {
              */
             fromOn: string | null;
         };
+        /** LeaderActiveInput */
+        LeaderActiveInput: {
+            /** Active */
+            active: boolean;
+        };
+        /**
+         * LeaderInput
+         * @description Owner create/update body. Switching off goes through `setLeaderActive`, which checks
+         *     the leader no longer leads anything upcoming.
+         */
+        LeaderInput: {
+            /** Bio */
+            bio: string;
+            /**
+             * Funfact
+             * @default
+             */
+            funFact: string;
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /**
+             * Phone
+             * @description Shown to travellers only in the trip pack (R48)
+             */
+            phone: string;
+            /** Photourl */
+            photoUrl?: string | null;
+            /** Regions */
+            regions: string[];
+            /** Slug */
+            slug: string;
+            /** Yearsleading */
+            yearsLeading: number;
+        };
         /** Limits */
         Limits: {
             /**
@@ -5030,6 +5242,8 @@ export interface components {
              * Format: date-time
              */
             generatedAt: string;
+            /** @description P3: who leads this departure, with their phone */
+            leader?: components["schemas"]["DeskLeader"] | null;
             /** Nights */
             nights: number;
             /** Packageslug */
@@ -5715,6 +5929,11 @@ export interface components {
             inclusions?: string[];
             /** Itinerary */
             itinerary?: components["schemas"]["ItineraryDayInput"][];
+            /**
+             * Leaderid
+             * @description P3: the default trip leader; null = none. Omitted = left as saved
+             */
+            leaderId?: string | null;
             /** Name */
             name: string;
             /** Nights */
@@ -8461,6 +8680,231 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminEnquiry"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminLeaders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLeaderList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    createLeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaderInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLeader"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadLeaderPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadLeaderPhoto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedImage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getAdminLeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLeader"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    updateLeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaderInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLeader"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteLeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setLeaderActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaderActiveInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLeader"];
                 };
             };
             /** @description Error envelope (06 C0) */

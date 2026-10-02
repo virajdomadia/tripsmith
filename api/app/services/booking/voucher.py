@@ -26,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Booking, Departure, Package, Payment
+from app.models import Booking, Departure, Package, Payment, TripLeader
 from app.models.enums import BookingStatus, Occupancy, PaymentProvider, PaymentStatus
 from app.services.booking.addons import AddonFact
 from app.services.booking.addons import facts as addon_facts
@@ -78,6 +78,19 @@ class Traveller:
 
 
 @dataclass(frozen=True)
+class LeaderFact:
+    """The trip leader (R41, P3): read live, so a change shows on the next voucher. The phone
+    is not here — travellers see it only in the trip pack (R48)."""
+
+    name: str
+    languages: tuple[str, ...]
+
+    @property
+    def line(self) -> str:
+        return " · ".join([self.name, ", ".join(self.languages)] if self.languages else [self.name])
+
+
+@dataclass(frozen=True)
 class Hotel:
     name: str
     city: str
@@ -119,6 +132,7 @@ class BookingFacts:
     addons: tuple[AddonFact, ...] = ()  # P8: what the booking still has, in the order bought
     deposit_paise: int | None = None  # P5: made on a deposit
     balance_due_on: dt.date | None = None  # P5: the balance's due day (IST)
+    leader: LeaderFact | None = None  # P3: the departure's leader, else the package's default
 
     @property
     def balance_paise(self) -> int:
@@ -153,9 +167,12 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
             .options(selectinload(Package.destination))
         )
     ).scalar_one()
-    departs = (
-        await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
-    ).scalar_one()
+    departs, own_leader = (
+        await db.execute(
+            select(Departure.date, Departure.leader_id).where(Departure.id == booking.departure_id)
+        )
+    ).one()
+    leader = await leader_fact(db, own_leader or package.leader_id)
     paid = list(
         (
             await db.execute(
@@ -205,7 +222,15 @@ async def load_booking_facts(db: AsyncSession, ref: str) -> BookingFacts | None:
         addons=addon_facts(booking.addons),
         deposit_paise=booking.deposit_paise,
         balance_due_on=booking.balance_due_on,
+        leader=leader,
     )
+
+
+async def leader_fact(db: AsyncSession, leader_id: str | None) -> LeaderFact | None:
+    if leader_id is None:
+        return None
+    row = await db.get(TripLeader, leader_id)
+    return LeaderFact(row.name, tuple(row.languages)) if row else None
 
 
 def coupon_off_of(quote: dict[str, Any]) -> int:

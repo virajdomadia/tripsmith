@@ -49,7 +49,7 @@ from app.schemas.catalog import (
 )
 from app.services.analytics import ist_today
 from app.services.booking import waitlist
-from app.services.catalog import deals, early_bird
+from app.services.catalog import admin_leaders, deals, early_bird
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
 from app.services.format import inr
@@ -409,6 +409,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
                 price_child_paise=d.price_child_paise,
                 single_supplement_paise=d.single_supplement_paise,
                 waiting=waiting.get(d.id, 0),
+                leader_id=d.leader_id,
             )
             for d in sorted(pkg.departures, key=lambda d: d.date)
         ],
@@ -425,6 +426,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         deal_base_paise=base,
         early_bird=early_bird_admin(pkg),
         deposit_on=pkg.deposit_on,
+        leader_id=pkg.leader_id,
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -680,6 +682,49 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
         pkg.deposit_on = payload.deposit_on
     elif pkg.deposit_on is None:
         pkg.deposit_on = True
+    # P3: omitted = unchanged (a form from before P3 cannot clear it); null = no leader.
+    if "leader_id" in payload.model_fields_set:
+        pkg.leader_id = payload.leader_id
+
+
+def _leader_ids(pkg: Package) -> set[str]:
+    """Every leader the package names: its default and its dates' own."""
+    ids = {d.leader_id for d in pkg.departures if d.leader_id}
+    if pkg.leader_id:
+        ids.add(pkg.leader_id)
+    return ids
+
+
+async def _leader_tags(db: AsyncSession, ids: set[str]) -> list[str]:
+    """The leader pages (P3b) list a leader's live trips, so a package write that touches a
+    leader busts their pages and the index."""
+    if not ids:
+        return []
+    return admin_leaders.revalidate_tags(await admin_leaders.slugs_of(db, ids))
+
+
+async def _check_leaders(db: AsyncSession, payload: PackageInput, saved: Package | None) -> None:
+    """Each picked leader exists and is switched on, unless that row already had them."""
+    existing = {d.id: d.leader_id for d in saved.departures} if saved else {}
+    wanted: list[tuple[str, str, str | None]] = []
+    if "leader_id" in payload.model_fields_set and payload.leader_id:
+        wanted.append(("leaderId", payload.leader_id, saved.leader_id if saved else None))
+    for i, row in enumerate(payload.departures):
+        if "leader_id" in row.model_fields_set and row.leader_id:
+            before = existing.get(row.id) if row.id else None
+            wanted.append((f"departures.{i}.leaderId", row.leader_id, before))
+    if errors := await admin_leaders.check_assignable(db, wanted):
+        raise ApiError("validation", next(iter(errors.values())), field_errors=errors)
+
+
+def _pin_past_leaders(pkg: Package, old_default: str | None, today: dt.date) -> None:
+    """A changed default leads the dates still to come; the dates already gone keep who led
+    them (reviews say "Led by" that person), so they get the old default as their own."""
+    if old_default is None or pkg.leader_id == old_default:
+        return
+    for d in pkg.departures:
+        if d.date < today and d.leader_id is None:
+            d.leader_id = old_default
 
 
 def _apply_early_bird(pkg: Package, payload: PackageInput) -> None:
@@ -730,6 +775,8 @@ def _fill_departure(target: Departure, row: DepartureInput) -> Departure:
     target.price_triple_paise = row.price_triple_paise
     target.price_child_paise = row.price_child_paise
     target.single_supplement_paise = row.single_supplement_paise
+    if "leader_id" in row.model_fields_set:  # P3: omitted = unchanged
+        target.leader_id = row.leader_id
     return target
 
 
@@ -804,6 +851,7 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
     _deal_pairing(payload)
     await _assert_destination_exists(db, payload.destination_id)
     await _assert_slug_free(db, payload.slug, except_id=None)
+    await _check_leaders(db, payload, None)
     pkg = Package(status=PackageStatus.DRAFT, edited_at=dt.datetime.now(dt.UTC))
     _apply_fields(pkg, payload)
     pkg.itinerary = _new_days(payload)
@@ -817,9 +865,12 @@ async def create_package(db: AsyncSession, payload: PackageInput) -> AdminPackag
         raise ApiError("validation", DEAL_INVALID, field_errors=errors)
     pkg.starting_price_paise = recompute_starting_price(pkg, today=ist_today())
     db.add(pkg)
+    leaders = _leader_ids(pkg)
     await _commit_or_conflict(db)
     out = await to_admin(db, await load(db, pkg.id))
-    await revalidate(revalidate_tags(out.slug, out.destination.slug))
+    await revalidate(
+        revalidate_tags(out.slug, out.destination.slug) + await _leader_tags(db, leaders)
+    )
     return out
 
 
@@ -839,12 +890,16 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     _deal_pairing(payload)
     await _assert_destination_exists(db, payload.destination_id)
     await _assert_slug_free(db, payload.slug, except_id=id)
+    await _check_leaders(db, payload, pkg)
     old_slug, old_destination_slug = pkg.slug, pkg.destination.slug
+    old_default, leaders = pkg.leader_id, _leader_ids(pkg)
     image_count = len(pkg.images)
     rules_before = publish_rules(pkg, image_count=image_count, today=ist_today())
     deal_changed = _deal_changed(pkg, payload)
     _apply_fields(pkg, payload)
     await _replace_children(db, pkg, payload)
+    _pin_past_leaders(pkg, old_default, ist_today())
+    leaders |= _leader_ids(pkg)
     try:
         assert_live_rules_hold(pkg, rules_before, image_count=image_count)
         if deal_changed and (errors := deal_errors(pkg, today=ist_today())):
@@ -869,6 +924,7 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     out = await to_admin(db, await load(db, id))
     await revalidate(
         revalidate_tags(out.slug, out.destination.slug, old_slug, old_destination_slug)
+        + await _leader_tags(db, leaders)
     )
     return out
 
@@ -888,9 +944,12 @@ async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminP
             )
         _stamp_published(pkg, pkg.destination, dt.datetime.now(dt.UTC))
     pkg.status = status
+    leaders = _leader_ids(pkg)
     await db.commit()
     out = await to_admin(db, await load(db, id))
-    await revalidate(revalidate_tags(out.slug, out.destination.slug))
+    await revalidate(
+        revalidate_tags(out.slug, out.destination.slug) + await _leader_tags(db, leaders)
+    )
     return out
 
 
@@ -930,6 +989,7 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         featured=False,
         starting_price_paise=source.starting_price_paise,
         deposit_on=source.deposit_on,  # P5
+        leader_id=source.leader_id,  # P3
     )
     copy.itinerary = [
         ItineraryDay(
@@ -952,6 +1012,7 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
             price_triple_paise=d.price_triple_paise,
             price_child_paise=d.price_child_paise,
             single_supplement_paise=d.single_supplement_paise,
+            leader_id=d.leader_id,  # P3
         )
         for d in source.departures
     ]
@@ -1000,6 +1061,7 @@ async def delete_package(db: AsyncSession, id: str) -> None:
         noun = "enquiry references" if count == 1 else "enquiries reference"
         raise ApiError("conflict", f"{count} {noun} this package — it cannot be deleted")
     slug, destination_slug = pkg.slug, pkg.destination.slug
+    leaders = _leader_ids(pkg)
     await db.delete(pkg)
     await db.commit()
-    await revalidate(revalidate_tags(slug, destination_slug))
+    await revalidate(revalidate_tags(slug, destination_slug) + await _leader_tags(db, leaders))

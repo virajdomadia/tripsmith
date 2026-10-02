@@ -8,6 +8,7 @@ import {
   Package,
   Ticket,
   TicketPercent,
+  UserRound,
 } from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/site/BrandMark';
@@ -18,6 +19,7 @@ export const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutGrid, exact: true },
   { href: '/admin/packages', label: 'Packages', icon: Package },
   { href: '/admin/destinations', label: 'Destinations', icon: MapPin },
+  { href: '/admin/leaders', label: 'Trip leaders', icon: UserRound },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
   { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },

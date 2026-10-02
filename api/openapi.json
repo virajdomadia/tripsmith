@@ -1178,6 +1178,17 @@
             "title": "Leadphone",
             "type": "string"
           },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeskLeader"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: who leads the booking's departure now (read live)"
+          },
           "package": {
             "$ref": "#/components/schemas/BookingPackage"
           },
@@ -1595,6 +1606,18 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: this date's own leader; null = the package's default",
+            "title": "Leaderid"
           },
           "priceChildPaise": {
             "title": "Pricechildpaise",
@@ -2024,6 +2047,123 @@
         "title": "AdminImage",
         "type": "object"
       },
+      "AdminLeader": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "defaultFor": {
+            "description": "Packages with this leader as their default",
+            "title": "Defaultfor",
+            "type": "integer"
+          },
+          "deletable": {
+            "description": "Never assigned to a package or a departure (past ones included)",
+            "title": "Deletable",
+            "type": "boolean"
+          },
+          "funFact": {
+            "title": "Funfact",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "upcoming": {
+            "description": "Departures from today on that this leader leads (their own or by default)",
+            "title": "Upcoming",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "yearsLeading": {
+            "title": "Yearsleading",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "photoUrl",
+          "languages",
+          "yearsLeading",
+          "regions",
+          "bio",
+          "funFact",
+          "phone",
+          "active",
+          "defaultFor",
+          "upcoming",
+          "deletable",
+          "updatedAt"
+        ],
+        "title": "AdminLeader",
+        "type": "object"
+      },
+      "AdminLeaderList": {
+        "properties": {
+          "items": {
+            "description": "Active first, then by name",
+            "items": {
+              "$ref": "#/components/schemas/AdminLeader"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AdminLeaderList",
+        "type": "object"
+      },
       "AdminPackage": {
         "properties": {
           "addons": {
@@ -2192,6 +2332,18 @@
             },
             "title": "Itinerary",
             "type": "array"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: the default trip leader",
+            "title": "Leaderid"
           },
           "name": {
             "title": "Name",
@@ -3109,6 +3261,20 @@
           "file"
         ],
         "title": "Body_uploadDestinationCover",
+        "type": "object"
+      },
+      "Body_uploadLeaderPhoto": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadLeaderPhoto",
         "type": "object"
       },
       "Body_uploadPackageImage": {
@@ -5150,6 +5316,19 @@
             ],
             "title": "Id"
           },
+          "leaderId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: this date's own trip leader; null = the package's default. Omitted = left as saved",
+            "title": "Leaderid"
+          },
           "priceChildPaise": {
             "maximum": 100000000.0,
             "minimum": 0.0,
@@ -5428,6 +5607,59 @@
           "done"
         ],
         "title": "DepartureWaitlist",
+        "type": "object"
+      },
+      "DeskLeader": {
+        "description": "The leader on the owner's desk and manifest — with the phone, which travellers only see\nin the trip pack (R48).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "byDefault": {
+            "description": "True = the package's default; false = this date's own",
+            "title": "Bydefault",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram",
+            "title": "Photourl"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "photoUrl",
+          "active",
+          "phone",
+          "byDefault"
+        ],
+        "title": "DeskLeader",
         "type": "object"
       },
       "DestinationCard": {
@@ -7112,6 +7344,103 @@
         "title": "LadderRung",
         "type": "object"
       },
+      "LeaderActiveInput": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "LeaderActiveInput",
+        "type": "object"
+      },
+      "LeaderInput": {
+        "description": "Owner create/update body. Switching off goes through `setLeaderActive`, which checks\nthe leader no longer leads anything upcoming.",
+        "properties": {
+          "bio": {
+            "maxLength": 300,
+            "minLength": 20,
+            "title": "Bio",
+            "type": "string"
+          },
+          "funFact": {
+            "default": "",
+            "maxLength": 140,
+            "title": "Funfact",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "description": "Shown to travellers only in the trip pack (R48)",
+            "pattern": "^\\+?[0-9][0-9 ()-]{6,19}$",
+            "title": "Phone",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "pattern": "^(https://[a-z0-9-]+\\.public\\.blob\\.vercel-storage\\.com/\\S*|http://localhost(:\\d+)?/\\S*)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Regions",
+            "type": "array"
+          },
+          "slug": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "yearsLeading": {
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Yearsleading",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "languages",
+          "yearsLeading",
+          "regions",
+          "bio",
+          "phone"
+        ],
+        "title": "LeaderInput",
+        "type": "object"
+      },
       "Limits": {
         "properties": {
           "enquiryMessageMax": {
@@ -7265,6 +7594,17 @@
             "format": "date-time",
             "title": "Generatedat",
             "type": "string"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeskLeader"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: who leads this departure, with their phone"
           },
           "nights": {
             "title": "Nights",
@@ -8753,6 +9093,19 @@
             "maxItems": 31,
             "title": "Itinerary",
             "type": "array"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: the default trip leader; null = none. Omitted = left as saved",
+            "title": "Leaderid"
           },
           "name": {
             "maxLength": 120,
@@ -13680,6 +14033,295 @@
           }
         },
         "summary": "Set Status Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leaders": {
+      "get": {
+        "operationId": "listAdminLeaders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLeaderList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "createLeader",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Create Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leaders/photo": {
+      "post": {
+        "description": "Multipart proxy, the destination cover's path: validate + resize in a thread, one PUT.",
+        "operationId": "uploadLeaderPhoto",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadLeaderPhoto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Upload Photo Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leaders/{id}": {
+      "delete": {
+        "operationId": "deleteLeader",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Delete Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "getAdminLeader",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "updateLeader",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/leaders/{id}/active": {
+      "post": {
+        "operationId": "setLeaderActive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaderActiveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Active Route",
         "tags": [
           "admin"
         ]

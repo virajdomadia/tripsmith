@@ -127,6 +127,8 @@ const departureSchema = z.object({
   priceTriplePaise: paise('Triple'),
   priceChildPaise: paise('Child'),
   singleSupplementPaise: paise('Single supplement'),
+  /** P3: this date's own trip leader; '' = the package's default. */
+  leaderId: z.string().default(''),
 });
 
 /** Mirrors `PackageInput` in api/app/schemas/catalog.py — the api is still the authority. */
@@ -152,6 +154,8 @@ export const packageSchema = z
     featured: z.boolean(),
     /** P5: the sheet offers a 25 % deposit. */
     depositOn: z.boolean(),
+    /** P3: the default trip leader; '' = none. */
+    leaderId: z.string().default(''),
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
     addons: z.array(addonSchema).max(ADDONS_MAX),
@@ -294,6 +298,7 @@ export const blankDeparture = (): PackageFieldValues['departures'][number] => ({
   priceTriplePaise: 0,
   priceChildPaise: 0,
   singleSupplementPaise: 0,
+  leaderId: '',
 });
 
 export const blankAddon = (): PackageFieldValues['addons'][number] => ({
@@ -322,6 +327,7 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   faq: [],
   featured: false,
   depositOn: true,
+  leaderId: '',
   itinerary: [],
   departures: [],
   addons: [],
@@ -352,8 +358,9 @@ export function toInput(v: PackageFormValues): PackageInput {
     faq: v.faq,
     featured: v.featured,
     depositOn: v.depositOn,
+    leaderId: v.leaderId || null,
     itinerary: v.itinerary,
-    departures: v.departures,
+    departures: v.departures.map((d) => ({ ...d, leaderId: d.leaderId || null })),
     addons: v.addons.map((a) => ({
       ...a,
       maxNights: a.basis === 'night' ? a.maxNights : null,

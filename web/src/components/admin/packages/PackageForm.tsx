@@ -33,6 +33,7 @@ import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
 import { GalleryUploader } from './GalleryUploader';
 import { HotelsEditor } from './HotelsEditor';
+import { LeaderPanel } from './LeaderPanel';
 import { ItineraryEditor } from './ItineraryEditor';
 import { ListEditor } from './ListEditor';
 import { LABEL, PackagePreview, type SectionKey } from './PackagePreview';
@@ -40,8 +41,9 @@ import { StatusPanel } from './StatusPanel';
 
 type AdminPackage = components['schemas']['AdminPackage'];
 type AdminDestination = components['schemas']['AdminDestination'];
+type AdminLeader = components['schemas']['AdminLeader'];
 
-type Props = { destinations: AdminDestination[] } & (
+type Props = { destinations: AdminDestination[]; leaders: AdminLeader[] } & (
   { mode: 'create' } | { mode: 'edit'; pkg: AdminPackage }
 );
 
@@ -50,6 +52,7 @@ const ALL: Key[] = [
   'status',
   'photos',
   'title',
+  'leader',
   'highlights',
   'itinerary',
   'prices',
@@ -72,6 +75,7 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
     'departureCity',
     'featured',
   ],
+  leader: ['leaderId'],
   highlights: ['highlights'],
   itinerary: ['itinerary'],
   prices: ['departures'],
@@ -102,10 +106,13 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function LiveSub({
   k,
   destinations,
+  leaders = [],
   waiting = 0,
 }: {
   k: Key;
   destinations: readonly { id: string; name: string }[];
+  /** P3: names for the leader section's subtitle. */
+  leaders?: readonly { id: string; name: string }[];
   /** P6: places on the saved dates' waitlists, shown on the collapsed dates section. */
   waiting?: number;
 }) {
@@ -118,7 +125,9 @@ function LiveSub({
   if (k === 'title') {
     const dest = destinations.find((d) => d.id === v.destinationId)?.name ?? 'No destination';
     text = `${dest} · ${String(v.nights || '…')} nights · ${String(v.departureCity || '…')}${v.featured ? ' · Featured' : ''}`;
-  } else if (k === 'highlights') text = plural(count(v.highlights), 'line');
+  } else if (k === 'leader')
+    text = leaders.find((l) => l.id === v.leaderId)?.name ?? 'No leader yet';
+  else if (k === 'highlights') text = plural(count(v.highlights), 'line');
   else if (k === 'itinerary') text = `${plural(count(v.itinerary), 'day')} written`;
   else if (k === 'prices')
     text = `${plural(count(v.departures), 'date')}${waiting ? ` · ${waiting} waiting` : ''}`;
@@ -222,6 +231,7 @@ const FIELDS = new Set<string>([
   'eb2Days',
   'eb2OffPaise',
   'depositOn',
+  'leaderId',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures', 'addons']);
@@ -266,6 +276,7 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     faq: pkg.faq,
     featured: pkg.featured,
     depositOn: pkg.depositOn ?? true, // an api from before P5 sends none
+    leaderId: pkg.leaderId ?? '',
     itinerary: pkg.itinerary.map((d) => ({
       title: d.title,
       description: d.description,
@@ -281,6 +292,7 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
       priceTriplePaise: d.priceTriplePaise,
       priceChildPaise: d.priceChildPaise,
       singleSupplementPaise: d.singleSupplementPaise,
+      leaderId: d.leaderId ?? '',
     })),
     addons: pkg.addons.map((a) => ({
       id: a.id,
@@ -499,7 +511,16 @@ export function PackageForm(props: Props) {
     <Section
       k={k}
       title={title}
-      sub={sub[k] ?? <LiveSub k={k} destinations={props.destinations} waiting={waitingTotal} />}
+      sub={
+        sub[k] ?? (
+          <LiveSub
+            k={k}
+            destinations={props.destinations}
+            leaders={props.leaders}
+            waiting={waitingTotal}
+          />
+        )
+      }
       open={open.has(k)}
       onToggle={toggle}
     >
@@ -563,6 +584,7 @@ export function PackageForm(props: Props) {
                 slugLocked={pkg?.slugLocked ?? false}
               />,
             )}
+            {section('leader', <LeaderPanel leaders={props.leaders} />)}
             {section(
               'highlights',
               <ListEditor
@@ -577,6 +599,7 @@ export function PackageForm(props: Props) {
               'prices',
               <DeparturesEditor
                 waiting={Object.fromEntries((pkg?.departures ?? []).map((d) => [d.id, d.waiting]))}
+                leaders={props.leaders}
               />,
             )}
             {section(

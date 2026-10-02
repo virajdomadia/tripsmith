@@ -56,6 +56,19 @@ export async function uploadCover(file: File): Promise<UploadedImage> {
   return settle<UploadedImage>(res);
 }
 
+/** P3: a trip leader's photo, through the destination cover's resize-and-store path. */
+export async function uploadLeaderPhoto(file: File): Promise<UploadedImage> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  const res = await fetch('/api/admin/leaders/photo', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+    cache: 'no-store',
+  });
+  return settle<UploadedImage>(res);
+}
+
 export async function uploadPackageImage(packageId: string, file: File): Promise<AdminImage> {
   const form = new FormData();
   form.append('file', file, file.name);

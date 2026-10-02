@@ -164,6 +164,27 @@ class TestimonialContent(Strict):
     position: int = 0
 
 
+class LeaderOverride(Strict):
+    """One departure this leader leads instead of the package's default."""
+
+    package: Slug
+    date: dt.date
+
+
+class LeaderContent(Strict):
+    """A demo trip leader (R41, P3). No photo: the site draws a monogram for made-up people."""
+
+    slug: Slug
+    name: str
+    languages: list[str] = Field(min_length=1)
+    years_leading: int = Field(ge=0, le=60)
+    regions: list[str] = Field(min_length=1)
+    bio: str = Field(min_length=20, max_length=300)
+    fun_fact: str = Field(max_length=140)
+    packages: list[Slug] = Field(description="Packages this leader is the default of")
+    overrides: list[LeaderOverride] = Field(default_factory=list)
+
+
 def define_package(**fields: object) -> PackageContent:
     return PackageContent.model_validate(fields)
 

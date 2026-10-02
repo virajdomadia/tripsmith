@@ -31,6 +31,7 @@ from app.routers.admin import coupons as admin_coupons
 from app.routers.admin import dashboard as admin_dashboard
 from app.routers.admin import destinations as admin_destinations
 from app.routers.admin import enquiries as admin_enquiries
+from app.routers.admin import leaders as admin_leaders
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
 from app.routers.admin import reviews as admin_reviews
@@ -126,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_bookings.router)
     app.include_router(admin_dashboard.router)
     app.include_router(admin_destinations.router)
+    app.include_router(admin_leaders.router)
     app.include_router(admin_enquiries.router)
     app.include_router(admin_packages.router)
     app.include_router(admin_package_images.router)

@@ -131,7 +131,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
 });
 
 const renderForm = (pkg = fixture()) =>
-  render(<PackageForm mode="edit" pkg={pkg} destinations={[destination]} />);
+  render(<PackageForm mode="edit" pkg={pkg} destinations={[destination]} leaders={[]} />);
 
 describe('PackageForm — errors that belong to a whole list', { timeout: 30_000 }, () => {
   it('shows the itinerary-length error when nights drop below the written days', async () => {
@@ -288,6 +288,7 @@ describe('PackageForm — stale edits', () => {
         mode="edit"
         pkg={fixture({ status: 'live', updatedAt: '2026-09-22T00:00:00Z' })}
         destinations={[destination]}
+        leaders={[]}
       />,
     );
     expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('North Goa Beaches');
@@ -383,6 +384,7 @@ describe('PackageForm — an expired session', () => {
         mode="edit"
         pkg={fixture({ editedAt: '2026-09-22T00:00:00Z' })}
         destinations={[destination]}
+        leaders={[]}
       />,
     );
     adminRequest.mockResolvedValue(fixture({ editedAt: '2026-09-23T00:00:00Z' }));
@@ -440,7 +442,7 @@ describe('PackageForm — slug', () => {
         expectedVersion: null,
       }),
     );
-    render(<PackageForm mode="create" destinations={[destination]} />);
+    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />);
     const slug = screen.getByLabelText('Slug') as HTMLInputElement;
     await waitFor(() => expect(slug.value).toBe('my-own-slug'));
     await user.type(screen.getByLabelText('Name'), ' beaches');
@@ -449,7 +451,7 @@ describe('PackageForm — slug', () => {
 
   it('follows the name on a create form while the slug is still the derived one', async () => {
     const user = userEvent.setup();
-    render(<PackageForm mode="create" destinations={[destination]} />);
+    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />);
     await user.type(screen.getByLabelText('Name'), 'Goa Beaches');
     expect((screen.getByLabelText('Slug') as HTMLInputElement).value).toBe('goa-beaches');
   });

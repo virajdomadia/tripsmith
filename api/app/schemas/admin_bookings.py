@@ -22,6 +22,7 @@ from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon
+from app.schemas.leaders import DeskLeader
 from app.schemas.reviews import AdminReview
 
 NOTE_MAX = 80
@@ -244,6 +245,9 @@ class AdminBooking(ApiModel):
     departure: DepartureSeats
     departs: dt.date
     returns: dt.date
+    leader: DeskLeader | None = Field(
+        default=None, description="P3: who leads the booking's departure now (read live)"
+    )
     travellers: list[AccountTraveller] = Field(description="In the order they were entered")
     quote: Quote
     total_paise: int
@@ -430,6 +434,9 @@ class Manifest(ApiModel):
     days: int
     departure_city: str
     returns: dt.date
+    leader: DeskLeader | None = Field(
+        default=None, description="P3: who leads this departure, with their phone"
+    )
     bookings: list[ManifestBooking] = Field(
         description="Confirmed, part-paid and completed bookings, oldest first"
     )
