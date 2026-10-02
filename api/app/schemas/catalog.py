@@ -9,6 +9,7 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 from app.models.enums import AddonBasis, PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.meta import Badge
+from app.schemas.public_leaders import LeaderCardOut, PublicLeaderRef
 from app.schemas.reviews import PublicReview, RatingOut
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
@@ -218,6 +219,9 @@ class DepartureOut(ApiModel):
         default=False,
         description="P6: a sold-out date takes waitlist joins until 3 days before departure",
     )
+    leader: PublicLeaderRef | None = Field(
+        default=None, description="P3: who leads this date — its own leader, else the default"
+    )
 
 
 class DepartureList(ApiModel):
@@ -275,7 +279,31 @@ class PackageDetail(ApiModel):
         description="The first page of published reviews, newest first; the rest via "
         "`/packages/{slug}/reviews`"
     )
+    leader: LeaderCardOut | None = Field(
+        default=None,
+        description='P3: the default trip leader ("Your trip leader"); a date may differ — '
+        "see `departures[].leader`",
+    )
     updated_at: dt.datetime
+
+
+class LeaderSummary(LeaderCardOut):
+    upcoming: int = Field(description="Upcoming dates on live packages this leader leads")
+
+
+class LeaderList(ApiModel):
+    items: list[LeaderSummary] = Field(description="Switched-on leaders, by name")
+
+
+class LeaderTrip(ApiModel):
+    package: PackageCard
+    dates: list[dt.date] = Field(description="This leader's upcoming dates on it, soonest first")
+
+
+class LeaderDetail(LeaderCardOut):
+    trips: list[LeaderTrip] = Field(
+        description="Live packages with upcoming dates this leader leads, soonest date first"
+    )
 
 
 class DestinationCard(ApiModel):

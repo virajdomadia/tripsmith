@@ -1564,6 +1564,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leaders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listLeaders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leaders/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getLeader"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meta": {
         parameters: {
             query?: never;
@@ -4226,6 +4260,8 @@ export interface components {
             guaranteed: boolean;
             /** Id */
             id: string;
+            /** @description P3: who leads this date — its own leader, else the default */
+            leader?: components["schemas"]["PublicLeaderRef"] | null;
             /**
              * Pricechildpaise
              * @description Child 5-11 sharing the parents' room
@@ -5131,6 +5167,64 @@ export interface components {
             active: boolean;
         };
         /**
+         * LeaderCardOut
+         * @description The "Your trip leader" card and the leader's own page.
+         */
+        LeaderCardOut: {
+            /** Bio */
+            bio: string;
+            /**
+             * Funfact
+             * @description Blank = none
+             */
+            funFact: string;
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram from slug + name
+             */
+            photoUrl: string | null;
+            /** Regions */
+            regions: string[];
+            /** Slug */
+            slug: string;
+            /** Yearsleading */
+            yearsLeading: number;
+        };
+        /** LeaderDetail */
+        LeaderDetail: {
+            /** Bio */
+            bio: string;
+            /**
+             * Funfact
+             * @description Blank = none
+             */
+            funFact: string;
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram from slug + name
+             */
+            photoUrl: string | null;
+            /** Regions */
+            regions: string[];
+            /** Slug */
+            slug: string;
+            /**
+             * Trips
+             * @description Live packages with upcoming dates this leader leads, soonest date first
+             */
+            trips: components["schemas"]["LeaderTrip"][];
+            /** Yearsleading */
+            yearsLeading: number;
+        };
+        /**
          * LeaderInput
          * @description Owner create/update body. Switching off goes through `setLeaderActive`, which checks
          *     the leader no longer leads anything upcoming.
@@ -5160,6 +5254,53 @@ export interface components {
             slug: string;
             /** Yearsleading */
             yearsLeading: number;
+        };
+        /** LeaderList */
+        LeaderList: {
+            /**
+             * Items
+             * @description Switched-on leaders, by name
+             */
+            items: components["schemas"]["LeaderSummary"][];
+        };
+        /** LeaderSummary */
+        LeaderSummary: {
+            /** Bio */
+            bio: string;
+            /**
+             * Funfact
+             * @description Blank = none
+             */
+            funFact: string;
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram from slug + name
+             */
+            photoUrl: string | null;
+            /** Regions */
+            regions: string[];
+            /** Slug */
+            slug: string;
+            /**
+             * Upcoming
+             * @description Upcoming dates on live packages this leader leads
+             */
+            upcoming: number;
+            /** Yearsleading */
+            yearsLeading: number;
+        };
+        /** LeaderTrip */
+        LeaderTrip: {
+            /**
+             * Dates
+             * @description This leader's upcoming dates on it, soonest first
+             */
+            dates: string[];
+            package: components["schemas"]["PackageCard"];
         };
         /** Limits */
         Limits: {
@@ -5832,6 +5973,8 @@ export interface components {
             inclusions: string[];
             /** Itinerary */
             itinerary: components["schemas"]["ItineraryDayOut"][];
+            /** @description P3: the default trip leader ("Your trip leader"); a date may differ — see `departures[].leader` */
+            leader?: components["schemas"]["LeaderCardOut"] | null;
             /** Name */
             name: string;
             /** Nights */
@@ -6016,6 +6159,21 @@ export interface components {
          * @enum {string}
          */
         PaymentStatus: "created" | "captured" | "failed" | "refunded";
+        /**
+         * PublicLeaderRef
+         * @description Enough to draw a leader's avatar and name (a departure row, "Led by").
+         */
+        PublicLeaderRef: {
+            /** Name */
+            name: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram from slug + name
+             */
+            photoUrl: string | null;
+            /** Slug */
+            slug: string;
+        };
         /** PublicReview */
         PublicReview: {
             /**
@@ -6025,6 +6183,8 @@ export interface components {
             createdAt: string;
             /** Id */
             id: string;
+            /** @description P3: the leader of the departure the reviewer travelled on */
+            ledBy?: components["schemas"]["ReviewLeader"] | null;
             /**
              * Name
              * @description First name + last initial, e.g. 'Asha B.'
@@ -6452,6 +6612,19 @@ export interface components {
              * @description Plain text; line breaks kept
              */
             text: string;
+        };
+        /**
+         * ReviewLeader
+         * @description Who led the trip a review is about (the departure's leader, read live).
+         */
+        ReviewLeader: {
+            /** Name */
+            name: string;
+            /**
+             * Slug
+             * @description Null once the leader is switched off: no page to link
+             */
+            slug: string | null;
         };
         /**
          * ReviewState
@@ -9979,6 +10152,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomeData"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listLeaders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getLeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderDetail"];
                 };
             };
             /** @description Error envelope (06 C0) */

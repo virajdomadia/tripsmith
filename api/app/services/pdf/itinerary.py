@@ -20,6 +20,7 @@ from pathlib import Path
 
 from fpdf import XPos, YPos
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
+from pydantic.main import IncEx
 
 from app.business import BUSINESS, whatsapp_href
 from app.schemas.catalog import DepartureOut, PackageDetail
@@ -106,7 +107,10 @@ def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> s
     (`NOT_DRAWN`: `related`, `updated_at`, the B12 `deal`, the B13 `rating` / `reviews`, the P8
     `addons`), the two settings it prints, the business block and the renderer. Any change → a
     new pathname; nothing else → the same one."""
-    drawn = pkg.model_dump(mode="json", exclude=NOT_DRAWN)
+    # P3: a date's leader is not drawn either; a leader change must not mint a new PDF.
+    exclude: dict[str, IncEx | bool] = {k: True for k in NOT_DRAWN | {"leader"}}
+    exclude["departures"] = {"__all__": {"leader"}}
+    drawn = pkg.model_dump(mode="json", exclude=exclude)
     payload = [drawn, site_url, whatsapp_number, BUSINESS, _RENDERER]
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]

@@ -21,8 +21,9 @@ from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
-from app.models import Booking, Departure, Package, PackageImage, Review, User
+from app.models import Booking, Departure, Package, PackageImage, Review, TripLeader, User
 from app.models.enums import BookingActor, BookingStatus, PackageStatus
+from app.schemas.public_leaders import ReviewLeader
 from app.schemas.reviews import (
     ADMIN_PAGE_SIZE,
     PUBLIC_PAGE_SIZE,
@@ -128,9 +129,21 @@ async def list_public_reviews(
     where = and_(Review.package_id == package_id, PUBLISHED)
     total = (await db.execute(select(func.count()).select_from(Review).where(where))).scalar_one()
     rows = await db.execute(
-        select(Review, Booking.contact_name, Departure.date)
+        select(
+            Review,
+            Booking.contact_name,
+            Departure.date,
+            TripLeader.name,
+            TripLeader.slug,
+            TripLeader.active,
+        )
         .join(Booking, Booking.id == Review.booking_id)
         .join(Departure, Departure.id == Booking.departure_id)
+        .join(Package, Package.id == Departure.package_id)
+        # P3: the leader of the date travelled — its own, else the package's default (live).
+        .outerjoin(
+            TripLeader, TripLeader.id == func.coalesce(Departure.leader_id, Package.leader_id)
+        )
         .where(where)
         .order_by(Review.created_at.desc(), Review.id.desc())
         .limit(size)
@@ -145,8 +158,11 @@ async def list_public_reviews(
                 name=public_name(name),
                 travelled=departs,
                 created_at=r.created_at,
+                led_by=(
+                    ReviewLeader(name=leader, slug=slug if active else None) if leader else None
+                ),
             )
-            for r, name, departs in rows
+            for r, name, departs, leader, slug, active in rows
         ],
         page=page,
         total=total,

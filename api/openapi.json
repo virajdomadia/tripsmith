@@ -5438,6 +5438,17 @@
             "title": "Id",
             "type": "string"
           },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicLeaderRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: who leads this date — its own leader, else the default"
+          },
           "priceChildPaise": {
             "description": "Child 5-11 sharing the parents' room",
             "title": "Pricechildpaise",
@@ -7357,6 +7368,142 @@
         "title": "LeaderActiveInput",
         "type": "object"
       },
+      "LeaderCardOut": {
+        "description": "The \"Your trip leader\" card and the leader's own page.",
+        "properties": {
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "funFact": {
+            "description": "Blank = none",
+            "title": "Funfact",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram from slug + name",
+            "title": "Photourl"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "yearsLeading": {
+            "title": "Yearsleading",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "photoUrl",
+          "languages",
+          "yearsLeading",
+          "regions",
+          "bio",
+          "funFact"
+        ],
+        "title": "LeaderCardOut",
+        "type": "object"
+      },
+      "LeaderDetail": {
+        "properties": {
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "funFact": {
+            "description": "Blank = none",
+            "title": "Funfact",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram from slug + name",
+            "title": "Photourl"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "trips": {
+            "description": "Live packages with upcoming dates this leader leads, soonest date first",
+            "items": {
+              "$ref": "#/components/schemas/LeaderTrip"
+            },
+            "title": "Trips",
+            "type": "array"
+          },
+          "yearsLeading": {
+            "title": "Yearsleading",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "photoUrl",
+          "languages",
+          "yearsLeading",
+          "regions",
+          "bio",
+          "funFact",
+          "trips"
+        ],
+        "title": "LeaderDetail",
+        "type": "object"
+      },
       "LeaderInput": {
         "description": "Owner create/update body. Switching off goes through `setLeaderActive`, which checks\nthe leader no longer leads anything upcoming.",
         "properties": {
@@ -7439,6 +7586,114 @@
           "phone"
         ],
         "title": "LeaderInput",
+        "type": "object"
+      },
+      "LeaderList": {
+        "properties": {
+          "items": {
+            "description": "Switched-on leaders, by name",
+            "items": {
+              "$ref": "#/components/schemas/LeaderSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "LeaderList",
+        "type": "object"
+      },
+      "LeaderSummary": {
+        "properties": {
+          "bio": {
+            "title": "Bio",
+            "type": "string"
+          },
+          "funFact": {
+            "description": "Blank = none",
+            "title": "Funfact",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram from slug + name",
+            "title": "Photourl"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "upcoming": {
+            "description": "Upcoming dates on live packages this leader leads",
+            "title": "Upcoming",
+            "type": "integer"
+          },
+          "yearsLeading": {
+            "title": "Yearsleading",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "photoUrl",
+          "languages",
+          "yearsLeading",
+          "regions",
+          "bio",
+          "funFact",
+          "upcoming"
+        ],
+        "title": "LeaderSummary",
+        "type": "object"
+      },
+      "LeaderTrip": {
+        "properties": {
+          "dates": {
+            "description": "This leader's upcoming dates on it, soonest first",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Dates",
+            "type": "array"
+          },
+          "package": {
+            "$ref": "#/components/schemas/PackageCard"
+          }
+        },
+        "required": [
+          "package",
+          "dates"
+        ],
+        "title": "LeaderTrip",
         "type": "object"
       },
       "Limits": {
@@ -8842,6 +9097,17 @@
             "title": "Itinerary",
             "type": "array"
           },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeaderCardOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: the default trip leader (\"Your trip leader\"); a date may differ — see `departures[].leader`"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -9299,6 +9565,38 @@
         "title": "PaymentStatus",
         "type": "string"
       },
+      "PublicLeaderRef": {
+        "description": "Enough to draw a leader's avatar and name (a departure row, \"Led by\").",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram from slug + name",
+            "title": "Photourl"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "photoUrl"
+        ],
+        "title": "PublicLeaderRef",
+        "type": "object"
+      },
       "PublicReview": {
         "properties": {
           "createdAt": {
@@ -9309,6 +9607,17 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "ledBy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewLeader"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P3: the leader of the departure the reviewer travelled on"
           },
           "name": {
             "description": "First name + last initial, e.g. 'Asha B.'",
@@ -10156,6 +10465,33 @@
           "text"
         ],
         "title": "ReviewInput",
+        "type": "object"
+      },
+      "ReviewLeader": {
+        "description": "Who led the trip a review is about (the departure's leader, read live).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null once the leader is switched off: no page to link",
+            "title": "Slug"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "ReviewLeader",
         "type": "object"
       },
       "ReviewState": {
@@ -15774,6 +16110,79 @@
           }
         },
         "summary": "Get Home Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/leaders": {
+      "get": {
+        "operationId": "listLeaders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/leaders/{slug}": {
+      "get": {
+        "operationId": "getLeader",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
         "tags": [
           "public"
         ]

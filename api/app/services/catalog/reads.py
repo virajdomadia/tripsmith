@@ -31,7 +31,7 @@ from app.schemas.catalog import (
 )
 from app.services.analytics import ist_today
 from app.services.booking import waitlist
-from app.services.catalog import deals, early_bird
+from app.services.catalog import deals, early_bird, leaders
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
@@ -96,7 +96,12 @@ def _departure_out(d: Departure, seats_left: int) -> DepartureOut:
 
 
 async def _upcoming_departures(
-    db: AsyncSession, package_id: str, today: dt.date, month: str | None = None
+    db: AsyncSession,
+    package_id: str,
+    today: dt.date,
+    month: str | None = None,
+    *,
+    default_leader_id: str | None = None,
 ) -> list[DepartureOut]:
     stmt = (
         select(Departure, departure_availability.c.seats_left)
@@ -109,11 +114,18 @@ async def _upcoming_departures(
         stmt = stmt.where(Departure.date >= start, Departure.date < end)
     rows = (await db.execute(stmt)).all()
     waiting = await waitlist.waiting_counts(db, [d.id for d, _ in rows])
+    # P3: each date's leader — its own, else the package's default (switched-off ones hidden).
+    led = await leaders.active_by_id(db, [d.leader_id or default_leader_id for d, _ in rows])
     return [
         _departure_out(d, seats_left).model_copy(
             update={
                 "waiting": waiting.get(d.id, 0),
                 "waitlist_open": waitlist.join_open(d.date, today),
+                "leader": (
+                    leaders.ref(led[lid])
+                    if (lid := d.leader_id or default_leader_id) in led
+                    else None
+                ),
             }
         )
         for d, seats_left in rows
@@ -183,7 +195,8 @@ async def get_package(
     if p is None:
         return None
     images = [_image_out(i) for i in p.images]
-    departures = await _upcoming_departures(db, p.id, today)
+    departures = await _upcoming_departures(db, p.id, today, default_leader_id=p.leader_id)
+    default_leader = (await leaders.active_by_id(db, [p.leader_id])).get(p.leader_id or "")
     # The base from the rows just read: the same query `_deal_base` runs for the quote.
     base = min((d.price_double_paise for d in departures if d.price_double_paise), default=0)
     return PackageDetail(
@@ -232,6 +245,7 @@ async def get_package(
         related=await _related(db, p, today, now) if with_related else [],
         rating=rating_out(p.rating_avg, p.rating_count),
         reviews=(await list_public_reviews(db, p.id)).items if p.rating_count else [],
+        leader=leaders.card(default_leader) if default_leader else None,
         updated_at=p.updated_at,
     )
 
@@ -242,14 +256,19 @@ async def get_departures_for_month(
     """Upcoming departures of a live package, optionally within one `YYYY-MM` (06 C1; the v3
     `checkAvailability` tool reuses it). `None` when the package is draft/unknown."""
     today = today or ist_today()
-    package_id = (
+    found = (
         await db.execute(
-            select(Package.id).where(Package.slug == slug, Package.status == PackageStatus.LIVE)
+            select(Package.id, Package.leader_id).where(
+                Package.slug == slug, Package.status == PackageStatus.LIVE
+            )
         )
-    ).scalar_one_or_none()
-    if package_id is None:
+    ).one_or_none()
+    if found is None:
         return None
-    return await _upcoming_departures(db, package_id, today, month)
+    package_id, default_leader_id = found
+    return await _upcoming_departures(
+        db, package_id, today, month, default_leader_id=default_leader_id
+    )
 
 
 async def list_destinations(
