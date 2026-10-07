@@ -86,13 +86,10 @@ async def slugs_of(db: AsyncSession, ids: Iterable[str | None]) -> list[str]:
     return sorted(rows.scalars().all())
 
 
-async def _package_slugs_led_by(db: AsyncSession, leader_id: str, today: dt.date) -> list[str]:
-    """Packages that show this leader: their default, or on a date from today on."""
-    on_a_date = exists().where(
-        Departure.package_id == Package.id,
-        Departure.leader_id == leader_id,
-        Departure.date >= today,
-    )
+async def _package_slugs_led_by(db: AsyncSession, leader_id: str) -> list[str]:
+    """Packages whose page can show this leader: their default, or any date of theirs — past
+    ones too, since a review there says "Led by" them (P3b)."""
+    on_a_date = exists().where(Departure.package_id == Package.id, Departure.leader_id == leader_id)
     rows = await db.execute(
         select(Package.slug).where(or_(Package.leader_id == leader_id, on_a_date))
     )
@@ -256,7 +253,7 @@ async def update_leader(db: AsyncSession, id: str, payload: LeaderInput) -> Admi
     await _commit_or_conflict(db)
     await db.refresh(row)
     out = await _admin(db, row)
-    packages = await _package_slugs_led_by(db, id, ist_today())
+    packages = await _package_slugs_led_by(db, id)
     await revalidate(revalidate_tags([out.slug, old_slug], packages))
     return out
 
@@ -293,7 +290,8 @@ async def set_active(db: AsyncSession, id: str, active: bool) -> AdminLeader:
     await db.commit()
     await db.refresh(row)
     out = await _admin(db, row)
-    await revalidate(revalidate_tags([slug]))
+    # Their past trips' reviews link to them (or stop linking): those package pages too.
+    await revalidate(revalidate_tags([slug], await _package_slugs_led_by(db, id)))
     return out
 
 

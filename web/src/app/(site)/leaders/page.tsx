@@ -17,7 +17,9 @@ export const dynamic = 'force-dynamic';
 
 const REVALIDATE_SECONDS = 60 * 60;
 
-const load = () => api('/leaders', { tags: ['leaders'], revalidate: REVALIDATE_SECONDS });
+// `packages` too: the upcoming-date counts move when a trip is published or a date changes.
+const load = () =>
+  api('/leaders', { tags: ['leaders', 'packages'], revalidate: REVALIDATE_SECONDS });
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
