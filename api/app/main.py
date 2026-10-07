@@ -50,6 +50,7 @@ from app.routers.site import (
     waitlist,
     webhooks,
 )
+from app.routers.site import leaders as site_leaders
 from app.services.pdf.service import PdfService
 
 log = logging.getLogger(__name__)
@@ -135,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_coupons.router)
     app.include_router(admin_counter.router)
     app.include_router(catalog.router)
+    app.include_router(site_leaders.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)
     app.include_router(bookings.router)

@@ -36,21 +36,38 @@ async function catalogue() {
     return await Promise.all([
       api('/packages', { tags: ['packages'] }),
       api('/destinations', { tags: ['destinations'] }),
+      leaderList(),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError) throw err;
     console.warn(`sitemap: api unreachable, listing static pages only (${String(err)})`);
-    return [{ items: [] }, { items: [] }] as const;
+    return [{ items: [] }, { items: [] }, { items: [] }] as const;
+  }
+}
+
+/**
+ * P3 (R41). Its own degrade path: on a merge the web can build against an api that has no
+ * `/leaders` yet (the web/api deploy race, and every preview build reads the production api) —
+ * that 404 must leave the leaders out, never fail the build. Other statuses rethrow as above.
+ */
+async function leaderList(): Promise<{ items: { slug: string }[] }> {
+  try {
+    return await api('/leaders', { tags: ['leaders'] });
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status !== 404) throw err;
+    console.warn(`sitemap: no leaders from the api, listing none (${String(err)})`);
+    return { items: [] };
   }
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [packages, destinations] = await catalogue();
+  const [packages, destinations, leaders] = await catalogue();
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: absolute('/'), changeFrequency: 'weekly', priority: 1 },
     { url: absolute('/packages'), changeFrequency: 'daily', priority: 0.9 },
     { url: absolute('/destinations'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: absolute('/leaders'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absolute('/about'), changeFrequency: 'yearly', priority: 0.5 },
     { url: absolute('/contact'), changeFrequency: 'yearly', priority: 0.5 },
     ...POLICY_SLUGS.map((slug) => ({
@@ -71,6 +88,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: absolute(`/destinations/${d.slug}`),
       changeFrequency: 'weekly' as const,
       priority: 0.7,
+    })),
+    ...leaders.items.map((l) => ({
+      url: absolute(`/leaders/${l.slug}`),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
     })),
   ];
 }

@@ -67,6 +67,14 @@ export default async function AboutPage() {
       <section className="mt-18">
         <SectionHead title="The team" sub="Four of us. You will talk to at least two." />
         <Team />
+        {/* P3 (R41): the people on the road with you. */}
+        <p className="mt-6 text-center text-[15px]">
+          On the road, every group travels with one of our trip leaders —{' '}
+          <Link href="/leaders" className="font-bold">
+            meet them
+          </Link>
+          .
+        </p>
       </section>
       <section className="mt-18">
         <SectionHead

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/site/Badge';
+import { LeaderAvatar } from '@/components/site/LeaderAvatar';
 import type { components } from '@/lib/api-types';
 import { istToday } from '@/lib/booking';
 import type { Deal } from '@/lib/deal';
@@ -64,6 +65,13 @@ export function DeparturesTable({
                     <small className="mt-1 block w-fit rounded-chip bg-eb-soft px-2 py-0.5 text-[11.5px] font-extrabold whitespace-nowrap text-eb">
                       {tierLabel(tier)}
                     </small>
+                  )}
+                  {d.leader && (
+                    // P3 (R41): who leads this date — its own leader, else the package's.
+                    <span className="mt-1.5 flex items-center gap-1.5 text-[12px] font-semibold whitespace-nowrap text-mute">
+                      <LeaderAvatar leader={d.leader} size={20} />
+                      Led by {d.leader.name.split(/\s+/)[0]}
+                    </span>
                   )}
                 </td>
                 {/* 0 is the api's "priced later" — a date parked before the rate is set. */}

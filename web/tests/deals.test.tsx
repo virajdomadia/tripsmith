@@ -18,8 +18,8 @@ type PackageDetail = components['schemas']['PackageDetail'];
 
 const deal: Deal = {
   label: 'Monsoon offer',
-  endsOn: '2026-10-02',
-  endsAt: '2026-10-02T18:30:00Z',
+  endsOn: '2099-10-02', // far ahead: the table hides a deal that has ended
+  endsAt: '2099-10-02T18:30:00Z',
   offPaise: 3_000_00,
   pricePaise: 11_499_00,
 };
@@ -132,7 +132,7 @@ describe('JSON-LD Offer.price', () => {
     } as unknown as PackageDetail;
     const ld = packageJsonLd(pkg, 'https://t/p') as { offers: Record<string, string>[] };
     expect(ld.offers).toHaveLength(1);
-    expect(ld.offers[0]).toMatchObject({ price: '11499', priceValidUntil: '2026-10-02' });
+    expect(ld.offers[0]).toMatchObject({ price: '11499', priceValidUntil: '2099-10-02' });
     const plain = packageJsonLd({ ...pkg, deal: null }, 'https://t/p') as typeof ld;
     expect(plain.offers[0].price).toBe('14499');
     expect(plain.offers[0]).not.toHaveProperty('priceValidUntil');

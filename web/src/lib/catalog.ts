@@ -38,6 +38,21 @@ export const loadDestination = cache(async (slug: string) => {
   }
 });
 
+/** A trip leader's page (R41): `leader:<slug>` is purged by leader edits, `leaders` by any
+ *  assignment, and `packages` by any package change (its trips' cards and dates). */
+export const loadLeader = cache(async (slug: string) => {
+  try {
+    return await api('/leaders/{slug}', {
+      params: { slug },
+      tags: [`leader:${slug}`, 'leaders', 'packages'],
+      revalidate: REVALIDATE_SECONDS,
+    });
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 404) notFound();
+    throw err;
+  }
+});
+
 /** Cheapest priced trip; 0 when every trip is "on request" (the api sorts 0 first, so min over > 0). */
 export function cheapest(prices: number[]): number {
   const priced = prices.filter(isPriced);

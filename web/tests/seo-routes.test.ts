@@ -14,11 +14,12 @@ const PACKAGES = {
   facets: { destinations: [], themes: [], months: [] },
 };
 const DESTINATIONS = { items: [{ slug: 'goa' }, { slug: 'kerala' }] };
+const LEADERS = { items: [{ slug: 'tenzin-norbu' }] };
 
 beforeEach(() => {
   api.mockReset();
   api.mockImplementation((path: string) =>
-    Promise.resolve(path === '/packages' ? PACKAGES : DESTINATIONS),
+    Promise.resolve(path === '/packages' ? PACKAGES : path === '/leaders' ? LEADERS : DESTINATIONS),
   );
 });
 
@@ -46,6 +47,22 @@ describe('sitemap', () => {
     expect(urls).toContain('http://localhost:3000/packages/munnar-alleppey');
     expect(urls).toContain('http://localhost:3000/destinations/goa');
     expect(urls).toContain('http://localhost:3000/destinations/kerala');
+    // P3 (R41): the leaders index and each leader's page.
+    expect(urls).toContain('http://localhost:3000/leaders');
+    expect(urls).toContain('http://localhost:3000/leaders/tenzin-norbu');
+  });
+
+  it('leaves the leaders out when the api has no /leaders yet (deploy race)', async () => {
+    const { ApiRequestError } = await import('@/lib/api-errors');
+    api.mockImplementation((path: string) =>
+      path === '/leaders'
+        ? Promise.reject(new ApiRequestError(404, { code: 'not_found', message: 'Not Found' }))
+        : Promise.resolve(path === '/packages' ? PACKAGES : DESTINATIONS),
+    );
+    const { default: sitemap } = await import('@/app/sitemap');
+    const urls = (await sitemap()).map((e) => e.url);
+    expect(urls).toContain('http://localhost:3000/packages/north-goa-beaches');
+    expect(urls.some((u) => u.includes('/leaders/'))).toBe(false);
   });
 
   it('never lists a page that is closed to crawlers', async () => {
@@ -63,6 +80,7 @@ describe('sitemap', () => {
 
     expect(api).toHaveBeenCalledWith('/packages', { tags: ['packages'] });
     expect(api).toHaveBeenCalledWith('/destinations', { tags: ['destinations'] });
+    expect(api).toHaveBeenCalledWith('/leaders', { tags: ['leaders'] });
   });
 
   it('still lists the static pages when the api is unreachable', async () => {

@@ -8,6 +8,7 @@ from pydantic import Field, field_validator
 
 from app.schemas import ApiModel
 from app.schemas.enquiries import CONTROL_RE
+from app.schemas.public_leaders import ReviewLeader
 
 TEXT_MIN = 20
 TEXT_MAX = 1000
@@ -74,6 +75,9 @@ class PublicReview(ApiModel):
     name: str = Field(description="First name + last initial, e.g. 'Asha B.'")
     travelled: dt.date = Field(description="The departure date; the page shows its month")
     created_at: dt.datetime
+    led_by: ReviewLeader | None = Field(
+        default=None, description="P3: the leader of the departure the reviewer travelled on"
+    )
 
 
 class PublicReviewPage(ApiModel):

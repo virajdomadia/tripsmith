@@ -208,7 +208,7 @@ async def test_switching_off_waits_until_nothing_upcoming_and_delete_until_never
 ) -> None:
     a, b = await two_leaders(db)
     pkg, _ = await seeded(db, seats=4)
-    pkg_id, pkg_name = pkg.id, pkg.name
+    pkg_id, pkg_name, pkg_slug = pkg.id, pkg.name, pkg.slug
     await packages.update_package(db, pkg_id, await form(db, pkg_id, leaderId=a))
 
     with pytest.raises(ApiError) as busy:
@@ -239,6 +239,8 @@ async def test_switching_off_waits_until_nothing_upcoming_and_delete_until_never
 
     off = await svc.set_active(db, a, False)
     assert not off.active and not off.deletable and off.upcoming == 0
+    # Its past trip's reviews link to them: that package's page is refreshed too (P3b).
+    assert f"package:{pkg_slug}" in revalidated.calls[-1]
     with pytest.raises(ApiError):
         await svc.delete_leader(db, a)
     assert [r.slug for r in await svc.list_leaders(db)] == ["kavya-rawat", "tenzin-norbu"]

@@ -10,6 +10,7 @@ type Links = readonly (readonly [href: string, label: string])[];
 const COMPANY: Links = [
   ['/destinations', 'Destinations'],
   ['/packages', 'Holiday packages'],
+  ['/leaders', 'Trip leaders'],
   ['/about', 'About'],
   ['/contact', 'Contact'],
 ];
