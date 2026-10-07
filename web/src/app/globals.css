@@ -403,3 +403,292 @@
     transition: none;
   }
 }
+
+/*
+ * P9 (R49) — My trip D, the holiday pass: the perforated stub with its two notches, the
+ * readiness punch holes (punched one by one on load), the barcode, and the tear-off coupons with
+ * their stamp. On a phone the pass stacks and the perforation turns horizontal.
+ */
+.hp-pass {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .hp-pass {
+    grid-template-columns: 200px minmax(0, 1fr) 240px;
+  }
+}
+.hp-stub {
+  border-top: 2px dashed rgb(255 255 255 / 0.3);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.hp-stub::before,
+.hp-stub::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  top: -13px;
+}
+.hp-stub::before {
+  left: -12px;
+}
+.hp-stub::after {
+  right: -12px;
+}
+@media (min-width: 768px) {
+  .hp-stub {
+    border-top: 0;
+    border-left: 2px dashed rgb(255 255 255 / 0.3);
+    grid-template-columns: 1fr;
+  }
+  .hp-stub::before,
+  .hp-stub::after {
+    left: -13px;
+    right: auto;
+  }
+  .hp-stub::before {
+    top: -12px;
+  }
+  .hp-stub::after {
+    top: auto;
+    bottom: -12px;
+  }
+}
+.hp-hole {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.4);
+}
+.hp-hole.done {
+  background: var(--color-bg);
+  border-color: var(--color-bg);
+}
+.hp-hole.part {
+  background: conic-gradient(var(--color-action) 0 var(--f), transparent 0);
+  border-color: var(--color-action);
+}
+.hp-hole.done,
+.hp-hole.part {
+  animation: hp-punch 0.45s var(--ease-out) both;
+  animation-delay: calc(var(--i) * 110ms + 300ms);
+}
+@keyframes hp-punch {
+  from {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.25);
+  }
+}
+.hp-bars i {
+  flex-basis: 0;
+  min-width: 0;
+  background: #fff;
+  opacity: 0.85;
+}
+.hp-bars i.gap {
+  background: transparent;
+}
+
+.hp-cp {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  position: relative;
+  transition:
+    box-shadow 0.3s,
+    border-color 0.3s;
+}
+.hp-cp.open {
+  border-color: var(--color-ink);
+  box-shadow: 0 18px 36px -28px rgb(20 32 42 / 0.6);
+}
+.hp-cp.done {
+  background: transparent;
+  border-style: dashed;
+}
+.hp-cp-stub {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 14px;
+  position: relative;
+  background: var(--color-bg2);
+  border-bottom: 2px dashed var(--color-line);
+  border-radius: 15px 15px 0 0;
+}
+.hp-cp.done .hp-cp-stub {
+  background: transparent;
+}
+.hp-cp-stub::before,
+.hp-cp-stub::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  bottom: -9px;
+}
+.hp-cp-stub::before {
+  left: -9px;
+  clip-path: inset(0 0 0 50%);
+}
+.hp-cp-stub::after {
+  right: -9px;
+  clip-path: inset(0 50% 0 0);
+}
+@media (min-width: 768px) {
+  .hp-cp {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+  .hp-cp-stub {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    padding: 14px 12px;
+    border-bottom: 0;
+    border-right: 2px dashed var(--color-line);
+    border-radius: 15px 0 0 15px;
+  }
+  .hp-cp-stub::before,
+  .hp-cp-stub::after {
+    left: auto;
+    right: -9px;
+  }
+  .hp-cp-stub::before {
+    top: -9px;
+    bottom: auto;
+    clip-path: inset(50% 0 0 0);
+  }
+  .hp-cp-stub::after {
+    bottom: -9px;
+    clip-path: inset(0 0 50% 0);
+  }
+}
+.hp-cp-no {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--color-primary);
+}
+@media (min-width: 768px) {
+  .hp-cp-no {
+    font-size: 28px;
+  }
+}
+.hp-cp-no.part {
+  color: var(--color-warn);
+}
+.hp-cp-no.done {
+  color: var(--color-ok);
+}
+.hp-cp-body[hidden] {
+  display: none;
+}
+/* A panel inside a coupon drops its own card frame. */
+.hp-cp-body > section {
+  border: 0;
+  padding: 0;
+}
+.hp-stamp {
+  flex: none;
+  border: 2px solid var(--color-ok);
+  color: var(--color-ok);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  transform: rotate(-7deg);
+}
+.hp-cp.just {
+  animation: hp-tear 0.7s var(--ease-out) both;
+}
+.hp-cp.just .hp-stamp {
+  animation: hp-stamp 0.5s var(--ease-out) 0.25s both;
+}
+@keyframes hp-tear {
+  35% {
+    transform: translate(8px, -4px) rotate(1.2deg);
+  }
+}
+@keyframes hp-stamp {
+  from {
+    transform: rotate(-7deg) scale(1.9);
+    opacity: 0;
+  }
+}
+.hp-tick {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--color-line);
+  border-radius: 999px;
+  padding: 6px 14px 6px 7px;
+  background: var(--color-bg);
+  white-space: nowrap;
+}
+.hp-tick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.hp-tbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid #9aa5af;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.hp-tick input:checked + .hp-tbox {
+  background: var(--color-ok);
+  border-color: var(--color-ok);
+  color: #fff;
+}
+.hp-tick:has(input:checked) {
+  border-color: var(--color-ok);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+.hp-tick:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-hole.done,
+  .hp-hole.part,
+  .hp-cp.just,
+  .hp-cp.just .hp-stamp {
+    animation: none;
+  }
+  .hp-cp,
+  .hp-tbox {
+    transition: none;
+  }
+}
