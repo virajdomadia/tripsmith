@@ -4,7 +4,7 @@ link in vouchers.py."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
@@ -12,6 +12,7 @@ from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.infra.razorpay import Razorpay
 from app.models import User
+from app.models.enums import BookingActor
 from app.routers.site.bookings import BookingRef, extras_rate_limit, razorpay
 from app.schemas.account import (
     AccountBookingDetail,
@@ -22,12 +23,13 @@ from app.schemas.account import (
     CancellationRequest,
 )
 from app.schemas.changes import ChangeOptions, ChangeRequest, ChangeResult
+from app.schemas.details import ChecklistTick, TravellerDetailsInput, TravellerDetailsOut
 from app.schemas.extras import ExtrasOrder, ExtrasQuote, ExtrasRequest
 from app.schemas.reviews import AccountReview, ReviewInput
-from app.services.account import get_booking, list_bookings, request_cancellation
+from app.services.account import get_booking, list_bookings, owns_booking, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
-from app.services.booking import waitlist
+from app.services.booking import details, waitlist
 from app.services.booking.after_capture import Notify
 from app.services.booking.balance import create_balance_order
 from app.services.booking.changes import change_options, start_change
@@ -258,3 +260,60 @@ async def post_review(
             db=db,
         )
     return review
+
+
+# --- traveller details + checklist (P9, R49) -----------------------------------------------------
+
+TravellerId = Annotated[str, Path(min_length=1, max_length=40, pattern=r"^[a-z0-9]+$")]
+CheckKey = Annotated[str, Path(min_length=1, max_length=40, pattern=r"^[a-z0-9-]+$")]
+
+
+@router.put(
+    "/bookings/{ref}/travellers/{traveller_id}/details",
+    operation_id="saveTravellerDetails",
+    response_model_by_alias=True,
+)
+async def put_traveller_details(
+    ref: BookingRef,
+    traveller_id: TravellerId,
+    payload: TravellerDetailsInput,
+    request: Request,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> TravellerDetailsOut:
+    """One traveller's card, saved by the lead booker after payment, until 3 days before
+    departure. The ID number comes back masked only."""
+    response.headers.update(NO_STORE)
+    user_id = user.id
+    if not await owns_booking(db, user, ref):
+        raise ApiError("not_found", "No booking with that reference on your account")
+    return await details.save_details(
+        db,
+        request.app.state.settings,
+        ref,
+        traveller_id,
+        payload,
+        actor=BookingActor.CUSTOMER,
+        by=user_id,
+        today=ist_today(),
+    )
+
+
+@router.put(
+    "/bookings/{ref}/checklist/{key}",
+    operation_id="tickChecklistItem",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def put_checklist_item(
+    ref: BookingRef,
+    key: CheckKey,
+    payload: ChecklistTick,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    response.headers.update(NO_STORE)
+    if not await owns_booking(db, user, ref):
+        raise ApiError("not_found", "No booking with that reference on your account")
+    await details.tick_item(db, ref, key, done=payload.done, today=ist_today())

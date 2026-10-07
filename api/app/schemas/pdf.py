@@ -42,3 +42,6 @@ class DailyReport(ApiModel):
         default=0, description="P6: offers or claims that ran out, sent to the back of the list"
     )
     balance_reminders: int = Field(default=0, description="Balance reminders sent (P5)")
+    details_purged: int = Field(
+        default=0, description="P9: bookings whose traveller details were deleted (trip + 30 days)"
+    )

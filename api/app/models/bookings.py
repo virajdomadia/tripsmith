@@ -25,7 +25,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedMixin, IdMixin, TextEnum, TimestampsMixin, pg_enum
@@ -126,6 +126,10 @@ class Booking(IdMixin, TimestampsMixin, Base):
     )
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     enquiry_id: Mapped[str | None] = mapped_column(ForeignKey("enquiries.id", ondelete="SET NULL"))
+    # 0021 (P9, R49): the package checklist items the customer has ticked, by key.
+    checklist_done: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
         back_populates="booking",

@@ -9,6 +9,7 @@ from app.models.enums import BookingStatus, CancellationStatus, Occupancy, Payme
 from app.schemas import ApiModel
 from app.schemas.bookings import Quote
 from app.schemas.changes import ChangeOffer
+from app.schemas.details import ChecklistItem, Readiness, TravellerDetailsBlock
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon, ExtrasOffer
 from app.schemas.reviews import AccountReview
@@ -171,6 +172,12 @@ class AccountBookingDetail(ApiModel):
         default=None, description="P5: made on a deposit (null = booked paying in full)"
     )
     change: ChangeOffer = Field(description="P7: Change date — open or not, and the fee rule")
+    details: TravellerDetailsBlock = Field(description="P9: the per-traveller details cards")
+    checklist: list[ChecklistItem] = Field(description="P9: the trip's pre-trip tick items")
+    readiness: Readiness | None = Field(
+        default=None, description="P9: the readiness bar — only while paid and ahead"
+    )
+    leader_name: str | None = Field(default=None, description="P3: the trip leader, if any")
 
 
 class CancellationRequest(ApiModel):

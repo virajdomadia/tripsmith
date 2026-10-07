@@ -48,7 +48,7 @@ from app.schemas.bookings import CHILD_MAX_AGE, CHILD_MIN_AGE, Quote, QuoteAddon
 from app.schemas.counter import CounterTraveller
 from app.schemas.moves import MoveDate, MoveOptions, MoveQuote, MoveQuoteRequest, MoveRequest
 from app.services.analytics import ist_today
-from app.services.booking import deposit, history, waitlist
+from app.services.booking import deposit, details, history, waitlist
 from app.services.booking.changes import (
     CHANGES,
     FEE_PER_TRAVELLER_PAISE,
@@ -439,6 +439,7 @@ def _ages(party: list[CounterTraveller]) -> dict[str, str]:
 async def _replace_party(db: AsyncSession, booking: Booking, plan: Plan, *, by: str) -> None:
     rows = await _rows(db, booking.id, lock=True)
     before = [{"name": r.name, "age": r.age, "room": r.occupancy.value} for r in rows]
+    kept = await details.carry_over(db, booking.id)  # P9: the cascade below takes them
     await db.execute(delete(BookingTraveller).where(BookingTraveller.booking_id == booking.id))
     new = [
         BookingTraveller(
@@ -452,6 +453,7 @@ async def _replace_party(db: AsyncSession, booking: Booking, plan: Plan, *, by: 
     ]
     db.add_all(new)
     await db.flush()
+    details.reattach(db, booking.id, kept, new)
     history.record(
         db,
         booking.id,

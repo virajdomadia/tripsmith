@@ -112,6 +112,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/checklist/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Checklist Item */
+        put: operations["tickChecklistItem"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/documents/{key}.pdf": {
         parameters: {
             query?: never;
@@ -191,6 +208,27 @@ export interface paths {
          *     publishes it. The owner is emailed; a lost email never undoes the review.
          */
         post: operations["submitReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/bookings/{ref}/travellers/{traveller_id}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Traveller Details
+         * @description One traveller's card, saved by the lead booker after payment, until 3 days before
+         *     departure. The ID number comes back masked only.
+         */
+        put: operations["saveTravellerDetails"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1898,6 +1936,11 @@ export interface components {
             cancellation?: components["schemas"]["AccountCancellation"] | null;
             /** @description P7: Change date — open or not, and the fee rule */
             change: components["schemas"]["ChangeOffer"];
+            /**
+             * Checklist
+             * @description P9: the trip's pre-trip tick items
+             */
+            checklist: components["schemas"]["ChecklistItem"][];
             /** Coverurl */
             coverUrl?: string | null;
             /** Days */
@@ -1911,6 +1954,8 @@ export interface components {
             departureCity: string;
             /** Destination */
             destination: string;
+            /** @description P9: the per-traveller details cards */
+            details: components["schemas"]["TravellerDetailsBlock"];
             /**
              * Documents
              * @description GST documents, in the order they happened (P13b)
@@ -1931,6 +1976,11 @@ export interface components {
             leadName: string;
             /** Leadphone */
             leadPhone: string;
+            /**
+             * Leadername
+             * @description P3: the trip leader, if any
+             */
+            leaderName?: string | null;
             /** Nights */
             nights: number;
             /** Packagename */
@@ -1946,6 +1996,8 @@ export interface components {
             payments: components["schemas"]["AccountPayment"][];
             /** @description The price as it was when the booking was made */
             quote: components["schemas"]["Quote"];
+            /** @description P9: the readiness bar — only while paid and ahead */
+            readiness?: components["schemas"]["Readiness"] | null;
             /** Ref */
             ref: string;
             /**
@@ -3711,6 +3763,25 @@ export interface components {
              */
             state: "done" | "pay";
         };
+        /** ChecklistItem */
+        ChecklistItem: {
+            /** Done */
+            done: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** ChecklistTick */
+        ChecklistTick: {
+            /** Done */
+            done: boolean;
+        };
         /**
          * CounterBookingRequest
          * @description `POST /admin/counter/bookings`: book and settle in one step.
@@ -4896,6 +4967,12 @@ export interface components {
             followUpOn: string | null;
         };
         /**
+         * FoodChoice
+         * @description What a traveller eats on the trip (R49, P9); allergies are free text beside it.
+         * @enum {string}
+         */
+        FoodChoice: "veg" | "non_veg" | "jain" | "vegan";
+        /**
          * GstDocumentOut
          * @description A receipt, tax invoice or credit note the booking has (R51, P13b). `number` is null until
          *     it is first downloaded (or emailed) — the number is issued then, and never changes.
@@ -5054,6 +5131,12 @@ export interface components {
             /** Stars */
             stars: number;
         };
+        /**
+         * IdType
+         * @description The photo ID a traveller carries (R49, P9).
+         * @enum {string}
+         */
+        IdType: "aadhaar" | "passport" | "driving_licence" | "voter_id";
         /** ImageAltInput */
         ImageAltInput: {
             /** Alt */
@@ -6514,6 +6597,41 @@ export interface components {
             /** Count */
             count: number;
         };
+        /**
+         * Readiness
+         * @description Equal parts (R49): details (complete ÷ travellers), balance paid, each owner item. P10
+         *     adds the trip pack and the calendar as two more parts.
+         */
+        Readiness: {
+            /** Parts */
+            parts: components["schemas"]["ReadinessPart"][];
+            /** Percent */
+            percent: number;
+        };
+        /** ReadinessPart */
+        ReadinessPart: {
+            /** Done */
+            done: boolean;
+            /** Fraction */
+            fraction: number;
+            /**
+             * Key
+             * @description `details`, `balance`, or `item:<checklist key>`
+             */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "details" | "balance" | "item";
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @description One line under the label
+             */
+            note: string;
+        };
         /** RefundMadeInput */
         RefundMadeInput: {
             /**
@@ -6788,6 +6906,103 @@ export interface components {
             age?: number | null;
             /** Name */
             name: string;
+        };
+        /**
+         * TravellerDetailsBlock
+         * @description The booking page's "Traveller details" section.
+         */
+        TravellerDetailsBlock: {
+            /**
+             * Complete
+             * @description Travellers with every required field
+             */
+            complete: number;
+            /**
+             * Lockson
+             * Format: date
+             * @description The first IST day the form is read-only
+             */
+            locksOn: string;
+            /**
+             * Purged
+             * @description Deleted 30 days after the trip (R49)
+             */
+            purged: boolean;
+            /** Required */
+            required: ("id" | "dob" | "emergency" | "food" | "medical")[];
+            /**
+             * State
+             * @description open = the customer can edit · locked = 3 days before departure · not_yet = not paid yet · closed = cancelled, departed or deleted after the trip
+             * @enum {string}
+             */
+            state: "open" | "locked" | "not_yet" | "closed";
+            /** Travellers */
+            travellers: components["schemas"]["TravellerDetailsOut"][];
+        };
+        /**
+         * TravellerDetailsInput
+         * @description `PUT /account/bookings/{ref}/travellers/{id}/details`. A partial save is fine — `missing`
+         *     says what is left. `id_number` blank keeps the saved number (it is never sent back);
+         *     `id_type` null removes the ID.
+         */
+        TravellerDetailsInput: {
+            /** Allergies */
+            allergies?: string | null;
+            /** Dob */
+            dob?: string | null;
+            /** Emergencyname */
+            emergencyName?: string | null;
+            /** Emergencyphone */
+            emergencyPhone?: string | null;
+            /** Emergencyrelation */
+            emergencyRelation?: string | null;
+            food?: components["schemas"]["FoodChoice"] | null;
+            /** Idnumber */
+            idNumber?: string | null;
+            idType?: components["schemas"]["IdType"] | null;
+            /** Medical */
+            medical?: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * TravellerDetailsOut
+         * @description One traveller's card. The ID number never leaves the api in full: `id_masked` only.
+         */
+        TravellerDetailsOut: {
+            /** Age */
+            age: number | null;
+            /** Allergies */
+            allergies?: string | null;
+            /** Complete */
+            complete: boolean;
+            /** Dob */
+            dob?: string | null;
+            /** Emergencyname */
+            emergencyName?: string | null;
+            /** Emergencyphone */
+            emergencyPhone?: string | null;
+            /** Emergencyrelation */
+            emergencyRelation?: string | null;
+            food?: components["schemas"]["FoodChoice"] | null;
+            /**
+             * Idmasked
+             * @description `XXXX XXXX 4821` — never the number
+             */
+            idMasked?: string | null;
+            idType?: components["schemas"]["IdType"] | null;
+            /** Medical */
+            medical?: string | null;
+            /**
+             * Missing
+             * @description The package's required fields still empty
+             */
+            missing: ("id" | "dob" | "emergency" | "food" | "medical")[];
+            /** Name */
+            name: string;
+            occupancy: components["schemas"]["Occupancy"];
+            /** Travellerid */
+            travellerId: string;
         };
         /**
          * UnbookableReason
@@ -7120,6 +7335,40 @@ export interface operations {
             };
         };
     };
+    tickChecklistItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChecklistTick"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     getGstDocumentPdf: {
         parameters: {
             query?: never;
@@ -7258,6 +7507,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountReview"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    saveTravellerDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                traveller_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TravellerDetailsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TravellerDetailsOut"];
                 };
             };
             /** @description Error envelope (06 C0) */
