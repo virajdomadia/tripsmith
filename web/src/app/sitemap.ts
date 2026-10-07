@@ -36,12 +36,27 @@ async function catalogue() {
     return await Promise.all([
       api('/packages', { tags: ['packages'] }),
       api('/destinations', { tags: ['destinations'] }),
-      api('/leaders', { tags: ['leaders'] }), // P3 (R41)
+      leaderList(),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError) throw err;
     console.warn(`sitemap: api unreachable, listing static pages only (${String(err)})`);
     return [{ items: [] }, { items: [] }, { items: [] }] as const;
+  }
+}
+
+/**
+ * P3 (R41). Its own degrade path: on a merge the web can build against an api that has no
+ * `/leaders` yet (the web/api deploy race, and every preview build reads the production api) —
+ * that 404 must leave the leaders out, never fail the build. Other statuses rethrow as above.
+ */
+async function leaderList(): Promise<{ items: { slug: string }[] }> {
+  try {
+    return await api('/leaders', { tags: ['leaders'] });
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status !== 404) throw err;
+    console.warn(`sitemap: no leaders from the api, listing none (${String(err)})`);
+    return { items: [] };
   }
 }
 
