@@ -9,7 +9,7 @@ import json
 import pytest
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from pydantic import SecretStr
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,7 +149,7 @@ FULL = {
 }
 
 
-async def save(client: AsyncClient, ref: str, token: str, tid: str, body: dict) -> object:
+async def save(client: AsyncClient, ref: str, token: str, tid: str, body: dict) -> Response:
     return await client.put(
         f"/account/bookings/{ref}/travellers/{tid}/details",
         json=body,
@@ -196,9 +196,18 @@ async def test_saving_a_card_masks_the_id_everywhere_and_encrypts_it_at_rest(
         (1 / 3 + 1) / 2 * 100
     )
     assert any("Aadhaar ending 4821" in a["text"] for a in b["activity"])
+    assert not any("removed" in a["text"] for a in b["activity"])
+
+    # A first save with no ID names only what was filled in.
+    other = (await detail(db_client, ref, token))["details"]["travellers"][1]["travellerId"]
+    res = await save(db_client, ref, token, other, card_body("Vikram Rao", food="veg"))
+    assert res.status_code == 200
+    texts = [a["text"] for a in (await detail(db_client, ref, token))["activity"]]
+    assert "Added Vikram Rao's details · food" in texts
 
     await db.rollback()
-    row = (await db.execute(select(TravellerDetail))).scalar_one()
+    row = await db.get(TravellerDetail, tid)
+    assert row is not None
     assert row.id_last4 == "4821" and row.id_number_enc and "4821" not in row.id_number_enc
     settings = db_app.state.settings
     assert id_numbers.reveal(settings, row.id_number_enc) == "000000004821"

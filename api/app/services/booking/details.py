@@ -268,8 +268,14 @@ def _check_dob(t: BookingTraveller, dob: dt.date, departs: dt.date, today: dt.da
 
 
 def _values(row: TravellerDetail | None) -> dict[str, Any]:
-    if row is None:
-        return {}
+    if row is None:  # nothing saved yet: every field empty, so only filled ones count as changed
+        return {
+            "id": (None, None),
+            "dob": None,
+            "emergency": (None, None, None),
+            "food": (None, None),
+            "medical": None,
+        }
     return {
         "id": (row.id_type, row.id_number_enc),
         "dob": row.dob,
