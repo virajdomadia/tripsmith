@@ -31,6 +31,7 @@ from app.models.catalog import (
     TripLeader,
 )
 from app.models.coupons import Coupon, coupon_packages
+from app.models.details import TravellerDetail
 from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
 from app.models.waitlist import WaitlistEntry
 
@@ -60,6 +61,7 @@ __all__ = [
     "Review",
     "Session",
     "Testimonial",
+    "TravellerDetail",
     "TripLeader",
     "User",
     "Verification",

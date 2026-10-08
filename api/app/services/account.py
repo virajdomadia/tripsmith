@@ -41,9 +41,10 @@ from app.schemas.account import (
 )
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
-from app.services.booking import changes, extras, history
+from app.services.booking import changes, details, extras, history
 from app.services.booking.balance import balance_out
 from app.services.booking.voucher import HAS_VOUCHER
+from app.services.catalog.admin_leaders import departure_leader
 from app.services.gst.documents import documents_out
 
 CANCELLABLE = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
@@ -192,7 +193,15 @@ async def get_booking(
         await db.execute(select(Review).where(Review.booking_id == booking.id))
     ).scalar_one_or_none()
     documents = await documents_out(db, booking)
+    returns = departs + dt.timedelta(days=pkg.nights)
+    block = await details.details_block(db, booking, pkg, departs, returns, today)
+    items = details.checklist_of(pkg, booking)
+    leader = await departure_leader(db, booking.departure_id)
     return AccountBookingDetail(
+        details=block,
+        checklist=items,
+        readiness=details.readiness(booking, block, items),
+        leader_name=leader.name if leader else None,
         documents=documents,
         ref=booking.ref,
         status=booking.status,
@@ -206,7 +215,7 @@ async def get_booking(
         days=pkg.days,
         departure_city=pkg.departure_city,
         departs=departs,
-        returns=departs + dt.timedelta(days=pkg.nights),
+        returns=returns,
         cover_url=pkg.cover_image.url if pkg.cover_image else None,
         travellers=[
             AccountTraveller(name=t.name, age=t.age, occupancy=t.occupancy)

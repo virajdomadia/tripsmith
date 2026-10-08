@@ -118,11 +118,11 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: SignInError };
 /** The api's envelope message for a schema 400 (api/app/errors.py). */
 const GENERIC_400 = 'Request validation failed';
 
-async function postJson<T>(path: string, body: unknown): Promise<Result<T>> {
+async function postJson<T>(path: string, body: unknown, method = 'POST'): Promise<Result<T>> {
   let res: Response;
   try {
     res = await fetch(path, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -226,3 +226,67 @@ export const sendReview = (ref: string, rating: number, text: string) =>
 /** The success sheet hands the booking's email to the sign-in screen in this tab only — never
  * in the URL (no PII in URLs, v1.0.1). */
 export const SIGN_IN_EMAIL_KEY = 'ts-signin-email';
+
+export type TravellerDetailsOut = components['schemas']['TravellerDetailsOut'];
+export type TravellerDetailsInput = components['schemas']['TravellerDetailsInput'];
+export type TravellerDetailsBlock = components['schemas']['TravellerDetailsBlock'];
+export type Readiness = components['schemas']['Readiness'];
+export type ReadinessPart = components['schemas']['ReadinessPart'];
+export type ChecklistItem = components['schemas']['ChecklistItem'];
+export type DetailField = TravellerDetailsBlock['required'][number];
+
+/** P9: one traveller's card — the ID number comes back masked only. */
+export const saveTravellerDetails = (
+  ref: string,
+  travellerId: string,
+  body: TravellerDetailsInput,
+) =>
+  postJson<TravellerDetailsOut>(
+    `/api/account/bookings/${encodeURIComponent(ref)}/travellers/${encodeURIComponent(travellerId)}/details`,
+    body,
+    'PUT',
+  );
+
+/** P9: tick (or untick) one of the trip's pre-trip items. */
+export const tickChecklistItem = (ref: string, key: string, done: boolean) =>
+  postJson<undefined>(
+    `/api/account/bookings/${encodeURIComponent(ref)}/checklist/${encodeURIComponent(key)}`,
+    { done },
+    'PUT',
+  );
+
+export const ID_TYPES = [
+  { id: 'aadhaar', label: 'Aadhaar', hint: '12 digits', mode: 'numeric' },
+  { id: 'passport', label: 'Passport', hint: 'A letter and 7 digits', mode: 'text' },
+  {
+    id: 'driving_licence',
+    label: 'Driving licence',
+    hint: '10–16 letters and digits',
+    mode: 'text',
+  },
+  { id: 'voter_id', label: 'Voter ID', hint: '3 letters and 7 digits', mode: 'text' },
+] as const;
+
+export const FOODS = [
+  { id: 'veg', label: 'Veg' },
+  { id: 'non_veg', label: 'Non-veg' },
+  { id: 'jain', label: 'Jain' },
+  { id: 'vegan', label: 'Vegan' },
+] as const;
+
+export const FIELD_LABEL: Record<DetailField, string> = {
+  id: 'ID',
+  dob: 'Date of birth',
+  emergency: 'Emergency contact',
+  food: 'Food',
+  medical: 'Medical notes',
+};
+
+export const idTypeLabel = (id: string | null | undefined) =>
+  ID_TYPES.find((t) => t.id === id)?.label ?? null;
+
+export const foodLabel = (id: string | null | undefined) =>
+  FOODS.find((f) => f.id === id)?.label ?? null;
+
+/** "2 fields left" / "1 field left" for a card's badge. */
+export const fieldsLeft = (n: number) => (n === 1 ? '1 field left' : `${n} fields left`);

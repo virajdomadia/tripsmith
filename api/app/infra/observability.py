@@ -52,8 +52,26 @@ SCRUBBED_HEADERS = frozenset(
 # EventScrubber compares whole keys, lower-cased; headers appear both dashed and underscored.
 # `headers` / `raw_headers` catch whole header collections in frame locals (the ASGI scope);
 # the event's own `request.headers` is scrubbed by content, never by that key.
+# P9 (R49): a traveller-details body (camel case on the wire, snake case in the service) must never
+# reach Sentry — an unhandled error on that route would otherwise carry the ID number in full.
+TRAVELLER_FIELDS = {
+    "idnumber",
+    "id_number",
+    "dob",
+    "medical",
+    "allergies",
+    "emergencyname",
+    "emergency_name",
+    "emergencyphone",
+    "emergency_phone",
+    "emergencyrelation",
+    "emergency_relation",
+}
 _EXTRA_DENYLIST = sorted(
-    SCRUBBED_HEADERS | {h.replace("-", "_") for h in SCRUBBED_HEADERS} | {"headers", "raw_headers"}
+    SCRUBBED_HEADERS
+    | {h.replace("-", "_") for h in SCRUBBED_HEADERS}
+    | {"headers", "raw_headers"}
+    | TRAVELLER_FIELDS
 )
 FILTERED = "[Filtered]"
 SECRET_MIN_LENGTH = 8  # shorter values (or prefixes) would mask ordinary words

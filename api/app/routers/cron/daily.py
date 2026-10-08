@@ -20,6 +20,8 @@ IST midnight, so `ist_today()` is the new day:
 9. (P6) walk every departure with a waitlist — the backstop behind the 15-minute
    `/cron/waitlist` — after the sweep, so seats an expired link gave back are offered, then
    send the emails that owes.
+10. (P9) delete the traveller details of trips that came back 30 or more days ago (R49) —
+   early, beside the balances, so a failing Blob GC never keeps ID numbers another day.
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -38,6 +40,7 @@ from app.services.auth.otp import prune_codes
 from app.services.auth.sessions import prune_sessions
 from app.services.booking.after_capture import Notify
 from app.services.booking.balance import sweep_balances
+from app.services.booking.details import purge as purge_details
 from app.services.booking.refunds import resend_stale
 from app.services.booking.sweep import sweep_bookings
 from app.services.catalog.admin_packages import (
@@ -60,6 +63,7 @@ async def daily(
     changed = await recompute_all_starting_prices(db, today=today)
     # P5 before the Blob GC, which can fail the run: a missed night would skip a reminder stage.
     balances = await sweep_balances(db, Notify.of(request.app.state), today=today)
+    purged = await purge_details(db, today=today)
     service: PdfService = request.app.state.pdf
     gc = await service.gc(db)
     swept = await sweep_bookings(db, today=today)
@@ -80,4 +84,5 @@ async def daily(
         balance_reminders=balances.reminded,
         waitlist_offers=walked.offered,
         waitlist_lapsed=walked.lapsed,
+        details_purged=purged,
     )

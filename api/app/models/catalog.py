@@ -87,6 +87,14 @@ class Package(IdMixin, TimestampsMixin, Base):
             name="eb2_after_eb1",
         ),
         CheckConstraint("NOT early_bird_on OR eb1_days IS NOT NULL", name="eb_on_needs_tier"),
+        CheckConstraint(  # 0021 (P9)
+            "details_required <@ ARRAY['id', 'dob', 'emergency', 'food', 'medical']::text[]",
+            name="details_required",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(checklist) = 'array' AND jsonb_array_length(checklist) <= 6",
+            name="checklist",
+        ),
         Index("ix_packages_destination_id_status", "destination_id", "status"),
         Index("ix_packages_status_featured", "status", "featured"),
         Index("ix_packages_themes", "themes", postgresql_using="gin"),
@@ -140,6 +148,15 @@ class Package(IdMixin, TimestampsMixin, Base):
     eb2_off_paise: Mapped[int | None] = mapped_column(Integer)
     # 0016 (P5, R43): the Book-now sheet offers "Reserve with 25 % now" (per package).
     deposit_on: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # 0021 (P9, R49): the traveller details this trip needs (any of id, dob, emergency, food,
+    # medical) and the owner's pre-trip tick items, [{key, label, note}] — keys never change, so
+    # a renamed item keeps the customers' ticks.
+    details_required: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{id,emergency,food}"
+    )
+    checklist: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     rating_avg: Mapped[Decimal | None] = mapped_column(Numeric(2, 1))  # ⏩ v2 reviews
     rating_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")  # ⏩ v2
     # 0020 (P3, R41): the default trip leader; a departure's own `leader_id` overrides it.

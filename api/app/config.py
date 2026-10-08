@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # Signs `POST /webhooks/razorpay` (B6); set only where the webhook is registered (production).
     razorpay_webhook_secret: SecretStr | None = None
 
+    # --- Traveller ID numbers (P9, R49) ---
+    # Fernet keys, comma-separated, newest first: the first encrypts, any of them decrypts (so a
+    # key can be rotated). Unset = ID numbers can't be saved (the rest of the details can).
+    id_number_key: SecretStr | None = None
+
     # --- Cron ---
     cron_secret: SecretStr | None = None
 

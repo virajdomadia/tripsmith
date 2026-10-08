@@ -171,3 +171,21 @@ class DateChangeState(StrEnum):
     DONE = "done"
     LAPSED = "lapsed"
     CANCELLED = "cancelled"
+
+
+class IdType(StrEnum):
+    """The photo ID a traveller carries (R49, P9)."""
+
+    AADHAAR = "aadhaar"
+    PASSPORT = "passport"
+    DRIVING_LICENCE = "driving_licence"
+    VOTER_ID = "voter_id"
+
+
+class FoodChoice(StrEnum):
+    """What a traveller eats on the trip (R49, P9); allergies are free text beside it."""
+
+    VEG = "veg"
+    NON_VEG = "non_veg"
+    JAIN = "jain"
+    VEGAN = "vegan"

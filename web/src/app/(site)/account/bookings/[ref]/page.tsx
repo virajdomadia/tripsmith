@@ -17,6 +17,9 @@ import { api, ApiRequestError } from '@/lib/api';
 import { ACCOUNT_PATH, ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { ExtrasPanel } from '@/components/site/account/ExtrasPanel';
+import { HolidayPass } from '@/components/site/account/HolidayPass';
+import { TravellerDetails } from '@/components/site/account/TravellerDetails';
+import { TripCoupons } from '@/components/site/account/TripCoupons';
 import { isDiscountLine, lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -36,7 +39,9 @@ const REF = /^TB-[A-Z0-9]{6}$/;
  * a request can still be made. A completed trip leads with its review (R21, B13), and the
  * booking's customer-safe history closes the page as "Activity" (R54, P16). A booking made on
  * a deposit leads with its balance: paid, left, due by, and Pay now in parts (R43, P5). The rail
- * offers Change date (R45, P7) above the cancellation block.
+ * offers Change date (R45, P7) above the cancellation block. While the trip is paid for and
+ * ahead, the header is the holiday pass and the work before the trip is a column of tear-off
+ * coupons — traveller details, the balance, the trip's own checklist (R49, P9).
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -52,6 +57,21 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
   const state = bookingState({ ...b, cancellation: b.cancellation?.status ?? null });
   const daysOut = daysBetween(b.today, b.departs);
   const upcoming = daysOut >= 0 && b.status !== 'cancelled' && b.status !== 'pending';
+  const pass = upcoming && b.readiness ? b.readiness : null;
+  const balancePanel = b.balance &&
+    (b.status === 'partially_paid' || (b.status === 'confirmed' && upcoming)) && (
+      <BalancePanel
+        // A new balance after a part is paid starts the amount afresh.
+        key={b.balance.balancePaise}
+        bookingRef={b.ref}
+        balance={b.balance}
+        paidPaise={b.paidPaise}
+        totalPaise={b.totalPaise}
+        today={b.today}
+        contact={{ name: b.leadName, email: b.leadEmail, phone: b.leadPhone }}
+        packageName={b.packageName}
+      />
+    );
   const wa = whatsappHref(`Hi Tripsmith, about my booking ${b.ref} (${b.packageName}).`);
 
   return (
@@ -63,40 +83,46 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
         <ArrowLeft className="size-4" aria-hidden /> My trips
       </Link>
 
-      <header className="relative mt-4 overflow-hidden rounded-card bg-ink text-white">
-        {b.coverUrl && (
-          <Image
-            src={b.coverUrl}
-            alt=""
-            fill
-            priority
-            sizes="(min-width: 1040px) 1040px, 100vw"
-            className={`object-cover opacity-60 ${b.status === 'cancelled' ? 'grayscale' : ''}`}
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-transparent" />
-        <div className="relative grid gap-3 p-5 pt-24 sm:p-8 sm:pt-32">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-chip px-2.5 py-0.5 text-[12px] font-bold ${PILL[state.tone]}`}
-            >
-              {state.label}
-            </span>
-            <span className="rounded-md border border-dashed border-white/40 px-2 py-0.5 text-[12px] font-extrabold tracking-[0.06em]">
-              {b.ref}
-            </span>
-          </div>
-          <h1 className="max-w-[22ch] text-[clamp(28px,4.4vw,46px)] text-white">{b.packageName}</h1>
-          <p className="text-[15px] text-white/85">
-            {b.destination} · {duration(b.nights, b.days)} · {b.departureCity}
-          </p>
-          {upcoming && (
-            <p className="num text-[22px] font-extrabold tracking-tight text-action">
-              {countdown(b.today, b.departs)}
-            </p>
+      {pass ? (
+        <HolidayPass b={b} readiness={pass} state={state} />
+      ) : (
+        <header className="relative mt-4 overflow-hidden rounded-card bg-ink text-white">
+          {b.coverUrl && (
+            <Image
+              src={b.coverUrl}
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 1040px) 1040px, 100vw"
+              className={`object-cover opacity-60 ${b.status === 'cancelled' ? 'grayscale' : ''}`}
+            />
           )}
-        </div>
-      </header>
+          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-transparent" />
+          <div className="relative grid gap-3 p-5 pt-24 sm:p-8 sm:pt-32">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-chip px-2.5 py-0.5 text-[12px] font-bold ${PILL[state.tone]}`}
+              >
+                {state.label}
+              </span>
+              <span className="rounded-md border border-dashed border-white/40 px-2 py-0.5 text-[12px] font-extrabold tracking-[0.06em]">
+                {b.ref}
+              </span>
+            </div>
+            <h1 className="max-w-[22ch] text-[clamp(28px,4.4vw,46px)] text-white">
+              {b.packageName}
+            </h1>
+            <p className="text-[15px] text-white/85">
+              {b.destination} · {duration(b.nights, b.days)} · {b.departureCity}
+            </p>
+            {upcoming && (
+              <p className="num text-[22px] font-extrabold tracking-tight text-action">
+                {countdown(b.today, b.departs)}
+              </p>
+            )}
+          </div>
+        </header>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="grid gap-6">
@@ -106,20 +132,19 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             review={b.review ?? null}
             canReview={b.canReview}
           />
-          {b.balance &&
-            (b.status === 'partially_paid' || (b.status === 'confirmed' && upcoming)) && (
-              <BalancePanel
-                // A new balance after a part is paid starts the amount afresh.
-                key={b.balance.balancePaise}
-                bookingRef={b.ref}
-                balance={b.balance}
-                paidPaise={b.paidPaise}
-                totalPaise={b.totalPaise}
-                today={b.today}
-                contact={{ name: b.leadName, email: b.leadEmail, phone: b.leadPhone }}
-                packageName={b.packageName}
-              />
-            )}
+          {pass ? (
+            <TripCoupons
+              bookingRef={b.ref}
+              readiness={pass}
+              details={<TravellerDetails bookingRef={b.ref} block={b.details} />}
+              balance={balancePanel || null}
+              locksOn={b.details.locksOn}
+              departs={b.departs}
+              balanceDueOn={b.balance?.dueOn ?? null}
+            />
+          ) : (
+            balancePanel
+          )}
           <section className="rounded-card border border-line p-5" aria-labelledby="when">
             <h2 id="when" className="text-[18px]">
               When
