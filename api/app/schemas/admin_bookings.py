@@ -20,6 +20,15 @@ from app.schemas import ApiModel
 from app.schemas.account import AccountCancellation, AccountTraveller, GstDocumentOut
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
+from app.schemas.details import (
+    ChecklistItem,
+    ChecklistItemOut,
+    DepartureReadiness,
+    DetailField,
+    ManifestTraveller,
+    Readiness,
+    TravellerDetailsBlock,
+)
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon
 from app.schemas.leaders import DeskLeader
@@ -27,7 +36,7 @@ from app.schemas.reviews import AdminReview
 
 NOTE_MAX = 80
 
-BookingFlag = Literal["refund", "cancellation", "balance"]
+BookingFlag = Literal["refund", "cancellation", "balance", "details"]
 PaymentVia = Literal["checkout", "sync", "webhook", "desk"]
 HistoryGroup = Literal["booking", "payment", "email"]
 Decision = Literal["approve", "reject"]
@@ -43,7 +52,8 @@ class BookingFilters(ApiModel):
     flag: BookingFlag | None = Field(
         default=None,
         description="`refund` = refund needed; `cancellation` = the customer asked to cancel "
-        "and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
+        "and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); "
+        "`details` = paid, not yet departed, a traveller missing a required detail (P9)",
     )
     package_id: str | None = Field(default=None, max_length=40)
     departure_id: str | None = Field(default=None, max_length=40)
@@ -81,6 +91,7 @@ class BookingCounts(ApiModel):
     refund: int = Field(description="Refund needed")
     cancellation: int = Field(description="Cancellation requested, not yet answered")
     balance: int = Field(default=0, description="P5: on its deposit, a balance still to pay")
+    details: int = Field(default=0, description="P9: paid and ahead, traveller details missing")
 
 
 class DepartureSeats(ApiModel):
@@ -131,6 +142,12 @@ class BookingRow(ApiModel):
     channel: BookingChannel = Field(
         default=BookingChannel.WEB, description="P18: web, or how the counter took it"
     )
+    details_missing: int = Field(
+        default=0, description="P9: travellers still missing a required detail"
+    )
+    ready_percent: int | None = Field(
+        default=None, description="P9: readiness while paid and ahead (null otherwise)"
+    )
 
 
 class BookingList(ApiModel):
@@ -143,6 +160,9 @@ class BookingList(ApiModel):
     departures: list[DepartureOption]
     seats: DepartureSeats | None = Field(
         default=None, description="Set when the list is filtered to one departure"
+    )
+    readiness: DepartureReadiness | None = Field(
+        default=None, description="P9: that departure's readiness (its paid bookings, unfiltered)"
     )
 
 
@@ -296,6 +316,17 @@ class AdminBooking(ApiModel):
     payment_link: "AdminPaymentLink | None" = Field(
         default=None, description="P18b: the counter's payment link, if it sent one"
     )
+    details: TravellerDetailsBlock | None = Field(
+        default=None, description="P9: the traveller cards, ID masked"
+    )
+    can_edit_details: bool = Field(
+        default=False, description="P9: the owner may edit them (paid or completed, before purge)"
+    )
+    checklist: list[ChecklistItem] = Field(default_factory=list, description="P9")
+    readiness: Readiness | None = Field(default=None, description="P9")
+    can_send_details_link: bool = Field(
+        default=False, description="P9: paid, before the lock, someone's details missing"
+    )
     can_edit_travellers: bool = Field(
         default=False, description="P18: pending, part paid or confirmed — names and ages"
     )
@@ -413,8 +444,11 @@ class ManifestBooking(ApiModel):
     lead_name: str
     lead_phone: str
     cancellation_requested: bool
-    travellers: list[AccountTraveller]
+    travellers: list[ManifestTraveller] = Field(
+        description="P9: every detail, the ID number in full — the printable manifest only"
+    )
     addons: list[str] = Field(description="P8: e.g. 'Kullu river rafting (2 travellers)'")
+    ready_percent: int | None = Field(default=None, description="P9")
 
 
 class ManifestAddon(ApiModel):
@@ -442,4 +476,12 @@ class Manifest(ApiModel):
     )
     travellers: int
     addons: list[ManifestAddon] = Field(description="Totals per add-on, in first-booked order")
+    readiness: DepartureReadiness | None = Field(default=None, description="P9")
+    required: list[DetailField] = Field(default_factory=list, description="P9: the package's")
+    purged: bool = Field(
+        default=False, description="P9: details deleted, 30 days after the trip (R49)"
+    )
+    checklist: list[ChecklistItemOut] = Field(
+        default_factory=list, description="P9: the package's pre-trip items"
+    )
     generated_at: dt.datetime

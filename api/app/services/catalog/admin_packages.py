@@ -49,6 +49,7 @@ from app.schemas.catalog import (
 )
 from app.services.analytics import ist_today
 from app.services.booking import waitlist
+from app.services.booking.details import apply_details_settings, details_settings
 from app.services.catalog import admin_leaders, deals, early_bird
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
@@ -427,6 +428,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         early_bird=early_bird_admin(pkg),
         deposit_on=pkg.deposit_on,
         leader_id=pkg.leader_id,
+        traveller_details=details_settings(pkg),
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -685,6 +687,9 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     # P3: omitted = unchanged (a form from before P3 cannot clear it); null = no leader.
     if "leader_id" in payload.model_fields_set:
         pkg.leader_id = payload.leader_id
+    # P9: omitted = unchanged; a new package takes the column defaults (ID, emergency, food).
+    if payload.traveller_details is not None:
+        apply_details_settings(pkg, payload.traveller_details)
 
 
 def _leader_ids(pkg: Package) -> set[str]:
@@ -990,6 +995,8 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         starting_price_paise=source.starting_price_paise,
         deposit_on=source.deposit_on,  # P5
         leader_id=source.leader_id,  # P3
+        details_required=list(source.details_required),  # P9
+        checklist=[dict(i) for i in source.checklist],
     )
     copy.itinerary = [
         ItineraryDay(

@@ -8,6 +8,7 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from app.models.enums import AddonBasis, PackageStatus, Theme
 from app.schemas import ApiModel
+from app.schemas.details import TravellerDetailsSettings, TravellerDetailsSettingsInput
 from app.schemas.meta import Badge
 from app.schemas.public_leaders import LeaderCardOut, PublicLeaderRef
 from app.schemas.reviews import PublicReview, RatingOut
@@ -581,6 +582,10 @@ class PackageInput(ApiModel):
         max_length=40,
         description="P3: the default trip leader; null = none. Omitted = left as saved",
     )
+    traveller_details: TravellerDetailsSettingsInput | None = Field(
+        default=None,
+        description="P9: required details + pre-trip checklist; omitted = left as saved",
+    )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
         description=(
@@ -754,6 +759,9 @@ class AdminPackage(ApiModel):
     early_bird: EarlyBirdAdmin = Field(description="P17")
     deposit_on: bool = Field(description="P5: the sheet offers a 25 % deposit on this trip")
     leader_id: str | None = Field(default=None, description="P3: the default trip leader")
+    traveller_details: TravellerDetailsSettings = Field(
+        description="P9: required details + pre-trip checklist"
+    )
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool

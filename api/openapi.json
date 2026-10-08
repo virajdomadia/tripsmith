@@ -1096,6 +1096,12 @@
             "title": "Bookedat",
             "type": "string"
           },
+          "canEditDetails": {
+            "default": false,
+            "description": "P9: the owner may edit them (paid or completed, before purge)",
+            "title": "Caneditdetails",
+            "type": "boolean"
+          },
           "canEditTravellers": {
             "default": false,
             "description": "P18: pending, part paid or confirmed — names and ages",
@@ -1120,6 +1126,12 @@
           "canRemoveAddons": {
             "description": "Confirmed or part paid (P8b)",
             "title": "Canremoveaddons",
+            "type": "boolean"
+          },
+          "canSendDetailsLink": {
+            "default": false,
+            "description": "P9: paid, before the lock, someone's details missing",
+            "title": "Cansenddetailslink",
             "type": "boolean"
           },
           "cancelReason": {
@@ -1147,6 +1159,14 @@
             "default": "web",
             "description": "P18"
           },
+          "checklist": {
+            "description": "P9",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            },
+            "title": "Checklist",
+            "type": "array"
+          },
           "createdBy": {
             "anyOf": [
               {
@@ -1166,6 +1186,17 @@
           },
           "departure": {
             "$ref": "#/components/schemas/DepartureSeats"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravellerDetailsBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9: the traveller cards, ID masked"
           },
           "documents": {
             "description": "GST documents, in the order they happened (P13b)",
@@ -1254,6 +1285,17 @@
           },
           "quote": {
             "$ref": "#/components/schemas/Quote"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Readiness"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9"
           },
           "ref": {
             "title": "Ref",
@@ -2424,6 +2466,10 @@
             "title": "Themes",
             "type": "array"
           },
+          "travellerDetails": {
+            "$ref": "#/components/schemas/TravellerDetailsSettings",
+            "description": "P9: required details + pre-trip checklist"
+          },
           "updatedAt": {
             "format": "date-time",
             "title": "Updatedat",
@@ -2461,6 +2507,7 @@
           "dealBasePaise",
           "earlyBird",
           "depositOn",
+          "travellerDetails",
           "enquiryCount",
           "publishRules",
           "canPublish",
@@ -3515,6 +3562,12 @@
             "title": "Confirmed",
             "type": "integer"
           },
+          "details": {
+            "default": 0,
+            "description": "P9: paid and ahead, traveller details missing",
+            "title": "Details",
+            "type": "integer"
+          },
           "partiallyPaid": {
             "default": 0,
             "description": "P5: on its deposit (seats held)",
@@ -3600,6 +3653,17 @@
           "pageSize": {
             "title": "Pagesize",
             "type": "integer"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartureReadiness"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9: that departure's readiness (its paid bookings, unfiltered)"
           },
           "seats": {
             "anyOf": [
@@ -3860,6 +3924,12 @@
             "title": "Departureid",
             "type": "string"
           },
+          "detailsMissing": {
+            "default": 0,
+            "description": "P9: travellers still missing a required detail",
+            "title": "Detailsmissing",
+            "type": "integer"
+          },
           "holdExpiresAt": {
             "format": "date-time",
             "title": "Holdexpiresat",
@@ -3885,6 +3955,18 @@
           "paidPaise": {
             "title": "Paidpaise",
             "type": "integer"
+          },
+          "readyPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9: readiness while paid and ahead (null otherwise)",
+            "title": "Readypercent"
           },
           "ref": {
             "title": "Ref",
@@ -4337,6 +4419,64 @@
           "done"
         ],
         "title": "ChecklistItem",
+        "type": "object"
+      },
+      "ChecklistItemInput": {
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "pattern": "^[a-z0-9-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Keep it to keep the customers' ticks; omitted = a new item",
+            "title": "Key"
+          },
+          "label": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "ChecklistItemInput",
+        "type": "object"
+      },
+      "ChecklistItemOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "note"
+        ],
+        "title": "ChecklistItemOut",
         "type": "object"
       },
       "ChecklistTick": {
@@ -5580,6 +5720,41 @@
           "badge"
         ],
         "title": "DepartureOut",
+        "type": "object"
+      },
+      "DepartureReadiness": {
+        "description": "P9b: one departure's readiness — the mean of its paid bookings' (null with none).",
+        "properties": {
+          "bookings": {
+            "description": "Confirmed and part-paid bookings counted",
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "missingTravellers": {
+            "description": "Travellers still missing a required detail",
+            "title": "Missingtravellers",
+            "type": "integer"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          }
+        },
+        "required": [
+          "percent",
+          "missingTravellers",
+          "bookings"
+        ],
+        "title": "DepartureReadiness",
         "type": "object"
       },
       "DepartureSeats": {
@@ -7937,6 +8112,14 @@
             "title": "Bookings",
             "type": "array"
           },
+          "checklist": {
+            "description": "P9: the package's pre-trip items",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemOut"
+            },
+            "title": "Checklist",
+            "type": "array"
+          },
           "days": {
             "title": "Days",
             "type": "integer"
@@ -7968,6 +8151,38 @@
           "packageSlug": {
             "title": "Packageslug",
             "type": "string"
+          },
+          "purged": {
+            "default": false,
+            "description": "P9: details deleted, 30 days after the trip (R49)",
+            "title": "Purged",
+            "type": "boolean"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartureReadiness"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9"
+          },
+          "required": {
+            "description": "P9: the package's",
+            "items": {
+              "enum": [
+                "id",
+                "dob",
+                "emergency",
+                "food",
+                "medical"
+              ],
+              "type": "string"
+            },
+            "title": "Required",
+            "type": "array"
           },
           "returns": {
             "format": "date",
@@ -8044,6 +8259,18 @@
             "title": "Leadphone",
             "type": "string"
           },
+          "readyPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9",
+            "title": "Readypercent"
+          },
           "ref": {
             "title": "Ref",
             "type": "string"
@@ -8052,8 +8279,9 @@
             "$ref": "#/components/schemas/BookingStatus"
           },
           "travellers": {
+            "description": "P9: every detail, the ID number in full — the printable manifest only",
             "items": {
-              "$ref": "#/components/schemas/AccountTraveller"
+              "$ref": "#/components/schemas/ManifestTraveller"
             },
             "title": "Travellers",
             "type": "array"
@@ -8069,6 +8297,153 @@
           "addons"
         ],
         "title": "ManifestBooking",
+        "type": "object"
+      },
+      "ManifestTraveller": {
+        "description": "The printable manifest's traveller: every field, the ID number in full (R49) — the one\nplace it is ever decrypted. `id_number` is null when the key can't read it.",
+        "properties": {
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "allergies": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allergies"
+          },
+          "dob": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dob"
+          },
+          "emergencyName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergencyname"
+          },
+          "emergencyPhone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergencyphone"
+          },
+          "emergencyRelation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergencyrelation"
+          },
+          "food": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FoodChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "idNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idnumber"
+          },
+          "idType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "medical": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medical"
+          },
+          "missing": {
+            "items": {
+              "enum": [
+                "id",
+                "dob",
+                "emergency",
+                "food",
+                "medical"
+              ],
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/Occupancy"
+          },
+          "travellerId": {
+            "title": "Travellerid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "travellerId",
+          "name",
+          "age",
+          "occupancy"
+        ],
+        "title": "ManifestTraveller",
         "type": "object"
       },
       "ManualDiscountInput": {
@@ -9505,6 +9880,17 @@
             "maxItems": 6,
             "title": "Themes",
             "type": "array"
+          },
+          "travellerDetails": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravellerDetailsSettingsInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P9: required details + pre-trip checklist; omitted = left as saved"
           }
         },
         "required": [
@@ -11369,6 +11755,70 @@
         "title": "TravellerDetailsOut",
         "type": "object"
       },
+      "TravellerDetailsSettings": {
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemOut"
+            },
+            "title": "Checklist",
+            "type": "array"
+          },
+          "required": {
+            "items": {
+              "enum": [
+                "id",
+                "dob",
+                "emergency",
+                "food",
+                "medical"
+              ],
+              "type": "string"
+            },
+            "title": "Required",
+            "type": "array"
+          }
+        },
+        "required": [
+          "required",
+          "checklist"
+        ],
+        "title": "TravellerDetailsSettings",
+        "type": "object"
+      },
+      "TravellerDetailsSettingsInput": {
+        "description": "Package editor B's \"Traveller details\" section (R49).",
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemInput"
+            },
+            "maxItems": 6,
+            "title": "Checklist",
+            "type": "array"
+          },
+          "required": {
+            "items": {
+              "enum": [
+                "id",
+                "dob",
+                "emergency",
+                "food",
+                "medical"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Required",
+            "type": "array"
+          }
+        },
+        "required": [
+          "required"
+        ],
+        "title": "TravellerDetailsSettingsInput",
+        "type": "object"
+      },
       "UnbookableReason": {
         "description": "Why a departure cannot be booked — the 409's `reason`, and the picker's grey label.",
         "enum": [
@@ -12366,7 +12816,7 @@
             }
           },
           {
-            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9)",
             "in": "query",
             "name": "flag",
             "required": false,
@@ -12376,7 +12826,8 @@
                   "enum": [
                     "refund",
                     "cancellation",
-                    "balance"
+                    "balance",
+                    "details"
                   ],
                   "type": "string"
                 },
@@ -12384,7 +12835,7 @@
                   "type": "null"
                 }
               ],
-              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9)",
               "title": "Flag"
             }
           },
@@ -12561,7 +13012,7 @@
             }
           },
           {
-            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
+            "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9)",
             "in": "query",
             "name": "flag",
             "required": false,
@@ -12571,7 +13022,8 @@
                   "enum": [
                     "refund",
                     "cancellation",
-                    "balance"
+                    "balance",
+                    "details"
                   ],
                   "type": "string"
                 },
@@ -12579,7 +13031,7 @@
                   "type": "null"
                 }
               ],
-              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5)",
+              "description": "`refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9)",
               "title": "Flag"
             }
           },
@@ -12936,6 +13388,49 @@
           }
         },
         "summary": "Balance Paid Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/details-link": {
+      "post": {
+        "description": "P9: email the customer which details are still missing, with a link to fill them in.",
+        "operationId": "emailDetailsLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Details Link Route",
         "tags": [
           "admin"
         ]
@@ -13466,6 +13961,68 @@
           }
         },
         "summary": "Travellers Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/bookings/{ref}/travellers/{traveller_id}/details": {
+      "put": {
+        "description": "P9: the owner fills in or corrects a traveller's details — past the customer's lock,\nuntil the purge. The ID number comes back masked; the history names fields only.",
+        "operationId": "saveBookingTravellerDetails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "traveller_id",
+            "required": true,
+            "schema": {
+              "title": "Traveller Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravellerDetailsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Details Route",
         "tags": [
           "admin"
         ]

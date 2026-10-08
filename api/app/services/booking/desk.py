@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.business import refund_tier, suggested_refund_paise
+from app.config import Settings
 from app.errors import ApiError
 from app.models import (
     Booking,
@@ -71,7 +72,7 @@ from app.schemas.enquiries import normalise_phone
 from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
 from app.services.analytics import ist_today
-from app.services.booking import extras, waitlist
+from app.services.booking import details, extras, waitlist
 from app.services.booking.addons import facts as addon_facts
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.balance import admin_balance, held_on_deposit
@@ -204,6 +205,8 @@ def _balance_due() -> ColumnElement[bool]:
 def _flag_clause(flag: str) -> ColumnElement[bool]:
     if flag == "balance":
         return _balance_due()
+    if flag == "details":
+        return details.details_due(ist_today())
     return Booking.refund_needed.is_(True) if flag == "refund" else _open_request()
 
 
@@ -262,6 +265,7 @@ async def counts(db: AsyncSession, f: BookingFilters) -> BookingCounts:
                 func.count().filter(Booking.refund_needed.is_(True)),
                 func.count().filter(_open_request()),
                 func.count().filter(_balance_due()),
+                func.count().filter(details.details_due(ist_today())),
             )
         )
     ).one()
@@ -275,6 +279,7 @@ async def counts(db: AsyncSession, f: BookingFilters) -> BookingCounts:
         refund=int(flags[0]),
         cancellation=int(flags[1]),
         balance=int(flags[2]),
+        details=int(flags[3]),
     )
 
 
@@ -296,6 +301,8 @@ def _rows(f: BookingFilters) -> Select[Any]:
             _party(),
             hold_live(),
             BookingCancellation.status,
+            details.missing_travellers(),
+            Package.checklist,
         )
         .join(Package, Package.id == Booking.package_id)
         .join(Departure, Departure.id == Booking.departure_id)
@@ -304,7 +311,17 @@ def _rows(f: BookingFilters) -> Select[Any]:
     return _filtered(stmt, f).order_by(Booking.created_at.desc(), Booking.id.desc())
 
 
-def _row(b: Booking, pkg: str, departs: dt.date, party: int, live: bool, asked: Any) -> BookingRow:
+def _row(
+    b: Booking,
+    pkg: str,
+    departs: dt.date,
+    party: int,
+    live: bool,
+    asked: Any,
+    short: int,
+    checklist: list[dict[str, Any]],
+) -> BookingRow:
+    paid_ahead = b.status in details.OPEN_STATUSES
     return BookingRow(
         ref=b.ref,
         status=b.status,
@@ -325,6 +342,12 @@ def _row(b: Booking, pkg: str, departs: dt.date, party: int, live: bool, asked: 
         booked_at=b.created_at,
         balance_due_on=b.balance_due_on if b.status == BookingStatus.PARTIALLY_PAID else None,
         channel=b.channel,
+        details_missing=int(short) if paid_ahead else 0,
+        ready_percent=(
+            details.booking_percent(b, int(party), int(party) - int(short), checklist)
+            if paid_ahead
+            else None
+        ),
     )
 
 
@@ -357,6 +380,9 @@ async def list_bookings(db: AsyncSession, f: BookingFilters) -> BookingList:
         counts=await counts(db, f),
         departures=await departure_options(db),
         seats=await departure_seats(db, f.departure_id) if f.departure_id else None,
+        readiness=(
+            await details.departure_readiness(db, f.departure_id) if f.departure_id else None
+        ),
     )
 
 
@@ -479,6 +505,9 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
     refunds = sorted((r for p in b.payments for r in p.refunds), key=lambda r: (r.created_at, r.id))
     waiting = [r for r in refunds if r.status == RefundStatus.REQUESTED]
     stuck = sum(r.amount_paise for r in waiting if not r.by_hand and r.razorpay_refund_id is None)
+    returns = seats.date + dt.timedelta(days=pkg.nights)
+    block = await details.details_block(db, b, pkg, seats.date, returns, ist_today())
+    items = details.checklist_of(pkg, b)
     return AdminBooking(
         ref=b.ref,
         status=b.status,
@@ -497,7 +526,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         ),
         departure=seats,
         departs=seats.date,
-        returns=seats.date + dt.timedelta(days=pkg.nights),
+        returns=returns,
         leader=await departure_leader(db, b.departure_id),
         travellers=[
             AccountTraveller(name=t.name, age=t.age, occupancy=t.occupancy) for t in b.travellers
@@ -533,6 +562,15 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         enquiry=await _linked_enquiry(db, b.enquiry_id),
         payment_link=link,
         can_edit_travellers=b.status in EDITABLE,
+        details=block,
+        can_edit_details=b.status in details.OWNER_STATUSES and not block.purged,
+        checklist=items,
+        readiness=details.readiness(b, block, items),
+        can_send_details_link=(
+            b.status in details.OPEN_STATUSES
+            and block.state == "open"
+            and block.complete < len(block.travellers)
+        ),
     )
 
 
@@ -659,7 +697,9 @@ async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> 
 # --- manifest -----------------------------------------------------------------------------------
 
 
-async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
+async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> Manifest:
+    """Who travels, grouped by booking — with every traveller detail and the ID numbers in
+    full (R49: the one place they are decrypted; the page is the owner's printable manifest)."""
     seats = await departure_seats(db, departure_id)
     if seats is None:
         raise ApiError("not_found", "Departure not found")
@@ -680,6 +720,10 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
         .scalars()
         .all()
     )
+    required = details.required_of(pkg)
+    returns = seats.date + dt.timedelta(days=pkg.nights)
+    purged = ist_today() >= details.purge_on(returns)
+    found = {} if purged else await details.rows_for_departure(db, departure_id)
     out = [
         ManifestBooking(
             ref=b.ref,
@@ -690,10 +734,20 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
                 b.cancellation is not None and b.cancellation.status == CancellationStatus.REQUESTED
             ),
             travellers=[
-                AccountTraveller(name=t.name, age=t.age, occupancy=t.occupancy)
-                for t in b.travellers
+                details.manifest_traveller(settings, t, found.get(t.id), required)
+                for t in sorted(b.travellers, key=lambda t: (t.position, t.id))
             ],
             addons=[a.label for a in addon_facts(b.addons)],
+            ready_percent=(
+                details.booking_percent(
+                    b,
+                    len(b.travellers),
+                    sum(1 for t in b.travellers if not details.missing(found.get(t.id), required)),
+                    pkg.checklist,
+                )
+                if b.status in details.OPEN_STATUSES
+                else None
+            ),
         )
         for b in bookings
     ]
@@ -710,11 +764,15 @@ async def manifest(db: AsyncSession, departure_id: str) -> Manifest:
         nights=pkg.nights,
         days=pkg.days,
         departure_city=pkg.departure_city,
-        returns=seats.date + dt.timedelta(days=pkg.nights),
+        returns=returns,
         leader=await departure_leader(db, departure_id),
         bookings=out,
         travellers=sum(len(b.travellers) for b in out),
         addons=list(totals.values()),
+        readiness=await details.departure_readiness(db, departure_id),
+        required=required,
+        purged=purged,
+        checklist=details.details_settings(pkg).checklist,
         generated_at=dt.datetime.now(dt.UTC),
     )
 
@@ -746,6 +804,8 @@ CSV_HEADERS = (
     "Balance due (₹)",
     "Balance due by",
     "Channel",
+    "Details missing",
+    "Ready (%)",
 )
 STATUS_LABELS = {
     BookingStatus.PENDING: "Pending",
@@ -769,8 +829,15 @@ CANCELLATION_LABELS = {
 }
 
 
-def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
-    """One booking per line; the travellers' names in entry order, each with their room."""
+def csv_record(
+    b: Booking,
+    pkg: str,
+    departs: dt.date,
+    short: int = 0,
+    checklist: list[dict[str, Any]] | None = None,
+) -> list[str]:
+    """One booking per line; the travellers' names in entry order, each with their room. No
+    traveller details beyond names — never an ID number (R49)."""
     addons = addon_facts(b.addons)
     names = "; ".join(
         f"{t.name} ({'' if t.age is None else f'{t.age}, '}{OCCUPANCY_LABEL[t.occupancy]})"
@@ -806,6 +873,14 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
         str((b.total_paise - b.paid_paise) // 100) if on_deposit else "",
         b.balance_due_on.isoformat() if on_deposit and b.balance_due_on else "",
         CHANNEL_WORDS[b.channel],
+        str(short) if b.status in details.OPEN_STATUSES else "",
+        str(
+            details.booking_percent(
+                b, len(b.travellers), len(b.travellers) - short, checklist or []
+            )
+        )
+        if b.status in details.OPEN_STATUSES
+        else "",
     ]
     return [csv_safe(field) for field in fields]
 
@@ -813,9 +888,15 @@ def csv_record(b: Booking, pkg: str, departs: dt.date) -> list[str]:
 async def csv_records(db: AsyncSession, f: BookingFilters) -> list[list[str]]:
     """The whole filtered view, materialised before streaming (see the inbox's `csv_records`)."""
     stmt = cast(
-        "Select[tuple[Booking, str, dt.date]]",
+        "Select[tuple[Booking, str, dt.date, int, list[dict[str, Any]]]]",
         _filtered(
-            select(Booking, Package.name, Departure.date)
+            select(
+                Booking,
+                Package.name,
+                Departure.date,
+                details.missing_travellers(),
+                Package.checklist,
+            )
             .join(Package, Package.id == Booking.package_id)
             .join(Departure, Departure.id == Booking.departure_id),
             f,
@@ -830,7 +911,10 @@ async def csv_records(db: AsyncSession, f: BookingFilters) -> list[list[str]]:
         .limit(CSV_MAX_ROWS),
     )
     rows = await db.execute(stmt)
-    return [csv_record(b, pkg, departs) for b, pkg, departs in rows.all()]
+    return [
+        csv_record(b, pkg, departs, int(short), checklist)
+        for b, pkg, departs, short, checklist in rows.all()
+    ]
 
 
 def bookings_csv(records: Sequence[Sequence[str]]) -> Iterator[str]:

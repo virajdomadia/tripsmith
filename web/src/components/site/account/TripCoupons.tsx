@@ -55,7 +55,8 @@ export function TripCoupons({
     if (!res.ok) {
       // Back to the server's state: drop the override and the tear-off animation.
       setTicks((t) => {
-        const { [p.key]: _dropped, ...rest } = t;
+        const rest = { ...t };
+        delete rest[p.key];
         return rest;
       });
       setJust((j) => (j === p.key ? null : j));
@@ -154,7 +155,8 @@ export function TripCoupons({
   const torn = numbered.filter(({ part }) => done(part));
 
   return (
-    <section className="grid gap-3" aria-labelledby="coupons-h">
+    // `#details` is where the owner's "Send details link" email lands (P9b).
+    <section id="details" className="grid scroll-mt-24 gap-3" aria-labelledby="coupons-h">
       <div>
         <h2 id="coupons-h" className="flex flex-wrap items-center gap-2 text-[20px]">
           Your coupons

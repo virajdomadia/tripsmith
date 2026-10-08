@@ -16,11 +16,13 @@ deletes every details row 30 days after the trip's return day.
 """
 
 import datetime as dt
+import re
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.config import Settings
 from app.errors import ApiError
@@ -30,13 +32,18 @@ from app.schemas.bookings import ADULT_MIN_AGE, CHILD_MAX_AGE, CHILD_MIN_AGE
 from app.schemas.details import (
     DETAIL_FIELDS,
     ChecklistItem,
+    ChecklistItemOut,
+    DepartureReadiness,
     DetailField,
     DetailsState,
+    ManifestTraveller,
     Readiness,
     ReadinessPart,
     TravellerDetailsBlock,
     TravellerDetailsInput,
     TravellerDetailsOut,
+    TravellerDetailsSettings,
+    TravellerDetailsSettingsInput,
 )
 from app.services.booking import history, id_numbers
 from app.services.format import inr, long_date
@@ -127,6 +134,22 @@ def card(t: BookingTraveller, row: TravellerDetail | None, required: Sequence[De
 async def rows_of(db: AsyncSession, booking_id: str) -> dict[str, TravellerDetail]:
     rows = (
         (await db.execute(select(TravellerDetail).where(TravellerDetail.booking_id == booking_id)))
+        .scalars()
+        .all()
+    )
+    return {r.traveller_id: r for r in rows}
+
+
+async def rows_for_departure(db: AsyncSession, departure_id: str) -> dict[str, TravellerDetail]:
+    """Every saved details row on one departure, by traveller id (the manifest)."""
+    rows = (
+        (
+            await db.execute(
+                select(TravellerDetail)
+                .join(Booking, Booking.id == TravellerDetail.booking_id)
+                .where(Booking.departure_id == departure_id)
+            )
+        )
         .scalars()
         .all()
     )
@@ -239,6 +262,74 @@ def booking_percent(
         *(1.0 if i["key"] in done else 0.0 for i in checklist),
     ]
     return round(sum(fractions) / len(fractions) * 100)
+
+
+# --- in SQL: the desk filter, its column and the per-departure figure (P9b) ---------------------
+
+
+def _missing_sql(pkg: Any, td: Any) -> ColumnElement[bool]:
+    """A traveller (outer-joined to `td`) lacks one of the package's required fields — the SQL
+    twin of `missing`."""
+    req = pkg.details_required
+    return or_(
+        and_(req.any("id"), td.id_type.is_(None)),
+        and_(req.any("dob"), td.dob.is_(None)),
+        and_(req.any("emergency"), or_(td.emergency_name.is_(None), td.emergency_phone.is_(None))),
+        and_(req.any("food"), td.food.is_(None)),
+        and_(req.any("medical"), func.coalesce(td.medical, "") == ""),
+    )
+
+
+def missing_travellers() -> Any:
+    """A booking's travellers still missing a required field (correlated on `bookings`)."""
+    pkg, td = aliased(Package), aliased(TravellerDetail)
+    return (
+        select(func.count())
+        .select_from(BookingTraveller)
+        .join(pkg, pkg.id == Booking.package_id)
+        .outerjoin(td, td.traveller_id == BookingTraveller.id)
+        .where(BookingTraveller.booking_id == Booking.id, _missing_sql(pkg, td))
+        .correlate(Booking)
+        .scalar_subquery()
+    )
+
+
+def details_due(today: dt.date) -> ColumnElement[bool]:
+    """The desk's "details missing" flag: paid for, not yet departed, someone's card short.
+    The statement must join `Departure`."""
+    return and_(
+        Booking.status.in_(OPEN_STATUSES), Departure.date >= today, missing_travellers() > 0
+    )
+
+
+async def departure_readiness(db: AsyncSession, departure_id: str) -> DepartureReadiness:
+    """R49's readiness % per departure: the mean of its paid bookings' readiness, and how many
+    travellers still lack details. The calendar (P11) reuses it."""
+    rows = (
+        await db.execute(
+            select(
+                Booking,
+                select(func.count())
+                .where(BookingTraveller.booking_id == Booking.id)
+                .correlate(Booking)
+                .scalar_subquery(),
+                missing_travellers(),
+                Package.checklist,
+            )
+            .join(Package, Package.id == Booking.package_id)
+            .where(Booking.departure_id == departure_id, Booking.status.in_(OPEN_STATUSES))
+        )
+    ).all()
+    if not rows:
+        return DepartureReadiness(percent=None, missing_travellers=0, bookings=0)
+    percents = [
+        booking_percent(b, int(n), int(n) - int(m), checklist) for b, n, m, checklist in rows
+    ]
+    return DepartureReadiness(
+        percent=round(sum(percents) / len(percents)),
+        missing_travellers=sum(int(m) for _, _, m, _ in rows),
+        bookings=len(rows),
+    )
 
 
 # --- saving -------------------------------------------------------------------------------------
@@ -542,3 +633,78 @@ def reattach(
         values = same.pop(0) if same else None
         if values is not None:
             db.add(TravellerDetail(traveller_id=t.id, booking_id=booking_id, **values))
+
+
+# --- package settings (P9b, Package editor B) ---------------------------------------------------
+
+
+def details_settings(pkg: Package) -> TravellerDetailsSettings:
+    return TravellerDetailsSettings(
+        required=required_of(pkg),
+        checklist=[
+            ChecklistItemOut(
+                key=str(i["key"]), label=str(i["label"]), note=str(i.get("note") or "")
+            )
+            for i in pkg.checklist or []
+        ],
+    )
+
+
+def _new_key(label: str, taken: set[str]) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")[:24] or "item"
+    key, n = base, 2
+    while key in taken:
+        key, n = f"{base}-{n}", n + 1
+    return key
+
+
+def apply_details_settings(pkg: Package, settings: TravellerDetailsSettingsInput) -> None:
+    """Required fields in their canonical order; checklist keys kept when sent (so the
+    customers' ticks survive a rename), made from the label when new."""
+    want = set(settings.required)
+    pkg.details_required = [f for f in DETAIL_FIELDS if f in want]
+    taken = {i.key for i in settings.checklist if i.key}
+    items: list[dict[str, Any]] = []
+    for i in settings.checklist:
+        key = i.key or _new_key(i.label, taken)
+        taken.add(key)
+        if any(x["key"] == key for x in items):
+            raise ApiError("validation", "Two checklist items share a key")
+        items.append({"key": key, "label": i.label, "note": i.note})
+    pkg.checklist = items
+
+
+# --- the owner's views (P9b) --------------------------------------------------------------------
+
+
+def manifest_traveller(
+    settings: Settings,
+    t: BookingTraveller,
+    row: TravellerDetail | None,
+    required: Sequence[DetailField],
+) -> ManifestTraveller:
+    """Every field, the ID number decrypted — the printable manifest only."""
+    out = ManifestTraveller(
+        traveller_id=t.id,
+        name=t.name,
+        age=t.age,
+        occupancy=t.occupancy,
+        missing=missing(row, required),
+    )
+    if row is not None:
+        out.id_type = row.id_type
+        if row.id_type is not None and row.id_number_enc:
+            number = id_numbers.reveal(settings, row.id_number_enc)
+            out.id_number = id_numbers.spaced(row.id_type, number) if number else None
+        out.dob = row.dob
+        out.emergency_name = row.emergency_name
+        out.emergency_relation = row.emergency_relation
+        out.emergency_phone = row.emergency_phone
+        out.food = row.food
+        out.allergies = row.allergies
+        out.medical = row.medical
+    return out
+
+
+def owed(block: TravellerDetailsBlock) -> list[tuple[str, list[DetailField]]]:
+    return [(c.name, c.missing) for c in block.travellers if c.missing]

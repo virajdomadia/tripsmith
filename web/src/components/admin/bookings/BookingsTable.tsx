@@ -118,7 +118,18 @@ export function BookingsTable({
                   />
                   {b.refundNeeded && <RefundFlag />}
                   {b.cancellation === 'requested' && <CancelRequested />}
+                  {(b.detailsMissing ?? 0) > 0 && (
+                    // P9: travellers whose card is short of a required field.
+                    <span className="rounded-full bg-warn-soft px-1.5 py-px text-[11px] font-bold text-warn">
+                      {b.detailsMissing} details missing
+                    </span>
+                  )}
                 </div>
+                {b.readyPercent != null && (
+                  <span className="num mt-1 block text-[11.5px] text-mute">
+                    {b.readyPercent}% ready
+                  </span>
+                )}
               </TableCell>
               <TableCell className="hidden whitespace-nowrap text-mute 2xl:table-cell">
                 {receivedLabel(b.bookedAt)}

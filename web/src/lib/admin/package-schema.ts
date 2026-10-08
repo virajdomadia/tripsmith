@@ -131,6 +131,15 @@ const departureSchema = z.object({
   leaderId: z.string().default(''),
 });
 
+export const CHECKLIST_MAX = 6;
+
+const checklistItemSchema = z.object({
+  /** The api's key; null = a new item (the api makes one from the label). */
+  key: z.string().nullish().default(null),
+  label: z.string().trim().min(2, 'Name it — at least 2 characters').max(80),
+  note: z.string().trim().max(160, '160 characters at most'),
+});
+
 /** Mirrors `PackageInput` in api/app/schemas/catalog.py — the api is still the authority. */
 export const packageSchema = z
   .object({
@@ -156,6 +165,11 @@ export const packageSchema = z
     depositOn: z.boolean(),
     /** P3: the default trip leader; '' = none. */
     leaderId: z.string().default(''),
+    /** P9: the traveller details this trip requires, and the pre-trip tick items. */
+    detailsRequired: z
+      .array(z.enum(['id', 'dob', 'emergency', 'food', 'medical']))
+      .default(['id', 'emergency', 'food']),
+    checklist: z.array(checklistItemSchema).max(CHECKLIST_MAX).default([]),
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
     addons: z.array(addonSchema).max(ADDONS_MAX),
@@ -328,6 +342,8 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   featured: false,
   depositOn: true,
   leaderId: '',
+  detailsRequired: ['id', 'emergency', 'food'],
+  checklist: [],
   itinerary: [],
   departures: [],
   addons: [],
@@ -359,6 +375,10 @@ export function toInput(v: PackageFormValues): PackageInput {
     featured: v.featured,
     depositOn: v.depositOn,
     leaderId: v.leaderId || null,
+    travellerDetails: {
+      required: v.detailsRequired,
+      checklist: v.checklist.map((i) => ({ key: i.key || null, label: i.label, note: i.note })),
+    },
     itinerary: v.itinerary,
     departures: v.departures.map((d) => ({ ...d, leaderId: d.leaderId || null })),
     addons: v.addons.map((a) => ({

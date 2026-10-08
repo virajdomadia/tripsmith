@@ -22,7 +22,7 @@ type Counts = components['schemas']['BookingCounts'];
 type DepartureOption = components['schemas']['DepartureOption'];
 
 /** Desk A's attention tiles: what is waiting on the owner, counted with the other filters on.
- *  "Balance due" is P5's; "Details missing" (P9) joins them later. */
+ *  "Balance due" is P5's; "Details missing" P9's (paid, not yet departed, a card short). */
 const TILES: { flag: BookingFlag; label: string; hint: string; tone: string }[] = [
   { flag: 'refund', label: 'Refund needed', hint: 'Money in, no seat behind it', tone: 'text-bad' },
   {
@@ -36,6 +36,12 @@ const TILES: { flag: BookingFlag; label: string; hint: string; tone: string }[] 
     label: 'Balance due',
     hint: 'On a deposit, the rest still to pay',
     tone: 'text-primary',
+  },
+  {
+    flag: 'details',
+    label: 'Details missing',
+    hint: 'Paid, but a traveller’s card is short',
+    tone: 'text-warn',
   },
 ];
 
@@ -66,7 +72,7 @@ export function DeskFilters({
   ];
   return (
     <div className="grid gap-3">
-      <nav aria-label="Needs attention" className="grid gap-2.5 sm:grid-cols-3">
+      <nav aria-label="Needs attention" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         {TILES.map((t) => {
           const active = filters.flag === t.flag;
           const n = counts[t.flag] ?? 0;

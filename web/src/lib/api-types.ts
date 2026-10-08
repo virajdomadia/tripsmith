@@ -367,6 +367,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bookings/{ref}/details-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Details Link Route
+         * @description P9: email the customer which details are still missing, with a link to fill them in.
+         */
+        post: operations["emailDetailsLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings/{ref}/link/cancel": {
         parameters: {
             query?: never;
@@ -572,6 +592,27 @@ export interface paths {
          *     child's age stays inside the child rate; the rooms stay as booked. Logged.
          */
         put: operations["editBookingTravellers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bookings/{ref}/travellers/{traveller_id}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Details Route
+         * @description P9: the owner fills in or corrects a traveller's details — past the customer's lock,
+         *     until the purge. The ID number comes back masked; the history names fields only.
+         */
+        put: operations["saveBookingTravellerDetails"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2329,6 +2370,12 @@ export interface components {
              */
             bookedAt: string;
             /**
+             * Caneditdetails
+             * @description P9: the owner may edit them (paid or completed, before purge)
+             * @default false
+             */
+            canEditDetails: boolean;
+            /**
              * Canedittravellers
              * @description P18: pending, part paid or confirmed — names and ages
              * @default false
@@ -2354,6 +2401,12 @@ export interface components {
              * @description Confirmed or part paid (P8b)
              */
             canRemoveAddons: boolean;
+            /**
+             * Cansenddetailslink
+             * @description P9: paid, before the lock, someone's details missing
+             * @default false
+             */
+            canSendDetailsLink: boolean;
             cancelReason: components["schemas"]["CancelReason"] | null;
             cancellation: components["schemas"]["AdminCancellation"] | null;
             /**
@@ -2361,6 +2414,11 @@ export interface components {
              * @default web
              */
             channel: components["schemas"]["BookingChannel"];
+            /**
+             * Checklist
+             * @description P9
+             */
+            checklist?: components["schemas"]["ChecklistItem"][];
             /**
              * Createdby
              * @description P18: the owner who made it at the counter, by name
@@ -2372,6 +2430,8 @@ export interface components {
              */
             departs: string;
             departure: components["schemas"]["DepartureSeats"];
+            /** @description P9: the traveller cards, ID masked */
+            details?: components["schemas"]["TravellerDetailsBlock"] | null;
             /**
              * Documents
              * @description GST documents, in the order they happened (P13b)
@@ -2409,6 +2469,8 @@ export interface components {
              */
             payments: components["schemas"]["AdminPayment"][];
             quote: components["schemas"]["Quote"];
+            /** @description P9 */
+            readiness?: components["schemas"]["Readiness"] | null;
             /** Ref */
             ref: string;
             /** Refundneeded */
@@ -2917,6 +2979,8 @@ export interface components {
             summary: string;
             /** Themes */
             themes: components["schemas"]["Theme"][];
+            /** @description P9: required details + pre-trip checklist */
+            travellerDetails: components["schemas"]["TravellerDetailsSettings"];
             /**
              * Updatedat
              * Format: date-time
@@ -3391,6 +3455,12 @@ export interface components {
             /** Confirmed */
             confirmed: number;
             /**
+             * Details
+             * @description P9: paid and ahead, traveller details missing
+             * @default 0
+             */
+            details: number;
+            /**
              * Partiallypaid
              * @description P5: on its deposit (seats held)
              * @default 0
@@ -3428,6 +3498,8 @@ export interface components {
             page: number;
             /** Pagesize */
             pageSize: number;
+            /** @description P9: that departure's readiness (its paid bookings, unfiltered) */
+            readiness?: components["schemas"]["DepartureReadiness"] | null;
             /** @description Set when the list is filtered to one departure */
             seats?: components["schemas"]["DepartureSeats"] | null;
             /** Total */
@@ -3547,6 +3619,12 @@ export interface components {
             /** Departureid */
             departureId: string;
             /**
+             * Detailsmissing
+             * @description P9: travellers still missing a required detail
+             * @default 0
+             */
+            detailsMissing: number;
+            /**
              * Holdexpiresat
              * Format: date-time
              */
@@ -3564,6 +3642,11 @@ export interface components {
             packageName: string;
             /** Paidpaise */
             paidPaise: number;
+            /**
+             * Readypercent
+             * @description P9: readiness while paid and ahead (null otherwise)
+             */
+            readyPercent?: number | null;
             /** Ref */
             ref: string;
             /** Refundneeded */
@@ -3775,6 +3858,30 @@ export interface components {
              * Note
              * @default
              */
+            note: string;
+        };
+        /** ChecklistItemInput */
+        ChecklistItemInput: {
+            /**
+             * Key
+             * @description Keep it to keep the customers' ticks; omitted = a new item
+             */
+            key?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** ChecklistItemOut */
+        ChecklistItemOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Note */
             note: string;
         };
         /** ChecklistTick */
@@ -4366,6 +4473,24 @@ export interface components {
              * @default false
              */
             waitlistOpen: boolean;
+        };
+        /**
+         * DepartureReadiness
+         * @description P9b: one departure's readiness — the mean of its paid bookings' (null with none).
+         */
+        DepartureReadiness: {
+            /**
+             * Bookings
+             * @description Confirmed and part-paid bookings counted
+             */
+            bookings: number;
+            /**
+             * Missingtravellers
+             * @description Travellers still missing a required detail
+             */
+            missingTravellers: number;
+            /** Percent */
+            percent: number | null;
         };
         /**
          * DepartureSeats
@@ -5457,6 +5582,11 @@ export interface components {
              * @description Confirmed, part-paid and completed bookings, oldest first
              */
             bookings: components["schemas"]["ManifestBooking"][];
+            /**
+             * Checklist
+             * @description P9: the package's pre-trip items
+             */
+            checklist?: components["schemas"]["ChecklistItemOut"][];
             /** Days */
             days: number;
             /** Departurecity */
@@ -5472,6 +5602,19 @@ export interface components {
             nights: number;
             /** Packageslug */
             packageSlug: string;
+            /**
+             * Purged
+             * @description P9: details deleted, 30 days after the trip (R49)
+             * @default false
+             */
+            purged: boolean;
+            /** @description P9 */
+            readiness?: components["schemas"]["DepartureReadiness"] | null;
+            /**
+             * Required
+             * @description P9: the package's
+             */
+            required?: ("id" | "dob" | "emergency" | "food" | "medical")[];
             /**
              * Returns
              * Format: date
@@ -5509,11 +5652,51 @@ export interface components {
             leadName: string;
             /** Leadphone */
             leadPhone: string;
+            /**
+             * Readypercent
+             * @description P9
+             */
+            readyPercent?: number | null;
             /** Ref */
             ref: string;
             status: components["schemas"]["BookingStatus"];
-            /** Travellers */
-            travellers: components["schemas"]["AccountTraveller"][];
+            /**
+             * Travellers
+             * @description P9: every detail, the ID number in full — the printable manifest only
+             */
+            travellers: components["schemas"]["ManifestTraveller"][];
+        };
+        /**
+         * ManifestTraveller
+         * @description The printable manifest's traveller: every field, the ID number in full (R49) — the one
+         *     place it is ever decrypted. `id_number` is null when the key can't read it.
+         */
+        ManifestTraveller: {
+            /** Age */
+            age: number | null;
+            /** Allergies */
+            allergies?: string | null;
+            /** Dob */
+            dob?: string | null;
+            /** Emergencyname */
+            emergencyName?: string | null;
+            /** Emergencyphone */
+            emergencyPhone?: string | null;
+            /** Emergencyrelation */
+            emergencyRelation?: string | null;
+            food?: components["schemas"]["FoodChoice"] | null;
+            /** Idnumber */
+            idNumber?: string | null;
+            idType?: components["schemas"]["IdType"] | null;
+            /** Medical */
+            medical?: string | null;
+            /** Missing */
+            missing?: ("id" | "dob" | "emergency" | "food" | "medical")[];
+            /** Name */
+            name: string;
+            occupancy: components["schemas"]["Occupancy"];
+            /** Travellerid */
+            travellerId: string;
         };
         /**
          * ManualDiscountInput
@@ -6170,6 +6353,8 @@ export interface components {
             summary: string;
             /** Themes */
             themes?: components["schemas"]["Theme"][];
+            /** @description P9: required details + pre-trip checklist; omitted = left as saved */
+            travellerDetails?: components["schemas"]["TravellerDetailsSettingsInput"] | null;
         };
         /** PackageList */
         PackageList: {
@@ -7004,6 +7189,23 @@ export interface components {
             /** Travellerid */
             travellerId: string;
         };
+        /** TravellerDetailsSettings */
+        TravellerDetailsSettings: {
+            /** Checklist */
+            checklist: components["schemas"]["ChecklistItemOut"][];
+            /** Required */
+            required: ("id" | "dob" | "emergency" | "food" | "medical")[];
+        };
+        /**
+         * TravellerDetailsSettingsInput
+         * @description Package editor B's "Traveller details" section (R49).
+         */
+        TravellerDetailsSettingsInput: {
+            /** Checklist */
+            checklist?: components["schemas"]["ChecklistItemInput"][];
+            /** Required */
+            required: ("id" | "dob" | "emergency" | "food" | "medical")[];
+        };
         /**
          * UnbookableReason
          * @description Why a departure cannot be booked — the 409's `reason`, and the picker's grey label.
@@ -7605,8 +7807,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["BookingStatus"] | null;
-                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5) */
-                flag?: ("refund" | "cancellation" | "balance") | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9) */
+                flag?: ("refund" | "cancellation" | "balance" | "details") | null;
                 packageId?: string | null;
                 departureId?: string | null;
                 /** @description P18: where the booking came from (web or the counter) */
@@ -7650,8 +7852,8 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["BookingStatus"] | null;
-                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5) */
-                flag?: ("refund" | "cancellation" | "balance") | null;
+                /** @description `refund` = refund needed; `cancellation` = the customer asked to cancel and the owner has not answered yet; `balance` = on its deposit, a balance to pay (P5); `details` = paid, not yet departed, a traveller missing a required detail (P9) */
+                flag?: ("refund" | "cancellation" | "balance" | "details") | null;
                 packageId?: string | null;
                 departureId?: string | null;
                 /** @description P18: where the booking came from (web or the counter) */
@@ -7807,6 +8009,37 @@ export interface operations {
                 "application/json": components["schemas"]["MarkPaidInput"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    emailDetailsLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -8170,6 +8403,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EditTravellersInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    saveBookingTravellerDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+                traveller_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TravellerDetailsInput"];
             };
         };
         responses: {
