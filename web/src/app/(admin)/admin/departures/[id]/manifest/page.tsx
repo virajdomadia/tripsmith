@@ -128,111 +128,114 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
       {m.bookings.length === 0 ? (
         <p className="mt-8 text-mute">No confirmed travellers on this departure yet.</p>
       ) : (
-        <table className="mt-6 w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-ink text-left text-xs text-mute">
-              <th className="w-8 py-1.5 pr-2 font-bold">#</th>
-              <th className="py-1.5 pr-2 font-bold">Traveller</th>
-              <th className="py-1.5 pr-2 font-bold">ID</th>
-              <th className="py-1.5 pr-2 font-bold">Born</th>
-              <th className="py-1.5 pr-2 font-bold">Emergency contact</th>
-              <th className="py-1.5 pr-2 font-bold">Food</th>
-              <th className="py-1.5 pr-2 font-bold">Medical</th>
-            </tr>
-          </thead>
-          {m.bookings.map((b, g) => (
-            <tbody key={b.ref} className="break-inside-avoid border-b border-line">
-              <tr className="bg-bg2 print:bg-transparent">
-                <td colSpan={7} className="px-1 pt-3 pb-1">
-                  <b className="num">{b.ref}</b> · lead <b>{b.leadName}</b> ·{' '}
-                  <span className="num">+91 {b.leadPhone}</span>
-                  {b.status === 'completed' && <span className="text-mute"> · completed</span>}
-                  {b.cancellationRequested && (
-                    <span className="font-bold text-warn"> · cancellation requested</span>
-                  )}
-                  {b.readyPercent !== null && b.readyPercent !== undefined && (
-                    <span className="num text-mute"> · {b.readyPercent}% ready</span>
-                  )}
-                  {b.addons.length > 0 && (
-                    <span className="block text-[12.5px] text-ink2">
-                      Add-ons: {b.addons.join(' · ')}
-                    </span>
-                  )}
-                </td>
+        // A phone scrolls the wide table sideways; paper takes it whole (landscape).
+        <div className="mt-6 overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-[760px] border-collapse text-sm print:min-w-0">
+            <thead>
+              <tr className="border-b border-ink text-left text-xs text-mute">
+                <th className="w-8 py-1.5 pr-2 font-bold">#</th>
+                <th className="py-1.5 pr-2 font-bold">Traveller</th>
+                <th className="py-1.5 pr-2 font-bold">ID</th>
+                <th className="py-1.5 pr-2 font-bold">Born</th>
+                <th className="py-1.5 pr-2 font-bold">Emergency contact</th>
+                <th className="py-1.5 pr-2 font-bold">Food</th>
+                <th className="py-1.5 pr-2 font-bold">Medical</th>
               </tr>
-              {b.travellers.map((t, i) => {
-                const missing = t.missing ?? [];
-                const gap = (f: (typeof missing)[number], have: React.ReactNode) =>
-                  have ? (
-                    have
-                  ) : missing.includes(f) ? (
-                    <span className="font-bold text-warn">missing</span>
-                  ) : (
-                    <span className="text-mute">—</span>
-                  );
-                return (
-                  <tr key={t.travellerId} className="align-top">
-                    <td className="num py-1 pr-2 text-mute">{starts[g]! + i + 1}</td>
-                    <td className="py-1 pr-2">
-                      <b>{t.name}</b>
-                      <span className="block text-[12px] text-ink2">
-                        {t.age ?? '—'} · {OCCUPANCY_LABEL[t.occupancy]}
+            </thead>
+            {m.bookings.map((b, g) => (
+              <tbody key={b.ref} className="break-inside-avoid border-b border-line">
+                <tr className="bg-bg2 print:bg-transparent">
+                  <td colSpan={7} className="px-1 pt-3 pb-1">
+                    <b className="num">{b.ref}</b> · lead <b>{b.leadName}</b> ·{' '}
+                    <span className="num">+91 {b.leadPhone}</span>
+                    {b.status === 'completed' && <span className="text-mute"> · completed</span>}
+                    {b.cancellationRequested && (
+                      <span className="font-bold text-warn"> · cancellation requested</span>
+                    )}
+                    {b.readyPercent !== null && b.readyPercent !== undefined && (
+                      <span className="num text-mute"> · {b.readyPercent}% ready</span>
+                    )}
+                    {b.addons.length > 0 && (
+                      <span className="block text-[12.5px] text-ink2">
+                        Add-ons: {b.addons.join(' · ')}
                       </span>
-                    </td>
-                    <td className="py-1 pr-2">
-                      {gap(
-                        'id',
-                        t.idType && (
-                          <>
-                            <span className="block text-[12px] text-ink2">
-                              {idTypeLabel(t.idType)}
-                            </span>
-                            <span className="num font-semibold tracking-wide">
-                              {t.idNumber ?? 'can’t be read'}
-                            </span>
-                          </>
-                        ),
-                      )}
-                    </td>
-                    <td className="num py-1 pr-2">{gap('dob', t.dob && formatDate(t.dob))}</td>
-                    <td className="py-1 pr-2">
-                      {gap(
-                        'emergency',
-                        t.emergencyName && (
-                          <>
-                            {t.emergencyName}
-                            {t.emergencyRelation && (
-                              <span className="text-ink2"> ({t.emergencyRelation})</span>
-                            )}
-                            <span className="num block">+91 {t.emergencyPhone}</span>
-                          </>
-                        ),
-                      )}
-                    </td>
-                    <td className="py-1 pr-2">
-                      {gap(
-                        'food',
-                        t.food && (
-                          <>
-                            {foodLabel(t.food)}
-                            {t.allergies && (
-                              <span className="block text-[12px] font-bold text-warn">
-                                Allergies: {t.allergies}
+                    )}
+                  </td>
+                </tr>
+                {b.travellers.map((t, i) => {
+                  const missing = t.missing ?? [];
+                  const gap = (f: (typeof missing)[number], have: React.ReactNode) =>
+                    have ? (
+                      have
+                    ) : missing.includes(f) ? (
+                      <span className="font-bold text-warn">missing</span>
+                    ) : (
+                      <span className="text-mute">—</span>
+                    );
+                  return (
+                    <tr key={t.travellerId} className="align-top">
+                      <td className="num py-1 pr-2 text-mute">{starts[g]! + i + 1}</td>
+                      <td className="py-1 pr-2">
+                        <b>{t.name}</b>
+                        <span className="block text-[12px] text-ink2">
+                          {t.age ?? '—'} · {OCCUPANCY_LABEL[t.occupancy]}
+                        </span>
+                      </td>
+                      <td className="py-1 pr-2">
+                        {gap(
+                          'id',
+                          t.idType && (
+                            <>
+                              <span className="block text-[12px] text-ink2">
+                                {idTypeLabel(t.idType)}
                               </span>
-                            )}
-                          </>
-                        ),
-                      )}
-                    </td>
-                    <td className="max-w-[220px] py-1 pr-2 [overflow-wrap:anywhere]">
-                      {gap('medical', t.medical)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          ))}
-        </table>
+                              <span className="num font-semibold tracking-wide">
+                                {t.idNumber ?? 'can’t be read'}
+                              </span>
+                            </>
+                          ),
+                        )}
+                      </td>
+                      <td className="num py-1 pr-2">{gap('dob', t.dob && formatDate(t.dob))}</td>
+                      <td className="py-1 pr-2">
+                        {gap(
+                          'emergency',
+                          t.emergencyName && (
+                            <>
+                              {t.emergencyName}
+                              {t.emergencyRelation && (
+                                <span className="text-ink2"> ({t.emergencyRelation})</span>
+                              )}
+                              <span className="num block">+91 {t.emergencyPhone}</span>
+                            </>
+                          ),
+                        )}
+                      </td>
+                      <td className="py-1 pr-2">
+                        {gap(
+                          'food',
+                          t.food && (
+                            <>
+                              {foodLabel(t.food)}
+                              {t.allergies && (
+                                <span className="block text-[12px] font-bold text-warn">
+                                  Allergies: {t.allergies}
+                                </span>
+                              )}
+                            </>
+                          ),
+                        )}
+                      </td>
+                      <td className="max-w-[220px] py-1 pr-2 [overflow-wrap:anywhere]">
+                        {gap('medical', t.medical)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
+          </table>
+        </div>
       )}
 
       {waitlist && <WaitlistPanel initial={waitlist} />}
