@@ -36,16 +36,29 @@ export function TripCoupons({
   // Optimistic ticks, so the coupon tears off at once; the refresh brings the server's truth.
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
   const [just, setJust] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const done = (p: ReadinessPart) => (p.kind === 'item' && p.key in ticks ? ticks[p.key] : p.done);
 
   async function tick(p: ReadinessPart, value: boolean) {
+    if (busy.has(p.key)) return; // one request per item at a time
     setError(null);
+    setBusy((b) => new Set(b).add(p.key));
     setTicks((t) => ({ ...t, [p.key]: value }));
     if (value) setJust(p.key);
     const res = await tickChecklistItem(bookingRef, p.key.replace(/^item:/, ''), value);
+    setBusy((b) => {
+      const next = new Set(b);
+      next.delete(p.key);
+      return next;
+    });
     if (!res.ok) {
-      setTicks((t) => ({ ...t, [p.key]: !value }));
+      // Back to the server's state: drop the override and the tear-off animation.
+      setTicks((t) => {
+        const { [p.key]: _dropped, ...rest } = t;
+        return rest;
+      });
+      setJust((j) => (j === p.key ? null : j));
       setError(res.error.message);
       return;
     }

@@ -510,7 +510,7 @@ async def purge(db: AsyncSession, *, today: dt.date) -> int:
 # --- a party change keeps what matches (P7b moves) ----------------------------------------------
 
 
-async def carry_over(db: AsyncSession, booking_id: str) -> dict[str, dict[str, Any]]:
+async def carry_over(db: AsyncSession, booking_id: str) -> dict[str, list[dict[str, Any]]]:
     """Before an owner's party change deletes the travellers (the details go with them by
     cascade): each one's saved details, by lower-cased name, to `reattach` to the new rows."""
     rows = (
@@ -524,17 +524,21 @@ async def carry_over(db: AsyncSession, booking_id: str) -> dict[str, dict[str, A
         "id_type id_number_enc id_last4 dob emergency_name emergency_relation emergency_phone "
         "food allergies medical updated_by"
     ).split()
-    return {name.strip().lower(): {k: getattr(d, k) for k in keep} for name, d in rows}
+    kept: dict[str, list[dict[str, Any]]] = {}
+    for name, d in rows:  # a list per name: two travellers may share one
+        kept.setdefault(name.strip().lower(), []).append({k: getattr(d, k) for k in keep})
+    return kept
 
 
 def reattach(
     db: AsyncSession,
     booking_id: str,
-    kept: dict[str, dict[str, Any]],
+    kept: dict[str, list[dict[str, Any]]],
     new: Sequence[BookingTraveller],
 ) -> None:
     """The kept details onto the new travellers with the same name (flushed rows, ids set)."""
     for t in new:
-        values = kept.pop(t.name.strip().lower(), None)
+        same = kept.get(t.name.strip().lower())
+        values = same.pop(0) if same else None
         if values is not None:
             db.add(TravellerDetail(traveller_id=t.id, booking_id=booking_id, **values))

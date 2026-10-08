@@ -430,15 +430,14 @@ function DetailsForm({
 
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-[13px] font-bold">Food{req('food')}</legend>
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`Food for ${first}`}>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Food for ${first}`}>
           {FOODS.map((f) => (
             <button
               key={f.id}
               type="button"
-              role="radio"
-              aria-checked={d.food === f.id}
+              aria-pressed={d.food === f.id}
               onClick={() => set('food')(d.food === f.id ? '' : f.id)}
-              className="rounded-chip border-[1.5px] border-line bg-bg px-3 py-1.5 text-[13px] font-bold transition-colors hover:border-ink aria-checked:border-primary aria-checked:bg-primary-soft aria-checked:text-primary-ink"
+              className="rounded-chip border-[1.5px] border-line bg-bg px-3 py-1.5 text-[13px] font-bold transition-colors hover:border-ink aria-pressed:border-primary aria-pressed:bg-primary-soft aria-pressed:text-primary-ink"
             >
               {f.label}
             </button>

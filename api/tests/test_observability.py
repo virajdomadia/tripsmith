@@ -175,6 +175,8 @@ def test_scrubbing_is_wired_for_events_and_transactions(events: list[dict[str, A
     assert tx["request"]["headers"] == {}
     denylist = opts["event_scrubber"].denylist
     assert {"x-internal-secret", "x_internal_secret", "x-client-ip", "headers"} <= set(denylist)
+    # P9: a traveller-details body never reaches Sentry in full.
+    assert {"idnumber", "dob", "medical", "emergencyphone"} <= set(denylist)
     # Frame locals carried the ASGI scope's raw headers and `key="pdf:<ip>"`: off entirely.
     assert opts["include_local_variables"] is False
 
