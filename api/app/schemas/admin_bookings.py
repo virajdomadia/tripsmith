@@ -162,7 +162,7 @@ class BookingList(ApiModel):
         default=None, description="Set when the list is filtered to one departure"
     )
     readiness: DepartureReadiness | None = Field(
-        default=None, description="P9: that departure's readiness, with the same filter"
+        default=None, description="P9: that departure's readiness (its paid bookings, unfiltered)"
     )
 
 
@@ -478,6 +478,9 @@ class Manifest(ApiModel):
     addons: list[ManifestAddon] = Field(description="Totals per add-on, in first-booked order")
     readiness: DepartureReadiness | None = Field(default=None, description="P9")
     required: list[DetailField] = Field(default_factory=list, description="P9: the package's")
+    purged: bool = Field(
+        default=False, description="P9: details deleted, 30 days after the trip (R49)"
+    )
     checklist: list[ChecklistItemOut] = Field(
         default_factory=list, description="P9: the package's pre-trip items"
     )

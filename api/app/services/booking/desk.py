@@ -721,7 +721,9 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         .all()
     )
     required = details.required_of(pkg)
-    found = await details.rows_for_departure(db, departure_id)
+    returns = seats.date + dt.timedelta(days=pkg.nights)
+    purged = ist_today() >= details.purge_on(returns)
+    found = {} if purged else await details.rows_for_departure(db, departure_id)
     out = [
         ManifestBooking(
             ref=b.ref,
@@ -762,13 +764,14 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         nights=pkg.nights,
         days=pkg.days,
         departure_city=pkg.departure_city,
-        returns=seats.date + dt.timedelta(days=pkg.nights),
+        returns=returns,
         leader=await departure_leader(db, departure_id),
         bookings=out,
         travellers=sum(len(b.travellers) for b in out),
         addons=list(totals.values()),
         readiness=await details.departure_readiness(db, departure_id),
         required=required,
+        purged=purged,
         checklist=details.details_settings(pkg).checklist,
         generated_at=dt.datetime.now(dt.UTC),
     )
@@ -833,8 +836,8 @@ def csv_record(
     short: int = 0,
     checklist: list[dict[str, Any]] | None = None,
 ) -> list[str]:
-    """One row. No traveller details beyond names — never an ID number (R49)."""
-    """One booking per line; the travellers' names in entry order, each with their room."""
+    """One booking per line; the travellers' names in entry order, each with their room. No
+    traveller details beyond names — never an ID number (R49)."""
     addons = addon_facts(b.addons)
     names = "; ".join(
         f"{t.name} ({'' if t.age is None else f'{t.age}, '}{OCCUPANCY_LABEL[t.occupancy]})"

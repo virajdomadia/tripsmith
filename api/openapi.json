@@ -3663,7 +3663,7 @@
                 "type": "null"
               }
             ],
-            "description": "P9: that departure's readiness, with the same filter"
+            "description": "P9: that departure's readiness (its paid bookings, unfiltered)"
           },
           "seats": {
             "anyOf": [
@@ -8151,6 +8151,12 @@
           "packageSlug": {
             "title": "Packageslug",
             "type": "string"
+          },
+          "purged": {
+            "default": false,
+            "description": "P9: details deleted, 30 days after the trip (R49)",
+            "title": "Purged",
+            "type": "boolean"
           },
           "readiness": {
             "anyOf": [

@@ -100,9 +100,18 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
         )}
       </dl>
       <p className="mt-3 rounded-btn border border-warn/40 bg-warn-soft px-3 py-2 text-[12.5px] text-ink2 print:bg-transparent">
-        <b className="text-warn">Confidential:</b> this page carries travellers’ ID numbers and
-        medical notes in full. Keep it with the trip leader and shred it after the trip — the
-        details are deleted from Tripsmith 30 days after the return.
+        {m.purged ? (
+          <>
+            <b className="text-ink">Details deleted</b> 30 days after the trip, as the privacy rule
+            says — only names, ages and rooms remain.
+          </>
+        ) : (
+          <>
+            <b className="text-warn">Confidential:</b> this page carries travellers’ ID numbers and
+            medical notes in full. Keep it with the trip leader and shred it after the trip — the
+            details are deleted from Tripsmith 30 days after the return.
+          </>
+        )}
       </p>
 
       {m.addons.length > 0 && (
@@ -165,7 +174,9 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
                 {b.travellers.map((t, i) => {
                   const missing = t.missing ?? [];
                   const gap = (f: (typeof missing)[number], have: React.ReactNode) =>
-                    have ? (
+                    m.purged ? (
+                      <span className="text-mute">deleted</span>
+                    ) : have ? (
                       have
                     ) : missing.includes(f) ? (
                       <span className="font-bold text-warn">missing</span>

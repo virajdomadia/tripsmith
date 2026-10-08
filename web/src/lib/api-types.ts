@@ -3498,7 +3498,7 @@ export interface components {
             page: number;
             /** Pagesize */
             pageSize: number;
-            /** @description P9: that departure's readiness, with the same filter */
+            /** @description P9: that departure's readiness (its paid bookings, unfiltered) */
             readiness?: components["schemas"]["DepartureReadiness"] | null;
             /** @description Set when the list is filtered to one departure */
             seats?: components["schemas"]["DepartureSeats"] | null;
@@ -5602,6 +5602,12 @@ export interface components {
             nights: number;
             /** Packageslug */
             packageSlug: string;
+            /**
+             * Purged
+             * @description P9: details deleted, 30 days after the trip (R49)
+             * @default false
+             */
+            purged: boolean;
             /** @description P9 */
             readiness?: components["schemas"]["DepartureReadiness"] | null;
             /**
