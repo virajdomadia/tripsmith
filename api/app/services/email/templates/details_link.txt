@@ -1,0 +1,14 @@
+A few details before {{ b.package_name }}, {{ b.first_name }}.
+
+Your trip leaves {{ departs }}. Before then we need these traveller details for booking {{ b.ref }}:
+
+{% for o in owed %}- {{ o.name }}: {{ o.fields }}
+{% endfor %}
+As lead booker you can fill everyone in on your booking page. The details lock on {{ locks_on }}, 3 days before departure.
+
+Add the details: {{ url }}
+
+ID numbers show masked everywhere except the trip leader's printed manifest, and every detail is deleted 30 days after you're back. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

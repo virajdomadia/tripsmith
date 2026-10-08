@@ -87,6 +87,14 @@ class Readiness(ApiModel):
     parts: list[ReadinessPart]
 
 
+class DepartureReadiness(ApiModel):
+    """P9b: one departure's readiness — the mean of its paid bookings' (null with none)."""
+
+    percent: int | None = Field(ge=0, le=100)
+    missing_travellers: int = Field(description="Travellers still missing a required detail")
+    bookings: int = Field(description="Confirmed and part-paid bookings counted")
+
+
 class ChecklistItem(ApiModel):
     key: str
     label: str
@@ -138,3 +146,64 @@ class TravellerDetailsInput(ApiModel):
 
 class ChecklistTick(ApiModel):
     done: bool
+
+
+# --- P9b: the owner's side ----------------------------------------------------------------------
+
+CHECKLIST_MAX = 6
+CHECKLIST_LABEL_MAX = 80
+CHECKLIST_NOTE_MAX = 160
+
+
+class ChecklistItemInput(ApiModel):
+    key: str | None = Field(
+        default=None,
+        max_length=40,
+        pattern=r"^[a-z0-9-]+$",
+        description="Keep it to keep the customers' ticks; omitted = a new item",
+    )
+    label: str = Field(min_length=2, max_length=CHECKLIST_LABEL_MAX)
+    note: str = Field(default="", max_length=CHECKLIST_NOTE_MAX)
+
+    @field_validator("label", "note", mode="before")
+    @classmethod
+    def _plain(cls, v: object) -> object:
+        return _one_line(v, "item") or ""
+
+
+class ChecklistItemOut(ApiModel):
+    key: str
+    label: str
+    note: str
+
+
+class TravellerDetailsSettingsInput(ApiModel):
+    """Package editor B's "Traveller details" section (R49)."""
+
+    required: list[DetailField] = Field(max_length=len(DETAIL_FIELDS))
+    checklist: list[ChecklistItemInput] = Field(default_factory=list, max_length=CHECKLIST_MAX)
+
+
+class TravellerDetailsSettings(ApiModel):
+    required: list[DetailField]
+    checklist: list[ChecklistItemOut]
+
+
+class ManifestTraveller(ApiModel):
+    """The printable manifest's traveller: every field, the ID number in full (R49) — the one
+    place it is ever decrypted. `id_number` is null when the key can't read it."""
+
+    traveller_id: str
+    name: str
+    age: int | None
+    occupancy: Occupancy
+    id_type: IdType | None = None
+    id_number: str | None = None
+    dob: dt.date | None = None
+    emergency_name: str | None = None
+    emergency_relation: str | None = None
+    emergency_phone: str | None = None
+    food: FoodChoice | None = None
+    allergies: str | None = None
+    medical: str | None = None
+    missing: list[DetailField] = Field(default_factory=list)

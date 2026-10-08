@@ -19,6 +19,7 @@ from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.infra.razorpay import Razorpay
 from app.models import User
+from app.models.enums import BookingActor
 from app.schemas.admin_bookings import (
     AdminBooking,
     BookingFilters,
@@ -30,14 +31,17 @@ from app.schemas.admin_bookings import (
     ResolveCancellationInput,
 )
 from app.schemas.counter import EditTravellersInput
+from app.schemas.details import TravellerDetailsInput
 from app.schemas.extras import RemoveAddonInput
 from app.schemas.moves import MoveOptions, MoveQuote, MoveQuoteRequest, MoveRequest
 from app.schemas.waitlist import DepartureWaitlist
+from app.services.analytics import ist_today
 from app.services.auth.deps import require_owner
 from app.services.booking import (
     balance,
     counter,
     desk,
+    details,
     extras,
     links,
     moves,
@@ -48,6 +52,7 @@ from app.services.booking import (
 from app.services.booking.after_capture import Notify
 from app.services.booking.freshness import refresh_quietly
 from app.services.email.changes import send_change_emails
+from app.services.email.details import email_details_link
 from app.services.email.waitlist import send_due, walk_and_send
 from app.services.format import short_name
 
@@ -236,6 +241,48 @@ async def travellers_route(
     return await desk.get_booking(db, ref)
 
 
+@router.put(
+    "/bookings/{ref}/travellers/{traveller_id}/details",
+    operation_id="saveBookingTravellerDetails",
+    response_model_by_alias=True,
+)
+async def details_route(
+    ref: str,
+    traveller_id: str,
+    payload: TravellerDetailsInput,
+    request: Request,
+    response: Response,
+    db: Db,
+    owner: Owner,
+) -> AdminBooking:
+    """P9: the owner fills in or corrects a traveller's details — past the customer's lock,
+    until the purge. The ID number comes back masked; the history names fields only."""
+    response.headers.update(NO_STORE)
+    await details.save_details(
+        db,
+        request.app.state.settings,
+        ref,
+        traveller_id,
+        payload,
+        actor=BookingActor.OWNER,
+        by=owner.id,
+        today=ist_today(),
+    )
+    return await desk.get_booking(db, ref)
+
+
+@router.post(
+    "/bookings/{ref}/details-link", operation_id="emailDetailsLink", response_model_by_alias=True
+)
+async def details_link_route(
+    ref: str, request: Request, response: Response, db: Db
+) -> AdminBooking:
+    """P9: email the customer which details are still missing, with a link to fill them in."""
+    response.headers.update(NO_STORE)
+    await email_details_link(db, ref, Notify.of(request.app.state), today=ist_today())
+    return await desk.get_booking(db, ref)
+
+
 @router.post(
     "/bookings/{ref}/release", operation_id="releaseBookingHold", response_model_by_alias=True
 )
@@ -329,9 +376,9 @@ async def resolve_route(
 @router.get(
     "/departures/{id}/manifest", operation_id="getDepartureManifest", response_model_by_alias=True
 )
-async def manifest_route(id: str, response: Response, db: Db) -> Manifest:
+async def manifest_route(id: str, request: Request, response: Response, db: Db) -> Manifest:
     response.headers.update(NO_STORE)
-    return await desk.manifest(db, id)
+    return await desk.manifest(db, request.app.state.settings, id)
 
 
 # --- the waitlist (R44, P6b) --------------------------------------------------------------------
