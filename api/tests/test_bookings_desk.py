@@ -150,6 +150,7 @@ async def test_the_desk_numbers_match_departure_availability(
         "refund": 0,
         "cancellation": 0,
         "balance": 0,  # P5
+        "details": 1,  # P9: the confirmed booking has no traveller details yet
     }
     assert [d["id"] for d in body["departures"]] == [dep_id]
 

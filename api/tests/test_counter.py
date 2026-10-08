@@ -279,7 +279,8 @@ async def test_paid_now_confirms_with_a_receipt_the_voucher_and_the_usual_emails
     assert (await db_client.get("/admin/bookings?channel=web", headers=owner)).json()["total"] == 0
     csv = (await db_client.get("/admin/bookings.csv", headers=owner)).text
     header, line = csv.splitlines()[:2]
-    assert header.endswith(',"Channel"') and line.endswith(',"Phone"')
+    # P9 appends "Details missing" and "Ready (%)" after the channel.
+    assert header.endswith(',"Channel","Details missing","Ready (%)"') and ',"Phone",' in line
 
 
 @pytest.mark.db

@@ -114,6 +114,7 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   status: 'draft',
   featured: false,
   depositOn: true,
+  travellerDetails: { required: ['id', 'emergency', 'food'], checklist: [] },
   startingPricePaise: 1_499_900,
   dealPricePaise: null,
   dealLabel: null,

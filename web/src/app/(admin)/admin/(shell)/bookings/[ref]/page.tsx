@@ -3,6 +3,7 @@ import { Documents } from '@/components/site/account/Documents';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
+import { DetailsPanel } from '@/components/admin/bookings/DetailsPanel';
 import { History } from '@/components/admin/bookings/History';
 import { BalanceActions } from '@/components/admin/bookings/BalanceActions';
 import { LinkPanel } from '@/components/admin/counter/LinkPanel';
@@ -112,13 +113,24 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
       />
 
       <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className={panel} aria-labelledby="history">
-          <h2 id="history" className={heading}>
-            History <span className="font-semibold text-mute">· changes, payments, emails</span>
-          </h2>
-          {/* Undefined while an older api answers (web and api deploy separately). */}
-          <History history={b.history ?? { entries: [], rebuiltOn: null }} />
-        </section>
+        <div className="grid min-w-0 gap-3.5">
+          {b.details && b.status !== 'pending' && b.status !== 'cancelled' && (
+            // P9: the traveller cards (ID masked), readiness, the checklist, the details link.
+            <section className={panel} aria-labelledby="details">
+              <h2 id="details" className={heading}>
+                Traveller details
+              </h2>
+              <DetailsPanel booking={b} />
+            </section>
+          )}
+          <section className={panel} aria-labelledby="history">
+            <h2 id="history" className={heading}>
+              History <span className="font-semibold text-mute">· changes, payments, emails</span>
+            </h2>
+            {/* Undefined while an older api answers (web and api deploy separately). */}
+            <History history={b.history ?? { entries: [], rebuiltOn: null }} />
+          </section>
+        </div>
 
         <div className="grid gap-3.5">
           <SeatStrip seats={b.departure} />

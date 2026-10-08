@@ -55,7 +55,8 @@ export function TripCoupons({
     if (!res.ok) {
       // Back to the server's state: drop the override and the tear-off animation.
       setTicks((t) => {
-        const { [p.key]: _dropped, ...rest } = t;
+        const rest = { ...t };
+        delete rest[p.key];
         return rest;
       });
       setJust((j) => (j === p.key ? null : j));

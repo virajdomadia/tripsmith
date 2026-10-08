@@ -28,6 +28,7 @@ import { BasicsPanel } from './BasicsPanel';
 import { DeletePackage } from './DeletePackage';
 import { DealPanel } from './DealPanel';
 import { DepositPanel } from './DepositPanel';
+import { DetailsPanel } from './DetailsPanel';
 import { EarlyBirdPanel } from './EarlyBirdPanel';
 import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
@@ -58,6 +59,7 @@ const ALL: Key[] = [
   'prices',
   'deal',
   'addons',
+  'details',
   'stays',
   'included',
   'danger',
@@ -91,6 +93,7 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
     'depositOn',
   ],
   addons: ['addons'],
+  details: ['detailsRequired', 'checklist'],
   stays: ['hotels'],
   included: ['inclusions', 'exclusions', 'faq'],
 };
@@ -137,6 +140,9 @@ function LiveSub({
     const all = Array.isArray(v.addons) ? (v.addons as { active?: boolean }[]) : [];
     const on = all.filter((a) => a?.active).length;
     text = all.length ? `${plural(all.length, 'add-on')} · ${on} on sale` : 'None yet';
+  } else if (k === 'details') {
+    const req = Array.isArray(v.detailsRequired) ? v.detailsRequired.length : 0;
+    text = `${req} required · ${plural(count(v.checklist), 'checklist item')}`;
   } else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
   else if (k === 'included')
     text = `${count(v.inclusions)} in · ${count(v.exclusions)} out · ${plural(count(v.faq), 'question')}`;
@@ -277,6 +283,9 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     featured: pkg.featured,
     depositOn: pkg.depositOn ?? true, // an api from before P5 sends none
     leaderId: pkg.leaderId ?? '',
+    // P9: an api from before P9 sends none.
+    detailsRequired: pkg.travellerDetails?.required ?? ['id', 'emergency', 'food'],
+    checklist: (pkg.travellerDetails?.checklist ?? []).map((i) => ({ ...i })),
     itinerary: pkg.itinerary.map((d) => ({
       title: d.title,
       description: d.description,
@@ -614,6 +623,7 @@ export function PackageForm(props: Props) {
               'addons',
               <AddonsEditor images={pkg?.images ?? []} saved={pkg?.addons ?? []} />,
             )}
+            {section('details', <DetailsPanel />)}
             {section('stays', <HotelsEditor />)}
             {section(
               'included',

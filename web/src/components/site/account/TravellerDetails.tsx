@@ -23,20 +23,46 @@ import { formatDate } from '@/lib/format';
  * P9 (R49): a card per traveller on the booking page — mockup "My trip D". A complete card
  * shows its details (the ID only ever masked); an incomplete one opens as a form. The lead
  * booker fills everyone in until the lock, 3 days before departure. A partial save is fine:
- * the badge says what's left.
+ * the badge says what's left. The owner's booking page (P9b) reuses it with `owner`: editable
+ * past the customer's lock until the purge, saved through the desk's own route.
  */
+export type SaveDetails = (
+  travellerId: string,
+  body: TravellerDetailsInput,
+) => Promise<
+  { ok: true } | { ok: false; error: { message: string; fieldErrors?: Record<string, string> } }
+>;
+
 export function TravellerDetails({
   bookingRef,
   block,
+  owner,
 }: {
   bookingRef: string;
   block: TravellerDetailsBlock;
+  /** P9b: the owner's edit — its save, and whether the booking still takes edits. */
+  owner?: { save: SaveDetails; canEdit: boolean };
 }) {
-  const open = block.state === 'open';
+  const open = owner ? owner.canEdit : block.state === 'open';
+  const save: SaveDetails =
+    owner?.save ?? ((id, body) => saveTravellerDetails(bookingRef, id, body));
   return (
     <div className="grid gap-3">
       <p className="text-[14px] text-ink2">
-        {open ? (
+        {owner ? (
+          block.state === 'open' ? (
+            <>
+              The customer can fill these in until{' '}
+              <b className="text-ink">{formatDate(block.locksOn)}</b>; you can edit them any time
+              until they’re deleted, 30 days after the trip.
+            </>
+          ) : (
+            <>
+              The customer’s form locked on {formatDate(block.locksOn)}
+              {owner.canEdit ? ' — you can still edit them here.' : '.'}
+            </>
+          )
+        ) : open ? (
           <>
             As lead booker you can fill everyone in. Details lock on{' '}
             <b className="text-ink">{formatDate(block.locksOn)}</b>, 3 days before departure.
@@ -52,22 +78,25 @@ export function TravellerDetails({
         {block.travellers.map((t, i) => (
           <TravellerCard
             key={t.travellerId}
-            bookingRef={bookingRef}
             traveller={t}
             lead={i === 0}
             required={block.required}
             editable={open}
+            save={save}
+            owner={Boolean(owner)}
           />
         ))}
       </div>
-      <p className="flex items-start gap-2.5 rounded-btn bg-bg2 p-3 text-[13px] text-ink2">
-        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-        <span>
-          <b className="text-ink">Demo site: use made-up ID numbers only.</b> IDs show masked
-          everywhere — only the trip leader’s printed manifest has them in full — and we delete
-          every detail 30 days after you’re back.
-        </span>
-      </p>
+      {!owner && (
+        <p className="flex items-start gap-2.5 rounded-btn bg-bg2 p-3 text-[13px] text-ink2">
+          <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <span>
+            <b className="text-ink">Demo site: use made-up ID numbers only.</b> IDs show masked
+            everywhere — only the trip leader’s printed manifest has them in full — and we delete
+            every detail 30 days after you’re back.
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -95,17 +124,19 @@ function role(t: TravellerDetailsOut, lead: boolean) {
 }
 
 function TravellerCard({
-  bookingRef,
   traveller: t,
   lead,
   required,
   editable,
+  save,
+  owner,
 }: {
-  bookingRef: string;
   traveller: TravellerDetailsOut;
   lead: boolean;
   required: DetailField[];
   editable: boolean;
+  save: SaveDetails;
+  owner: boolean;
 }) {
   const [editing, setEditing] = useState(editable && !t.complete);
   const first = t.name.split(' ')[0];
@@ -136,7 +167,7 @@ function TravellerCard({
       </header>
       {editing ? (
         <DetailsForm
-          bookingRef={bookingRef}
+          save={save}
           traveller={t}
           required={required}
           onDone={() => setEditing(false)}
@@ -154,7 +185,7 @@ function TravellerCard({
                 onClick={() => setEditing(true)}
                 className="rounded-btn border-[1.5px] border-line px-3.5 py-2 text-[13px] font-bold transition-colors hover:border-ink"
               >
-                {lead ? 'Edit my details' : `Edit ${first}’s details`}
+                {lead && !owner ? 'Edit my details' : `Edit ${first}’s details`}
               </button>
             </footer>
           )}
@@ -233,13 +264,13 @@ const draftOf = (t: TravellerDetailsOut): Draft => ({
 const orNull = (v: string) => (v.trim() ? v.trim() : null);
 
 function DetailsForm({
-  bookingRef,
+  save,
   traveller: t,
   required,
   onDone,
   onCancel,
 }: {
-  bookingRef: string;
+  save: SaveDetails;
   traveller: TravellerDetailsOut;
   required: DetailField[];
   onDone: () => void;
@@ -279,7 +310,7 @@ function DetailsForm({
     setBusy(true);
     setError(null);
     setErrors({});
-    const res = await saveTravellerDetails(bookingRef, t.travellerId, body);
+    const res = await save(t.travellerId, body);
     setBusy(false);
     if (!res.ok) {
       const fields = res.error.fieldErrors ?? {};

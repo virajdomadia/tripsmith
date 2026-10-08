@@ -11,7 +11,7 @@ import {
 } from './enquiry-filters';
 
 export type BookingStatus = components['schemas']['BookingStatus'];
-export type BookingFlag = 'refund' | 'cancellation' | 'balance';
+export type BookingFlag = 'refund' | 'cancellation' | 'balance' | 'details';
 export type CancelReason = components['schemas']['CancelReason'];
 export type BookingRow = components['schemas']['BookingRow'];
 export type AdminBooking = components['schemas']['AdminBooking'];
@@ -43,6 +43,7 @@ export const FLAGS = [
   'refund',
   'cancellation',
   'balance',
+  'details',
 ] as const satisfies readonly BookingFlag[];
 
 export const STATUS_LABELS: Record<BookingStatus, string> = {
@@ -57,6 +58,7 @@ export const FLAG_LABELS: Record<BookingFlag, string> = {
   refund: 'Refund needed',
   cancellation: 'Cancellation requested',
   balance: 'Balance due',
+  details: 'Details missing',
 };
 
 /** Mirrors the api's CSV `CANCEL_LABELS` (services/booking/desk.py). */
