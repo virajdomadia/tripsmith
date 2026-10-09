@@ -249,6 +249,10 @@ def readiness(
         pack_note = f"Read {long_date(read_at.astimezone(IST).date())}"
     elif pack is not None and pack.state == "open":
         pack_note = "Open now — read it before you go"
+    elif pack is not None and pack.state == "closed":
+        pack_note = "Closed after the trip"
+    elif pack is not None and pack.needs_payment and pack.day_reached:
+        pack_note = "Opens once the balance is paid"
     elif pack is not None:
         pack_note = f"Opens {long_date(pack.opens_on)}" + (
             ", once fully paid" if pack.needs_payment else ""

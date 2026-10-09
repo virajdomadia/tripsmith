@@ -142,6 +142,7 @@ def summary_of(booking: Booking, departs: dt.date, nights: int, today: dt.date) 
         state=state,
         opens_on=opens_on(departs),
         needs_payment=booking.status == BookingStatus.PARTIALLY_PAID,
+        day_reached=today >= opens_on(departs),
         read_at=booking.pack_read_at,
     )
 

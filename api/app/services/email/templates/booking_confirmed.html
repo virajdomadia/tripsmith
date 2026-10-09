@@ -25,7 +25,7 @@
 {% if calendar_google_url %}
 <p style="margin:0 0 16px;">Add it to your calendar: <a href="{{ calendar_google_url }}" style="color:#1b4fd8;font-weight:700;">Google Calendar</a> · <a href="{{ calendar_ics_url }}" style="color:#1b4fd8;font-weight:700;">Apple / Outlook (.ics)</a></p>
 {% endif %}
-<p style="margin:0 0 18px;color:#5e6b76;">Your trip pack — the meeting point and time, your trip leader’s phone and the hotel contacts — opens in <a href="{{ trip_url }}" style="color:#1b4fd8;font-weight:700;">My trips</a> on {{ pack_opens }}{% if balance %}, once the balance is paid{% endif %}. {{ demo_note }}</p>
+<p style="margin:0 0 18px;color:#5e6b76;">Your trip pack — the meeting point and time, your trip leader’s phone and the hotel contacts — opens in <a href="{{ trip_url }}" style="color:#1b4fd8;font-weight:700;">My trips</a> {{ pack_when }}{% if balance %}, once the balance is paid{% endif %}. {{ demo_note }}</p>
 <p style="margin:0 0 8px;">
 <a href="{{ whatsapp_url }}" style="display:inline-block;background:#17823f;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">WhatsApp us about this trip</a>
 </p>

@@ -197,6 +197,7 @@ async def test_the_pack_is_locked_until_seven_days_out_and_says_when_it_opens(
         "state": "locked",
         "opensOn": opens.isoformat(),
         "needsPayment": False,
+        "dayReached": False,
         "readAt": None,
         "content": None,
     }
@@ -229,7 +230,8 @@ async def test_the_pack_is_locked_until_seven_days_out_and_says_when_it_opens(
     b = await detail(db_client, ref, token)
     assert b["pack"]["state"] == "locked" and b["pack"]["needsPayment"] is True
     note = next(p["note"] for p in b["readiness"]["parts"] if p["key"] == "pack")
-    assert note.endswith(", once fully paid")
+    assert note == "Opens once the balance is paid"  # the day has come; the money hasn't
+    assert b["pack"]["dayReached"] is True
 
 
 @pytest.mark.db

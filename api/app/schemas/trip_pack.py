@@ -81,6 +81,9 @@ class TripPack(ApiModel):
     )
     opens_on: dt.date = Field(description="Departure − 7 days")
     needs_payment: bool = Field(description="Part paid: it opens only once the balance is in")
+    day_reached: bool = Field(
+        description="IST today ≥ `opensOn`: a locked pack now waits only for the balance"
+    )
     read_at: dt.datetime | None = None
     content: PackContent | None = Field(default=None, description="Only while open")
 

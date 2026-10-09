@@ -7442,6 +7442,11 @@ export interface components {
             /** @description Only while open */
             content?: components["schemas"]["PackContent"] | null;
             /**
+             * Dayreached
+             * @description IST today ≥ `opensOn`: a locked pack now waits only for the balance
+             */
+            dayReached: boolean;
+            /**
              * Needspayment
              * @description Part paid: it opens only once the balance is in
              */

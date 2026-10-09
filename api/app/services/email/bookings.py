@@ -31,6 +31,7 @@ from app.business import BUSINESS, whatsapp_href
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender
 from app.models.enums import BookingStatus
+from app.services.analytics import ist_today
 from app.services.booking.calendar import calendar_path, trip_link_exp
 from app.services.booking.history import EmailLine, record_emails
 from app.services.booking.settled import Capture, Settled
@@ -68,7 +69,10 @@ def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
     site = settings.site_url.rstrip("/")
     return {
         **_calendar(facts, settings, site),
-        "pack_opens": long_date(opens_on(facts.departs)),
+        # "opens in My trips on Fri 6 Nov" — or "now" for a trip booked inside the 7 days
+        "pack_when": "now"
+        if opens_on(facts.departs) <= ist_today()
+        else f"on {long_date(opens_on(facts.departs))}",
         "b": facts,
         "business": BUSINESS,
         "site_url": site,

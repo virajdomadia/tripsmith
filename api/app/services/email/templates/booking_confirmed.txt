@@ -28,7 +28,7 @@ Add it to your calendar — one all-day event:
 Google Calendar: {{ calendar_google_url }}
 Apple / Outlook (.ics): {{ calendar_ics_url }}
 {% endif %}
-Your trip pack — the meeting point and time, your trip leader’s phone and the hotel contacts — opens in My trips on {{ pack_opens }}{% if balance %}, once the balance is paid{% endif %}. {{ demo_note }}
+Your trip pack — the meeting point and time, your trip leader’s phone and the hotel contacts — opens in My trips {{ pack_when }}{% if balance %}, once the balance is paid{% endif %}. {{ demo_note }}
 
 WhatsApp us about this trip: {{ whatsapp_url }}
 

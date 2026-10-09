@@ -28,6 +28,7 @@ export function CalendarButtons({
         className={BTN}
       >
         <CalendarPlus className="size-4" aria-hidden /> Google Calendar
+        <span className="sr-only"> (opens in a new tab)</span>
       </a>
       <a href={`/api${icsUrl}`} onClick={onClick} className={BTN}>
         <Download className="size-4" aria-hidden /> Apple / Outlook (.ics)

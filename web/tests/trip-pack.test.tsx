@@ -26,10 +26,14 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
 const LOCKED: TripPack = {
   state: 'locked',
   opensOn: '2099-11-06',
   needsPayment: true,
+  dayReached: false,
   readAt: null,
   content: null,
 };
@@ -38,6 +42,7 @@ const OPEN: TripPack = {
   state: 'open',
   opensOn: '2099-11-06',
   needsPayment: false,
+  dayReached: true,
   readAt: null,
   content: {
     meeting: {
@@ -168,6 +173,29 @@ describe('TripCoupons with the pack and the calendar', () => {
     await userEvent.click(within(pack).getByRole('button', { name: /Close/ }));
     await userEvent.click(within(pack).getByRole('button', { name: /Open|View/ }));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TripCoupons edge cases', () => {
+  it('a part-paid booking past the day waits only for the balance', async () => {
+    coupons({ ...LOCKED, dayReached: true });
+    expect(screen.getByText('Once paid')).toBeTruthy();
+  });
+
+  it('a failed read shows the error and can be retried', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(409, { error: { code: 'conflict', message: 'The trip pack opens 7 days before' } }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    coupons(OPEN);
+    const pack = screen.getByText('Trip pack read').closest('li') as HTMLElement;
+    expect(pack.id).toBe('pack');
+    await userEvent.click(within(pack).getByRole('button', { name: /Open/ }));
+    await screen.findByText('The trip pack opens 7 days before');
+    await userEvent.click(within(pack).getByRole('button', { name: /Close/ }));
+    await userEvent.click(within(pack).getByRole('button', { name: /Open/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });
 });
 

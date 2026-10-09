@@ -2,7 +2,7 @@
 
 import { Check, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   markTripPackRead,
   tickChecklistItem,
@@ -55,6 +55,7 @@ export function TripCoupons({
   const [just, setJust] = useState<string | null>(null);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
+  const [packRead, setPackRead] = useState(false); // recorded: never ask twice
   const done = (p: ReadinessPart) => (p.kind === 'item' && p.key in ticks ? ticks[p.key] : p.done);
 
   async function tick(p: ReadinessPart, value: boolean) {
@@ -86,16 +87,33 @@ export function TripCoupons({
   function toggle(p: ReadinessPart, isOpen: boolean) {
     setOpen(isOpen ? null : p.key);
     // Opening the unlocked pack for the first time is reading it (R48); the refresh tears it off.
-    if (!isOpen && p.kind === 'pack' && pack?.state === 'open' && !p.done && !busy.has(p.key)) {
+    const unread = p.kind === 'pack' && pack?.state === 'open' && !p.done && !packRead;
+    if (!isOpen && unread && !busy.has(p.key)) {
       setBusy((b) => new Set(b).add(p.key));
-      void markTripPackRead(bookingRef).then((res) => {
-        if (res.ok) {
-          setJust(p.key);
-          router.refresh();
-        }
-      });
+      void markTripPackRead(bookingRef)
+        .then((res) => {
+          if (res.ok) {
+            setPackRead(true);
+            setJust(p.key);
+            router.refresh();
+          } else setError(res.error.message);
+        })
+        .finally(() =>
+          setBusy((b) => {
+            const next = new Set(b);
+            next.delete(p.key);
+            return next;
+          }),
+        );
     }
   }
+
+  // Arriving on `#pack` opens the pack coupon (and reads it, when it is open).
+  useEffect(() => {
+    const part = readiness.parts.find((p) => p.kind === 'pack');
+    if (part && window.location.hash === '#pack') toggle(part, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
 
   const stub = (p: ReadinessPart) =>
     done(p)
@@ -107,9 +125,13 @@ export function TripCoupons({
             ? `Due ${shortDate(balanceDueOn)}`
             : 'Due now'
           : p.kind === 'pack'
-            ? pack && pack.state !== 'open'
-              ? `Opens ${shortDate(pack.opensOn)}`
-              : 'Open now'
+            ? !pack || pack.state === 'open'
+              ? 'Open now'
+              : pack.state === 'closed'
+                ? 'Closed'
+                : pack.needsPayment && pack.dayReached
+                  ? 'Once paid'
+                  : `Opens ${shortDate(pack.opensOn)}`
             : p.kind === 'calendar'
               ? 'Any time'
               : `By ${shortDate(departs)}`;
@@ -136,7 +158,9 @@ export function TripCoupons({
     return (
       <li
         key={p.key}
-        className={`hp-cp ${tone} ${isOpen ? 'open' : ''} ${just === p.key ? 'just' : ''}`}
+        // `#pack`: where the trip-pack emails land (R53, P15)
+        id={p.kind === 'pack' ? 'pack' : undefined}
+        className={`hp-cp scroll-mt-24 ${tone} ${isOpen ? 'open' : ''} ${just === p.key ? 'just' : ''}`}
       >
         <div className="hp-cp-stub">
           <span className={`num hp-cp-no ${tone}`}>{String(n + 1).padStart(2, '0')}</span>

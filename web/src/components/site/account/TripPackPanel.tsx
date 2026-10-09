@@ -57,9 +57,11 @@ export function TripPackPanel({
             <h3 id="pack-h" className="text-[18px]">
               {pack.state === 'closed'
                 ? 'Closed after the trip'
-                : `Unlocks ${formatDate(pack.opensOn)}`}
+                : pack.needsPayment && pack.dayReached
+                  ? 'Opens once the balance is paid'
+                  : `Unlocks ${formatDate(pack.opensOn)}`}
             </h3>
-            <p className="text-[14px] text-ink2">
+            <p className="text-[14px] text-ink2" hidden={pack.state === 'closed'}>
               7 days before departure, once the booking is fully paid.{' '}
               {pack.needsPayment && owedPaise > 0 ? (
                 <>

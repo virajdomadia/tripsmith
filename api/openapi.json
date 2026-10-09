@@ -12256,6 +12256,11 @@
             ],
             "description": "Only while open"
           },
+          "dayReached": {
+            "description": "IST today ≥ `opensOn`: a locked pack now waits only for the balance",
+            "title": "Dayreached",
+            "type": "boolean"
+          },
           "needsPayment": {
             "description": "Part paid: it opens only once the balance is in",
             "title": "Needspayment",
@@ -12293,7 +12298,8 @@
         "required": [
           "state",
           "opensOn",
-          "needsPayment"
+          "needsPayment",
+          "dayReached"
         ],
         "title": "TripPack",
         "type": "object"
