@@ -29,6 +29,7 @@ dev = [
     "pytest-asyncio",
     "httpx",
     "pypdf>=6.19.0",
+    "icalendar>=7.3.0",
 ]
 
 [tool.ruff]

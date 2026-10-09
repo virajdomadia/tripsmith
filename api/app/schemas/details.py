@@ -71,8 +71,10 @@ class TravellerDetailsBlock(ApiModel):
 
 
 class ReadinessPart(ApiModel):
-    key: str = Field(description="`details`, `balance`, or `item:<checklist key>`")
-    kind: Literal["details", "balance", "item"]
+    key: str = Field(
+        description="`details`, `balance`, `pack`, `calendar`, or `item:<checklist key>`"
+    )
+    kind: Literal["details", "balance", "pack", "calendar", "item"]
     label: str
     note: str = Field(description="One line under the label")
     fraction: float = Field(ge=0, le=1)
@@ -80,8 +82,8 @@ class ReadinessPart(ApiModel):
 
 
 class Readiness(ApiModel):
-    """Equal parts (R49): details (complete ÷ travellers), balance paid, each owner item. P10
-    adds the trip pack and the calendar as two more parts."""
+    """Equal parts (R49, R48): details (complete ÷ travellers), balance paid, trip pack read,
+    added to calendar, each owner item."""
 
     percent: int = Field(ge=0, le=100)
     parts: list[ReadinessPart]

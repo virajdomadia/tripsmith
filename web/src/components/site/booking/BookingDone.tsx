@@ -2,6 +2,7 @@
 
 import { CircleAlert, FileDown } from 'lucide-react';
 import Link from 'next/link';
+import { CalendarButtons } from '@/components/site/account/CalendarPanel';
 import { WhatsApp } from '@/components/site/home/icons';
 import { SIGN_IN_EMAIL_KEY } from '@/lib/account';
 import { ACCOUNT_SIGN_IN } from '@/lib/auth/gate';
@@ -147,6 +148,12 @@ export function BookingDone({
           <p className="-mt-2 text-[13px] text-mute">
             The download link works for 30 minutes; the voucher is in your confirmation email too.
           </p>
+        )}
+        {result.calendarGoogleUrl && result.calendarIcsUrl && (
+          <div className="grid gap-2 animate-rise [animation-delay:280ms]">
+            <h3 className="text-[16px]">Add the trip to your calendar</h3>
+            <CalendarButtons googleUrl={result.calendarGoogleUrl} icsUrl={result.calendarIcsUrl} />
+          </div>
         )}
         <div className="grid gap-3 rounded-card border border-line bg-bg2 p-4 animate-rise [animation-delay:320ms] sm:grid-cols-[1fr_auto] sm:items-center">
           <div>

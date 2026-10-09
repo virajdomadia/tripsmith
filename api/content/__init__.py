@@ -11,6 +11,7 @@ from content._schema import (
     LeaderContent,
     PackageContent,
     TestimonialContent,
+    TripPackContent,
 )
 
 
@@ -20,6 +21,8 @@ class Content:
     packages: list[PackageContent] = field(default_factory=list)
     testimonials: list[TestimonialContent] = field(default_factory=list)
     leaders: list[LeaderContent] = field(default_factory=list)  # P3: optional `leaders` module
+    # P10: optional `trip_packs` module, by package slug
+    trip_packs: dict[str, TripPackContent] = field(default_factory=dict)
 
 
 def _modules(root: Path, sub: str) -> list[str]:
@@ -40,6 +43,8 @@ def load_content(package: str = "content") -> Content:
     content.testimonials = list(importlib.import_module(f"{package}.testimonials").TESTIMONIALS)
     if (root / "leaders.py").is_file():
         content.leaders = list(importlib.import_module(f"{package}.leaders").LEADERS)
+    if (root / "trip_packs.py").is_file():
+        content.trip_packs = dict(importlib.import_module(f"{package}.trip_packs").TRIP_PACKS)
 
     slugs = {d.slug for d in content.destinations}
     for p in content.packages:
@@ -52,7 +57,17 @@ def load_content(package: str = "content") -> Content:
         if t.package and t.package not in package_slugs:
             raise ValueError(f"testimonial by {t.name}: unknown package {t.package!r}")
     _check_leaders(content)
+    _check_trip_packs(content)
     return content
+
+
+def _check_trip_packs(content: Content) -> None:
+    hotels = {p.slug: {h.name for h in p.hotels} for p in content.packages}
+    for slug, pack in content.trip_packs.items():
+        if slug not in hotels:
+            raise ValueError(f"trip pack: unknown package {slug!r}")
+        if unknown := set(pack.hotels) - hotels[slug]:
+            raise ValueError(f"trip pack {slug}: unknown hotels {sorted(unknown)}")
 
 
 def _check_leaders(content: Content) -> None:

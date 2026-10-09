@@ -372,6 +372,8 @@ async def test_a_late_payment_on_a_swept_booking_with_no_seats_is_seats_gone(
         "status": "cancelled",
         "refundNeeded": True,
         "voucherUrl": None,
+        "calendarGoogleUrl": None,
+        "calendarIcsUrl": None,
     }
     assert (await booking(db, str(old["bookingRef"]))).cancel_reason == CancelReason.SEATS_GONE
 

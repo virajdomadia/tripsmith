@@ -38,6 +38,7 @@ from app.schemas.bookings import (
 )
 from app.services.auth.deps import require_user
 from app.services.booking.after_capture import Notify
+from app.services.booking.calendar import calendar_path, short_link_exp
 from app.services.booking.links import link_callback, payment_result
 from app.services.booking.orders import create_booking_order, quote_booking
 from app.services.booking.payments import confirm_payment, sync_payment
@@ -115,9 +116,15 @@ def session_secret(request: Request) -> str | None:
 def with_voucher(request: Request, result: PaymentResult) -> PaymentResult:
     if result.status not in HAS_VOUCHER:
         return result
-    secret = request.app.state.settings.session_secret
-    path = voucher_path(result.booking_ref, secret.get_secret_value() if secret else None)
-    return result.model_copy(update={"voucher_url": path})
+    secret = session_secret(request)
+    ref, exp = result.booking_ref, short_link_exp()
+    return result.model_copy(
+        update={
+            "voucher_url": voucher_path(ref, secret),
+            "calendar_google_url": calendar_path(ref, "google", secret, exp=exp),
+            "calendar_ics_url": calendar_path(ref, "ics", secret, exp=exp),
+        }
+    )
 
 
 router = APIRouter(tags=["public"])

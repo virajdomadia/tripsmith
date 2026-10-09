@@ -221,6 +221,17 @@
             "title": "Bookedat",
             "type": "string"
           },
+          "calendar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P10: Add to calendar (null = pending or cancelled)"
+          },
           "canRequestCancellation": {
             "description": "Confirmed (or part paid), not yet departed, no request made",
             "title": "Canrequestcancellation",
@@ -333,6 +344,17 @@
           "nights": {
             "title": "Nights",
             "type": "integer"
+          },
+          "pack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripPack"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P10: the trip pack (null = pending or cancelled)"
           },
           "packageName": {
             "title": "Packagename",
@@ -4047,6 +4069,91 @@
         "title": "BookingTraveller",
         "type": "object"
       },
+      "CalendarBlock": {
+        "description": "The booking page's calendar coupon. Both links are signed api paths (prefix `/api` on the\nsite) that record the click, then send the event.",
+        "properties": {
+          "addedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addedat"
+          },
+          "ends": {
+            "description": "The last day of the trip (inclusive)",
+            "format": "date",
+            "title": "Ends",
+            "type": "string"
+          },
+          "googleUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null without a SESSION_SECRET (local dev)",
+            "title": "Googleurl"
+          },
+          "icsUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icsurl"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "stale": {
+            "description": "Added before a date change: add it again to update it",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "starts": {
+            "format": "date",
+            "title": "Starts",
+            "type": "string"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "enum": [
+                  "google",
+                  "ics"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "required": [
+          "googleUrl",
+          "icsUrl",
+          "stale",
+          "starts",
+          "ends",
+          "location"
+        ],
+        "title": "CalendarBlock",
+        "type": "object"
+      },
       "CancelReason": {
         "description": "Why a booking is `cancelled` — set in the same UPDATE as the status.",
         "enum": [
@@ -7584,6 +7691,36 @@
         "title": "ItineraryDayOut",
         "type": "object"
       },
+      "KnowBeforeNote": {
+        "properties": {
+          "key": {
+            "enum": [
+              "weather",
+              "network",
+              "cash",
+              "rules",
+              "packing"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "text"
+        ],
+        "title": "KnowBeforeNote",
+        "type": "object"
+      },
       "LadderRung": {
         "description": "One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`\non — deal, early-bird and coupon applied, add-ons left out.",
         "properties": {
@@ -8552,6 +8689,54 @@
         "title": "Meals",
         "type": "object"
       },
+      "MeetingPoint": {
+        "properties": {
+          "mapsUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapsurl"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One line, e.g. look for the blue board",
+            "title": "Note"
+          },
+          "place": {
+            "title": "Place",
+            "type": "string"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          }
+        },
+        "required": [
+          "place"
+        ],
+        "title": "MeetingPoint",
+        "type": "object"
+      },
       "Meta": {
         "properties": {
           "badges": {
@@ -9323,6 +9508,218 @@
         "title": "OtpVerify",
         "type": "object"
       },
+      "PackContent": {
+        "description": "The unlocked pack: everything for the road.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PackDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "emergencyE164": {
+            "title": "Emergencye164",
+            "type": "string"
+          },
+          "emergencyPhone": {
+            "description": "The 24×7 line, as printed",
+            "title": "Emergencyphone",
+            "type": "string"
+          },
+          "hotels": {
+            "items": {
+              "$ref": "#/components/schemas/PackHotel"
+            },
+            "title": "Hotels",
+            "type": "array"
+          },
+          "knowBefore": {
+            "description": "Only the notes the owner filled in",
+            "items": {
+              "$ref": "#/components/schemas/KnowBeforeNote"
+            },
+            "title": "Knowbefore",
+            "type": "array"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackLeader"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeetingPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "meeting",
+          "leader",
+          "hotels",
+          "days",
+          "knowBefore",
+          "emergencyPhone",
+          "emergencyE164"
+        ],
+        "title": "PackContent",
+        "type": "object"
+      },
+      "PackDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dayNo": {
+            "title": "Dayno",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "meals": {
+            "description": "`Breakfast · Dinner`, or `No meals`",
+            "title": "Meals",
+            "type": "string"
+          },
+          "stay": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stay"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dayNo",
+          "date",
+          "title",
+          "description",
+          "meals"
+        ],
+        "title": "PackDay",
+        "type": "object"
+      },
+      "PackHotel": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "stars": {
+            "title": "Stars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "city",
+          "stars",
+          "nights"
+        ],
+        "title": "PackHotel",
+        "type": "object"
+      },
+      "PackLeader": {
+        "properties": {
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only here — never on the voucher",
+            "title": "Phone"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "languages"
+        ],
+        "title": "PackLeader",
+        "type": "object"
+      },
       "PackageCard": {
         "properties": {
           "badge": {
@@ -10008,6 +10405,30 @@
           "bookingRef": {
             "title": "Bookingref",
             "type": "string"
+          },
+          "calendarGoogleUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P10: with `voucherUrl` — Add to Google Calendar, a signed api path valid 30 minutes (it records the click, then redirects)",
+            "title": "Calendargoogleurl"
+          },
+          "calendarIcsUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P10: the same for the `.ics` file",
+            "title": "Calendaricsurl"
           },
           "refundNeeded": {
             "description": "Money is going back to the customer: owed, on its way, or already refunded",
@@ -10751,7 +11172,7 @@
         "type": "object"
       },
       "Readiness": {
-        "description": "Equal parts (R49): details (complete ÷ travellers), balance paid, each owner item. P10\nadds the trip pack and the calendar as two more parts.",
+        "description": "Equal parts (R49, R48): details (complete ÷ travellers), balance paid, trip pack read,\nadded to calendar, each owner item.",
         "properties": {
           "parts": {
             "items": {
@@ -10787,7 +11208,7 @@
             "type": "number"
           },
           "key": {
-            "description": "`details`, `balance`, or `item:<checklist key>`",
+            "description": "`details`, `balance`, `pack`, `calendar`, or `item:<checklist key>`",
             "title": "Key",
             "type": "string"
           },
@@ -10795,6 +11216,8 @@
             "enum": [
               "details",
               "balance",
+              "pack",
+              "calendar",
               "item"
             ],
             "title": "Kind",
@@ -11819,6 +12242,62 @@
         "title": "TravellerDetailsSettingsInput",
         "type": "object"
       },
+      "TripPack": {
+        "description": "The booking page's trip-pack coupon. Opens on departure − 7 days (IST) once the booking is\npaid in full; readable until 30 days after the trip.",
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackContent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while open"
+          },
+          "needsPayment": {
+            "description": "Part paid: it opens only once the balance is in",
+            "title": "Needspayment",
+            "type": "boolean"
+          },
+          "opensOn": {
+            "description": "Departure − 7 days",
+            "format": "date",
+            "title": "Openson",
+            "type": "string"
+          },
+          "readAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readat"
+          },
+          "state": {
+            "description": "locked = before the day or not paid in full · open · closed = 30 days after the trip",
+            "enum": [
+              "locked",
+              "open",
+              "closed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "opensOn",
+          "needsPayment"
+        ],
+        "title": "TripPack",
+        "type": "object"
+      },
       "UnbookableReason": {
         "description": "Why a departure cannot be booked — the 409's `reason`, and the picker's grey label.",
         "enum": [
@@ -12621,6 +13100,49 @@
         ]
       }
     },
+    "/account/bookings/{ref}/pack/read": {
+      "put": {
+        "description": "P10: the customer opened the unlocked trip pack — recorded once (a readiness part).",
+        "operationId": "markTripPackRead",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "The pack is locked (reason pack_locked) or closed"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Put Pack Read",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/account/bookings/{ref}/review": {
       "post": {
         "description": "B13: one review per completed booking, final once sent, hidden until the owner\npublishes it. The owner is emailed; a lost email never undoes the review.",
@@ -12744,6 +13266,58 @@
         "summary": "Put Traveller Details",
         "tags": [
           "account"
+        ]
+      }
+    },
+    "/account/bookings/{ref}/trip-pack.pdf": {
+      "get": {
+        "description": "P10 (R48): the customer's copy once the pack is open (the download counts as reading\nit); the owner's preview at any time, marked as one while the pack is still locked.",
+        "operationId": "getTripPackPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The trip pack PDF"
+          },
+          "403": {
+            "description": "Not this booking's account"
+          },
+          "404": {
+            "description": "Unknown booking, or it has no trip pack (pending, cancelled)"
+          },
+          "409": {
+            "description": "Locked (reason pack_locked) or closed — the owner may preview"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Trip Pack Pdf",
+        "tags": [
+          "public"
         ]
       }
     },
@@ -17129,6 +17703,141 @@
           }
         },
         "summary": "Get Signed Voucher",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/calendar/{ref}.ics": {
+      "get": {
+        "operationId": "getCalendarFile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Exp",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "title": "Sig",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/calendar": {}
+            },
+            "description": "The event"
+          },
+          "403": {
+            "description": "Signature missing, wrong or expired"
+          },
+          "404": {
+            "description": "Unknown booking, or pending / cancelled"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Calendar File",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/calendar/{ref}/google": {
+      "get": {
+        "operationId": "openGoogleCalendar",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "examples": [
+                "TB-7F3K2Q"
+              ],
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exp",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Exp",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sig",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 128,
+              "title": "Sig",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "To Google Calendar's add-event page"
+          },
+          "403": {
+            "description": "Signature missing, wrong or expired"
+          },
+          "404": {
+            "description": "Unknown booking, or pending / cancelled"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Open Google Calendar",
         "tags": [
           "public"
         ]

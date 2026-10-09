@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import type { AccountBookingDetail, Readiness } from '@/lib/account';
 import { daysBetween } from '@/lib/account';
-import { duration, formatDate, inr } from '@/lib/format';
+import { duration, formatDate, inr, shortDate } from '@/lib/format';
 
 /**
  * P9 (R49): the booking as a holiday pass — mockup "My trip D". The dark pass carries the trip,
@@ -74,7 +74,13 @@ export function HolidayPass({
           <Meta k="Return" v={formatDate(b.returns)} />
           <Meta k="Travellers" v={who} />
           <Meta k="Trip leader" v={b.leaderName ?? 'Named in your trip pack'} />
-          <Meta k="Starts from" v={b.departureCity} />
+          <Meta
+            k="Meeting point"
+            v={
+              b.pack?.content?.meeting?.place ??
+              (b.pack ? `In the trip pack, ${shortDate(b.pack.opensOn)}` : b.departureCity)
+            }
+          />
           <Meta
             k="Balance"
             v={

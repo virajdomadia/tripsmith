@@ -23,8 +23,12 @@ Your voucher is attached as a PDF — show it, printed or on your phone, at chec
 {% else %}
 We couldn’t attach your voucher this time — WhatsApp us the reference and we’ll send it straight over.
 {% endif %}
-
-We’ll WhatsApp you a week before you leave with pickup times and your hotel contacts. {{ demo_note }}
+{% if calendar_google_url %}
+Add it to your calendar — one all-day event:
+Google Calendar: {{ calendar_google_url }}
+Apple / Outlook (.ics): {{ calendar_ics_url }}
+{% endif %}
+Your trip pack — the meeting point and time, your trip leader’s phone and the hotel contacts — opens in My trips on {{ pack_opens }}{% if balance %}, once the balance is paid{% endif %}. {{ demo_note }}
 
 WhatsApp us about this trip: {{ whatsapp_url }}
 

@@ -20,6 +20,8 @@ import { ExtrasPanel } from '@/components/site/account/ExtrasPanel';
 import { HolidayPass } from '@/components/site/account/HolidayPass';
 import { TravellerDetails } from '@/components/site/account/TravellerDetails';
 import { TripCoupons } from '@/components/site/account/TripCoupons';
+import { TripPackPanel } from '@/components/site/account/TripPackPanel';
+import { CalendarPanel } from '@/components/site/account/CalendarPanel';
 import { isDiscountLine, lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
 import { duration, formatDate, inr } from '@/lib/format';
@@ -41,7 +43,8 @@ const REF = /^TB-[A-Z0-9]{6}$/;
  * a deposit leads with its balance: paid, left, due by, and Pay now in parts (R43, P5). The rail
  * offers Change date (R45, P7) above the cancellation block. While the trip is paid for and
  * ahead, the header is the holiday pass and the work before the trip is a column of tear-off
- * coupons — traveller details, the balance, the trip's own checklist (R49, P9).
+ * coupons — traveller details, the balance, the trip pack and the calendar (R48, P10), the
+ * trip's own checklist (R49, P9).
  */
 export default async function BookingPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
@@ -138,6 +141,18 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               readiness={pass}
               details={<TravellerDetails bookingRef={b.ref} block={b.details} />}
               balance={balancePanel || null}
+              pack={b.pack ?? null}
+              packPanel={
+                b.pack && (
+                  <TripPackPanel
+                    bookingRef={b.ref}
+                    pack={b.pack}
+                    owedPaise={b.totalPaise - b.paidPaise}
+                    departs={b.departs}
+                  />
+                )
+              }
+              calendar={b.calendar && <CalendarPanel calendar={b.calendar} />}
               locksOn={b.details.locksOn}
               departs={b.departs}
               balanceDueOn={b.balance?.dueOn ?? null}

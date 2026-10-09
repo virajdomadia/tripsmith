@@ -29,7 +29,7 @@ from app.schemas.reviews import AccountReview, ReviewInput
 from app.services.account import get_booking, list_bookings, owns_booking, request_cancellation
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
-from app.services.booking import details, waitlist
+from app.services.booking import details, trip_pack, waitlist
 from app.services.booking.after_capture import Notify
 from app.services.booking.balance import create_balance_order
 from app.services.booking.changes import change_options, start_change
@@ -70,12 +70,15 @@ async def get_my_bookings(
 @router.get("/bookings/{ref}", operation_id="getMyBooking", response_model_by_alias=True)
 async def get_my_booking(
     ref: BookingRef,
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(require_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> AccountBookingDetail:
     response.headers.update(NO_STORE)
-    detail = await get_booking(db, user, ref, today=ist_today())
+    detail = await get_booking(
+        db, user, ref, today=ist_today(), settings=request.app.state.settings
+    )
     if detail is None:
         raise ApiError("not_found", "No booking with that reference on your account")
     return detail
@@ -317,3 +320,22 @@ async def put_checklist_item(
     if not await owns_booking(db, user, ref):
         raise ApiError("not_found", "No booking with that reference on your account")
     await details.tick_item(db, ref, key, done=payload.done, today=ist_today())
+
+
+@router.put(
+    "/bookings/{ref}/pack/read",
+    operation_id="markTripPackRead",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={409: {"description": "The pack is locked (reason pack_locked) or closed"}},
+)
+async def put_pack_read(
+    ref: BookingRef,
+    response: Response,
+    user: Annotated[User, Depends(require_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """P10: the customer opened the unlocked trip pack — recorded once (a readiness part)."""
+    response.headers.update(NO_STORE)
+    if not await owns_booking(db, user, ref):
+        raise ApiError("not_found", "No booking with that reference on your account")
+    await trip_pack.mark_read(db, ref, today=ist_today())

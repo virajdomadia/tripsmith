@@ -40,6 +40,7 @@ from app.routers.cron import waitlist as waitlist_tick
 from app.routers.site import (
     account,
     bookings,
+    calendar,
     catalog,
     enquiries,
     health,
@@ -141,6 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(enquiries.router)
     app.include_router(bookings.router)
     app.include_router(vouchers.router)
+    app.include_router(calendar.router)
     app.include_router(account.router)
     app.include_router(webhooks.router)
     app.include_router(views.router)

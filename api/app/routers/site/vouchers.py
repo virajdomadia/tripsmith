@@ -12,6 +12,7 @@ voucher (404). `private, no-store`: it carries names, ages and a phone number.
 """
 
 import asyncio
+import datetime as dt
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
@@ -24,9 +25,12 @@ from app.models import Session
 from app.models.enums import UserRole
 from app.routers.site.bookings import BookingRef
 from app.services.account import owns_booking
+from app.services.analytics import ist_today
 from app.services.auth.deps import current_session
+from app.services.booking import trip_pack
 from app.services.booking.voucher import HAS_VOUCHER, link_is_valid, load_booking_facts
 from app.services.gst.files import document_pdf
+from app.services.pdf.trip_pack import PackSheet, render_trip_pack, trip_pack_filename
 from app.services.pdf.voucher import render_voucher, voucher_filename
 
 DocumentKey = Annotated[
@@ -105,6 +109,71 @@ async def get_account_voucher(
     if session.user.role != UserRole.OWNER and not await owns_booking(db, session.user, ref):
         raise ApiError("forbidden", "This booking is not on your account")
     return await _voucher(db, ref, request.app.state.settings)
+
+
+@router.get(
+    "/account/bookings/{ref}/trip-pack.pdf",
+    operation_id="getTripPackPdf",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/pdf": {}}, "description": "The trip pack PDF"},
+        403: {"description": "Not this booking's account"},
+        404: {"description": "Unknown booking, or it has no trip pack (pending, cancelled)"},
+        409: {"description": "Locked (reason pack_locked) or closed — the owner may preview"},
+    },
+)
+async def get_trip_pack_pdf(
+    ref: BookingRef,
+    request: Request,
+    session: Annotated[Session | None, Depends(current_session)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> Response:
+    """P10 (R48): the customer's copy once the pack is open (the download counts as reading
+    it); the owner's preview at any time, marked as one while the pack is still locked."""
+    if session is None:
+        raise ApiError("unauthorized", "Sign in to continue")
+    owner = session.user.role == UserRole.OWNER
+    if not owner and not await owns_booking(db, session.user, ref):
+        raise ApiError("forbidden", "This booking is not on your account")
+    today = ist_today()
+    try:
+        found = await trip_pack.load(db, ref)
+        if found is None:
+            raise ApiError("not_found", "This booking has no trip pack")
+        booking, pkg, dep = found
+        returns = dep.date + dt.timedelta(days=pkg.nights)
+        state = trip_pack.state_of(booking.status, dep.date, returns, today)
+        if state is None:
+            raise ApiError("not_found", "This booking has no trip pack")
+        if not owner and state != "open":
+            raise ApiError("conflict", trip_pack.LOCKED, reason="pack_locked")
+        sheet = PackSheet(
+            ref=booking.ref,
+            package_name=pkg.name,
+            destination=pkg.destination.name,
+            nights=pkg.nights,
+            days=pkg.days,
+            departs=dep.date,
+            returns=returns,
+            party=len(booking.travellers),
+            lead_name=booking.contact_name,
+            content=await trip_pack.content_of(db, pkg, dep),
+            preview=state != "open",
+        )
+    finally:
+        await db.rollback()  # the render below holds no connection
+    if not owner:
+        await trip_pack.mark_read(db, ref, today=today)
+    settings: Settings = request.app.state.settings
+    pdf = await asyncio.to_thread(render_trip_pack, sheet, site_url=settings.site_url)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": f'attachment; filename="{trip_pack_filename(ref)}"',
+        },
+    )
 
 
 @router.get(

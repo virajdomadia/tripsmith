@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { components } from '@/lib/api-types';
 import { whatsappHref } from '@/lib/business';
+import { CalendarButtons } from '@/components/site/account/CalendarPanel';
 
 type Callback = components['schemas']['LinkCallback'];
 type Result = components['schemas']['PaymentResult'];
@@ -119,6 +120,9 @@ export function LinkReturn({ bookingRef, callback }: { bookingRef: string; callb
           My trips
         </Link>
       </div>
+      {r.calendarGoogleUrl && r.calendarIcsUrl && (
+        <CalendarButtons googleUrl={r.calendarGoogleUrl} icsUrl={r.calendarIcsUrl} />
+      )}
     </div>
   );
 }

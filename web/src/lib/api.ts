@@ -76,9 +76,9 @@ const publicGet = memo(function publicGet(
   });
 });
 
-/** Paths that have a GET operation in the contract. */
+/** Paths that have a GET operation answering 200 in the contract (not a bare redirect). */
 export type GetPath = {
-  [P in keyof paths]: paths[P] extends { get: object } ? P : never;
+  [P in keyof paths]: paths[P] extends { get: { responses: { 200: unknown } } } ? P : never;
 }[keyof paths];
 
 type JsonOf<R> = R extends { content: { 'application/json': infer J } } ? J : never;

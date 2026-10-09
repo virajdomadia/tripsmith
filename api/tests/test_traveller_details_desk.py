@@ -105,7 +105,7 @@ async def test_the_desk_flags_missing_details_with_a_ready_percent(
     desk = (await db_client.get("/admin/bookings?flag=details", headers=owner)).json()
     assert desk["counts"]["details"] == 1 and [r["ref"] for r in desk["items"]] == [ref]
     [row] = desk["items"]
-    assert row["detailsMissing"] == 3 and row["readyPercent"] == 50
+    assert row["detailsMissing"] == 3 and row["readyPercent"] == 25  # 4 parts since P10
 
     cards = (await detail(db_client, ref, token))["details"]["travellers"]
     for t in cards:
@@ -115,8 +115,8 @@ async def test_the_desk_flags_missing_details_with_a_ready_percent(
     desk = (await db_client.get("/admin/bookings?flag=details", headers=owner)).json()
     assert desk["counts"]["details"] == 0 and desk["items"] == []
     desk = (await db_client.get(f"/admin/bookings?departureId={dep_id}", headers=owner)).json()
-    assert desk["items"][0]["detailsMissing"] == 0 and desk["items"][0]["readyPercent"] == 100
-    assert desk["readiness"] == {"percent": 100, "missingTravellers": 0, "bookings": 1}
+    assert desk["items"][0]["detailsMissing"] == 0 and desk["items"][0]["readyPercent"] == 50
+    assert desk["readiness"] == {"percent": 50, "missingTravellers": 0, "bookings": 1}
 
     # A departed trip is never flagged, however short.
     await db.execute(update(Package).values(details_required=["id", "dob"]))
@@ -162,7 +162,7 @@ async def test_only_the_manifest_shows_the_id_in_full(
         assert "000000004821" not in page and "0000 0000 4821" not in page
     csv = (await db_client.get("/admin/bookings.csv", headers=owner)).text
     header, line = csv.splitlines()[:2]
-    assert header.endswith('"Details missing","Ready (%)"') and line.endswith('"2","67"')
+    assert header.endswith('"Details missing","Ready (%)"') and line.endswith('"2","33"')
 
 
 @pytest.mark.db
