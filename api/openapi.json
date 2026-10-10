@@ -12642,6 +12642,41 @@
         "title": "UnbookableReason",
         "type": "string"
       },
+      "Unsubscribe": {
+        "description": "What an unsubscribe link names — the address masked.",
+        "properties": {
+          "email": {
+            "description": "Masked, e.g. \"a***@gmail.com\"",
+            "title": "Email",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "review_request",
+              "still_thinking"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "\"review requests\" / \"still-thinking reminders\"",
+            "title": "Label",
+            "type": "string"
+          },
+          "unsubscribed": {
+            "title": "Unsubscribed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "kind",
+          "label",
+          "unsubscribed"
+        ],
+        "title": "Unsubscribe",
+        "type": "object"
+      },
       "UpcomingDeparture": {
         "properties": {
           "badge": {
@@ -18809,6 +18844,98 @@
           }
         },
         "summary": "Get Reviews Route",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/unsubscribe/{token}": {
+      "get": {
+        "operationId": "getUnsubscribe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 400,
+              "minLength": 10,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unsubscribe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "The link doesn't verify"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Unsubscribe",
+        "tags": [
+          "public"
+        ]
+      },
+      "post": {
+        "operationId": "unsubscribe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 400,
+              "minLength": 10,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unsubscribe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "The link doesn't verify"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Unsubscribe",
         "tags": [
           "public"
         ]

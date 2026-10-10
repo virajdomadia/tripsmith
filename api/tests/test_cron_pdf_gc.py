@@ -101,12 +101,16 @@ def test_cron_routes_are_not_in_the_public_contract(app: FastAPI) -> None:
 
 def test_vercel_json_runs_the_daily_job_after_ist_midnight() -> None:
     """Hobby fires a cron anywhere in its scheduled hour: 19:30 UTC is 01:00 IST, so even the
-    latest firing (01:59 IST) and the earliest (01:00) both fall on the new IST day."""
+    latest firing (01:59 IST) and the earliest (01:00) both fall on the new IST day. P15's
+    emails go at 03:30 UTC = 09:00 IST, after the tidy (R53)."""
     import json
     from pathlib import Path
 
     cfg = json.loads((Path(__file__).resolve().parents[1] / "vercel.json").read_text())
-    assert cfg["crons"] == [{"path": "/cron/daily", "schedule": "30 19 * * *"}]
+    assert cfg["crons"] == [
+        {"path": "/cron/daily", "schedule": "30 19 * * *"},
+        {"path": "/cron/emails", "schedule": "30 3 * * *"},
+    ]
 
 
 # --- /cron/daily ---------------------------------------------------------------------------------
@@ -169,7 +173,6 @@ async def test_daily_recomputes_prices_that_departures_left_behind(
         "refundsResent": 0,  # P13: tested in test_refunds.py
         "earlyBirdsEnded": 0,  # P17: tested in test_early_bird.py
         "balancesCancelled": 0,  # P5: tested in test_deposits.py
-        "balanceReminders": 0,
         "waitlistOffers": 0,  # P6: tested in test_waitlist.py
         "waitlistLapsed": 0,
         "detailsPurged": 0,  # P9: tested in test_traveller_details.py

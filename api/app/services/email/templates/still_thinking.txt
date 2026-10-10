@@ -1,0 +1,12 @@
+Still thinking about {{ package_name }}, {{ first_name }}?
+
+You were one step from booking, and the seats you held have been released. {% if date_label %}{{ date_label }} still has room for your party of {{ party }}{% else %}That date is no longer open, but other dates are{% endif %} — we’ve kept your choices, so it’s one tap to pick up where you left off.
+
+Pick up where you left off: {{ url }}
+
+Questions first? Reply to this email or WhatsApp us ({{ whatsapp_url }}) — a person answers. We won’t email you about this trip again. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}
+{% if unsubscribe_url %}{{ unsubscribe_why }} Unsubscribe: {{ unsubscribe_url }}
+{% endif %}

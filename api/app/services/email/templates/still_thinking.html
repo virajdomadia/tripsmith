@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% set title = "Still thinking about " ~ package_name ~ "?" %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Still thinking about {{ package_name }}, {{ first_name }}?</h1>
+<p style="margin:0 0 16px;">You were one step from booking, and the seats you held have been released. {% if date_label %}<strong>{{ date_label }}</strong> still has room for your party of {{ party }}{% else %}That date is no longer open, but other dates are{% endif %} — we’ve kept your choices, so it’s one tap to pick up where you left off.</p>
+<p style="margin:0 0 16px;">
+<a href="{{ url }}" style="display:inline-block;background:#f2a93b;color:#14202a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Pick up where you left off</a>
+</p>
+<p style="margin:0 0 16px;color:#5e6b76;">Questions first? Reply to this email or <a href="{{ whatsapp_url }}" style="color:#5e6b76;">WhatsApp us</a> — a person answers. We won’t email you about this trip again. {{ demo_note }}</p>
+{% endblock %}

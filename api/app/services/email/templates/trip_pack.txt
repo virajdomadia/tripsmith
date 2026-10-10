@@ -1,0 +1,15 @@
+{{ days_to_go }} days to go, {{ b.first_name }}. Here’s your trip pack.
+
+{{ b.package_name }} leaves {{ departs }}. Everything for the road is in the PDF attached and on your booking page ({{ b.ref }}).
+{% if meeting %}
+Meet at: {{ meeting.place }}{% if meeting.time %}, {{ meeting.time }}{% endif %}{% if meeting.note %} — {{ meeting.note }}{% endif %}{% if meeting.maps_url %}
+Maps: {{ meeting.maps_url }}{% endif %}{% endif %}{% if leader %}
+Trip leader: {{ leader.name }}{% if leader.phone %} · {{ leader.phone }}{% endif %}{% endif %}
+24×7 line: {{ emergency_phone }}
+
+Open the trip pack: {{ pack_url }}
+
+The pack also has your hotels, the day-by-day plan and what to know before you go — the PDF works offline. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

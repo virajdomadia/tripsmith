@@ -16,7 +16,8 @@
 <tr><td style="padding:16px 28px 22px;border-top:1px solid #e3e8ec;font-size:13px;line-height:1.5;color:#5e6b76;">
 {{ business.legal_name }} · {{ business.address }}, {{ business.city }}<br>
 <a href="tel:{{ business.phone_e164 }}" style="color:#5e6b76;">{{ business.phone_display }}</a> · {{ business.hours }}<br>
-<a href="{{ site_url }}" style="color:#1b4fd8;">{{ site_url | replace('https://', '') | replace('http://', '') }}</a>
+<a href="{{ site_url }}" style="color:#1b4fd8;">{{ site_url | replace('https://', '') | replace('http://', '') }}</a>{% if unsubscribe_url %}<br>
+{{ unsubscribe_why }} <a href="{{ unsubscribe_url }}" style="color:#5e6b76;">Unsubscribe</a>{% endif %}
 </td></tr>
 </table>
 </td></tr>

@@ -1,0 +1,13 @@
+Your refund of {{ amount }} is on its way, {{ b.first_name }}.
+
+We’ve refunded {{ amount }} for booking {{ b.ref }} — {{ b.package_name }}, {{ departs }} — to the card, UPI or bank account you paid with. {{ why }}
+
+Refund: {{ amount }}
+Reference: {{ refund_ref }}
+
+Banks usually show it within 5–7 working days. If it hasn’t arrived by then, reply with the reference above and we’ll chase it. {{ demo_note }}
+
+View your booking: {{ trip_url }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

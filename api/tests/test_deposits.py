@@ -24,7 +24,7 @@ from tests.test_auth import with_cookie
 from tests.test_booking_orders import SOON, seats_left, seeded
 from tests.test_booking_payments import booking_body, rzp
 from tests.test_booking_webhook import deliver, event, mailing, with_webhook_secret
-from tests.test_bookings_desk import cron, owner_cookie, run_daily
+from tests.test_bookings_desk import cron, owner_cookie, run_daily, run_emails
 from tests.test_customer_accounts import EMAIL, signed_in
 
 __all__ = ["cron", "rzp"]
@@ -143,6 +143,11 @@ async def balance_order(client: AsyncClient, ref: str, cookie: dict[str, str], a
     return await client.post(
         f"/account/bookings/{ref}/balance", json={"amountPaise": amount}, headers=cookie
     )
+
+
+async def reminded(client: AsyncClient, app: FastAPI) -> int:
+    """Balance reminders sent by one `/cron/emails` run (P15 moved them there from the tidy)."""
+    return (await run_emails(client, app))["sent"].get("balance_reminder", 0)
 
 
 async def set_due(db: AsyncSession, ref: str, due: dt.date) -> None:
@@ -332,15 +337,15 @@ async def test_reminders_go_once_per_stage_and_again_after_the_due_day_moves(
     ref, _, sender = await on_deposit(db, db_app, db_client)
     today = ist_today()
     await set_due(db, ref, today + dt.timedelta(days=7))
-    assert (await run_daily(db_client, db_app))["balanceReminders"] == 1
-    assert (await run_daily(db_client, db_app))["balanceReminders"] == 0  # a re-run sends nothing
+    assert await reminded(db_client, db_app) == 1
+    assert await reminded(db_client, db_app) == 0  # a re-run sends nothing
     mails = [m for m in sender.sent if "due in 7 days" in m.subject]
     assert len(mails) == 1 and "₹25,500" in mails[0].text
     # An extension (P5b) moves the due day: the claim names the day, so the −7 stage goes again.
     await set_due(db, ref, today + dt.timedelta(days=5))
-    assert (await run_daily(db_client, db_app))["balanceReminders"] == 1
+    assert await reminded(db_client, db_app) == 1
     await set_due(db, ref, today)
-    assert (await run_daily(db_client, db_app))["balanceReminders"] == 1
+    assert await reminded(db_client, db_app) == 1
     assert any("due today" in m.subject for m in sender.sent)
     b = await row(db, ref)
     claims = (
@@ -371,7 +376,7 @@ async def test_the_tidy_cancels_after_the_grace_refunds_per_tier_and_frees_the_s
 
     await set_due(db, ref, today - dt.timedelta(days=3))
     report = await run_daily(db_client, db_app)
-    assert report["balancesCancelled"] == 1 and report["balanceReminders"] == 0
+    assert report["balancesCancelled"] == 1 and await reminded(db_client, db_app) == 0
     b = await row(db, ref)
     assert (b.status, b.cancel_reason) == (BookingStatus.CANCELLED, CancelReason.BALANCE_UNPAID)
     # 37 days before departure is the full-refund tier: the whole deposit goes back.
@@ -420,7 +425,7 @@ async def test_an_open_cancellation_request_waits_for_the_owner(
     await db.commit()
     await set_due(db, ref, ist_today() - dt.timedelta(days=5))
     report = await run_daily(db_client, db_app)
-    assert (report["balancesCancelled"], report["balanceReminders"]) == (0, 0)
+    assert (report["balancesCancelled"], await reminded(db_client, db_app)) == (0, 0)
     assert (await row(db, ref)).status == BookingStatus.PARTIALLY_PAID
     cookie = with_cookie(await signed_in(db_client))
     page = (await db_client.get(f"/account/bookings/{ref}", headers=cookie)).json()

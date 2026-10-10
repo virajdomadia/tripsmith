@@ -1,5 +1,6 @@
-"""The balance emails the daily tidy sends (R43, P5): the reminders (7 and 3 days before the due
-day, and on it) and the cancellation for an unpaid balance (the customer, and the owner).
+"""The balance emails (R43, P5): the reminders (7 and 3 days before the due day, and on it — sent
+by `/cron/emails` since P15, services/email/automatic.py) and the cancellation for an unpaid
+balance the daily tidy sends (the customer, and the owner).
 
 Same rules as the booking emails: demo mode redirects the customer's copy to the owner's inbox,
 every send lands in the booking's history, and nothing here raises.
@@ -92,23 +93,6 @@ def render_balance_cancelled(
         )
         out.append(("owner", replace(owner, reply_to=facts.lead_email)))
     return out
-
-
-async def send_balance_reminder(
-    sender: EmailSender,
-    settings: Settings,
-    facts: BookingFacts,
-    *,
-    today: dt.date,
-    db: AsyncSession | None = None,
-) -> None:
-    try:
-        labelled = render_balance_reminder(facts, settings, today=today)
-    except Exception as exc:
-        log.exception("Could not render the balance reminder for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
-        return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="balance reminder", db=db)
 
 
 async def send_balance_cancelled(

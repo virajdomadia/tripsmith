@@ -274,10 +274,11 @@ async def deliver(
     ref: str,
     what: str,
     db: AsyncSession | None = None,
-) -> None:
+) -> list[EmailLine]:
     """Send `(role, message)` pairs: in demo mode the customer's copy is redirected to the
     owner's inbox; a failed send is logged by role (never the address) and reported. With `db`,
-    each email lands in the booking's history (P16) — its subject, never its address."""
+    each email lands in the booking's history (P16) — its subject, never its address. Returns
+    what happened to each (the P15 ledger reads the customer's)."""
     redirected: list[tuple[str, EmailMessage, str, bool]] = []
     skipped: list[EmailLine] = []
     for role, m in labelled:
@@ -294,7 +295,7 @@ async def deliver(
     if not redirected:
         if db is not None:
             await record_emails(db, ref, skipped)
-        return
+        return skipped
     results = await asyncio.gather(
         *(sender.send(m) for _, m, _, _ in redirected), return_exceptions=True
     )
@@ -309,3 +310,4 @@ async def deliver(
             sentry_sdk.capture_exception(result)
     if db is not None:
         await record_emails(db, ref, lines)
+    return lines

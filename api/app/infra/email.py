@@ -42,6 +42,8 @@ class EmailMessage:
     text: str
     reply_to: str | None = None
     attachments: tuple[EmailAttachment, ...] = ()
+    # P15: extra headers, e.g. List-Unsubscribe + List-Unsubscribe-Post on the promotional two
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 class EmailSendError(Exception):
@@ -82,6 +84,8 @@ class ResendSender:
         }
         if message.reply_to:
             payload["reply_to"] = message.reply_to
+        if message.headers:
+            payload["headers"] = dict(message.headers)
         if message.attachments:
             payload["attachments"] = [
                 {"filename": a.filename, "content": base64.b64encode(a.content).decode()}
@@ -118,6 +122,8 @@ class SmtpSender:
         mime["Message-ID"] = msg_id
         if message.reply_to:
             mime["Reply-To"] = message.reply_to
+        for name, value in message.headers:
+            mime[name] = value
         mime.set_content(message.text)
         mime.add_alternative(message.html, subtype="html")
         for a in message.attachments:
