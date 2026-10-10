@@ -32,6 +32,7 @@ from app.schemas.catalog import (
     AddonInput,
     AdminAddon,
     AdminDeparture,
+    AdminHotel,
     AdminImage,
     AdminPackage,
     AdminPackageRow,
@@ -40,7 +41,6 @@ from app.schemas.catalog import (
     EarlyBirdAdmin,
     EarlyBirdTierOut,
     FaqItem,
-    HotelOut,
     ItineraryDayOut,
     Meals,
     NextDeparture,
@@ -48,7 +48,7 @@ from app.schemas.catalog import (
     PublishRule,
 )
 from app.services.analytics import ist_today
-from app.services.booking import waitlist
+from app.services.booking import trip_pack, waitlist
 from app.services.booking.details import apply_details_settings, details_settings
 from app.services.catalog import admin_leaders, deals, early_bird
 from app.services.catalog.deals import DealField
@@ -395,7 +395,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         highlights=list(pkg.highlights),
         inclusions=list(pkg.inclusions),
         exclusions=list(pkg.exclusions),
-        hotels=[HotelOut.model_validate(h) for h in pkg.hotels],
+        hotels=[AdminHotel.model_validate(h) for h in pkg.hotels],
         faq=[FaqItem.model_validate(f) for f in pkg.faq],
         itinerary=[_day_out(d) for d in sorted(pkg.itinerary, key=lambda d: d.day_no)],
         departures=[
@@ -411,6 +411,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
                 single_supplement_paise=d.single_supplement_paise,
                 waiting=waiting.get(d.id, 0),
                 leader_id=d.leader_id,
+                meeting=trip_pack.own_meeting(d),
             )
             for d in sorted(pkg.departures, key=lambda d: d.date)
         ],
@@ -429,6 +430,7 @@ async def to_admin(db: AsyncSession, pkg: Package) -> AdminPackage:
         deposit_on=pkg.deposit_on,
         leader_id=pkg.leader_id,
         traveller_details=details_settings(pkg),
+        trip_pack=trip_pack.settings_of(pkg),
         enquiry_count=await _enquiry_count(db, pkg.id),
         publish_rules=rules,
         can_publish=can_publish(rules),
@@ -672,7 +674,7 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     pkg.highlights = list(payload.highlights)
     pkg.inclusions = list(payload.inclusions)
     pkg.exclusions = list(payload.exclusions)
-    pkg.hotels = [h.model_dump() for h in payload.hotels]
+    pkg.hotels = trip_pack.hotels_to_save(pkg.hotels or [], payload.hotels)
     pkg.faq = [f.model_dump() for f in payload.faq]
     pkg.featured = payload.featured
     pkg.deal_price_paise = payload.deal_price_paise
@@ -690,6 +692,8 @@ def _apply_fields(pkg: Package, payload: PackageInput) -> None:
     # P9: omitted = unchanged; a new package takes the column defaults (ID, emergency, food).
     if payload.traveller_details is not None:
         apply_details_settings(pkg, payload.traveller_details)
+    if payload.trip_pack is not None:  # P10: omitted = unchanged
+        trip_pack.apply_settings(pkg, payload.trip_pack)
 
 
 def _leader_ids(pkg: Package) -> set[str]:
@@ -782,6 +786,8 @@ def _fill_departure(target: Departure, row: DepartureInput) -> Departure:
     target.single_supplement_paise = row.single_supplement_paise
     if "leader_id" in row.model_fields_set:  # P3: omitted = unchanged
         target.leader_id = row.leader_id
+    if "meeting" in row.model_fields_set:  # P10: omitted = unchanged, null = the package's
+        trip_pack.set_meeting(target, row.meeting)
     return target
 
 
@@ -997,6 +1003,11 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
         leader_id=source.leader_id,  # P3
         details_required=list(source.details_required),  # P9
         checklist=[dict(i) for i in source.checklist],
+        meet_place=source.meet_place,  # P10
+        meet_time=source.meet_time,
+        meet_maps_url=source.meet_maps_url,
+        meet_note=source.meet_note,
+        know_before=dict(source.know_before or {}),
     )
     copy.itinerary = [
         ItineraryDay(
@@ -1020,6 +1031,10 @@ async def duplicate_package(db: AsyncSession, id: str) -> AdminPackage:
             price_child_paise=d.price_child_paise,
             single_supplement_paise=d.single_supplement_paise,
             leader_id=d.leader_id,  # P3
+            meet_place=d.meet_place,  # P10
+            meet_time=d.meet_time,
+            meet_maps_url=d.meet_maps_url,
+            meet_note=d.meet_note,
         )
         for d in source.departures
     ]

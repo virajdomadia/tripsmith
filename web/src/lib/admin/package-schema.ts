@@ -72,12 +72,66 @@ const daySchema = z.object({
     .transform((s) => s || null),
 });
 
+/** Blank = none: '' and null both go out as null. */
+const optional = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${max} characters at most`)
+    .nullish()
+    .transform((s) => s || null);
+
 const hotelSchema = z.object({
   name: z.string().trim().min(1, 'Required').max(120),
   city: z.string().trim().min(1, 'Required').max(80),
   stars: numberField('Stars must be 1 to 5', 1, 5),
   nights: numberField(`Nights must be 1 to ${NIGHTS_MAX}`, 1, NIGHTS_MAX),
+  /** P10: shown only in the trip pack. */
+  address: optional(160),
+  phone: optional(30),
 });
+
+/** P10 (R48): a meeting point as four flat fields — on the package, and on a date that starts
+ * somewhere else. The place carries the rest: no time, link or note without one. */
+export const MEET_TEXT_MAX = 140;
+export const KNOW_BEFORE_MAX = 500;
+const meetFields = {
+  meetPlace: z
+    .string()
+    .trim()
+    .max(MEET_TEXT_MAX, `${MEET_TEXT_MAX} characters at most`)
+    .default(''),
+  meetTime: z.string().default(''),
+  meetMapsUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => !v || /^https:\/\//i.test(v), 'Paste the Maps link starting with https://')
+    .default(''),
+  meetNote: z.string().trim().max(MEET_TEXT_MAX, `${MEET_TEXT_MAX} characters at most`).default(''),
+};
+type Meet = { meetPlace: string; meetTime: string; meetMapsUrl: string; meetNote: string };
+function checkMeet(v: Meet, ctx: z.RefinementCtx) {
+  if (!v.meetPlace && (v.meetTime || v.meetMapsUrl || v.meetNote))
+    ctx.addIssue({ code: 'custom', path: ['meetPlace'], message: 'Add the place first' });
+  else if (v.meetPlace && v.meetPlace.length < 3)
+    ctx.addIssue({ code: 'custom', path: ['meetPlace'], message: 'At least 3 characters' });
+}
+/** The wire shape: null when no place. */
+export const meetingOf = (v: Meet) =>
+  v.meetPlace
+    ? {
+        place: v.meetPlace,
+        time: v.meetTime || null,
+        mapsUrl: v.meetMapsUrl || null,
+        note: v.meetNote || null,
+      }
+    : null;
+const note = z
+  .string()
+  .trim()
+  .max(KNOW_BEFORE_MAX, `${KNOW_BEFORE_MAX} characters at most`)
+  .default('');
 
 const faqSchema = z.object({
   q: z.string().trim().min(1, 'Required').max(200),
@@ -117,19 +171,23 @@ const addonSchema = z.object({
   active: z.boolean(),
 });
 
-const departureSchema = z.object({
-  /** The api row this edits; null inserts a new one. Never invent an id on the client. */
-  id: z.string().nullish().default(null),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date'),
-  seatsTotal: numberField('Seats must be 1 to 200', 1, 200),
-  guaranteed: z.boolean(),
-  priceDoublePaise: paise('Double'),
-  priceTriplePaise: paise('Triple'),
-  priceChildPaise: paise('Child'),
-  singleSupplementPaise: paise('Single supplement'),
-  /** P3: this date's own trip leader; '' = the package's default. */
-  leaderId: z.string().default(''),
-});
+const departureSchema = z
+  .object({
+    /** The api row this edits; null inserts a new one. Never invent an id on the client. */
+    id: z.string().nullish().default(null),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date'),
+    seatsTotal: numberField('Seats must be 1 to 200', 1, 200),
+    guaranteed: z.boolean(),
+    priceDoublePaise: paise('Double'),
+    priceTriplePaise: paise('Triple'),
+    priceChildPaise: paise('Child'),
+    singleSupplementPaise: paise('Single supplement'),
+    /** P3: this date's own trip leader; '' = the package's default. */
+    leaderId: z.string().default(''),
+    /** P10: this date's own meeting point; blank = the package's. */
+    ...meetFields,
+  })
+  .superRefine(checkMeet);
 
 export const CHECKLIST_MAX = 6;
 
@@ -170,6 +228,13 @@ export const packageSchema = z
       .array(z.enum(['id', 'dob', 'emergency', 'food', 'medical']))
       .default(['id', 'emergency', 'food']),
     checklist: z.array(checklistItemSchema).max(CHECKLIST_MAX).default([]),
+    /** P10: the trip pack's meeting point and "Know before you go" notes. */
+    ...meetFields,
+    kbWeather: note,
+    kbNetwork: note,
+    kbCash: note,
+    kbRules: note,
+    kbPacking: note,
     itinerary: z.array(daySchema).max(NIGHTS_MAX + 1),
     departures: z.array(departureSchema).max(60),
     addons: z.array(addonSchema).max(ADDONS_MAX),
@@ -202,6 +267,7 @@ export const packageSchema = z
     eb2OffPaise: optionalInt(EB_OFF_MESSAGE, 100, PRICE_MAX_PAISE),
   })
   .superRefine((v, ctx) => {
+    checkMeet(v, ctx); // P10
     // Price and end date together or not at all; a label needs both. The price-vs-starting-
     // price and end-date-from-today rules are the api's (it knows the saved deal and the base).
     if (v.dealPricePaise !== null && !v.dealEndsOn) {
@@ -303,6 +369,9 @@ export const blankDay = (): PackageFieldValues['itinerary'][number] => ({
   stay: '',
 });
 
+export const BLANK_MEET = { meetPlace: '', meetTime: '', meetMapsUrl: '', meetNote: '' };
+export const BLANK_NOTES = { kbWeather: '', kbNetwork: '', kbCash: '', kbRules: '', kbPacking: '' };
+
 export const blankDeparture = (): PackageFieldValues['departures'][number] => ({
   id: null,
   date: '',
@@ -313,6 +382,7 @@ export const blankDeparture = (): PackageFieldValues['departures'][number] => ({
   priceChildPaise: 0,
   singleSupplementPaise: 0,
   leaderId: '',
+  ...BLANK_MEET,
 });
 
 export const blankAddon = (): PackageFieldValues['addons'][number] => ({
@@ -344,6 +414,8 @@ export const emptyPackage = (destinationId: string): PackageFieldValues => ({
   leaderId: '',
   detailsRequired: ['id', 'emergency', 'food'],
   checklist: [],
+  ...BLANK_MEET,
+  ...BLANK_NOTES,
   itinerary: [],
   departures: [],
   addons: [],
@@ -380,7 +452,21 @@ export function toInput(v: PackageFormValues): PackageInput {
       checklist: v.checklist.map((i) => ({ key: i.key || null, label: i.label, note: i.note })),
     },
     itinerary: v.itinerary,
-    departures: v.departures.map((d) => ({ ...d, leaderId: d.leaderId || null })),
+    tripPack: {
+      meeting: meetingOf(v),
+      knowBefore: {
+        weather: v.kbWeather,
+        network: v.kbNetwork,
+        cash: v.kbCash,
+        rules: v.kbRules,
+        packing: v.kbPacking,
+      },
+    },
+    departures: v.departures.map(({ meetPlace, meetTime, meetMapsUrl, meetNote, ...d }) => ({
+      ...d,
+      leaderId: d.leaderId || null,
+      meeting: meetingOf({ meetPlace, meetTime, meetMapsUrl, meetNote }),
+    })),
     addons: v.addons.map((a) => ({
       ...a,
       maxNights: a.basis === 'night' ? a.maxNights : null,

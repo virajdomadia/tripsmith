@@ -29,6 +29,7 @@ import { DeletePackage } from './DeletePackage';
 import { DealPanel } from './DealPanel';
 import { DepositPanel } from './DepositPanel';
 import { DetailsPanel } from './DetailsPanel';
+import { TripPackSettingsPanel } from './TripPackSettingsPanel';
 import { EarlyBirdPanel } from './EarlyBirdPanel';
 import { DeparturesEditor } from './DeparturesEditor';
 import { FaqEditor } from './FaqEditor';
@@ -60,6 +61,7 @@ const ALL: Key[] = [
   'deal',
   'addons',
   'details',
+  'pack',
   'stays',
   'included',
   'danger',
@@ -94,6 +96,17 @@ const FIELDS_OF: Partial<Record<Key, FieldPath<PackageFieldValues>[]>> = {
   ],
   addons: ['addons'],
   details: ['detailsRequired', 'checklist'],
+  pack: [
+    'meetPlace',
+    'meetTime',
+    'meetMapsUrl',
+    'meetNote',
+    'kbWeather',
+    'kbNetwork',
+    'kbCash',
+    'kbRules',
+    'kbPacking',
+  ],
   stays: ['hotels'],
   included: ['inclusions', 'exclusions', 'faq'],
 };
@@ -143,6 +156,11 @@ function LiveSub({
   } else if (k === 'details') {
     const req = Array.isArray(v.detailsRequired) ? v.detailsRequired.length : 0;
     text = `${req} required · ${plural(count(v.checklist), 'checklist item')}`;
+  } else if (k === 'pack') {
+    const notes = ['kbWeather', 'kbNetwork', 'kbCash', 'kbRules', 'kbPacking'].filter((n) =>
+      String(v[n] ?? '').trim(),
+    ).length;
+    text = `${String(v.meetPlace || 'No meeting point yet')} · ${plural(notes, 'note')}`;
   } else if (k === 'stays') text = plural(count(v.hotels), 'hotel');
   else if (k === 'included')
     text = `${count(v.inclusions)} in · ${count(v.exclusions)} out · ${plural(count(v.faq), 'question')}`;
@@ -238,6 +256,15 @@ const FIELDS = new Set<string>([
   'eb2OffPaise',
   'depositOn',
   'leaderId',
+  'meetPlace',
+  'meetTime',
+  'meetMapsUrl',
+  'meetNote',
+  'kbWeather',
+  'kbNetwork',
+  'kbCash',
+  'kbRules',
+  'kbPacking',
 ]);
 /** Lists whose own message renders in an `ArrayError` block rather than under an input. */
 const ARRAYS = new Set(['itinerary', 'departures', 'addons']);
@@ -247,9 +274,24 @@ const STALE_KEY = 'expectedEditedAt';
 /** Where a server field error lands on the form, or null when no field can show it. */
 function errorTarget(key: string): FieldPath<PackageFieldValues> | null {
   if (key.startsWith('earlyBird')) return earlyBirdTarget(key);
+  key = tripPackKey(key);
   if (!FIELDS.has(key.split('.')[0] ?? '')) return null;
   if (ARRAYS.has(key)) return `${key}.root` as FieldPath<PackageFieldValues>;
   return key as FieldPath<PackageFieldValues>;
+}
+
+/** P10: the api files the trip pack under `tripPack.meeting.mapsUrl`, `tripPack.knowBefore.cash`
+ * and `departures.<i>.meeting.place`; the form's fields are flat. */
+function tripPackKey(key: string): string {
+  const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  let m = /^tripPack\.meeting\.(place|time|mapsUrl|note)$/.exec(key);
+  if (m) return `meet${up(m[1]!)}`;
+  m = /^tripPack\.knowBefore\.(weather|network|cash|rules|packing)$/.exec(key);
+  if (m) return `kb${up(m[1]!)}`;
+  if (key.startsWith('tripPack')) return 'meetPlace';
+  m = /^departures\.(\d+)\.meeting(?:\.(place|time|mapsUrl|note))?$/.exec(key);
+  if (m) return `departures.${m[1]}.meet${up(m[2] ?? 'place')}`;
+  return key;
 }
 
 /**
@@ -265,6 +307,30 @@ function earlyBirdTarget(key: string): FieldPath<PackageFieldValues> {
   return key === 'earlyBird.tiers' ? 'eb2Days' : 'eb1Days';
 }
 
+/** A draft parked by an older form lacks newer fields (P10's meeting points, hotel contacts):
+ * fill what it doesn't carry from the package as loaded, so restoring it never clears them. */
+function withSaved(loaded: PackageFieldValues, draft: PackageFieldValues): PackageFieldValues {
+  const dates = new Map(loaded.departures.map((d) => [d.id, d]));
+  const hotels = new Map(loaded.hotels.map((h) => [h.name, h]));
+  return {
+    ...loaded,
+    ...draft,
+    departures: (draft.departures ?? []).map((d) => ({
+      ...(d.id ? dates.get(d.id) : undefined),
+      ...d,
+    })) as PackageFieldValues['departures'],
+    hotels: (draft.hotels ?? []).map((h) => ({ ...hotels.get(h.name), ...h })),
+  };
+}
+
+type Meeting = NonNullable<AdminPackage['tripPack']['meeting']>;
+const meetValues = (m: Meeting | null | undefined) => ({
+  meetPlace: m?.place ?? '',
+  meetTime: m?.time ? m.time.slice(0, 5) : '',
+  meetMapsUrl: m?.mapsUrl ?? '',
+  meetNote: m?.note ?? '',
+});
+
 function toFieldValues(pkg: AdminPackage): PackageFieldValues {
   const tiers = pkg.earlyBird?.tiers ?? []; // an api from before P17 sends none
   return {
@@ -278,7 +344,7 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     highlights: pkg.highlights,
     inclusions: pkg.inclusions,
     exclusions: pkg.exclusions,
-    hotels: pkg.hotels,
+    hotels: pkg.hotels.map((h) => ({ ...h, address: h.address ?? '', phone: h.phone ?? '' })),
     faq: pkg.faq,
     featured: pkg.featured,
     depositOn: pkg.depositOn ?? true, // an api from before P5 sends none
@@ -286,6 +352,13 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
     // P9: an api from before P9 sends none.
     detailsRequired: pkg.travellerDetails?.required ?? ['id', 'emergency', 'food'],
     checklist: (pkg.travellerDetails?.checklist ?? []).map((i) => ({ ...i })),
+    // P10: an api from before P10 sends none.
+    ...meetValues(pkg.tripPack?.meeting),
+    kbWeather: pkg.tripPack?.knowBefore.weather ?? '',
+    kbNetwork: pkg.tripPack?.knowBefore.network ?? '',
+    kbCash: pkg.tripPack?.knowBefore.cash ?? '',
+    kbRules: pkg.tripPack?.knowBefore.rules ?? '',
+    kbPacking: pkg.tripPack?.knowBefore.packing ?? '',
     itinerary: pkg.itinerary.map((d) => ({
       title: d.title,
       description: d.description,
@@ -302,6 +375,7 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
       priceChildPaise: d.priceChildPaise,
       singleSupplementPaise: d.singleSupplementPaise,
       leaderId: d.leaderId ?? '',
+      ...meetValues(d.meeting),
     })),
     addons: pkg.addons.map((a) => ({
       id: a.id,
@@ -374,7 +448,7 @@ export function PackageForm(props: Props) {
   useEffect(() => {
     const draft = takeDraft<PackageFieldValues>(draftKey);
     if (!draft) return;
-    form.reset(draft.values, { keepDefaultValues: true });
+    form.reset(withSaved(form.getValues(), draft.values), { keepDefaultValues: true });
     if (draft.expectedVersion) {
       expected.current = draft.expectedVersion;
       pinned.current = true;
@@ -624,6 +698,7 @@ export function PackageForm(props: Props) {
               <AddonsEditor images={pkg?.images ?? []} saved={pkg?.addons ?? []} />,
             )}
             {section('details', <DetailsPanel />)}
+            {section('pack', <TripPackSettingsPanel />)}
             {section('stays', <HotelsEditor />)}
             {section(
               'included',

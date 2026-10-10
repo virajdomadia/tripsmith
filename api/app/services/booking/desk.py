@@ -69,6 +69,7 @@ from app.schemas.admin_bookings import (
 from app.schemas.admin_enquiries import PAGE_SIZE
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import normalise_phone
+from app.schemas.trip_pack import DeskPackStatus
 from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
 from app.services.analytics import ist_today
@@ -508,6 +509,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
     returns = seats.date + dt.timedelta(days=pkg.nights)
     block = await details.details_block(db, b, pkg, seats.date, returns, ist_today())
     items = details.checklist_of(pkg, b)
+    pack = trip_pack.summary_of(b, seats.date, pkg.nights, ist_today())
     return AdminBooking(
         ref=b.ref,
         status=b.status,
@@ -565,8 +567,12 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         details=block,
         can_edit_details=b.status in details.OWNER_STATUSES and not block.purged,
         checklist=items,
-        readiness=details.readiness(
-            b, block, items, pack=trip_pack.summary_of(b, seats.date, pkg.nights, ist_today())
+        readiness=details.readiness(b, block, items, pack=pack),
+        pack_status=DeskPackStatus(
+            pack=pack,
+            calendar_added_at=b.calendar_added_at,
+            calendar_via=b.calendar_via,  # type: ignore[arg-type]  # 0022's check
+            calendar_stale=b.calendar_added_at is None and b.calendar_via is not None,
         ),
         can_send_details_link=(
             b.status in details.OPEN_STATUSES
@@ -722,6 +728,8 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         .scalars()
         .all()
     )
+    dep = await db.get(Departure, departure_id)
+    assert dep is not None
     required = details.required_of(pkg)
     returns = seats.date + dt.timedelta(days=pkg.nights)
     purged = ist_today() >= details.purge_on(returns)
@@ -768,6 +776,7 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         departure_city=pkg.departure_city,
         returns=returns,
         leader=await departure_leader(db, departure_id),
+        meeting=trip_pack.meeting_of(pkg, dep),
         bookings=out,
         travellers=sum(len(b.travellers) for b in out),
         addons=list(totals.values()),

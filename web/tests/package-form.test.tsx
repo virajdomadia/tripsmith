@@ -115,6 +115,10 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
   featured: false,
   depositOn: true,
   travellerDetails: { required: ['id', 'emergency', 'food'], checklist: [] },
+  tripPack: {
+    meeting: null,
+    knowBefore: { weather: '', network: '', cash: '', rules: '', packing: '' },
+  },
   startingPricePaise: 1_499_900,
   dealPricePaise: null,
   dealLabel: null,

@@ -99,6 +99,46 @@ export function HotelsEditor() {
               )}
             />
           </div>
+          {/* P10: only the trip pack shows these — never the public page. */}
+          <div className="grid grid-cols-[1fr_150px] gap-2">
+            <FormField
+              control={form.control}
+              name={`hotels.${i}.address`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address · trip pack</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value ?? ''}
+                      maxLength={160}
+                      placeholder="Fort Aguada Road, Candolim"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name={`hotels.${i}.phone`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value ?? ''}
+                      type="tel"
+                      maxLength={30}
+                      placeholder="+91 832 …"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
       ))}
 
@@ -107,7 +147,9 @@ export function HotelsEditor() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => append({ name: '', city: '', stars: 4, nights: 1 })}
+          onClick={() =>
+            append({ name: '', city: '', stars: 4, nights: 1, address: '', phone: '' })
+          }
           disabled={fields.length >= 10}
         >
           <Plus className="size-4" aria-hidden />

@@ -20,6 +20,7 @@ export type SectionKey =
   | 'deal'
   | 'addons'
   | 'details'
+  | 'pack'
   | 'stays'
   | 'included';
 
@@ -33,6 +34,7 @@ export const LABEL: Record<SectionKey, string> = {
   deal: 'Deal & early bird',
   addons: 'Add-ons',
   details: 'Traveller details & checklist',
+  pack: 'Meeting point & Know before you go',
   stays: 'Hotels',
   included: 'Included, not included, FAQ',
 };

@@ -4,9 +4,10 @@ account and (P10b) the desk both import it."""
 import datetime as dt
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas import ApiModel
+from app.schemas.enquiries import CONTROL_RE
 
 PackState = Literal["locked", "open", "closed"]
 CalendarVia = Literal["google", "ics"]
@@ -100,3 +101,81 @@ class CalendarBlock(ApiModel):
     starts: dt.date
     ends: dt.date = Field(description="The last day of the trip (inclusive)")
     location: str
+
+
+# --- the owner's side (P10b) --------------------------------------------------------------------
+
+MEET_TEXT_MAX = 140
+KNOW_BEFORE_MAX = 500
+
+
+def _line(v: object) -> object:
+    if not isinstance(v, str):
+        return v
+    v = v.strip()
+    if CONTROL_RE.search(v):
+        raise ValueError("Write it on one line, without special characters")
+    return v or None
+
+
+class MeetingPointInput(ApiModel):
+    """Where day one starts. The Maps link must be an https address."""
+
+    place: str = Field(min_length=3, max_length=MEET_TEXT_MAX)
+    time: dt.time | None = None
+    maps_url: str | None = Field(default=None, max_length=500)
+    note: str | None = Field(default=None, max_length=MEET_TEXT_MAX)
+
+    @field_validator("place", "note", mode="before")
+    @classmethod
+    def _one_line(cls, v: object) -> object:
+        return _line(v)
+
+    @field_validator("maps_url", mode="before")
+    @classmethod
+    def _https(cls, v: object) -> object:
+        v = _line(v)
+        if isinstance(v, str) and not v.lower().startswith("https://"):
+            raise ValueError("Paste the Maps link starting with https://")
+        return v
+
+
+class KnowBefore(ApiModel):
+    """The five "Know before you go" notes; blank ones are hidden in the pack."""
+
+    weather: str = Field(default="", max_length=KNOW_BEFORE_MAX)
+    network: str = Field(default="", max_length=KNOW_BEFORE_MAX)
+    cash: str = Field(default="", max_length=KNOW_BEFORE_MAX)
+    rules: str = Field(default="", max_length=KNOW_BEFORE_MAX)
+    packing: str = Field(default="", max_length=KNOW_BEFORE_MAX)
+
+    @field_validator("weather", "network", "cash", "rules", "packing", mode="before")
+    @classmethod
+    def _text(cls, v: object) -> object:
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        if CONTROL_RE.search(v.replace("\n", " ").replace("\r", " ")):
+            raise ValueError("Write the note without special characters")
+        return v
+
+
+class TripPackSettingsInput(ApiModel):
+    """Package editor B's "Meeting point & Know before you go" section (R48)."""
+
+    meeting: MeetingPointInput | None = Field(description="Null = none yet")
+    know_before: KnowBefore = Field(default_factory=KnowBefore)
+
+
+class TripPackSettings(ApiModel):
+    meeting: MeetingPoint | None
+    know_before: KnowBefore
+
+
+class DeskPackStatus(ApiModel):
+    """The desk's view of a booking's trip pack and calendar (P10b)."""
+
+    pack: TripPack | None = Field(description="Without its content; null = pending/cancelled")
+    calendar_added_at: dt.datetime | None
+    calendar_via: CalendarVia | None
+    calendar_stale: bool = Field(description="Added before a date change, not since")
