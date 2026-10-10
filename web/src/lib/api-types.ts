@@ -5126,10 +5126,10 @@ export interface components {
             /** On */
             on: boolean;
             /**
-             * Sent30D
+             * Recentsent
              * @description Sent (or held in demo mode) in the last 30 days
              */
-            sent30D: number;
+            recentSent: number;
             /**
              * Switchable
              * @description False for the refund email, which always goes

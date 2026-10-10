@@ -74,7 +74,7 @@ async def settings_out(db: AsyncSession, settings: Settings) -> EmailSettings:
                 switchable=t in SWITCHABLE,
                 on=on.get(t, True),
                 unsubscribable=t in UNSUBSCRIBABLE,
-                sent30d=counts.get(t, 0),
+                recent_sent=counts.get(t, 0),
             )
             for t in ORDER
         ],

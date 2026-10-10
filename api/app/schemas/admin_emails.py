@@ -16,7 +16,7 @@ class EmailTypeSetting(ApiModel):
     switchable: bool = Field(description="False for the refund email, which always goes")
     on: bool
     unsubscribable: bool = Field(description="Carries an unsubscribe link (two promotional ones)")
-    sent30d: int = Field(description="Sent (or held in demo mode) in the last 30 days")
+    recent_sent: int = Field(description="Sent (or held in demo mode) in the last 30 days")
 
 
 class EmailSettings(ApiModel):

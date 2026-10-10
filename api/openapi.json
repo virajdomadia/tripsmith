@@ -6733,9 +6733,9 @@
             "title": "On",
             "type": "boolean"
           },
-          "sent30D": {
+          "recentSent": {
             "description": "Sent (or held in demo mode) in the last 30 days",
-            "title": "Sent30D",
+            "title": "Recentsent",
             "type": "integer"
           },
           "switchable": {
@@ -6764,7 +6764,7 @@
           "switchable",
           "on",
           "unsubscribable",
-          "sent30D"
+          "recentSent"
         ],
         "title": "EmailTypeSetting",
         "type": "object"

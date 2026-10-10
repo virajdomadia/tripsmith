@@ -23,6 +23,7 @@ import { REFUND_REASON, REFUND_STATUS } from '@/lib/admin/refunds';
 import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { reviewsHref } from '@/lib/admin/reviews';
 import { PackStatusPanel } from '@/components/admin/bookings/PackStatusPanel';
+import { EmailsPanel } from '@/components/admin/bookings/EmailsPanel';
 import { api, ApiRequestError } from '@/lib/api';
 import { formatDate, inr } from '@/lib/format';
 
@@ -145,6 +146,14 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               <PackStatusPanel bookingRef={b.ref} status={b.packStatus} />
             </section>
           )}
+
+          {/* P15b (R53): what the automatic run sends next, and the latest emails sent. */}
+          <section className={panel} aria-labelledby="emails">
+            <h2 id="emails" className={heading}>
+              Emails
+            </h2>
+            <EmailsPanel upcoming={b.upcomingEmails ?? []} history={b.history?.entries ?? []} />
+          </section>
 
           {b.paymentLink && (
             // P18b: the counter's Razorpay Payment Link — share, check or cancel it.

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import BookingEvent, EmailSend
 from app.services.analytics import ist_today
@@ -23,7 +24,7 @@ __all__ = ["rzp"]
 pytestmark = pytest.mark.db
 
 
-async def _count(db: AsyncSession, model: type, *where: object) -> int:
+async def _count(db: AsyncSession, model: type, *where: ColumnElement[bool]) -> int:
     return (await db.execute(select(func.count()).select_from(model).where(*where))).scalar_one()
 
 
