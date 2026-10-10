@@ -404,6 +404,11 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **Owner:** a "Settings" item at the foot of the admin nav (style A) opens `/admin/settings/emails`: per type a switch, its trigger in plain words, the count sent in the last 30 days, Preview (pick a real booking that fits, rendered in a sandboxed iframe, nothing logged) and Send test (to `OWNER_NOTIFY_EMAIL`, subject `[Test]`).
   - **Emails list (booking detail C):** the emails already sent (from the history) plus "Coming up", computed from the same rules, with each type's switch state ("Trip pack · 10 Nov · off").
   - **Two PRs:** P15a engine — 0023, ledger, switches, `/cron/emails`, the five types, the refund email, unsubscribe, the sheet's prefill; P15b owner — settings page with preview and test send, the Emails list.
+  - **Built in P15b (2026-10-10):**
+    - "Settings" sits at the foot of the admin nav, beside "View site"; `/admin/settings` opens Emails. The refund email is listed as "Always on", without a switch.
+    - The preview renders the email for a real booking as of the day it would go (e.g. the trip pack at departure − 3), in a sandboxed frame. The booking list is the bookings it fits, newest first. A booking that no longer fits answers "pick another".
+    - A test goes to `OWNER_NOTIFY_EMAIL` with `[Test]` in the subject and the real PDF, without the unsubscribe headers. It touches neither the ledger nor the history, so the real email still goes on its day.
+    - The Emails panel on booking detail C lists "Coming up" (the next days by the same rules, struck through when switched off) and the latest four sent (the rest under History's Emails chip); the owner's own notifications are marked "to you".
 
 ### R54. Per-booking history log (P16)
 - **Each entry records:** every change to a booking, with the time in IST, the actor (owner, customer, webhook, cron, system), a plain-words description, and before/after values where useful.

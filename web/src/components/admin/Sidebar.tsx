@@ -6,6 +6,7 @@ import {
   MapPin,
   MessageSquareQuote,
   Package,
+  Settings,
   Ticket,
   TicketPercent,
   UserRound,
@@ -67,6 +68,11 @@ export function Sidebar({ session }: { session: SessionInfo }) {
         ))}
       </nav>
       <span className="hidden flex-1 lg:block" />
+      {/* P15b: settings at the foot, apart from the daily work above (style A). */}
+      <NavLink href="/admin/settings">
+        <Settings className="size-4" aria-hidden />
+        Settings
+      </NavLink>
       <Link
         href="/"
         className="flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors hover:bg-white/[.06] hover:text-white"

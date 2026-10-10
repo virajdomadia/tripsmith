@@ -1391,6 +1391,14 @@
             },
             "title": "Travellers",
             "type": "array"
+          },
+          "upcomingEmails": {
+            "description": "P15b (R53): the automatic emails still to come, as the rules stand today",
+            "items": {
+              "$ref": "#/components/schemas/UpcomingEmail"
+            },
+            "title": "Upcomingemails",
+            "type": "array"
           }
         },
         "required": [
@@ -6521,6 +6529,130 @@
         "title": "EditTravellersInput",
         "type": "object"
       },
+      "EmailPreview": {
+        "properties": {
+          "asOf": {
+            "description": "The day it is rendered for — the day it would go",
+            "format": "date",
+            "title": "Asof",
+            "type": "string"
+          },
+          "attachments": {
+            "description": "File names (the trip pack's PDF)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "html": {
+            "title": "Html",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EmailType"
+          }
+        },
+        "required": [
+          "type",
+          "ref",
+          "to",
+          "subject",
+          "html",
+          "text",
+          "attachments",
+          "asOf"
+        ],
+        "title": "EmailPreview",
+        "type": "object"
+      },
+      "EmailSample": {
+        "properties": {
+          "label": {
+            "description": "Ref · lead · package · date",
+            "title": "Label",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "label"
+        ],
+        "title": "EmailSample",
+        "type": "object"
+      },
+      "EmailSamples": {
+        "properties": {
+          "items": {
+            "description": "Bookings this email fits, newest first",
+            "items": {
+              "$ref": "#/components/schemas/EmailSample"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EmailSamples",
+        "type": "object"
+      },
+      "EmailSettings": {
+        "properties": {
+          "ownerEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where a test goes; None = tests can't be sent",
+            "title": "Owneremail"
+          },
+          "sendsAt": {
+            "description": "When the daily run goes, e.g. \"09:00 IST\"",
+            "title": "Sendsat",
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/EmailTypeSetting"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "types",
+          "ownerEmail",
+          "sendsAt"
+        ],
+        "title": "EmailSettings",
+        "type": "object"
+      },
       "EmailStatus": {
         "enum": [
           "sent",
@@ -6529,6 +6661,113 @@
         ],
         "title": "EmailStatus",
         "type": "string"
+      },
+      "EmailSwitchInput": {
+        "properties": {
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "title": "EmailSwitchInput",
+        "type": "object"
+      },
+      "EmailTestInput": {
+        "properties": {
+          "ref": {
+            "maxLength": 9,
+            "minLength": 9,
+            "pattern": "^TB-[A-Z0-9]{6}$",
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "EmailTestInput",
+        "type": "object"
+      },
+      "EmailTestSent": {
+        "properties": {
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "subject"
+        ],
+        "title": "EmailTestSent",
+        "type": "object"
+      },
+      "EmailType": {
+        "description": "The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five\nare the automatic ones the owner can switch off; a refund email always goes.",
+        "enum": [
+          "balance_reminder",
+          "details_reminder",
+          "trip_pack",
+          "review_request",
+          "still_thinking",
+          "refund"
+        ],
+        "title": "EmailType",
+        "type": "string"
+      },
+      "EmailTypeSetting": {
+        "properties": {
+          "label": {
+            "description": "\"Trip pack\", \"Review request\"…",
+            "title": "Label",
+            "type": "string"
+          },
+          "on": {
+            "title": "On",
+            "type": "boolean"
+          },
+          "recentSent": {
+            "description": "Sent (or held in demo mode) in the last 30 days",
+            "title": "Recentsent",
+            "type": "integer"
+          },
+          "switchable": {
+            "description": "False for the refund email, which always goes",
+            "title": "Switchable",
+            "type": "boolean"
+          },
+          "trigger": {
+            "description": "When it goes, in plain words",
+            "title": "Trigger",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EmailType"
+          },
+          "unsubscribable": {
+            "description": "Carries an unsubscribe link (two promotional ones)",
+            "title": "Unsubscribable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "trigger",
+          "switchable",
+          "on",
+          "unsubscribable",
+          "recentSent"
+        ],
+        "title": "EmailTypeSetting",
+        "type": "object"
       },
       "EnquiryCreate": {
         "properties": {
@@ -12739,6 +12978,49 @@
         "title": "UpcomingDeparture",
         "type": "object"
       },
+      "UpcomingEmail": {
+        "description": "One automatic email still to come for a booking, as the rules stand today.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. \"once the balance is paid\"",
+            "title": "Note"
+          },
+          "on": {
+            "description": "The IST day the 09:00 run sends it",
+            "format": "date",
+            "title": "On",
+            "type": "string"
+          },
+          "switchOn": {
+            "description": "False: switched off in Settings, so it won't go",
+            "title": "Switchon",
+            "type": "boolean"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EmailType"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "on",
+          "switchOn"
+        ],
+        "title": "UpcomingEmail",
+        "type": "object"
+      },
       "UploadedImage": {
         "properties": {
           "height": {
@@ -15823,6 +16105,246 @@
           }
         },
         "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/emails": {
+      "get": {
+        "operationId": "getEmailSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/emails/{kind}": {
+      "put": {
+        "operationId": "setEmailSwitch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EmailType"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSwitchInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTypeSetting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "No switch"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Set Switch",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/emails/{kind}/preview": {
+      "get": {
+        "operationId": "previewEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EmailType"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "pattern": "^TB-[A-Z0-9]{6}$",
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown booking"
+          },
+          "409": {
+            "description": "The booking doesn't fit this email (not_fitting), no owner address (no_owner_email) or the send failed (send_failed)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Preview",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/emails/{kind}/samples": {
+      "get": {
+        "operationId": "getEmailSamples",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EmailType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSamples"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Samples",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/emails/{kind}/test": {
+      "post": {
+        "operationId": "sendTestEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EmailType"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailTestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailTestSent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown booking"
+          },
+          "409": {
+            "description": "The booking doesn't fit this email (not_fitting), no owner address (no_owner_email) or the send failed (send_failed)"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Send Test",
         "tags": [
           "admin"
         ]
