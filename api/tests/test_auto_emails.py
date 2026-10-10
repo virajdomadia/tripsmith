@@ -445,6 +445,30 @@ async def test_a_run_stops_at_its_limit_and_the_next_goes_on(
     assert (sum(run.sent.values()), run.more) == (1, False)
 
 
+@pytest.mark.db
+async def test_retries_left_over_at_the_limit_stay_failed_for_the_next_run(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """Review fix: a run claims a failed row again only just before sending it, so the rows past
+    its limit are still `failed` (retryable), never stranded in `sending`."""
+    _, dep = await _booked(db, db_app, db_client)
+    sender = db_app.state.email_sender
+    await _lapse_other(db, db_client, dep)
+    await _set_departure(db, dep.id, ist_today() + dt.timedelta(days=3))
+    notify = Notify.of(db_app.state)
+    sender.fail_for = frozenset({OWNER_INBOX})
+    run = await automatic.run_due(db, notify, today=ist_today())
+    assert (run.failed, run.retried) == (2, 0)
+    sender.fail_for = frozenset()
+    run = await automatic.run_due(db, notify, today=ist_today(), limit=1)
+    assert (sum(run.sent.values()), run.retried, run.more) == (1, 1, True)
+    db.expire_all()
+    states = sorted(s.value for s in (await db.execute(select(EmailSend.state))).scalars())
+    assert states == ["failed", "held"]
+    run = await automatic.run_due(db, notify, today=ist_today(), limit=1)
+    assert (sum(run.sent.values()), run.retried, run.more) == (1, 1, False)
+
+
 async def _lapse_other(db: AsyncSession, client: AsyncClient, dep: Departure) -> None:
     res = await client.post(
         "/bookings",

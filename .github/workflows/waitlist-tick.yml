@@ -40,6 +40,7 @@ jobs:
             -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/waitlist"
 
       - name: Send the automatic emails (09:00–21:00 IST)
+        if: ${{ !cancelled() }} # a failed waitlist walk must not stop the email retries
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           API_URL: https://tripsmith-api.vercel.app

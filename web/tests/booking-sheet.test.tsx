@@ -496,6 +496,25 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     expect(checkout!.order_id).toBe('order_Test0001');
   });
 
+  it('starts from a still-thinking link: its party and its date, not the first one (R53)', async () => {
+    api();
+    const prefill = {
+      date: '2099-12-18',
+      rooms: { double: 0, triple: 0, single: 2, children: 0 },
+    };
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} prefill={prefill} />);
+    const sheet = await screen.findByRole('dialog');
+    await within(sheet).findByText('Live availability · checked just now');
+    await waitFor(() => expect(calls('/api/bookings/quote').length).toBeGreaterThan(0));
+    const pressed = (name: RegExp) =>
+      within(sheet).getByRole('button', { name }).getAttribute('aria-pressed');
+    expect(pressed(/18 Dec 2099/)).toBe('true');
+    expect(pressed(/20 Nov 2099/)).toBe('false');
+    const body = JSON.parse(String(calls('/api/bookings/quote').at(-1)![1]!.body));
+    expect(body.departureId).toBe('dep_dec');
+    expect(body.travellers).toEqual([{ occupancy: 'single' }, { occupancy: 'single' }]);
+  });
+
   it('warns before Pay that test mode stops at ₹15,000', async () => {
     api();
     render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);

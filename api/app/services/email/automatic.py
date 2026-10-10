@@ -84,7 +84,9 @@ from app.services.pdf.trip_pack import render_trip_pack, trip_pack_filename
 log = logging.getLogger(__name__)
 
 LIMIT = 25
-BUDGET_SECONDS = 20.0
+# Checked between sends: one send can take up to SMTP_TIMEOUT_SECONDS (15 s) plus a PDF, and
+# Vercel stops the function at 30 s - a row killed mid-send stays `sending`, never sent twice.
+BUDGET_SECONDS = 12.0
 MAX_ATTEMPTS = 3
 RETRY_WITHIN = dt.timedelta(days=2)
 
@@ -374,8 +376,20 @@ def _lapsed_hold() -> ColumnElement[bool]:
     )
 
 
-async def due_still_thinking(db: AsyncSession, today: dt.date) -> list[Due]:
+def _booked_since(email: object, since: object) -> ColumnElement[bool]:
+    """That address made a booking after `since`; a later hold that lapsed too doesn't count."""
     later = aliased(Booking)
+    return exists().where(
+        func.lower(later.contact_email) == func.lower(email),
+        later.created_at > since,
+        ~and_(
+            later.status == BookingStatus.CANCELLED,
+            later.cancel_reason == CancelReason.HOLD_EXPIRED,
+        ),
+    )
+
+
+async def due_still_thinking(db: AsyncSession, today: dt.date) -> list[Due]:
     since = dt.datetime.combine(today - dt.timedelta(days=LAPSE_LOOKBACK), dt.time(), IST)
     until = dt.datetime.combine(today, dt.time(), IST)
     rows = (
@@ -393,15 +407,7 @@ async def due_still_thinking(db: AsyncSession, today: dt.date) -> list[Due]:
                 Booking.hold_expires_at >= since,
                 Booking.hold_expires_at < until,
                 Package.status == PackageStatus.LIVE,
-                # Booked nothing since — a later hold that lapsed too doesn't count.
-                ~exists().where(
-                    func.lower(later.contact_email) == func.lower(Booking.contact_email),
-                    later.created_at > Booking.created_at,
-                    ~and_(
-                        later.status == BookingStatus.CANCELLED,
-                        later.cancel_reason == CancelReason.HOLD_EXPIRED,
-                    ),
-                ),
+                ~_booked_since(Booking.contact_email, Booking.created_at),
                 ~exists().where(
                     EmailSuppression.email == func.lower(Booking.contact_email),
                     EmailSuppression.type == EmailType.STILL_THINKING,
@@ -514,61 +520,52 @@ async def claim(db: AsyncSession, due: Due) -> str | None:
         raise
 
 
-async def _retries(db: AsyncSession, on: dict[EmailType, bool]) -> list[tuple[str, Due]]:
-    """Failed rows still worth a try: claimed again (attempts + 1) in one guarded UPDATE."""
+def _retryable() -> list[ColumnElement[bool]]:
+    return [
+        EmailSend.state == EmailSendState.FAILED,
+        EmailSend.attempts < MAX_ATTEMPTS,
+        EmailSend.created_at >= func.now() - RETRY_WITHIN,
+    ]
+
+
+async def _failed(db: AsyncSession, on: dict[EmailType, bool]) -> list[tuple[str | None, Due]]:
+    """Failed rows still worth a try - only read here; each is claimed again (`reclaim`) just
+    before its own send, so a run that stops at its limit leaves the rest `failed` for the next."""
     allowed = [t for t in EmailType if on.get(t, True)]
     rows = (
         await db.execute(
-            update(EmailSend)
-            .where(
-                EmailSend.state == EmailSendState.FAILED,
-                EmailSend.attempts < MAX_ATTEMPTS,
-                EmailSend.created_at >= func.now() - RETRY_WITHIN,
-                EmailSend.type.in_(allowed),
-            )
-            .values(state=EmailSendState.SENDING, attempts=EmailSend.attempts + 1)
-            .returning(
-                EmailSend.id,
-                EmailSend.key,
-                EmailSend.type,
-                EmailSend.email,
-                EmailSend.booking_id,
-                EmailSend.package_id,
-                EmailSend.stage,
-                EmailSend.anchor,
-            )
+            select(EmailSend, Booking.ref)
+            .outerjoin(Booking, Booking.id == EmailSend.booking_id)
+            .where(*_retryable(), EmailSend.type.in_(allowed))
+            .order_by(EmailSend.created_at)
         )
     ).all()
-    await db.commit()
-    if not rows:
-        return []
-    found = await db.execute(
-        select(Booking.id, Booking.ref).where(
-            Booking.id.in_({r.booking_id for r in rows if r.booking_id})
-        )
-    )
-    refs: dict[str, str] = {bid: ref for bid, ref in found.all()}
-    await db.rollback()
-    out = []
-    for r in rows:
+    out: list[tuple[str | None, Due]] = []
+    for r, ref in rows:
         refund_id = r.key.split(":", 1)[1] if r.type == EmailType.REFUND else None
-        out.append(
-            (
-                r.id,
-                Due(
-                    r.type,
-                    r.key,
-                    r.email,
-                    r.booking_id,
-                    refs.get(r.booking_id),
-                    r.package_id,
-                    r.stage,
-                    r.anchor,
-                    refund_id,
-                ),
-            )
+        due = Due(
+            r.type, r.key, r.email, r.booking_id, ref, r.package_id, r.stage, r.anchor, refund_id
         )
+        out.append((r.id, due))
     return out
+
+
+async def reclaim(db: AsyncSession, row_id: str) -> bool:
+    """Claim one failed row again (attempts + 1), committed - False when another run took it."""
+    try:
+        got = (
+            await db.execute(
+                update(EmailSend)
+                .where(EmailSend.id == row_id, *_retryable())
+                .values(state=EmailSendState.SENDING, attempts=EmailSend.attempts + 1)
+                .returning(EmailSend.id)
+            )
+        ).scalar_one_or_none()
+        await db.commit()
+        return got is not None
+    except BaseException:
+        await db.rollback()
+        raise
 
 
 STATE_OF = {
@@ -792,6 +789,9 @@ async def _render_still_thinking(db: AsyncSession, due: Due, settings: Settings,
     facts = await _facts(db, due)
     if booking is None or facts is None:
         return None, None
+    # Re-checked here too: a retry can come a day later, after they did book.
+    if (await db.execute(select(_booked_since(due.email, booking.created_at)))).scalar_one():
+        return None, None
     prefill = await prefill_of(db, booking, today)
     site = settings.site_url.rstrip("/")
     url = f"{site}/packages/{facts.package_slug}?{prefill.query()}#book"
@@ -915,9 +915,7 @@ async def run_due(
     queue: list[tuple[str | None, Due]] = []
     try:
         queue += [(None, d) for d in await due_refunds(db)]
-        retries = await _retries(db, on)
-        run.retried = len(retries)
-        queue += [(row_id, d) for row_id, d in retries]
+        queue += await _failed(db, on)
         for kind, finder in FINDERS.items():
             if on[kind]:
                 queue += [(None, d) for d in await finder(db, today)]
@@ -933,9 +931,14 @@ async def run_due(
                 row_id = await claim(db, due)
                 if row_id is None:
                     continue
+            elif await reclaim(db, row_id):
+                run.retried += 1
+            else:
+                continue
             handled += 1
             _count(run, due, await _send(db, notify, row_id, due, today=today))
         except Exception as exc:
+            await db.rollback()  # a failed statement must not poison the next claim
             log.exception("Could not send the %s email (%s)", due.type.value, due.key)
             sentry_sdk.capture_exception(exc)
             run.failed += 1

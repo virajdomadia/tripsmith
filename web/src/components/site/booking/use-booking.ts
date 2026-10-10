@@ -121,8 +121,21 @@ export function useBooking(
 ) {
   const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
-  const [departureId, setDepartureId] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<Rooms>({ double: 1, triple: 0, single: 0, children: 0 });
+  // R53 (P15): the still-thinking link's party, and its date while this party can still book it,
+  // are the sheet's starting state (never with a waitlist claim) — set in the initialisers so the
+  // "first bookable date" effect below never overwrites them.
+  const start = claimToken ? null : prefill;
+  const [departureId, setDepartureId] = useState<string | null>(() => {
+    if (!start?.date) return null;
+    const today = istToday();
+    const match = pkg.departures.find(
+      (d) => d.date === start.date && !unbookableReason(d, partySize(start.rooms), today),
+    );
+    return match?.id ?? null;
+  });
+  const [rooms, setRooms] = useState<Rooms>(
+    () => start?.rooms ?? { double: 1, triple: 0, single: 0, children: 0 },
+  );
   const [travellers, setTravellers] = useState<Record<string, TravellerInput>>({});
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -254,21 +267,6 @@ export function useBooking(
       email: claim.email,
     }));
   }, [claim, claimDeparture]);
-
-  // R53 (P15): the still-thinking link's party, and its date while this party can still book it
-  // — once, before the visitor touches anything; otherwise the first bookable date as usual.
-  const prefilled = useRef(false);
-  useEffect(() => {
-    if (!prefill || prefilled.current || claimToken) return;
-    prefilled.current = true;
-    setRooms(prefill.rooms);
-    const match = prefill.date
-      ? departures.find(
-          (d) => d.date === prefill.date && !unbookableReason(d, partySize(prefill.rooms), today),
-        )
-      : undefined;
-    if (match) setDepartureId(match.id);
-  }, [prefill, claimToken, departures, today]);
 
   // Start on the first date this party can book. After a date sold out under the visitor
   // (`gone`), nothing is picked for them: R14 sends them back to choosing.
