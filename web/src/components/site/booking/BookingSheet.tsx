@@ -18,6 +18,7 @@ import {
   adultsIn,
   formErrors,
   holdSecondsLeft,
+  type Prefill,
   TEST_MODE_MAX_PAISE,
   TEST_MODE_TRIPS,
 } from '@/lib/booking';
@@ -54,14 +55,17 @@ export function BookingSheet({
   open,
   onOpenChange,
   claim = null,
+  prefill = null,
 }: {
   pkg: BookingPackage;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** R44 (P6): a waitlist offer's claim token, from the link's `?claim=`. */
   claim?: string | null;
+  /** R53 (P15): the still-thinking email's party and date, from the link. */
+  prefill?: Prefill | null;
 }) {
-  const flow = useBooking(pkg, open, claim);
+  const flow = useBooking(pkg, open, claim, prefill);
   const { phase, quote, departure, slots, travellers, contact } = flow;
   const scope = useRef<HTMLDivElement>(null);
 

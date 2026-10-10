@@ -4,8 +4,8 @@
 <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Your refund of {{ amount }} is on its way, {{ b.first_name }}.</h1>
 <p style="margin:0 0 16px;">We’ve refunded <strong>{{ amount }}</strong> for booking <span style="display:inline-block;background:#f3f6fc;border-radius:10px;padding:4px 10px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0.04em;">{{ b.ref }}</span> — {{ b.package_name }}, {{ departs }} — to the card, UPI or bank account you paid with. {{ why }}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:15px;border-collapse:collapse;margin:0 0 16px;">
-<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;">Refund</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ amount }}</td></tr>
-<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Reference</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;"><span style="font-family:ui-monospace,Menlo,Consolas,monospace;">{{ refund_ref }}</span></td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;white-space:nowrap;vertical-align:top;border-top:1px solid #e3e8ec;">Refund</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;">{{ amount }}</td></tr>
+<tr><td style="padding:7px 12px 7px 0;color:#5e6b76;white-space:nowrap;vertical-align:top;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;">Reference</td><td style="padding:7px 0;border-top:1px solid #e3e8ec;border-bottom:1px solid #e3e8ec;"><span style="font-family:ui-monospace,Menlo,Consolas,monospace;">{{ refund_ref }}</span></td></tr>
 </table>
 <p style="margin:0 0 16px;color:#5e6b76;">Banks usually show it within 5–7 working days. If it hasn’t arrived by then, reply with the reference above and we’ll chase it. {{ demo_note }}</p>
 <p style="margin:0 0 8px;">

@@ -40,7 +40,8 @@ export function ReviewPanel({
   if (!review && !canReview) return null;
   return (
     <section
-      className="grid gap-3 rounded-card border border-line p-5"
+      id="review"
+      className="grid scroll-mt-24 gap-3 rounded-card border border-line p-5"
       aria-labelledby="review-title"
     >
       <h2 id="review-title" className="text-[18px]">

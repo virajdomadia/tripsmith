@@ -456,3 +456,64 @@ async def _lapse_other(db: AsyncSession, client: AsyncClient, dep: Departure) ->
     )
     assert res.status_code == 201, res.text
     await _lapse_yesterday(db, res.json()["bookingRef"])
+
+
+# --- migration 0023's backfill ------------------------------------------------------------------
+
+
+def _migration() -> Any:
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "alembic/versions/0023_email_ledger.py"
+    spec = importlib.util.spec_from_file_location("m0023", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.db
+async def test_the_backfill_turns_p5_claims_and_old_refunds_into_ledger_rows(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+) -> None:
+    from tests.test_deposits import on_deposit, reminded, set_due
+
+    ref, _, _ = await on_deposit(db, db_app, db_client)
+    due = ist_today() + dt.timedelta(days=7)
+    await set_due(db, ref, due)
+    assert await reminded(db_client, db_app) == 1
+    bid = (await db.execute(select(Booking.id).where(Booking.ref == ref))).scalar_one()
+    pay = (await db.execute(select(Payment.id).where(Payment.booking_id == bid))).scalars().first()
+    assert pay is not None
+    refund_id = "rf_p15_backfill"
+    refund = Refund(
+        id=refund_id,
+        booking_id=bid,
+        payment_id=pay,
+        amount_paise=1_000_00,
+        reason="surplus",
+        status=RefundStatus.PROCESSED,
+        razorpay_refund_id="rfnd_P15Backfill01",
+    )
+    db.add(refund)
+    await db.commit()
+    # As before 0023: the history holds the P5 claim, the ledger nothing.
+    await db.execute(delete(EmailSend))
+    await db.commit()
+    m = _migration()
+    conn = await db.connection()
+    for sql in (m.BACKFILL_REMINDERS, m.BACKFILL_REMINDERS, m.BACKFILL_REFUNDS):  # re-runnable
+        await conn.exec_driver_sql(sql)
+    await db.commit()
+    db.expire_all()
+    rows = (await db.execute(select(EmailSend).order_by(EmailSend.type))).scalars().all()
+    assert sorted((r.key, r.state) for r in rows) == sorted(
+        [
+            (automatic.key_of(EmailType.BALANCE_REMINDER, bid, 7, due), EmailSendState.SENT),
+            (automatic.refund_key(refund_id), EmailSendState.SKIPPED),
+        ]
+    )
+    # So deploy day reminds nobody twice, and no old refund is announced.
+    report = await run_emails(db_client, db_app)
+    assert (_sent(report, EmailType.BALANCE_REMINDER), _sent(report, EmailType.REFUND)) == (0, 0)

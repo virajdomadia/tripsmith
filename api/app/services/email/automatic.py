@@ -105,6 +105,9 @@ UNSUBSCRIBE_WHY = {
     EmailType.REVIEW_REQUEST: "You got this because you travelled with us.",
     EmailType.STILL_THINKING: "You got this because you started a booking.",
 }
+# Nothing was paid for these two: the booking emails' "test payment" note would be wrong.
+DEMO_NOTE_UNPAID = "Demo site: no real trip is booked."
+
 REFUND_WHY = {
     "cancellation": "It’s the refund for your cancellation.",
     "seats_gone": "Your payment arrived after the last seats had gone, so it all comes back.",
@@ -703,6 +706,7 @@ async def _render_review(db: AsyncSession, due: Due, settings: Settings, today: 
     vars = {
         **_vars(facts, settings),
         "review_url": f"{site}/account/bookings/{facts.ref}#review",
+        "demo_note": DEMO_NOTE_UNPAID,
     }
     message = _unsubscribable(
         facts.lead_email,
@@ -798,6 +802,7 @@ async def _render_still_thinking(db: AsyncSession, due: Due, settings: Settings,
         "party": prefill.party,
         "date_label": long_date(prefill.date) if prefill.date else None,
         "url": url,
+        "demo_note": DEMO_NOTE_UNPAID,
     }
     message = _unsubscribable(
         facts.lead_email,

@@ -23,6 +23,7 @@ import {
   type Quote,
   quoteEmail,
   quoteTravellers,
+  type Prefill,
   type Rooms,
   slotsFor,
   type TravellerInput,
@@ -112,7 +113,12 @@ async function readError(res: Response): Promise<ApiRequestError> {
  * added back to that date's count (the api's `seatsLeft` subtracts them), and the quote and the
  * order carry the token so the api does the same.
  */
-export function useBooking(pkg: BookingPackage, open: boolean, claimToken: string | null = null) {
+export function useBooking(
+  pkg: BookingPackage,
+  open: boolean,
+  claimToken: string | null = null,
+  prefill: Prefill | null = null,
+) {
   const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
   const [departureId, setDepartureId] = useState<string | null>(null);
@@ -248,6 +254,21 @@ export function useBooking(pkg: BookingPackage, open: boolean, claimToken: strin
       email: claim.email,
     }));
   }, [claim, claimDeparture]);
+
+  // R53 (P15): the still-thinking link's party, and its date while this party can still book it
+  // — once, before the visitor touches anything; otherwise the first bookable date as usual.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (!prefill || prefilled.current || claimToken) return;
+    prefilled.current = true;
+    setRooms(prefill.rooms);
+    const match = prefill.date
+      ? departures.find(
+          (d) => d.date === prefill.date && !unbookableReason(d, partySize(prefill.rooms), today),
+        )
+      : undefined;
+    if (match) setDepartureId(match.id);
+  }, [prefill, claimToken, departures, today]);
 
   // Start on the first date this party can book. After a date sold out under the visitor
   // (`gone`), nothing is picked for them: R14 sends them back to choosing.

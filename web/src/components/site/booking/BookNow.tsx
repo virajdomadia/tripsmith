@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { type Prefill, prefillFromSearch } from '@/lib/booking';
 import { claimFromSearch } from '@/lib/waitlist';
 import type { BookingPackage } from './use-booking';
 
@@ -42,7 +43,8 @@ const BookNowContext = createContext<Ctx | null>(null);
  * Wraps the package page so both entry points — the desktop PriceBox and the phone's sticky
  * bar — open the one sheet, whose state (date, party, contact) survives closing it. `#book` in
  * the URL opens it on arrival, once the page has loaded (`afterLoad`). A waitlist offer's link
- * (`?claim=…#book`, R44) opens it the same way, in claim mode.
+ * (`?claim=…#book`, R44) opens it the same way, in claim mode, and the still-thinking email's
+ * (`?date=…&double=…#book`, R53) with the party and date the visitor held.
  */
 export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -51,11 +53,13 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   // Set once the visitor opens the sheet: a late `#book` auto-open must not reopen one they closed.
   const touched = useRef(false);
   const [claim, setClaim] = useState<string | null>(null);
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
 
   useEffect(() => {
     setHydrated(true);
     const token = claimFromSearch(window.location.search);
     setClaim(token);
+    if (!token) setPrefill(prefillFromSearch(window.location.search));
     if (window.location.hash !== '#book' && !token) return;
     return afterLoad(() => {
       if (touched.current) return;
@@ -77,7 +81,15 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   return (
     <BookNowContext.Provider value={value}>
       {children}
-      {mounted && <BookingSheet pkg={pkg} open={open} onOpenChange={setOpen} claim={claim} />}
+      {mounted && (
+        <BookingSheet
+          pkg={pkg}
+          open={open}
+          onOpenChange={setOpen}
+          claim={claim}
+          prefill={prefill}
+        />
+      )}
     </BookNowContext.Provider>
   );
 }

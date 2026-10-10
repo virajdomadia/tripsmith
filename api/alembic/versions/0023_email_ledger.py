@@ -34,6 +34,34 @@ TYPES = (
     "'refund'"
 )
 
+# The keys match services/email/automatic.py `key_of` / `refund_key` (tested in
+# tests/test_auto_emails.py, which runs these two statements against real rows).
+BACKFILL_REMINDERS = """
+        INSERT INTO email_sends
+            (id, key, type, booking_id, email, package_id, stage, anchor, state, sent_at,
+             created_at, updated_at)
+        SELECT DISTINCT ON (e.booking_id, e.after->>'stage', e.after->>'dueOn')
+            'bf' || md5(e.id::text),
+            'balance_reminder:' || e.booking_id || ':' || (e.after->>'stage') || ':'
+                || (e.after->>'dueOn'),
+            'balance_reminder', e.booking_id, lower(b.contact_email), b.package_id,
+            (e.after->>'stage')::smallint, (e.after->>'dueOn')::date, 'sent', e.at, e.at, e.at
+        FROM booking_events e JOIN bookings b ON b.id = e.booking_id
+        WHERE e.kind = 'balance.reminder' AND e.after ? 'stage' AND e.after ? 'dueOn'
+        ORDER BY e.booking_id, e.after->>'stage', e.after->>'dueOn', e.at
+        ON CONFLICT (key) DO NOTHING
+        """
+
+BACKFILL_REFUNDS = """
+        INSERT INTO email_sends
+            (id, key, type, booking_id, email, package_id, state, created_at, updated_at)
+        SELECT 'bf' || md5(r.id), 'refund:' || r.id, 'refund', r.booking_id,
+            lower(b.contact_email), b.package_id, 'skipped', now(), now()
+        FROM refunds r JOIN bookings b ON b.id = r.booking_id
+        WHERE r.status = 'processed'
+        ON CONFLICT (key) DO NOTHING
+        """
+
 
 def upgrade() -> None:
     op.execute("SET LOCAL lock_timeout = '5s'")
@@ -112,34 +140,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("email", "type", name=op.f("pk_email_suppressions")),
     )
     # P5's reminder claims → the ledger, under the key services/email/automatic.py uses.
-    op.execute(
-        """
-        INSERT INTO email_sends
-            (id, key, type, booking_id, email, package_id, stage, anchor, state, sent_at,
-             created_at, updated_at)
-        SELECT DISTINCT ON (e.booking_id, e.after->>'stage', e.after->>'dueOn')
-            'bf' || md5(e.id::text),
-            'balance_reminder:' || e.booking_id || ':' || (e.after->>'stage') || ':'
-                || (e.after->>'dueOn'),
-            'balance_reminder', e.booking_id, lower(b.contact_email), b.package_id,
-            (e.after->>'stage')::smallint, (e.after->>'dueOn')::date, 'sent', e.at, e.at, e.at
-        FROM booking_events e JOIN bookings b ON b.id = e.booking_id
-        WHERE e.kind = 'balance.reminder' AND e.after ? 'stage' AND e.after ? 'dueOn'
-        ORDER BY e.booking_id, e.after->>'stage', e.after->>'dueOn', e.at
-        ON CONFLICT (key) DO NOTHING
-        """
-    )
-    op.execute(
-        """
-        INSERT INTO email_sends
-            (id, key, type, booking_id, email, package_id, state, created_at, updated_at)
-        SELECT 'bf' || md5(r.id), 'refund:' || r.id, 'refund', r.booking_id,
-            lower(b.contact_email), b.package_id, 'skipped', now(), now()
-        FROM refunds r JOIN bookings b ON b.id = r.booking_id
-        WHERE r.status = 'processed'
-        ON CONFLICT (key) DO NOTHING
-        """
-    )
+    op.execute(BACKFILL_REMINDERS)
+    op.execute(BACKFILL_REFUNDS)
 
 
 def downgrade() -> None:

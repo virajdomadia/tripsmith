@@ -5,6 +5,10 @@ name: Waitlist tick
 # once a day; a GitHub schedule is free on a public repo. GitHub may start a scheduled run late
 # (or skip one under load) — `/cron/daily` and every booking, join and claim read walk too.
 #
+# P15 (R53): between 09:00 and 21:00 IST it also calls /cron/emails, so a run that stopped at its
+# limit or a failed send goes on within minutes (the ledger never sends twice). The Vercel cron
+# at 09:00 IST is the backstop.
+#
 # Needs the repo secret CRON_SECRET (the api's own CRON_SECRET). Without it the job is a no-op.
 
 on:
@@ -21,7 +25,7 @@ concurrency:
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
       - name: Walk the waitlists
         env:
@@ -34,3 +38,19 @@ jobs:
           fi
           curl --fail-with-body --silent --show-error --max-time 60 \
             -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/waitlist"
+
+      - name: Send the automatic emails (09:00–21:00 IST)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          API_URL: https://tripsmith-api.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set — skipping"
+            exit 0
+          fi
+          hour=$(TZ=Asia/Kolkata date +%H)
+          if [ "$hour" -lt 9 ] || [ "$hour" -ge 21 ]; then
+            echo "Outside 09:00–21:00 IST — no emails now"
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60             -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/emails"
