@@ -1860,6 +1860,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/unsubscribe/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Unsubscribe */
+        get: operations["getUnsubscribe"];
+        put?: never;
+        /** Post Unsubscribe */
+        post: operations["unsubscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/views": {
         parameters: {
             query?: never;
@@ -7585,6 +7603,29 @@ export interface components {
          * @enum {string}
          */
         UnbookableReason: "on_request" | "too_soon" | "sold_out";
+        /**
+         * Unsubscribe
+         * @description What an unsubscribe link names — the address masked.
+         */
+        Unsubscribe: {
+            /**
+             * Email
+             * @description Masked, e.g. "a***@gmail.com"
+             */
+            email: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "review_request" | "still_thinking";
+            /**
+             * Label
+             * @description "review requests" / "still-thinking reminders"
+             */
+            label: string;
+            /** Unsubscribed */
+            unsubscribed: boolean;
+        };
         /** UpcomingDeparture */
         UpcomingDeparture: {
             /** @description `pricing.badge_for`, the same rule the public departure table shows */
@@ -11550,6 +11591,82 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicReviewPage"];
                 };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getUnsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unsubscribe"];
+                };
+            };
+            /** @description The link doesn't verify */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unsubscribe"];
+                };
+            };
+            /** @description The link doesn't verify */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error envelope (06 C0) */
             default: {

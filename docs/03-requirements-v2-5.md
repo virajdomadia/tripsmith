@@ -115,7 +115,7 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **State:** a paid deposit moves the booking from `pending` to `partially_paid` (the status already existed, and the seat view already counts it); the part that clears the balance moves it to `confirmed`, so `confirmed` always means paid in full. Migration 0016 adds `bookings.deposit_paise` (null = pay in full) and `bookings.balance_due_on`, `packages.deposit_on` (default on), and the cancel reason `balance_unpaid`. The 25 %, the 30 days, the 2 days' grace and the ₹1,000 minimum are constants in code. Add-on D's unused `split` column is left alone.
   - **Rounding:** the deposit is rounded **up** to the whole rupee, so it is never under 25 % and the balance stays in whole rupees. A part is at least ₹1,000 unless less than that is left, when the remainder is the last part.
   - **Add-ons** picked at checkout count in the 25 %. **Extras added later** stay as P8b built them: paid in full at once with their own invoice; the balance does not move. When the owner removes a checkout add-on from a booking still on its deposit, its price comes off the balance first, and only money paid beyond the new total is refunded.
-  - **Reminders are built in this row:** `/cron/daily` sends −7, −3 and due-day reminders, each recorded once in the history log so a re-run sends nothing twice, and the customer is emailed when the booking is cancelled. P15 later puts them under its switches and previews.
+  - **Reminders are built in this row:** `/cron/daily` sends −7, −3 and due-day reminders, each recorded once in the history log so a re-run sends nothing twice, and the customer is emailed when the booking is cancelled. P15 later puts them under its switches and previews. *(Moved to `/cron/emails` at 09:00 IST in P15, R53; the 01:00 tidy keeps the overdue cancellation.)*
   - **GST as P13:** a receipt for every part, the tax invoice once paid in full. A `balance_unpaid` cancellation never had an invoice, so its refund has no credit note. The cancel lands 28 days out (the 50 %-retained tier), so the refund is paid − half the price, usually ₹0: the deposit is kept.
   - **Two PRs:** P5a customer path (0016 with all the schema, pay choice on the sheet, deposit capture, pay the balance in My trips, voucher "Balance due", reminders and the overdue cancel), then P5b owner (desk filter and column, CSV, mark the balance paid offline, extend the due date up to the departure day, logged, and the per-package switch).
   - **Built in P5b (2026-10-01):** an extension may move the due day as late as departure − 3 days (not the departure day itself), so the 2-day grace ends before the trip and the tidy's cancel lands on the departure day at the latest; it can't be set in the past. The desk gets a "Deposit paid" tab and a "Balance due" tile; marking the balance paid records the whole balance as one offline payment.
@@ -377,6 +377,33 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - Only the review request and the still-thinking email carry an unsubscribe link.
 - **Owner, `/admin/settings/emails`:** switch each type on or off, preview it with real data, send a test to yourself.
 - No coupon for reviews, and no "starts tomorrow" email.
+- **Decided at row start (Viraj, 2026-10-10):**
+  - **Storage (migration 0023, expand-first, new tables only):**
+    - `email_sends` is the ledger: booking_id (null for still-thinking), email (lower-case), package_id, type, stage (smallint), anchor date, state (`sending`, `sent`, `held`, `failed`, `skipped`), attempts, last error kind, sent_at, created_at. One unique `key` holds the rule: `<type>:<booking>:<stage>:<anchor>` for booking emails, `still_thinking:<email>:<package>`, and `refund:<refund id>` (built in P15a — one index covers all three).
+    - `email_switches`: type (primary key), on, updated_at, updated_by. A missing row means on.
+    - `email_suppressions`: (email, type) primary key, created_at.
+    - The migration copies the P5 `balance.reminder` history claims into the ledger, so nothing is reminded twice on deploy day.
+  - **Under the ledger and the switches (default on):** balance reminders, details reminders, trip pack, review request, still-thinking. P5's reminders move off their `booking_events` claim; the history entry keeps its wording.
+  - **Always on (no switch):** confirmation, the overdue `balance_unpaid` cancellation and its email (a policy action, still in the 01:00 tidy), date change and move, cancellation and its resolution, refund, waitlist offer and lapse, sign-in.
+  - **Triggers (IST) and who gets them:**
+    - Balance: 7 and 3 days before the due day, and on it — `partially_paid`.
+    - Details missing: 14 and 5 days before departure — `confirmed` or `partially_paid`, details still open (before the lock) and someone still owes a required field.
+    - Trip pack: 3 days before departure, the PDF attached — `confirmed` and the pack open. A part-paid booking is skipped (it can only be part-paid at −3 after an extended due day, whose own reminder goes that day); once paid it gets the pack on the next run.
+    - Review request: 2 days after return (departure + nights) — `completed`, no review yet.
+    - Every type skips a booking with an open cancellation request.
+  - **Re-arming:** the ledger's anchor is the departure date (the due date for balance). A date change, an owner move to another date or an extended due day re-arms every stage; a move that keeps the date sends nothing again.
+  - **Catch-up:** a missed run (cron down, failure) sends the latest stage that is due on the next run, never two stages of one type in one run.
+  - **Still-thinking:**
+    - A lapse is a `web`-channel hold cancelled `hold_expired` whose hold ended yesterday (IST). Counter links and waitlist claims are left out — they have their own emails.
+    - "No later booking": that email has no booking created after the lapsed hold, on any package, other than another lapsed hold.
+    - Once per email per package; skipped when the address unsubscribed or the package has no bookable future departure.
+    - The link pre-fills the sheet with plain parameters (no personal data, no signature): `/packages/<slug>?date=YYYY-MM-DD&double=1&triple=0&single=0&children=1#book`. The date is dropped when that departure is gone or full; add-ons are not carried.
+  - **Unsubscribe:** only on the review request and still-thinking; per address and per type. A signed link `unsub:{email}:{type}` opens `/unsubscribe?t=…` with a confirm button (POST), and the emails carry `List-Unsubscribe` + `List-Unsubscribe-Post` for one-click.
+  - **New instant email:** "Your refund of ₹X is on its way" when Razorpay reports the refund processed. Confirmation, date change and cancellations already log to the history; waitlist offers have no booking and stay logged on the entry.
+  - **Cron:** a new Vercel cron `/cron/emails` at 09:00 IST (`30 3 * * *`), 20 s budget and at most 25 emails a run. Each claim is committed before its send; failed rows are retried up to 3 attempts. The 15-minute GitHub tick also calls it between 09:00 and 21:00 IST to drain leftovers and retries (needs the CRON_SECRET repo secret). A cron re-run sends nothing twice (tested).
+  - **Owner:** a "Settings" item at the foot of the admin nav (style A) opens `/admin/settings/emails`: per type a switch, its trigger in plain words, the count sent in the last 30 days, Preview (pick a real booking that fits, rendered in a sandboxed iframe, nothing logged) and Send test (to `OWNER_NOTIFY_EMAIL`, subject `[Test]`).
+  - **Emails list (booking detail C):** the emails already sent (from the history) plus "Coming up", computed from the same rules, with each type's switch state ("Trip pack · 10 Nov · off").
+  - **Two PRs:** P15a engine — 0023, ledger, switches, `/cron/emails`, the five types, the refund email, unsubscribe, the sheet's prefill; P15b owner — settings page with preview and test send, the Emails list.
 
 ### R54. Per-booking history log (P16)
 - **Each entry records:** every change to a booking, with the time in IST, the actor (owner, customer, webhook, cron, system), a plain-words description, and before/after values where useful.

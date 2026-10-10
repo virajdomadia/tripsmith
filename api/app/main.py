@@ -35,7 +35,7 @@ from app.routers.admin import leaders as admin_leaders
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
 from app.routers.admin import reviews as admin_reviews
-from app.routers.cron import daily, pdf_gc
+from app.routers.cron import daily, emails, pdf_gc
 from app.routers.cron import waitlist as waitlist_tick
 from app.routers.site import (
     account,
@@ -46,6 +46,7 @@ from app.routers.site import (
     health,
     meta,
     pdf,
+    unsubscribe,
     views,
     vouchers,
     waitlist,
@@ -147,9 +148,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(webhooks.router)
     app.include_router(views.router)
     app.include_router(waitlist.router)
+    app.include_router(unsubscribe.router)
     app.include_router(pdf_gc.router)
     app.include_router(daily.router)
     app.include_router(waitlist_tick.router)
+    app.include_router(emails.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`

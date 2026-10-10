@@ -32,6 +32,7 @@ from app.models.catalog import (
 )
 from app.models.coupons import Coupon, coupon_packages
 from app.models.details import TravellerDetail
+from app.models.emails import EmailSend, EmailSuppression, EmailSwitch
 from app.models.enquiries import Enquiry, EnquiryMessage, EnquiryNote
 from app.models.waitlist import WaitlistEntry
 
@@ -44,6 +45,9 @@ __all__ = [
     "BookingTraveller",
     "Coupon",
     "DateChange",
+    "EmailSend",
+    "EmailSuppression",
+    "EmailSwitch",
     "Departure",
     "Destination",
     "Enquiry",

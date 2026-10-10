@@ -13,6 +13,7 @@ import {
   istToday,
   orderBody,
   partySize,
+  prefillFromSearch,
   quoteTravellers,
   type Rooms,
   slotsFor,
@@ -259,5 +260,28 @@ describe('add-ons (P8)', () => {
       { addonId: 'car' },
     ]);
     expect(orderBody('d', slots, who, contact)).not.toHaveProperty('addons');
+  });
+});
+
+describe('prefillFromSearch (R53, P15 still-thinking link)', () => {
+  it('reads the party and the date', () => {
+    expect(prefillFromSearch('?date=2099-11-13&double=1&triple=0&single=0&children=1')).toEqual({
+      date: '2099-11-13',
+      rooms: { double: 1, triple: 0, single: 0, children: 1 },
+    });
+  });
+  it('keeps the party when the date is missing or malformed', () => {
+    expect(prefillFromSearch('?single=2&date=13-11-2099')).toEqual({
+      date: null,
+      rooms: { double: 0, triple: 0, single: 2, children: 0 },
+    });
+  });
+  it('ignores a page with no party, a party with no adult, or one over 12', () => {
+    expect(prefillFromSearch('')).toBeNull();
+    expect(prefillFromSearch('?claim=abc')).toBeNull();
+    expect(prefillFromSearch('?children=2')).toBeNull();
+    expect(prefillFromSearch('?triple=4&single=1')).toBeNull();
+    expect(prefillFromSearch('?double=-1')).toBeNull();
+    expect(prefillFromSearch('?double=1.5')).toBeNull();
   });
 });

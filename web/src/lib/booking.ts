@@ -93,6 +93,31 @@ export function slotsFor(r: Rooms): Slot[] {
   return slots;
 }
 
+/** R53 (P15): what the still-thinking email's link carries — the party (and the date) held. */
+export type Prefill = { date: string | null; rooms: Rooms };
+
+const ROOM_KINDS = ['double', 'triple', 'single', 'children'] as const;
+
+/**
+ * `?date=YYYY-MM-DD&double=1&triple=0&single=0&children=1` → the sheet's starting party and
+ * date. Plain numbers, no personal data, so nothing is signed; a party the sheet couldn't build
+ * (no adult, over 12) is ignored whole, and a malformed date is dropped.
+ */
+export function prefillFromSearch(search: string): Prefill | null {
+  const q = new URLSearchParams(search);
+  if (!ROOM_KINDS.some((k) => q.has(k))) return null;
+  const rooms: Rooms = { double: 0, triple: 0, single: 0, children: 0 };
+  for (const k of ROOM_KINDS) {
+    const raw = q.get(k);
+    if (raw === null) continue;
+    if (!/^\d{1,2}$/.test(raw)) return null;
+    rooms[k] = Number(raw);
+  }
+  if (adultsIn(rooms) === 0 || partySize(rooms) > MAX_TRAVELLERS) return null;
+  const date = q.get('date');
+  return { date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null, rooms };
+}
+
 /** Occupancies only — what a quote needs. */
 export const quoteTravellers = (r: Rooms) =>
   slotsFor(r).map((s) => ({ occupancy: s.occupancy }) as const);

@@ -16,7 +16,8 @@ IST midnight, so `ist_today()` is the new day:
 7. (P17) revalidate the pages of packages where an early-bird tier ended at IST midnight, so the
    "Early-bird savings" tag and the date labels move on without a deploy;
 8. (P5) cancel bookings whose balance is past its 2-day grace (`balance_unpaid`, the policy's
-   refund sent), then send today's balance reminders — each once (services/booking/balance.py).
+   refund sent; services/booking/balance.py). The reminders moved to `/cron/emails` (P15, R53)
+   at 09:00 IST with the other automatic emails.
 9. (P6) walk every departure with a waitlist — the backstop behind the 15-minute
    `/cron/waitlist` — after the sweep, so seats an expired link gave back are offered, then
    send the emails that owes.
@@ -81,7 +82,6 @@ async def daily(
         refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
         early_birds_ended=await revalidate_ended_early_birds(db, today=today),
         balances_cancelled=balances.cancelled,
-        balance_reminders=balances.reminded,
         waitlist_offers=walked.offered,
         waitlist_lapsed=walked.lapsed,
         details_purged=purged,

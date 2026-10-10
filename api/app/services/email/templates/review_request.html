@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% set title = "How was " ~ b.package_name ~ "?" %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">Welcome back, {{ b.first_name }}. How was {{ b.package_name }}?</h1>
+<p style="margin:0 0 16px;">You got back {{ returns }}. A few honest lines help the next traveller choose — what you loved, and what we should fix. It takes two minutes, and your review shows as a <strong>Verified traveller</strong> once it’s published.</p>
+<p style="margin:0 0 16px;">
+<a href="{{ review_url }}" style="display:inline-block;background:#f2a93b;color:#14202a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:12px;">Write your review</a>
+</p>
+<p style="margin:0 0 16px;color:#5e6b76;">Something went wrong on the trip? Just reply to this email — it reaches us directly. {{ demo_note }}</p>
+{% endblock %}

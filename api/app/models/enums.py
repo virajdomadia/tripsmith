@@ -189,3 +189,27 @@ class FoodChoice(StrEnum):
     NON_VEG = "non_veg"
     JAIN = "jain"
     VEGAN = "vegan"
+
+
+class EmailType(StrEnum):
+    """The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five
+    are the automatic ones the owner can switch off; a refund email always goes."""
+
+    BALANCE_REMINDER = "balance_reminder"
+    DETAILS_REMINDER = "details_reminder"
+    TRIP_PACK = "trip_pack"
+    REVIEW_REQUEST = "review_request"
+    STILL_THINKING = "still_thinking"
+    REFUND = "refund"
+
+
+class EmailSendState(StrEnum):
+    """One ledger row's send: `sending` is claimed (committed) before the send, so a crash
+    mid-send never sends twice; `held` = demo mode redirected it to the owner; `skipped` = no
+    longer due when rendered, or email delivery is off; `failed` is retried up to 3 attempts."""
+
+    SENDING = "sending"
+    SENT = "sent"
+    HELD = "held"
+    FAILED = "failed"
+    SKIPPED = "skipped"

@@ -16,7 +16,7 @@ recorded once and is one of the readiness parts (details.py).
 
 import datetime as dt
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +45,9 @@ from app.schemas.trip_pack import (
 from app.services.booking import history
 from app.services.booking.details import purge_on
 from app.services.format import meals_label
+
+if TYPE_CHECKING:
+    from app.services.pdf.trip_pack import PackSheet
 
 OPEN_DAYS = 7
 HAS_PACK = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
@@ -181,6 +184,38 @@ async def load(db: AsyncSession, ref: str) -> tuple[Booking, Package, Departure]
     ).scalar_one()
     assert dep is not None
     return booking, pkg, dep
+
+
+async def sheet_of(
+    db: AsyncSession, ref: str, *, today: dt.date
+) -> tuple["PackSheet", PackState] | None:
+    """What the PDF prints, and the pack's state today — None when the booking has no pack
+    (pending, cancelled, unknown). The PDF route (any state for the owner) and the −3 day email
+    (open only, R53) share it. The caller ends the transaction before rendering."""
+    from app.services.pdf.trip_pack import PackSheet
+
+    found = await load(db, ref)
+    if found is None:
+        return None
+    booking, pkg, dep = found
+    returns = dep.date + dt.timedelta(days=pkg.nights)
+    state = state_of(booking.status, dep.date, returns, today)
+    if state is None:
+        return None
+    sheet = PackSheet(
+        ref=booking.ref,
+        package_name=pkg.name,
+        destination=pkg.destination.name,
+        nights=pkg.nights,
+        days=pkg.days,
+        departs=dep.date,
+        returns=returns,
+        party=len(booking.travellers),
+        lead_name=booking.contact_name,
+        content=await content_of(db, pkg, dep),
+        preview=state != "open",
+    )
+    return sheet, state
 
 
 async def mark_read(db: AsyncSession, ref: str, *, today: dt.date) -> None:

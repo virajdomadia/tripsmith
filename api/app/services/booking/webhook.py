@@ -37,6 +37,7 @@ from app.services.booking.payments import (
     map_link_order,
 )
 from app.services.booking.refunds import apply_refund, failure_reason
+from app.services.email.automatic import send_refund_emails
 
 Outcome = Literal["captured", "replayed", "failed", "refund", "ignored"]
 REFUND_EVENTS = {"refund.processed": RefundStatus.PROCESSED, "refund.failed": RefundStatus.FAILED}
@@ -69,7 +70,7 @@ async def handle_razorpay_event(
 ) -> Outcome:
     kind = event.get("event")
     if kind in REFUND_EVENTS:
-        return await _refund_event(db, event, REFUND_EVENTS[kind])
+        return await _refund_event(db, event, REFUND_EVENTS[kind], notify)
     if kind not in ("payment.captured", "payment.failed"):
         return "ignored"
     ids = _payment_entity(event)
@@ -124,7 +125,9 @@ async def handle_razorpay_event(
     return "captured"
 
 
-async def _refund_event(db: AsyncSession, event: dict[str, Any], status: RefundStatus) -> Outcome:
+async def _refund_event(
+    db: AsyncSession, event: dict[str, Any], status: RefundStatus, notify: Notify | None = None
+) -> Outcome:
     payload = event.get("payload")
     holder = payload.get("refund") if isinstance(payload, dict) else None
     entity = holder.get("entity") if isinstance(holder, dict) else None
@@ -139,13 +142,14 @@ async def _refund_event(db: AsyncSession, event: dict[str, Any], status: RefundS
         conds.append(Refund.razorpay_refund_id == rzp_id)
     if isinstance(ours, str) and ours:
         conds.append(Refund.id == ours)
-    refund_id = (
-        (await db.execute(select(Refund.id).where(or_(*conds)).limit(1))).scalar_one_or_none()
+    found = (
+        (await db.execute(select(Refund.id, Refund.booking_id).where(or_(*conds)).limit(1))).first()
         if conds
         else None
     )
     await db.rollback()
-    if refund_id is None:
+    refund_id, booking_id = found if found else (None, None)
+    if refund_id is None or booking_id is None:
         log.info("Razorpay refund %s is not one of ours — ignored", rzp_id)
         return "ignored"
     changed = await apply_refund(
@@ -157,6 +161,10 @@ async def _refund_event(db: AsyncSession, event: dict[str, Any], status: RefundS
         raw=event,
         error=failure_reason(entity, failed=status == RefundStatus.FAILED),
     )
+    if status == RefundStatus.PROCESSED and notify is not None:
+        # P15 (R53): "your refund is on its way", once per refund (the ledger) — also when the
+        # call's own answer already marked it processed and this event changes nothing.
+        await send_refund_emails(db, notify, booking_id)
     return "refund" if changed else "replayed"
 
 

@@ -7,6 +7,7 @@ import asyncio
 import csv
 import io
 import os
+from typing import Any
 
 import pytest
 from alembic import command
@@ -65,6 +66,15 @@ async def run_daily(client: AsyncClient, app: FastAPI) -> dict[str, object]:
     secret = app.state.settings.cron_secret
     headers = {"Authorization": f"Bearer {secret.get_secret_value()}"} if secret else {}
     res = await client.get("/cron/daily", headers=headers)
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+async def run_emails(client: AsyncClient, app: FastAPI) -> dict[str, Any]:
+    """P15 (R53): `/cron/emails` — the automatic emails."""
+    secret = app.state.settings.cron_secret
+    headers = {"Authorization": f"Bearer {secret.get_secret_value()}"} if secret else {}
+    res = await client.get("/cron/emails", headers=headers)
     assert res.status_code == 200, res.text
     return res.json()
 

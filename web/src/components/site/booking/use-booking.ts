@@ -23,6 +23,7 @@ import {
   type Quote,
   quoteEmail,
   quoteTravellers,
+  type Prefill,
   type Rooms,
   slotsFor,
   type TravellerInput,
@@ -112,11 +113,29 @@ async function readError(res: Response): Promise<ApiRequestError> {
  * added back to that date's count (the api's `seatsLeft` subtracts them), and the quote and the
  * order carry the token so the api does the same.
  */
-export function useBooking(pkg: BookingPackage, open: boolean, claimToken: string | null = null) {
+export function useBooking(
+  pkg: BookingPackage,
+  open: boolean,
+  claimToken: string | null = null,
+  prefill: Prefill | null = null,
+) {
   const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
-  const [departureId, setDepartureId] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<Rooms>({ double: 1, triple: 0, single: 0, children: 0 });
+  // R53 (P15): the still-thinking link's party, and its date while this party can still book it,
+  // are the sheet's starting state (never with a waitlist claim) — set in the initialisers so the
+  // "first bookable date" effect below never overwrites them.
+  const start = claimToken ? null : prefill;
+  const [departureId, setDepartureId] = useState<string | null>(() => {
+    if (!start?.date) return null;
+    const today = istToday();
+    const match = pkg.departures.find(
+      (d) => d.date === start.date && !unbookableReason(d, partySize(start.rooms), today),
+    );
+    return match?.id ?? null;
+  });
+  const [rooms, setRooms] = useState<Rooms>(
+    () => start?.rooms ?? { double: 1, triple: 0, single: 0, children: 0 },
+  );
   const [travellers, setTravellers] = useState<Record<string, TravellerInput>>({});
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [errors, setErrors] = useState<Record<string, string>>({});

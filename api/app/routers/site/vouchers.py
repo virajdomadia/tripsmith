@@ -12,7 +12,6 @@ voucher (404). `private, no-store`: it carries names, ages and a phone number.
 """
 
 import asyncio
-import datetime as dt
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
@@ -30,7 +29,7 @@ from app.services.auth.deps import current_session
 from app.services.booking import trip_pack
 from app.services.booking.voucher import HAS_VOUCHER, link_is_valid, load_booking_facts
 from app.services.gst.files import document_pdf
-from app.services.pdf.trip_pack import PackSheet, render_trip_pack, trip_pack_filename
+from app.services.pdf.trip_pack import render_trip_pack, trip_pack_filename
 from app.services.pdf.voucher import render_voucher, voucher_filename
 
 DocumentKey = Annotated[
@@ -137,29 +136,12 @@ async def get_trip_pack_pdf(
         raise ApiError("forbidden", "This booking is not on your account")
     today = ist_today()
     try:
-        found = await trip_pack.load(db, ref)
+        found = await trip_pack.sheet_of(db, ref, today=today)
         if found is None:
             raise ApiError("not_found", "This booking has no trip pack")
-        booking, pkg, dep = found
-        returns = dep.date + dt.timedelta(days=pkg.nights)
-        state = trip_pack.state_of(booking.status, dep.date, returns, today)
-        if state is None:
-            raise ApiError("not_found", "This booking has no trip pack")
+        sheet, state = found
         if not owner and state != "open":
             raise ApiError("conflict", trip_pack.LOCKED, reason="pack_locked")
-        sheet = PackSheet(
-            ref=booking.ref,
-            package_name=pkg.name,
-            destination=pkg.destination.name,
-            nights=pkg.nights,
-            days=pkg.days,
-            departs=dep.date,
-            returns=returns,
-            party=len(booking.travellers),
-            lead_name=booking.contact_name,
-            content=await trip_pack.content_of(db, pkg, dep),
-            preview=state != "open",
-        )
     finally:
         await db.rollback()  # the render below holds no connection
     if not owner:

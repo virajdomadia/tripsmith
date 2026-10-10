@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.business import refund_tier, suggested_refund_paise
 from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
-from app.models import Booking, BookingCancellation, BookingEvent, Departure, Payment, User
+from app.models import Booking, BookingCancellation, Departure, Payment, User
 from app.models.enums import (
     BookingActor,
     BookingStatus,
@@ -58,7 +58,7 @@ from app.services.booking.payments import settle_capture
 from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
 from app.services.booking.settled import Capture
 from app.services.booking.voucher import load_booking_facts, offline_label
-from app.services.email.balance import send_balance_cancelled, send_balance_reminder
+from app.services.email.balance import send_balance_cancelled
 
 NO_BALANCE = "This booking has no balance to pay"
 ASKED = "You've asked to cancel this booking, so the balance is on hold until we reply"
@@ -306,55 +306,6 @@ async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | N
 
 class BalanceSweep(NamedTuple):
     cancelled: int
-    reminded: int
-
-
-async def _reminded(db: AsyncSession, booking_id: str, stage: int, due: dt.date) -> bool:
-    return (
-        await db.execute(
-            select(BookingEvent.id).where(
-                BookingEvent.booking_id == booking_id,
-                BookingEvent.kind == REMINDER,
-                BookingEvent.after.contains({"stage": stage, "dueOn": due.isoformat()}),
-            )
-        )
-    ).first() is not None
-
-
-async def _claim_reminder(db: AsyncSession, ref: str, today: dt.date) -> int | None:
-    """Claim today's reminder for `ref` (committed) and return its stage — or None when there is
-    none to send: paid, cancelled, asked to cancel, outside the window, or already sent."""
-    try:
-        booking, _ = await lock_booking(db, ref)
-        due = booking.balance_due_on
-        stage = deposit.reminder_stage(due, today) if due else None
-        asked = (
-            await db.execute(select(_open_request()).where(Booking.id == booking.id))
-        ).scalar_one()
-        if (
-            booking.status != BookingStatus.PARTIALLY_PAID
-            or due is None
-            or stage is None
-            or asked
-            or await _reminded(db, booking.id, stage, due)
-        ):
-            await db.rollback()
-            return None
-        when = "on the due day" if stage == 0 else f"{stage} days before the due day"
-        history.record(
-            db,
-            booking.id,
-            REMINDER,
-            actor=BookingActor.CRON,
-            text=f"Balance reminder ({when}, {history.day(due)}) · "
-            f"{money(booking.total_paise - booking.paid_paise)} left",
-            after={"stage": stage, "dueOn": due.isoformat()},
-        )
-        await db.commit()
-        return stage
-    except BaseException:
-        await db.rollback()
-        raise
 
 
 async def _cancel_overdue(
@@ -421,8 +372,10 @@ async def _cancel_overdue(
 
 
 async def sweep_balances(db: AsyncSession, notify: Notify, *, today: dt.date) -> BalanceSweep:
-    """`/cron/daily`: cancel the overdue bookings first (so none of them is reminded), then send
-    today's reminders. One booking's failure is logged and never stops the rest."""
+    """`/cron/daily`: cancel the bookings whose balance is past its grace. One booking's failure
+    is logged and never stops the rest. The reminders moved to `/cron/emails` in P15 (R53,
+    services/email/automatic.py), which runs at 09:00 IST — after this, so a cancelled booking
+    is never reminded."""
     last_due = today - dt.timedelta(days=deposit.GRACE_DAYS + 1)
     overdue = (
         await db.execute(
@@ -449,33 +402,7 @@ async def sweep_balances(db: AsyncSession, notify: Notify, *, today: dt.date) ->
         await refresh_quietly(db, {package_id}, after=f"cancelling {ref} (balance unpaid)")
         await _email(db, ref, notify, cancelled=(paid, agreed, days_out))
 
-    window = (
-        (
-            await db.execute(
-                select(Booking.ref).where(
-                    Booking.status == BookingStatus.PARTIALLY_PAID,
-                    Booking.balance_due_on >= today - dt.timedelta(days=deposit.GRACE_DAYS),
-                    Booking.balance_due_on <= today + dt.timedelta(days=deposit.REMINDER_DAYS[0]),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    await db.rollback()
-    reminded = 0
-    for ref in window:
-        try:
-            stage = await _claim_reminder(db, ref, today)
-        except Exception as exc:
-            log.exception("Could not claim the balance reminder for %s", ref)
-            sentry_sdk.capture_exception(exc)
-            continue
-        if stage is None:
-            continue
-        reminded += 1
-        await _email(db, ref, notify, today=today)
-    return BalanceSweep(cancelled=cancelled, reminded=reminded)
+    return BalanceSweep(cancelled=cancelled)
 
 
 async def _email(
@@ -483,8 +410,7 @@ async def _email(
     ref: str,
     notify: Notify,
     *,
-    today: dt.date | None = None,
-    cancelled: tuple[int, int, int] | None = None,
+    cancelled: tuple[int, int, int],
 ) -> None:
     """Read the booking's facts in a short transaction, then send. Never raises."""
     try:
@@ -497,17 +423,14 @@ async def _email(
         await db.rollback()
     if facts is None:
         return
-    if cancelled is not None:
-        paid, agreed, days_out = cancelled
-        await send_balance_cancelled(
-            notify.sender,
-            notify.settings,
-            facts,
-            paid_before_paise=paid,
-            refund_paise=agreed,
-            days_out=days_out,
-            tier=refund_tier(days_out),
-            db=db,
-        )
-    elif today is not None:
-        await send_balance_reminder(notify.sender, notify.settings, facts, today=today, db=db)
+    paid, agreed, days_out = cancelled
+    await send_balance_cancelled(
+        notify.sender,
+        notify.settings,
+        facts,
+        paid_before_paise=paid,
+        refund_paise=agreed,
+        days_out=days_out,
+        tier=refund_tier(days_out),
+        db=db,
+    )

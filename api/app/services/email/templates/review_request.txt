@@ -1,0 +1,12 @@
+Welcome back, {{ b.first_name }}. How was {{ b.package_name }}?
+
+You got back {{ returns }}. A few honest lines help the next traveller choose — what you loved, and what we should fix. It takes two minutes, and your review shows as a Verified traveller once it’s published.
+
+Write your review: {{ review_url }}
+
+Something went wrong on the trip? Just reply to this email — it reaches us directly. {{ demo_note }}
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}
+{% if unsubscribe_url %}{{ unsubscribe_why }} Unsubscribe: {{ unsubscribe_url }}
+{% endif %}
