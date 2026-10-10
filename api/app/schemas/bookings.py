@@ -495,6 +495,14 @@ class PaymentResult(ApiModel):
         "PDF's signed path on this api, valid 30 minutes",
         examples=["/bookings/TB-7F3K2Q/voucher.pdf?exp=1790000000&sig=…"],
     )
+    calendar_google_url: str | None = Field(
+        default=None,
+        description="P10: with `voucherUrl` — Add to Google Calendar, a signed api path valid "
+        "30 minutes (it records the click, then redirects)",
+    )
+    calendar_ics_url: str | None = Field(
+        default=None, description="P10: the same for the `.ics` file"
+    )
 
 
 class LinkCallback(ApiModel):

@@ -5,6 +5,7 @@ and stored as paise by the seed. Photos are files under `content/photos/`."""
 import datetime as dt
 from pathlib import Path
 from typing import Annotated, Self
+from urllib.parse import urlencode
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -183,6 +184,34 @@ class LeaderContent(Strict):
     fun_fact: str = Field(max_length=140)
     packages: list[Slug] = Field(description="Packages this leader is the default of")
     overrides: list[LeaderOverride] = Field(default_factory=list)
+
+
+class MeetingContent(Strict):
+    """Where day one starts (R48, P10). The Maps link is a search for the place."""
+
+    place: str = Field(min_length=3, max_length=140)
+    time: dt.time | None = None
+    note: str | None = Field(default=None, max_length=140)
+
+    @property
+    def maps_url(self) -> str:
+        return "https://www.google.com/maps/search/?" + urlencode({"api": 1, "query": self.place})
+
+
+class KnowBeforeContent(Strict):
+    """The owner's "Know before you go" notes (R48), plain text."""
+
+    weather: str = Field(default="", max_length=500)
+    network: str = Field(default="", max_length=500)
+    cash: str = Field(default="", max_length=500)
+    rules: str = Field(default="", max_length=500)
+    packing: str = Field(default="", max_length=500)
+
+
+class TripPackContent(Strict):
+    meeting: MeetingContent
+    know_before: KnowBeforeContent
+    hotels: dict[str, str] = Field(description="Hotel name → its area-level address")
 
 
 def define_package(**fields: object) -> PackageContent:

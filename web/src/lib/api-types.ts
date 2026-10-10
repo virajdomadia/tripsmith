@@ -193,6 +193,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/bookings/{ref}/pack/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Pack Read
+         * @description P10: the customer opened the unlocked trip pack — recorded once (a readiness part).
+         */
+        put: operations["markTripPackRead"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/account/bookings/{ref}/review": {
         parameters: {
             query?: never;
@@ -228,6 +248,27 @@ export interface paths {
          *     departure. The ID number comes back masked only.
          */
         put: operations["saveTravellerDetails"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/bookings/{ref}/trip-pack.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trip Pack Pdf
+         * @description P10 (R48): the customer's copy once the pack is open (the download counts as reading
+         *     it); the owner's preview at any time, marked as one while the pack is still locked.
+         */
+        get: operations["getTripPackPdf"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1558,6 +1599,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/calendar/{ref}.ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Calendar File */
+        get: operations["getCalendarFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/calendar/{ref}/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open Google Calendar */
+        get: operations["openGoogleCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/destinations": {
         parameters: {
             query?: never;
@@ -1964,6 +2039,8 @@ export interface components {
              * Format: date-time
              */
             bookedAt: string;
+            /** @description P10: Add to calendar (null = pending or cancelled) */
+            calendar?: components["schemas"]["CalendarBlock"] | null;
             /**
              * Canrequestcancellation
              * @description Confirmed (or part paid), not yet departed, no request made
@@ -2024,6 +2101,8 @@ export interface components {
             leaderName?: string | null;
             /** Nights */
             nights: number;
+            /** @description P10: the trip pack (null = pending or cancelled) */
+            pack?: components["schemas"]["TripPack"] | null;
             /** Packagename */
             packageName: string;
             /** Packageslug */
@@ -3669,6 +3748,42 @@ export interface components {
             /** Name */
             name: string;
             occupancy: components["schemas"]["Occupancy"];
+        };
+        /**
+         * CalendarBlock
+         * @description The booking page's calendar coupon. Both links are signed api paths (prefix `/api` on the
+         *     site) that record the click, then send the event.
+         */
+        CalendarBlock: {
+            /** Addedat */
+            addedAt?: string | null;
+            /**
+             * Ends
+             * Format: date
+             * @description The last day of the trip (inclusive)
+             */
+            ends: string;
+            /**
+             * Googleurl
+             * @description Null without a SESSION_SECRET (local dev)
+             */
+            googleUrl: string | null;
+            /** Icsurl */
+            icsUrl: string | null;
+            /** Location */
+            location: string;
+            /**
+             * Stale
+             * @description Added before a date change: add it again to update it
+             */
+            stale: boolean;
+            /**
+             * Starts
+             * Format: date
+             */
+            starts: string;
+            /** Via */
+            via?: ("google" | "ics") | null;
         };
         /**
          * CancelReason
@@ -5348,6 +5463,18 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** KnowBeforeNote */
+        KnowBeforeNote: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "weather" | "network" | "cash" | "rules" | "packing";
+            /** Label */
+            label: string;
+            /** Text */
+            text: string;
+        };
         /**
          * LadderRung
          * @description One step of the price ladder (R47): the trip fare for this party if booked from `fromOn`
@@ -5758,6 +5885,20 @@ export interface components {
             /** Lunch */
             lunch: boolean;
         };
+        /** MeetingPoint */
+        MeetingPoint: {
+            /** Mapsurl */
+            mapsUrl?: string | null;
+            /**
+             * Note
+             * @description One line, e.g. look for the blue board
+             */
+            note?: string | null;
+            /** Place */
+            place: string;
+            /** Time */
+            time?: string | null;
+        };
         /** Meta */
         Meta: {
             /** Badges */
@@ -6151,6 +6292,82 @@ export interface components {
             /** Email */
             email: string;
         };
+        /**
+         * PackContent
+         * @description The unlocked pack: everything for the road.
+         */
+        PackContent: {
+            /** Days */
+            days: components["schemas"]["PackDay"][];
+            /** Emergencye164 */
+            emergencyE164: string;
+            /**
+             * Emergencyphone
+             * @description The 24×7 line, as printed
+             */
+            emergencyPhone: string;
+            /** Hotels */
+            hotels: components["schemas"]["PackHotel"][];
+            /**
+             * Knowbefore
+             * @description Only the notes the owner filled in
+             */
+            knowBefore: components["schemas"]["KnowBeforeNote"][];
+            leader: components["schemas"]["PackLeader"] | null;
+            meeting: components["schemas"]["MeetingPoint"] | null;
+        };
+        /** PackDay */
+        PackDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dayno */
+            dayNo: number;
+            /** Description */
+            description: string;
+            /**
+             * Meals
+             * @description `Breakfast · Dinner`, or `No meals`
+             */
+            meals: string;
+            /** Stay */
+            stay?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** PackHotel */
+        PackHotel: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Phone */
+            phone?: string | null;
+            /** Stars */
+            stars: number;
+        };
+        /** PackLeader */
+        PackLeader: {
+            /** Languages */
+            languages: string[];
+            /** Name */
+            name: string;
+            /**
+             * Phone
+             * @description Only here — never on the voucher
+             */
+            phone?: string | null;
+            /** Photourl */
+            photoUrl?: string | null;
+            /** Slug */
+            slug: string;
+        };
         /** PackageCard */
         PackageCard: {
             /** @description From the next upcoming departure with seats; sold-out only when all are full */
@@ -6409,6 +6626,16 @@ export interface components {
         PaymentResult: {
             /** Bookingref */
             bookingRef: string;
+            /**
+             * Calendargoogleurl
+             * @description P10: with `voucherUrl` — Add to Google Calendar, a signed api path valid 30 minutes (it records the click, then redirects)
+             */
+            calendarGoogleUrl?: string | null;
+            /**
+             * Calendaricsurl
+             * @description P10: the same for the `.ics` file
+             */
+            calendarIcsUrl?: string | null;
             /**
              * Refundneeded
              * @description Money is going back to the customer: owed, on its way, or already refunded
@@ -6784,8 +7011,8 @@ export interface components {
         };
         /**
          * Readiness
-         * @description Equal parts (R49): details (complete ÷ travellers), balance paid, each owner item. P10
-         *     adds the trip pack and the calendar as two more parts.
+         * @description Equal parts (R49, R48): details (complete ÷ travellers), balance paid, trip pack read,
+         *     added to calendar, each owner item.
          */
         Readiness: {
             /** Parts */
@@ -6801,14 +7028,14 @@ export interface components {
             fraction: number;
             /**
              * Key
-             * @description `details`, `balance`, or `item:<checklist key>`
+             * @description `details`, `balance`, `pack`, `calendar`, or `item:<checklist key>`
              */
             key: string;
             /**
              * Kind
              * @enum {string}
              */
-            kind: "details" | "balance" | "item";
+            kind: "details" | "balance" | "pack" | "calendar" | "item";
             /** Label */
             label: string;
             /**
@@ -7205,6 +7432,39 @@ export interface components {
             checklist?: components["schemas"]["ChecklistItemInput"][];
             /** Required */
             required: ("id" | "dob" | "emergency" | "food" | "medical")[];
+        };
+        /**
+         * TripPack
+         * @description The booking page's trip-pack coupon. Opens on departure − 7 days (IST) once the booking is
+         *     paid in full; readable until 30 days after the trip.
+         */
+        TripPack: {
+            /** @description Only while open */
+            content?: components["schemas"]["PackContent"] | null;
+            /**
+             * Dayreached
+             * @description IST today ≥ `opensOn`: a locked pack now waits only for the balance
+             */
+            dayReached: boolean;
+            /**
+             * Needspayment
+             * @description Part paid: it opens only once the balance is in
+             */
+            needsPayment: boolean;
+            /**
+             * Openson
+             * Format: date
+             * @description Departure − 7 days
+             */
+            opensOn: string;
+            /** Readat */
+            readAt?: string | null;
+            /**
+             * State
+             * @description locked = before the day or not paid in full · open · closed = 30 days after the trip
+             * @enum {string}
+             */
+            state: "locked" | "open" | "closed";
         };
         /**
          * UnbookableReason
@@ -7687,6 +7947,42 @@ export interface operations {
             };
         };
     };
+    markTripPackRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The pack is locked (reason pack_locked) or closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     submitReview: {
         parameters: {
             query?: never;
@@ -7746,6 +8042,58 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TravellerDetailsOut"];
                 };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getTripPackPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trip pack PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Not this booking's account */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or it has no trip pack (pending, cancelled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Locked (reason pack_locked) or closed — the owner may preview */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error envelope (06 C0) */
             default: {
@@ -10551,6 +10899,100 @@ export interface operations {
                 content?: never;
             };
             /** @description Unknown booking, or not confirmed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getCalendarFile: {
+        parameters: {
+            query?: {
+                exp?: number;
+                sig?: string;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": unknown;
+                };
+            };
+            /** @description Signature missing, wrong or expired */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or pending / cancelled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    openGoogleCalendar: {
+        parameters: {
+            query?: {
+                exp?: number;
+                sig?: string;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description To Google Calendar's add-event page */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Signature missing, wrong or expired */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown booking, or pending / cancelled */
             404: {
                 headers: {
                     [name: string]: unknown;

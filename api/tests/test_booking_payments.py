@@ -161,6 +161,8 @@ async def test_forged_signature_is_400_and_a_replayed_confirm_applies_once(
             "status": "confirmed",
             "refundNeeded": False,
             "voucherUrl": None,
+            "calendarGoogleUrl": None,
+            "calendarIcsUrl": None,
         }
 
     [paid] = await payments(db, ref)
@@ -203,6 +205,8 @@ async def test_late_capture_with_no_seats_left_never_confirms(
         "status": "cancelled",
         "refundNeeded": True,
         "voucherUrl": None,  # no voucher for a booking that never happened
+        "calendarGoogleUrl": None,
+        "calendarIcsUrl": None,
     }
     late = await booking(db, first["bookingRef"])
     # P13: refunded in full through Razorpay on its own — off paid_paise, flag down.
@@ -260,6 +264,8 @@ async def test_sync_applies_a_payment_checkout_never_reported_once(
         "status": "pending",
         "refundNeeded": False,
         "voucherUrl": None,
+        "calendarGoogleUrl": None,
+        "calendarIcsUrl": None,
     }
     assert rzp.requests[-1].method == "GET"
     assert rzp.requests[-1].url.path == f"/v1/orders/{order_id}/payments"
@@ -277,6 +283,8 @@ async def test_sync_applies_a_payment_checkout_never_reported_once(
             "status": "confirmed",
             "refundNeeded": False,
             "voucherUrl": None,
+            "calendarGoogleUrl": None,
+            "calendarIcsUrl": None,
         }
     capture = next(r for r in rzp.requests if r.url.path.endswith("/capture"))
     assert capture.url.path == "/v1/payments/pay_Synced0001/capture"

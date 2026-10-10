@@ -31,8 +31,11 @@ from app.business import BUSINESS, whatsapp_href
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender
 from app.models.enums import BookingStatus
+from app.services.analytics import ist_today
+from app.services.booking.calendar import calendar_path, trip_link_exp
 from app.services.booking.history import EmailLine, record_emails
 from app.services.booking.settled import Capture, Settled
+from app.services.booking.trip_pack import opens_on
 from app.services.booking.voucher import BookingFacts
 from app.services.email.render import _env, _ist, _one_line
 from app.services.email.send import held_back
@@ -51,9 +54,25 @@ REFUND_WHY = {  # never the word "confirmed": R16 — a seats-gone booking must 
 }
 
 
+def _calendar(facts: BookingFacts, settings: Settings, site: str) -> dict[str, str | None]:
+    """P10 (R48): the Add to calendar buttons — signed api links that live until 30 days
+    after the trip (they record the click, then send the event)."""
+    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
+    exp = trip_link_exp(facts.returns)
+    paths = {via: calendar_path(facts.ref, via, secret, exp=exp) for via in ("google", "ics")}
+    return {
+        f"calendar_{via}_url": f"{site}/api{path}" if path else None for via, path in paths.items()
+    }
+
+
 def _vars(facts: BookingFacts, settings: Settings) -> dict[str, object]:
     site = settings.site_url.rstrip("/")
     return {
+        **_calendar(facts, settings, site),
+        # "opens in My trips on Fri 6 Nov" — or "now" for a trip booked inside the 7 days
+        "pack_when": "now"
+        if opens_on(facts.departs) <= ist_today()
+        else f"on {long_date(opens_on(facts.departs))}",
         "b": facts,
         "business": BUSINESS,
         "site_url": site,

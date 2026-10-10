@@ -2,21 +2,31 @@
 
 import { Check, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
-import { tickChecklistItem, type Readiness, type ReadinessPart } from '@/lib/account';
+import { type ReactNode, useEffect, useState } from 'react';
+import {
+  markTripPackRead,
+  tickChecklistItem,
+  type Readiness,
+  type ReadinessPart,
+  type TripPack,
+} from '@/lib/account';
 import { shortDate } from '@/lib/format';
 
 /**
  * P9 (R49): every readiness part as a numbered tear-off coupon under the holiday pass — mockup
  * "My trip D". Details and balance open in place (their own forms inside); the trip's checklist
  * items tick straight from the coupon. A finished task tears off with a stamp into the "Torn
- * off" pile. P10 adds the trip pack and the calendar as two more coupons.
+ * off" pile. P10 (R48) adds the trip pack — under "Opens later" while locked, read the first
+ * time its unlocked coupon opens — and the calendar.
  */
 export function TripCoupons({
   bookingRef,
   readiness,
   details,
   balance,
+  pack,
+  packPanel,
+  calendar,
   locksOn,
   departs,
   balanceDueOn,
@@ -25,19 +35,27 @@ export function TripCoupons({
   readiness: Readiness;
   details: ReactNode;
   balance: ReactNode | null;
+  pack: TripPack | null;
+  packPanel: ReactNode | null;
+  calendar: ReactNode | null;
   locksOn: string;
   departs: string;
   balanceDueOn: string | null;
 }) {
   const router = useRouter();
   const numbered = readiness.parts.map((part, n) => ({ part, n }));
-  const firstTodo = numbered.find(({ part }) => !part.done && part.kind !== 'item')?.part.key;
+  const locked = (p: ReadinessPart) => p.kind === 'pack' && pack?.state !== 'open';
+  // The pack never opens by itself: opening it is what counts as reading it.
+  const firstTodo = numbered.find(
+    ({ part }) => !part.done && part.kind !== 'item' && part.kind !== 'pack',
+  )?.part.key;
   const [open, setOpen] = useState<string | null>(firstTodo ?? null);
   // Optimistic ticks, so the coupon tears off at once; the refresh brings the server's truth.
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
   const [just, setJust] = useState<string | null>(null);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
+  const [packRead, setPackRead] = useState(false); // recorded: never ask twice
   const done = (p: ReadinessPart) => (p.kind === 'item' && p.key in ticks ? ticks[p.key] : p.done);
 
   async function tick(p: ReadinessPart, value: boolean) {
@@ -66,6 +84,37 @@ export function TripCoupons({
     router.refresh();
   }
 
+  function toggle(p: ReadinessPart, isOpen: boolean) {
+    setOpen(isOpen ? null : p.key);
+    // Opening the unlocked pack for the first time is reading it (R48); the refresh tears it off.
+    const unread = p.kind === 'pack' && pack?.state === 'open' && !p.done && !packRead;
+    if (!isOpen && unread && !busy.has(p.key)) {
+      setBusy((b) => new Set(b).add(p.key));
+      void markTripPackRead(bookingRef)
+        .then((res) => {
+          if (res.ok) {
+            setPackRead(true);
+            setJust(p.key);
+            router.refresh();
+          } else setError(res.error.message);
+        })
+        .finally(() =>
+          setBusy((b) => {
+            const next = new Set(b);
+            next.delete(p.key);
+            return next;
+          }),
+        );
+    }
+  }
+
+  // Arriving on `#pack` opens the pack coupon (and reads it, when it is open).
+  useEffect(() => {
+    const part = readiness.parts.find((p) => p.kind === 'pack');
+    if (part && window.location.hash === '#pack') toggle(part, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
+
   const stub = (p: ReadinessPart) =>
     done(p)
       ? 'Torn off'
@@ -75,21 +124,43 @@ export function TripCoupons({
           ? balanceDueOn
             ? `Due ${shortDate(balanceDueOn)}`
             : 'Due now'
-          : `By ${shortDate(departs)}`;
+          : p.kind === 'pack'
+            ? !pack || pack.state === 'open'
+              ? 'Open now'
+              : pack.state === 'closed'
+                ? 'Closed'
+                : pack.needsPayment && pack.dayReached
+                  ? 'Once paid'
+                  : `Opens ${shortDate(pack.opensOn)}`
+            : p.kind === 'calendar'
+              ? 'Any time'
+              : `By ${shortDate(departs)}`;
 
   const body = (p: ReadinessPart) =>
-    p.kind === 'details' ? details : p.kind === 'balance' ? balance : null;
+    ({ details, balance, pack: packPanel, calendar, item: null })[p.kind];
 
   const coupon = ({ part: p, n }: { part: ReadinessPart; n: number }) => {
     const isDone = done(p);
     const isOpen = p.kind !== 'item' && open === p.key;
     const panel = `cp-${p.key.replace(/[^a-z0-9]/gi, '-')}`;
     const tone = isDone ? 'done' : p.fraction > 0 ? 'part' : 'todo';
-    const verb = isOpen ? 'Close' : isDone ? 'View' : p.kind === 'balance' ? 'Pay' : 'Open';
+    const verb = isOpen
+      ? 'Close'
+      : isDone
+        ? 'View'
+        : p.kind === 'balance'
+          ? 'Pay'
+          : locked(p)
+            ? 'Look inside'
+            : p.kind === 'calendar'
+              ? 'Add'
+              : 'Open';
     return (
       <li
         key={p.key}
-        className={`hp-cp ${tone} ${isOpen ? 'open' : ''} ${just === p.key ? 'just' : ''}`}
+        // `#pack`: where the trip-pack emails land (R53, P15)
+        id={p.kind === 'pack' ? 'pack' : undefined}
+        className={`hp-cp scroll-mt-24 ${tone} ${isOpen ? 'open' : ''} ${just === p.key ? 'just' : ''}`}
       >
         <div className="hp-cp-stub">
           <span className={`num hp-cp-no ${tone}`}>{String(n + 1).padStart(2, '0')}</span>
@@ -130,7 +201,7 @@ export function TripCoupons({
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={panel}
-                onClick={() => setOpen(isOpen ? null : p.key)}
+                onClick={() => toggle(p, isOpen)}
                 className="inline-flex shrink-0 items-center gap-1 text-[14px] font-bold text-primary hover:text-primary-ink"
               >
                 {verb}
@@ -151,7 +222,8 @@ export function TripCoupons({
     );
   };
 
-  const live = numbered.filter(({ part }) => !done(part));
+  const live = numbered.filter(({ part }) => !done(part) && !locked(part));
+  const later = numbered.filter(({ part }) => !done(part) && locked(part));
   const torn = numbered.filter(({ part }) => done(part));
 
   return (
@@ -161,7 +233,9 @@ export function TripCoupons({
         <h2 id="coupons-h" className="flex flex-wrap items-center gap-2 text-[20px]">
           Your coupons
           <span className="num rounded-chip bg-bg2 px-2.5 py-0.5 text-[13px] font-bold text-ink2">
-            {live.length === 0 ? 'all torn off' : `${live.length} to tear off`}
+            {live.length + later.length === 0
+              ? 'all torn off'
+              : `${live.length + later.length} to tear off`}
           </span>
         </h2>
         <p className="mt-0.5 text-[14px] text-mute">
@@ -174,6 +248,12 @@ export function TripCoupons({
         </p>
       )}
       {live.length > 0 && <ol className="m-0 grid list-none gap-2.5 p-0">{live.map(coupon)}</ol>}
+      {later.length > 0 && (
+        <>
+          <h3 className="label-caps mt-2.5">Opens later</h3>
+          <ol className="m-0 grid list-none gap-2.5 p-0">{later.map(coupon)}</ol>
+        </>
+      )}
       {torn.length > 0 && (
         <>
           <h3 className="label-caps mt-2.5 flex items-center gap-2">

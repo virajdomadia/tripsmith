@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import Settings
 from app.errors import ApiError
 from app.models import (
     Booking,
@@ -41,7 +42,7 @@ from app.schemas.account import (
 )
 from app.schemas.bookings import Quote
 from app.schemas.reviews import AccountReview, ReviewState
-from app.services.booking import changes, details, extras, history
+from app.services.booking import calendar, changes, details, extras, history, trip_pack
 from app.services.booking.balance import balance_out
 from app.services.booking.voucher import HAS_VOUCHER
 from app.services.catalog.admin_leaders import departure_leader
@@ -163,7 +164,7 @@ async def list_bookings(db: AsyncSession, user: User) -> list[AccountBooking]:
 
 
 async def get_booking(
-    db: AsyncSession, user: User, ref: str, *, today: dt.date
+    db: AsyncSession, user: User, ref: str, *, today: dt.date, settings: Settings
 ) -> AccountBookingDetail | None:
     booking = (
         await db.execute(
@@ -182,12 +183,16 @@ async def get_booking(
         await db.execute(
             select(Package)
             .where(Package.id == booking.package_id)
-            .options(selectinload(Package.destination), selectinload(Package.cover_image))
+            .options(
+                selectinload(Package.destination),
+                selectinload(Package.cover_image),
+                selectinload(Package.itinerary),
+            )
         )
     ).scalar_one()
-    departs = (
-        await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
-    ).scalar_one()
+    dep = await db.get(Departure, booking.departure_id)
+    assert dep is not None  # bookings.departure_id is ON DELETE RESTRICT
+    departs = dep.date
     asked = booking.cancellation
     review = (
         await db.execute(select(Review).where(Review.booking_id == booking.id))
@@ -197,10 +202,15 @@ async def get_booking(
     block = await details.details_block(db, booking, pkg, departs, returns, today)
     items = details.checklist_of(pkg, booking)
     leader = await departure_leader(db, booking.departure_id)
+    pack = await trip_pack.pack_of(db, booking, pkg, dep, today)
+    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
+    event = calendar.event_of(booking, pkg, dep, pkg.destination.name, settings.site_url)
     return AccountBookingDetail(
         details=block,
         checklist=items,
-        readiness=details.readiness(booking, block, items),
+        readiness=details.readiness(booking, block, items, pack=pack),
+        pack=pack,
+        calendar=calendar.block_of(booking, event, secret, returns=returns),
         leader_name=leader.name if leader else None,
         documents=documents,
         ref=booking.ref,

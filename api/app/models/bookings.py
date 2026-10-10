@@ -67,6 +67,9 @@ class Booking(IdMixin, TimestampsMixin, Base):
             "balance_due_on",
             postgresql_where=text("status = 'partially_paid'"),
         ),
+        CheckConstraint(  # 0022 (P10)
+            "calendar_via IS NULL OR calendar_via IN ('google', 'ics')", name="calendar_via"
+        ),
         CheckConstraint(  # 0017 (P18)
             "channel IN ('web', 'phone', 'walk_in', 'whatsapp', 'enquiry')", name="channel"
         ),
@@ -130,6 +133,11 @@ class Booking(IdMixin, TimestampsMixin, Base):
     checklist_done: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
+    # 0022 (P10, R48): the first open of the unlocked trip pack, and the last "Add to calendar"
+    # click with its button. A date change clears `calendar_added_at` but keeps `calendar_via`.
+    pack_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_added_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calendar_via: Mapped[str | None] = mapped_column(Text)
 
     travellers: Mapped[list["BookingTraveller"]] = relationship(
         back_populates="booking",

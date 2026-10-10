@@ -13,6 +13,7 @@ from app.schemas.details import ChecklistItem, Readiness, TravellerDetailsBlock
 from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon, ExtrasOffer
 from app.schemas.reviews import AccountReview
+from app.schemas.trip_pack import CalendarBlock, TripPack
 from app.schemas.waitlist import AccountWaitlistEntry
 
 
@@ -178,6 +179,12 @@ class AccountBookingDetail(ApiModel):
         default=None, description="P9: the readiness bar — only while paid and ahead"
     )
     leader_name: str | None = Field(default=None, description="P3: the trip leader, if any")
+    pack: TripPack | None = Field(
+        default=None, description="P10: the trip pack (null = pending or cancelled)"
+    )
+    calendar: CalendarBlock | None = Field(
+        default=None, description="P10: Add to calendar (null = pending or cancelled)"
+    )
 
 
 class CancellationRequest(ApiModel):

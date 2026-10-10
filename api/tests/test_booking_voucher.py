@@ -294,6 +294,9 @@ async def test_journey_order_webhook_confirmed_voucher_for_its_owner_only(
     assert res.status_code == 200 and res.json()["status"] == "confirmed"
     link = res.json()["voucherUrl"]
     assert link.startswith(f"/bookings/{ref}/voucher.pdf?exp=")
+    # P10: the success screen's Add to calendar buttons, signed like the voucher's link.
+    assert res.json()["calendarGoogleUrl"].startswith(f"/calendar/{ref}/google?exp=")
+    assert res.json()["calendarIcsUrl"].startswith(f"/calendar/{ref}.ics?exp=")
     assert len(sender.sent) == 2
 
     start = time.perf_counter()

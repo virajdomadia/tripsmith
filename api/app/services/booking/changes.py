@@ -743,6 +743,9 @@ async def apply_swap(
             deposit_paise=deposit_paise,
             balance_due_on=due,
             updated_at=func.now(),
+            # P10 (R48): the calendar event shows the old dates — un-tick "added to calendar";
+            # `calendar_via` stays, so the booking page asks for the .ics, which replaces it.
+            **({"calendar_added_at": None} if old_id != change.to_departure_id else {}),
         )
         .execution_options(synchronize_session=False)
     )

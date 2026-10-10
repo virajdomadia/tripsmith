@@ -170,8 +170,8 @@ async def test_a_paid_booking_opens_a_card_per_traveller_and_readiness_counts_th
     assert [t["name"] for t in d["travellers"]] == ["Asha Rao", "Vikram Rao", "Mira Rao"]
     assert all(t["missing"] == ["id", "emergency", "food"] for t in d["travellers"])
     r = b["readiness"]
-    assert [p["key"] for p in r["parts"]] == ["details", "balance"]
-    assert r["parts"][1]["done"] is True and r["percent"] == 50
+    assert [p["key"] for p in r["parts"]] == ["details", "balance", "pack", "calendar"]
+    assert r["parts"][1]["done"] is True and r["percent"] == 25  # P10 added pack + calendar
     assert b["checklist"] == []
 
 
@@ -193,7 +193,7 @@ async def test_saving_a_card_masks_the_id_everywhere_and_encrypts_it_at_rest(
     page = json.dumps(b)
     assert "000000004821" not in page and AADHAAR not in page
     assert b["details"]["complete"] == 1 and b["readiness"]["percent"] == round(
-        (1 / 3 + 1) / 2 * 100
+        (1 / 3 + 1) / 4 * 100
     )
     assert any("Aadhaar ending 4821" in a["text"] for a in b["activity"])
     assert not any("removed" in a["text"] for a in b["activity"])
@@ -308,10 +308,12 @@ async def test_checklist_ticks_and_required_fields_come_from_the_package(
     assert [p["key"] for p in b["readiness"]["parts"]] == [
         "details",
         "balance",
+        "pack",
+        "calendar",
         "item:rain",
         "item:cash",
     ]
-    assert b["readiness"]["percent"] == 25
+    assert b["readiness"]["percent"] == 17
 
     res = await db_client.put(
         f"/account/bookings/{ref}/checklist/rain", json={"done": True}, headers=with_cookie(token)
@@ -322,7 +324,7 @@ async def test_checklist_ticks_and_required_fields_come_from_the_package(
     )
     assert res.status_code == 404
     b = await detail(db_client, ref, token)
-    assert [i["done"] for i in b["checklist"]] == [True, False] and b["readiness"]["percent"] == 50
+    assert [i["done"] for i in b["checklist"]] == [True, False] and b["readiness"]["percent"] == 33
 
     for t in b["details"]["travellers"]:
         res = await save(
@@ -330,7 +332,7 @@ async def test_checklist_ticks_and_required_fields_come_from_the_package(
         )
         assert res.status_code == 200
     b = await detail(db_client, ref, token)
-    assert b["details"]["complete"] == 3 and b["readiness"]["percent"] == 75
+    assert b["details"]["complete"] == 3 and b["readiness"]["percent"] == 50
 
 
 @pytest.mark.db

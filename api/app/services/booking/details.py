@@ -6,8 +6,9 @@ required (default ID + emergency + food); a partial save is fine and the card sa
 The customer's form locks on departure − 3 days (IST); the owner edits from the desk until the
 purge (P9b).
 
-Readiness is equal parts: details (complete travellers ÷ travellers), balance paid, and each of
-the package's checklist items the customer ticks. P10 adds the trip pack and the calendar.
+Readiness is equal parts: details (complete travellers ÷ travellers), balance paid, trip pack
+read and added to calendar (P10, R48), and each of the package's checklist items the customer
+ticks.
 
 Privacy: the ID number is encrypted (id_numbers.py) and only its masked form leaves the api. The
 history log can't be edited (0010's trigger), so its entries name the fields that changed and
@@ -45,7 +46,9 @@ from app.schemas.details import (
     TravellerDetailsSettings,
     TravellerDetailsSettingsInput,
 )
+from app.schemas.trip_pack import TripPack
 from app.services.booking import history, id_numbers
+from app.services.email.render import IST
 from app.services.format import inr, long_date
 
 OPEN_STATUSES = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
@@ -197,7 +200,11 @@ def checklist_of(pkg: Package, booking: Booking) -> list[ChecklistItem]:
 
 
 def readiness(
-    booking: Booking, block: TravellerDetailsBlock, items: Sequence[ChecklistItem]
+    booking: Booking,
+    block: TravellerDetailsBlock,
+    items: Sequence[ChecklistItem],
+    *,
+    pack: TripPack | None,
 ) -> Readiness | None:
     """Only while the trip is ahead and paid for (confirmed or part paid)."""
     if booking.status not in OPEN_STATUSES:
@@ -236,6 +243,51 @@ def readiness(
             done=paid,
         )
     )
+    read_at = booking.pack_read_at
+    read = read_at is not None
+    if read_at is not None:
+        pack_note = f"Read {long_date(read_at.astimezone(IST).date())}"
+    elif pack is not None and pack.state == "open":
+        pack_note = "Open now — read it before you go"
+    elif pack is not None and pack.state == "closed":
+        pack_note = "Closed after the trip"
+    elif pack is not None and pack.needs_payment and pack.day_reached:
+        pack_note = "Opens once the balance is paid"
+    elif pack is not None:
+        pack_note = f"Opens {long_date(pack.opens_on)}" + (
+            ", once fully paid" if pack.needs_payment else ""
+        )
+    else:
+        pack_note = ""
+    parts.append(
+        ReadinessPart(
+            key="pack",
+            kind="pack",
+            label="Trip pack read",
+            note=pack_note,
+            fraction=1.0 if read else 0.0,
+            done=read,
+        )
+    )
+    added_at = booking.calendar_added_at
+    added = added_at is not None
+    if added_at is not None:
+        via = "Google Calendar" if booking.calendar_via == "google" else "Calendar file"
+        cal_note = f"{via} · {long_date(added_at.astimezone(IST).date())}"
+    elif booking.calendar_via is not None:  # added before a date change
+        cal_note = "Date changed — update your calendar"
+    else:
+        cal_note = "Google Calendar or an .ics file — one all-day event"
+    parts.append(
+        ReadinessPart(
+            key="calendar",
+            kind="calendar",
+            label="Added to calendar",
+            note=cal_note,
+            fraction=1.0 if added else 0.0,
+            done=added,
+        )
+    )
     parts.extend(
         ReadinessPart(
             key=f"item:{i.key}",
@@ -259,6 +311,8 @@ def booking_percent(
     fractions = [
         complete / travellers if travellers else 1.0,
         1.0 if booking.status == BookingStatus.CONFIRMED else 0.0,
+        1.0 if booking.pack_read_at is not None else 0.0,
+        1.0 if booking.calendar_added_at is not None else 0.0,
         *(1.0 if i["key"] in done else 0.0 for i in checklist),
     ]
     return round(sum(fractions) / len(fractions) * 100)

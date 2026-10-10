@@ -1,5 +1,6 @@
 import type { components } from './api-types';
 import { CANCELLATION_SCHEDULE } from './policies';
+import { shortDate } from './format';
 
 /** My trips (R18, R19): row states, the three tabs, the countdown, the refund tier that applies
  * today, and the sign-in screen's two calls. */
@@ -254,6 +255,26 @@ export const tickChecklistItem = (ref: string, key: string, done: boolean) =>
     { done },
     'PUT',
   );
+
+export type TripPack = components['schemas']['TripPack'];
+export type PackContent = components['schemas']['PackContent'];
+export type CalendarBlock = components['schemas']['CalendarBlock'];
+
+/** P10: the customer opened the unlocked trip pack — recorded once (a readiness part). */
+export const markTripPackRead = (ref: string) =>
+  postJson<undefined>(`/api/account/bookings/${encodeURIComponent(ref)}/pack/read`, {}, 'PUT');
+
+/** P10: the trip pack PDF (the download counts as reading it). */
+export const tripPackHref = (ref: string) =>
+  `/api/account/bookings/${encodeURIComponent(ref)}/trip-pack.pdf`;
+
+/** `13–17 Nov`, or `30 Nov – 4 Dec` across a month. */
+export function dayRange(starts: string, ends: string): string {
+  const [a, b] = [shortDate(starts), shortDate(ends)];
+  const [ad, am] = a.split(' ');
+  const [bd, bm] = b.split(' ');
+  return am === bm ? `${ad}–${bd} ${bm}` : `${a} – ${b}`;
+}
 
 export const ID_TYPES = [
   { id: 'aadhaar', label: 'Aadhaar', hint: '12 digits', mode: 'numeric' },

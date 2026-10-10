@@ -39,6 +39,13 @@ same. Redeploy the web afterwards:
 
     uv run python scripts/seed.py --leaders --database-url …
 
+`--pack` (P10) fills the trip pack's seed content — each package's meeting point, its "Know
+before you go" notes and its hotels' area-level addresses and (demo) phone — only where a field
+is still empty, so nothing the owner wrote is replaced. A full seed does the same. Nothing
+public changes, so no redeploy is needed:
+
+    uv run python scripts/seed.py --pack --database-url …
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -57,6 +64,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 # Runnable both as `python scripts/seed.py` and `python -m scripts.seed` from api/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -107,6 +115,7 @@ from app.services.catalog.pricing import starting_price  # noqa: E402
 from app.services.reviews import recompute_rating  # noqa: E402
 from content import Content, load_content  # noqa: E402
 from content._schema import DestinationContent, PackageContent, Photo  # noqa: E402
+from content.trip_packs import HOTEL_PHONE  # noqa: E402
 
 
 @dataclass
@@ -342,6 +351,7 @@ async def seed(
     }
     await _seed_testimonials(db, content, packages)
     await _seed_leaders(db, content, result)
+    _fill_trip_packs(content, packages, result)
     await db.commit()
     result.counts.update(
         destinations=len(destinations),
@@ -373,8 +383,8 @@ async def _seed_only(
         if row is None:
             raise SystemExit(f"Destination {slug} is not in this database — run a full seed")
         destinations[slug] = row
-    for p in chosen:
-        await _seed_package(db, p, destinations, store, today)
+    rows = {p.slug: await _seed_package(db, p, destinations, store, today) for p in chosen}
+    _fill_trip_packs(content, rows, result)
     await db.commit()
     result.counts.update(
         packages=len(chosen),
@@ -580,6 +590,60 @@ async def seed_leaders(db: AsyncSession, content: Content) -> SeedResult:
     revalidate: redeploy the web afterwards."""
     result = SeedResult()
     await _seed_leaders(db, content, result)
+    await db.commit()
+    return result
+
+
+def _fill_trip_packs(content: Content, rows: dict[str, Package], result: SeedResult) -> None:
+    """R48 (P10): fill each package's meeting point, "Know before you go" notes and hotel
+    addresses and phones from content/trip_packs.py — only where empty."""
+    meetings = notes = hotels = 0
+    for slug, row in rows.items():
+        src = content.trip_packs.get(slug)
+        if src is None:
+            continue
+        if row.meet_place is None:
+            m = src.meeting
+            row.meet_place, row.meet_time = m.place, m.time
+            row.meet_maps_url, row.meet_note = m.maps_url, m.note
+            meetings += 1
+        have = dict(row.know_before or {})
+        wanted = {k: v for k, v in src.know_before.model_dump().items() if v}
+        filled = {**wanted, **{k: v for k, v in have.items() if v}}
+        if filled != have:
+            row.know_before = filled
+            notes += 1
+        changed = False
+        out: list[dict[str, Any]] = []
+        for h in row.hotels:
+            h = dict(h)
+            address = src.hotels.get(str(h.get("name", "")))
+            if address and not h.get("address"):
+                h["address"] = address
+                changed = True
+            if address and not h.get("phone"):
+                h["phone"] = HOTEL_PHONE
+                changed = True
+            out.append(h)
+        if changed:
+            row.hotels = out  # a new list: JSONB changes in place are not tracked
+            hotels += 1
+    result.counts.update(pack_meetings=meetings, pack_notes=notes, pack_hotels=hotels)
+
+
+async def seed_trip_packs(db: AsyncSession, content: Content) -> SeedResult:
+    """Just the trip pack's seed content (R48, P10), for a database that already has its
+    packages — production after migration 0022. Fills empty fields only; a package the database
+    does not have is skipped with a warning."""
+    result = SeedResult()
+    rows: dict[str, Package] = {}
+    for slug in content.trip_packs:
+        row = (await db.execute(select(Package).where(Package.slug == slug))).scalar_one_or_none()
+        if row is None:
+            result.warnings.append(f"{slug}: not in this database — skipped")
+        else:
+            rows[slug] = row
+    _fill_trip_packs(content, rows, result)
     await db.commit()
     return result
 
@@ -799,6 +863,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="seed just the demo trip leaders and empty leader picks (P3); nothing else",
     )
     parser.add_argument(
+        "--pack",
+        action="store_true",
+        help="fill just the trip packs' meeting points, notes and hotel contacts (P10)",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -815,11 +884,13 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.addons or args.early_bird or args.leaders:  # no photo store: nothing is uploaded
+    if args.addons or args.early_bird or args.leaders or args.pack:  # nothing is uploaded
         engine = make_engine(url)
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-                if args.leaders:
+                if args.pack:
+                    result = await seed_trip_packs(db, load_content())
+                elif args.leaders:
                     result = await seed_leaders(db, load_content())
                 elif args.early_bird:
                     result = await seed_early_bird(db, load_content())

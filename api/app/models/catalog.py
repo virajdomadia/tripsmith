@@ -16,6 +16,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     Text,
+    Time,
     UniqueConstraint,
     column,
     table,
@@ -95,6 +96,12 @@ class Package(IdMixin, TimestampsMixin, Base):
             "jsonb_typeof(checklist) = 'array' AND jsonb_array_length(checklist) <= 6",
             name="checklist",
         ),
+        CheckConstraint(  # 0022 (P10)
+            "meet_place IS NOT NULL OR (meet_time IS NULL AND meet_maps_url IS NULL "
+            "AND meet_note IS NULL)",
+            name="meet_needs_place",
+        ),
+        CheckConstraint("jsonb_typeof(know_before) = 'object'", name="know_before"),
         Index("ix_packages_destination_id_status", "destination_id", "status"),
         Index("ix_packages_status_featured", "status", "featured"),
         Index("ix_packages_themes", "themes", postgresql_using="gin"),
@@ -115,7 +122,7 @@ class Package(IdMixin, TimestampsMixin, Base):
     highlights: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     inclusions: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     exclusions: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
-    # [{name, city, stars, nights}]
+    # [{name, city, stars, nights}] + 0022 (P10): optional address, phone (trip pack only)
     hotels: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
     # [{q, a}]
     faq: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
@@ -163,6 +170,13 @@ class Package(IdMixin, TimestampsMixin, Base):
     leader_id: Mapped[str | None] = mapped_column(
         ForeignKey("trip_leaders.id", ondelete="RESTRICT"), index=True
     )
+    # 0022 (P10, R48): where and when the trip starts (a date may override the whole set) and
+    # the owner's "Know before you go" notes {weather, network, cash, rules, packing}.
+    meet_place: Mapped[str | None] = mapped_column(Text)
+    meet_time: Mapped[dt.time | None] = mapped_column(Time)
+    meet_maps_url: Mapped[str | None] = mapped_column(Text)
+    meet_note: Mapped[str | None] = mapped_column(Text)
+    know_before: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
 
     destination: Mapped[Destination] = relationship(back_populates="packages")
     itinerary: Mapped[list["ItineraryDay"]] = relationship(
@@ -213,6 +227,11 @@ class Departure(IdMixin, TimestampsMixin, Base):
     __table_args__ = (
         UniqueConstraint("package_id", "date"),
         Index("ix_departures_date", "date"),
+        CheckConstraint(  # 0022 (P10)
+            "meet_place IS NOT NULL OR (meet_time IS NULL AND meet_maps_url IS NULL "
+            "AND meet_note IS NULL)",
+            name="meet_needs_place",
+        ),
     )
 
     package_id: Mapped[str] = mapped_column(
@@ -230,6 +249,11 @@ class Departure(IdMixin, TimestampsMixin, Base):
     leader_id: Mapped[str | None] = mapped_column(
         ForeignKey("trip_leaders.id", ondelete="RESTRICT"), index=True
     )
+    # 0022 (P10, R48): this date's own meeting point (null place = the package's).
+    meet_place: Mapped[str | None] = mapped_column(Text)
+    meet_time: Mapped[dt.time | None] = mapped_column(Time)
+    meet_maps_url: Mapped[str | None] = mapped_column(Text)
+    meet_note: Mapped[str | None] = mapped_column(Text)
 
     package: Mapped[Package] = relationship(back_populates="departures")
 

@@ -692,3 +692,173 @@
     transition: none;
   }
 }
+
+/* P10 (R48): the trip pack and the calendar inside their coupons — mockup "My trip D". */
+.tp-lock {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--color-ink);
+  color: var(--color-action);
+}
+.tp-lock.open {
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+.tp-inside {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tp-inside li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px dashed #c9d2dc;
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-ink2);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.tp-pack.open .tp-body {
+  animation: tp-reveal 0.7s var(--ease-out) both;
+}
+@keyframes tp-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.tp-box {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--color-bg2);
+}
+.tp-box.meet {
+  background: var(--color-ink);
+  color: #fff;
+}
+.tp-box.meet .label-caps {
+  color: #afc0d0;
+}
+.tp-box.meet p {
+  color: rgb(255 255 255 / 0.8);
+  font-size: 13.5px;
+}
+.tp-box.lead {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.tp-box a,
+.tp-hotel a {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  color: var(--color-primary);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.tp-box.meet a {
+  color: var(--color-action);
+}
+.tp-hotel {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+}
+.tp-days {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tp-days li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-line);
+}
+.tp-kbg {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px 18px;
+  margin: 8px 0 0;
+}
+@media (min-width: 640px) {
+  .tp-kbg {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.tp-kbg dt {
+  color: var(--color-mute);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tp-kbg dd {
+  margin: 0;
+  font-size: 13.5px;
+}
+.tp-sos {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-bad-soft);
+  color: #7a1d14;
+}
+.tp-sos a {
+  color: inherit;
+}
+.tp-sos small {
+  display: block;
+  color: #8b3a30;
+  font-size: 12.5px;
+}
+.tp-cal-ic {
+  display: grid;
+  flex: none;
+  width: 46px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  text-align: center;
+}
+.tp-cal-ic small {
+  padding: 2px 0;
+  background: #d93025;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tp-cal-ic b {
+  padding: 2px 0 4px;
+  font-size: 20px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-pack.open .tp-body {
+    animation: none;
+  }
+}
