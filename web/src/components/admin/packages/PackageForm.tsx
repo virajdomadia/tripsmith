@@ -307,6 +307,22 @@ function earlyBirdTarget(key: string): FieldPath<PackageFieldValues> {
   return key === 'earlyBird.tiers' ? 'eb2Days' : 'eb1Days';
 }
 
+/** A draft parked by an older form lacks newer fields (P10's meeting points, hotel contacts):
+ * fill what it doesn't carry from the package as loaded, so restoring it never clears them. */
+function withSaved(loaded: PackageFieldValues, draft: PackageFieldValues): PackageFieldValues {
+  const dates = new Map(loaded.departures.map((d) => [d.id, d]));
+  const hotels = new Map(loaded.hotels.map((h) => [h.name, h]));
+  return {
+    ...loaded,
+    ...draft,
+    departures: (draft.departures ?? []).map((d) => ({
+      ...(d.id ? dates.get(d.id) : undefined),
+      ...d,
+    })) as PackageFieldValues['departures'],
+    hotels: (draft.hotels ?? []).map((h) => ({ ...hotels.get(h.name), ...h })),
+  };
+}
+
 type Meeting = NonNullable<AdminPackage['tripPack']['meeting']>;
 const meetValues = (m: Meeting | null | undefined) => ({
   meetPlace: m?.place ?? '',
@@ -432,7 +448,7 @@ export function PackageForm(props: Props) {
   useEffect(() => {
     const draft = takeDraft<PackageFieldValues>(draftKey);
     if (!draft) return;
-    form.reset(draft.values, { keepDefaultValues: true });
+    form.reset(withSaved(form.getValues(), draft.values), { keepDefaultValues: true });
     if (draft.expectedVersion) {
       expected.current = draft.expectedVersion;
       pinned.current = true;
