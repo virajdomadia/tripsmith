@@ -2537,6 +2537,8 @@ export interface components {
             leadPhone: string;
             /** @description P3: who leads the booking's departure now (read live) */
             leader?: components["schemas"]["DeskLeader"] | null;
+            /** @description P10: the trip pack and the calendar */
+            packStatus?: components["schemas"]["DeskPackStatus"] | null;
             package: components["schemas"]["BookingPackage"];
             /** Paidpaise */
             paidPaise: number;
@@ -2727,6 +2729,8 @@ export interface components {
              * @description P3: this date's own leader; null = the package's default
              */
             leaderId?: string | null;
+            /** @description P10: this date's own meeting point; null = the package's */
+            meeting?: components["schemas"]["MeetingPoint"] | null;
             /** Pricechildpaise */
             priceChildPaise: number;
             /** Pricedoublepaise */
@@ -2888,6 +2892,24 @@ export interface components {
          * @enum {string}
          */
         AdminEnquiryType: "standard" | "custom" | "contact" | "callback" | "group" | "chat-handoff";
+        /**
+         * AdminHotel
+         * @description P10: the owner's view adds what only the trip pack shows.
+         */
+        AdminHotel: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Phone */
+            phone?: string | null;
+            /** Stars */
+            stars: number;
+        };
         /** AdminImage */
         AdminImage: {
             /** Alt */
@@ -3020,8 +3042,11 @@ export interface components {
             featured: boolean;
             /** Highlights */
             highlights: string[];
-            /** Hotels */
-            hotels: components["schemas"]["HotelOut"][];
+            /**
+             * Hotels
+             * @description P10: with the trip pack's address and phone
+             */
+            hotels: components["schemas"]["AdminHotel"][];
             /** Id */
             id: string;
             /**
@@ -3060,6 +3085,8 @@ export interface components {
             themes: components["schemas"]["Theme"][];
             /** @description P9: required details + pre-trip checklist */
             travellerDetails: components["schemas"]["TravellerDetailsSettings"];
+            /** @description P10: meeting point + Know before you go */
+            tripPack: components["schemas"]["TripPackSettings"];
             /**
              * Updatedat
              * Format: date-time
@@ -4507,6 +4534,8 @@ export interface components {
              * @description P3: this date's own trip leader; null = the package's default. Omitted = left as saved
              */
             leaderId?: string | null;
+            /** @description P10: this date's own meeting point; null = the package's. Omitted = left as saved */
+            meeting?: components["schemas"]["MeetingPointInput"] | null;
             /** Pricechildpaise */
             priceChildPaise: number;
             /** Pricedoublepaise */
@@ -4705,6 +4734,23 @@ export interface components {
             photoUrl: string | null;
             /** Slug */
             slug: string;
+        };
+        /**
+         * DeskPackStatus
+         * @description The desk's view of a booking's trip pack and calendar (P10b).
+         */
+        DeskPackStatus: {
+            /** Calendaraddedat */
+            calendarAddedAt: string | null;
+            /**
+             * Calendarstale
+             * @description Added before a date change, not since
+             */
+            calendarStale: boolean;
+            /** Calendarvia */
+            calendarVia: ("google" | "ics") | null;
+            /** @description Without its content; null = pending/cancelled */
+            pack: components["schemas"]["TripPack"] | null;
         };
         /** DestinationCard */
         DestinationCard: {
@@ -5351,12 +5397,16 @@ export interface components {
         };
         /** HotelInput */
         HotelInput: {
+            /** Address */
+            address?: string | null;
             /** City */
             city: string;
             /** Name */
             name: string;
             /** Nights */
             nights: number;
+            /** Phone */
+            phone?: string | null;
             /** Stars */
             stars: number;
         };
@@ -5462,6 +5512,37 @@ export interface components {
             stay: string | null;
             /** Title */
             title: string;
+        };
+        /**
+         * KnowBefore
+         * @description The five "Know before you go" notes; blank ones are hidden in the pack.
+         */
+        KnowBefore: {
+            /**
+             * Cash
+             * @default
+             */
+            cash: string;
+            /**
+             * Network
+             * @default
+             */
+            network: string;
+            /**
+             * Packing
+             * @default
+             */
+            packing: string;
+            /**
+             * Rules
+             * @default
+             */
+            rules: string;
+            /**
+             * Weather
+             * @default
+             */
+            weather: string;
         };
         /** KnowBeforeNote */
         KnowBeforeNote: {
@@ -5725,6 +5806,8 @@ export interface components {
             generatedAt: string;
             /** @description P3: who leads this departure, with their phone */
             leader?: components["schemas"]["DeskLeader"] | null;
+            /** @description P10: where day one starts (the date's own, else the package's) */
+            meeting?: components["schemas"]["MeetingPoint"] | null;
             /** Nights */
             nights: number;
             /** Packageslug */
@@ -5893,6 +5976,20 @@ export interface components {
              * Note
              * @description One line, e.g. look for the blue board
              */
+            note?: string | null;
+            /** Place */
+            place: string;
+            /** Time */
+            time?: string | null;
+        };
+        /**
+         * MeetingPointInput
+         * @description Where day one starts. The Maps link must be an https address.
+         */
+        MeetingPointInput: {
+            /** Mapsurl */
+            mapsUrl?: string | null;
+            /** Note */
             note?: string | null;
             /** Place */
             place: string;
@@ -6572,6 +6669,8 @@ export interface components {
             themes?: components["schemas"]["Theme"][];
             /** @description P9: required details + pre-trip checklist; omitted = left as saved */
             travellerDetails?: components["schemas"]["TravellerDetailsSettingsInput"] | null;
+            /** @description P10: meeting point + Know before you go; omitted = left as saved */
+            tripPack?: components["schemas"]["TripPackSettingsInput"] | null;
         };
         /** PackageList */
         PackageList: {
@@ -7465,6 +7564,20 @@ export interface components {
              * @enum {string}
              */
             state: "locked" | "open" | "closed";
+        };
+        /** TripPackSettings */
+        TripPackSettings: {
+            knowBefore: components["schemas"]["KnowBefore"];
+            meeting: components["schemas"]["MeetingPoint"] | null;
+        };
+        /**
+         * TripPackSettingsInput
+         * @description Package editor B's "Meeting point & Know before you go" section (R48).
+         */
+        TripPackSettingsInput: {
+            knowBefore?: components["schemas"]["KnowBefore"];
+            /** @description Null = none yet */
+            meeting: components["schemas"]["MeetingPointInput"] | null;
         };
         /**
          * UnbookableReason

@@ -22,6 +22,7 @@ import { DESK_PATH } from '@/lib/admin/booking-filters';
 import { REFUND_REASON, REFUND_STATUS } from '@/lib/admin/refunds';
 import { CHANNEL_LABEL } from '@/lib/admin/counter';
 import { reviewsHref } from '@/lib/admin/reviews';
+import { PackStatusPanel } from '@/components/admin/bookings/PackStatusPanel';
 import { api, ApiRequestError } from '@/lib/api';
 import { formatDate, inr } from '@/lib/format';
 
@@ -134,6 +135,16 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
 
         <div className="grid gap-3.5">
           <SeatStrip seats={b.departure} />
+
+          {b.packStatus?.pack && (
+            // P10b: the trip pack (locked/open/read, preview PDF) and the calendar.
+            <section className={panel} aria-labelledby="pack">
+              <h2 id="pack" className={heading}>
+                Trip pack & calendar
+              </h2>
+              <PackStatusPanel bookingRef={b.ref} status={b.packStatus} />
+            </section>
+          )}
 
           {b.paymentLink && (
             // P18b: the counter's Razorpay Payment Link — share, check or cancel it.

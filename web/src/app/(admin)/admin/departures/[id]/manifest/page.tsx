@@ -70,6 +70,14 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
               Trip leader: <b className="text-ink">{m.leader.name}</b> · {m.leader.phone}
             </p>
           )}
+          {m.meeting && (
+            // P10: where day one starts (the date's own, else the package's).
+            <p className="mt-1 text-sm text-ink2">
+              Meeting point: <b className="text-ink">{m.meeting.place}</b>
+              {m.meeting.time && ` · ${m.meeting.time.slice(0, 5)}`}
+              {m.meeting.note && ` · ${m.meeting.note}`}
+            </p>
+          )}
         </div>
         <PrintButton />
       </header>

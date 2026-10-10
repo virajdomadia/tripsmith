@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus, Printer, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { Badge } from '@/components/ui/badge';
 import { NativeCheckbox } from '@/components/admin/NativeCheckbox';
@@ -166,6 +167,7 @@ export function DeparturesEditor({
                           }}
                         />
                       </div>
+                      <OwnMeeting i={i} />
                     </TableCell>
                     <TableCell>
                       <FormField
@@ -311,5 +313,66 @@ export function DeparturesEditor({
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * P10 (R48): a date that starts somewhere else — its own meeting point for the trip pack and the
+ * calendar. Folded away until set; "Use the package's" clears all four fields.
+ */
+function OwnMeeting({ i }: { i: number }) {
+  const form = useFormContext<PackageFieldValues>();
+  const place = form.watch(`departures.${i}.meetPlace`);
+  const [open, setOpen] = useState(Boolean(place));
+  const id = `own-meet-${i}`;
+  if (!open)
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-1.5 text-[12.5px] font-bold text-primary hover:text-primary-ink"
+      >
+        Meets elsewhere…
+      </button>
+    );
+  const clear = () => {
+    for (const k of ['meetPlace', 'meetTime', 'meetMapsUrl', 'meetNote'] as const)
+      form.setValue(`departures.${i}.${k}`, '', { shouldDirty: true });
+    setOpen(false);
+  };
+  return (
+    <fieldset id={id} className="mt-2 grid w-[200px] gap-1.5 rounded-md bg-bg2 p-2">
+      <legend className="sr-only">Meeting point, departure {i + 1}</legend>
+      {(
+        [
+          ['meetPlace', 'Place', 'Thivim station', 'text'],
+          ['meetTime', 'Time', '', 'time'],
+          ['meetMapsUrl', 'Maps link', 'https://…', 'url'],
+          ['meetNote', 'Note', 'Bus KA-01', 'text'],
+        ] as const
+      ).map(([k, label, hint, type]) => (
+        <FormField
+          key={k}
+          control={form.control}
+          name={`departures.${i}.${k}`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[12px]">{label}</FormLabel>
+              <FormControl>
+                <Input {...field} type={type} placeholder={hint} className="h-8 text-[13px]" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={clear}
+        className="justify-self-start text-[12.5px] font-bold text-primary hover:text-primary-ink"
+      >
+        Use the package’s
+      </button>
+    </fieldset>
   );
 }

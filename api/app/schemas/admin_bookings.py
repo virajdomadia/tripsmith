@@ -33,6 +33,7 @@ from app.schemas.enquiries import CONTROL_RE
 from app.schemas.extras import BookedAddon
 from app.schemas.leaders import DeskLeader
 from app.schemas.reviews import AdminReview
+from app.schemas.trip_pack import DeskPackStatus, MeetingPoint
 
 NOTE_MAX = 80
 
@@ -324,6 +325,9 @@ class AdminBooking(ApiModel):
     )
     checklist: list[ChecklistItem] = Field(default_factory=list, description="P9")
     readiness: Readiness | None = Field(default=None, description="P9")
+    pack_status: DeskPackStatus | None = Field(
+        default=None, description="P10: the trip pack and the calendar"
+    )
     can_send_details_link: bool = Field(
         default=False, description="P9: paid, before the lock, someone's details missing"
     )
@@ -470,6 +474,9 @@ class Manifest(ApiModel):
     returns: dt.date
     leader: DeskLeader | None = Field(
         default=None, description="P3: who leads this departure, with their phone"
+    )
+    meeting: MeetingPoint | None = Field(
+        default=None, description="P10: where day one starts (the date's own, else the package's)"
     )
     bookings: list[ManifestBooking] = Field(
         description="Confirmed, part-paid and completed bookings, oldest first"

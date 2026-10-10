@@ -26,16 +26,21 @@ from app.business import BUSINESS
 from app.errors import ApiError
 from app.models import Booking, Departure, Package, TripLeader
 from app.models.enums import BookingActor, BookingStatus
+from app.schemas.catalog import HotelInput
 from app.schemas.trip_pack import (
     KNOW_BEFORE,
+    KnowBefore,
     KnowBeforeNote,
     MeetingPoint,
+    MeetingPointInput,
     PackContent,
     PackDay,
     PackHotel,
     PackLeader,
     PackState,
     TripPack,
+    TripPackSettings,
+    TripPackSettingsInput,
 )
 from app.services.booking import history
 from app.services.booking.details import purge_on
@@ -211,3 +216,49 @@ async def mark_read(db: AsyncSession, ref: str, *, today: dt.date) -> None:
     except BaseException:
         await db.rollback()
         raise
+
+
+# --- the owner's settings (P10b) ----------------------------------------------------------------
+
+
+def own_meeting(src: Package | Departure) -> MeetingPoint | None:
+    """A package's or a departure's own meeting point — no falling back."""
+    if not src.meet_place:
+        return None
+    return MeetingPoint(
+        place=src.meet_place, time=src.meet_time, maps_url=src.meet_maps_url, note=src.meet_note
+    )
+
+
+def set_meeting(target: Package | Departure, m: MeetingPointInput | None) -> None:
+    """The four columns as one set (0022's check: nothing without a place)."""
+    target.meet_place = m.place if m else None
+    target.meet_time = m.time if m else None
+    target.meet_maps_url = m.maps_url if m else None
+    target.meet_note = m.note if m else None
+
+
+def settings_of(pkg: Package) -> TripPackSettings:
+    return TripPackSettings(
+        meeting=own_meeting(pkg), know_before=KnowBefore.model_validate(pkg.know_before or {})
+    )
+
+
+def apply_settings(pkg: Package, payload: TripPackSettingsInput) -> None:
+    set_meeting(pkg, payload.meeting)
+    pkg.know_before = {k: v for k, v in payload.know_before.model_dump().items() if v}
+
+
+def hotels_to_save(saved: Sequence[dict[str, Any]], hotels: Sequence[HotelInput]) -> list[dict]:
+    """The form's hotels; an address or phone the payload leaves out keeps what the hotel of the
+    same name had (an older form never wipes the trip pack's contacts)."""
+    before = {str(h.get("name", "")): h for h in saved}
+    out: list[dict[str, Any]] = []
+    for h in hotels:
+        row = h.model_dump()
+        old = before.get(h.name, {})
+        for key in ("address", "phone"):
+            if key not in h.model_fields_set:
+                row[key] = old.get(key)
+        out.append(row)
+    return out

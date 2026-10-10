@@ -9,9 +9,16 @@ from pydantic import Field, ValidationInfo, field_validator, model_validator
 from app.models.enums import AddonBasis, PackageStatus, Theme
 from app.schemas import ApiModel
 from app.schemas.details import TravellerDetailsSettings, TravellerDetailsSettingsInput
+from app.schemas.enquiries import CONTROL_RE
 from app.schemas.meta import Badge
 from app.schemas.public_leaders import LeaderCardOut, PublicLeaderRef
 from app.schemas.reviews import PublicReview, RatingOut
+from app.schemas.trip_pack import (
+    MeetingPoint,
+    MeetingPointInput,
+    TripPackSettings,
+    TripPackSettingsInput,
+)
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
@@ -195,6 +202,13 @@ class HotelOut(ApiModel):
     city: str
     stars: int
     nights: int
+
+
+class AdminHotel(HotelOut):
+    """P10: the owner's view adds what only the trip pack shows."""
+
+    address: str | None = None
+    phone: str | None = None
 
 
 class FaqItem(ApiModel):
@@ -435,11 +449,24 @@ class HotelInput(ApiModel):
     city: str = Field(min_length=1, max_length=80)
     stars: int = Field(ge=1, le=5)
     nights: int = Field(ge=1, le=NIGHTS_MAX)
+    # P10 (R48): shown only in the trip pack. Omitted = left as saved (matched by hotel name).
+    address: str | None = Field(default=None, max_length=160)
+    phone: str | None = Field(default=None, max_length=30)
 
     @field_validator("name", "city", mode="before")
     @classmethod
     def _strip(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
+
+    @field_validator("address", "phone", mode="before")
+    @classmethod
+    def _contact(cls, v: object) -> object:
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        if CONTROL_RE.search(v):
+            raise ValueError("Write it on one line, without special characters")
+        return v or None
 
 
 class DepartureInput(ApiModel):
@@ -462,6 +489,11 @@ class DepartureInput(ApiModel):
         max_length=40,
         description="P3: this date's own trip leader; null = the package's default. Omitted = "
         "left as saved",
+    )
+    meeting: MeetingPointInput | None = Field(
+        default=None,
+        description="P10: this date's own meeting point; null = the package's. Omitted = left "
+        "as saved",
     )
 
 
@@ -586,6 +618,10 @@ class PackageInput(ApiModel):
         default=None,
         description="P9: required details + pre-trip checklist; omitted = left as saved",
     )
+    trip_pack: TripPackSettingsInput | None = Field(
+        default=None,
+        description="P10: meeting point + Know before you go; omitted = left as saved",
+    )
     expected_edited_at: dt.datetime | None = Field(
         default=None,
         description=(
@@ -684,6 +720,9 @@ class AdminDeparture(ApiModel):
     leader_id: str | None = Field(
         default=None, description="P3: this date's own leader; null = the package's default"
     )
+    meeting: MeetingPoint | None = Field(
+        default=None, description="P10: this date's own meeting point; null = the package's"
+    )
 
 
 class AdminAddon(ApiModel):
@@ -738,7 +777,7 @@ class AdminPackage(ApiModel):
     highlights: list[str]
     inclusions: list[str]
     exclusions: list[str]
-    hotels: list[HotelOut]
+    hotels: list[AdminHotel] = Field(description="P10: with the trip pack's address and phone")
     faq: list[FaqItem]
     itinerary: list[ItineraryDayOut]
     departures: list[AdminDeparture] = Field(description="All departures, soonest first")
@@ -762,6 +801,7 @@ class AdminPackage(ApiModel):
     traveller_details: TravellerDetailsSettings = Field(
         description="P9: required details + pre-trip checklist"
     )
+    trip_pack: TripPackSettings = Field(description="P10: meeting point + Know before you go")
     enquiry_count: int = Field(description="All time; blocks delete when above 0")
     publish_rules: list[PublishRule]
     can_publish: bool
