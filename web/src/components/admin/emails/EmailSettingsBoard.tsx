@@ -42,7 +42,7 @@ export function EmailSettingsBoard({ settings }: { settings: EmailSettings }) {
     <>
       <ul className="grid gap-3 md:grid-cols-2" aria-label="Automatic emails">
         {settings.types.map((t) => (
-          <EmailCard key={t.type} setting={t} onPreview={() => setOpen(t)} />
+          <EmailCard key={`${t.type}-${t.on}`} setting={t} onPreview={() => setOpen(t)} />
         ))}
       </ul>
       <EmailPreviewSheet

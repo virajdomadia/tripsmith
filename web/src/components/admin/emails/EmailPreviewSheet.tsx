@@ -105,7 +105,12 @@ export function EmailPreviewSheet({
     }
   }
 
-  const p = state.kind === 'ready' ? state.preview : null;
+  // Only the preview of the booking and type now picked: a switch between them never shows (or
+  // tests) the previous one, even for the frame before the new read starts.
+  const p =
+    state.kind === 'ready' && state.preview.ref === ref && state.preview.type === type
+      ? state.preview
+      : null;
   return (
     <Sheet open={setting !== null} onOpenChange={onOpenChange}>
       <SheetContent className="sm:w-[min(720px,100%)]">
@@ -160,20 +165,20 @@ export function EmailPreviewSheet({
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden bg-bg2">
-          {state.kind === 'ready' ? (
+          {p ? (
             <iframe
               title={`${setting?.label} preview`}
-              srcDoc={state.preview.html}
+              srcDoc={p.html}
               sandbox=""
               className="size-full border-0"
             />
           ) : (
             <p role="status" className="p-6 text-sm text-mute">
-              {state.kind === 'loading'
-                ? 'Rendering…'
-                : state.kind === 'empty'
-                  ? 'No booking fits this email yet — it previews as soon as one does.'
-                  : state.message}
+              {state.kind === 'empty'
+                ? 'No booking fits this email yet — it previews as soon as one does.'
+                : state.kind === 'bad'
+                  ? state.message
+                  : 'Rendering…'}
             </p>
           )}
         </div>

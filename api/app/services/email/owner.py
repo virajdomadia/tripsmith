@@ -24,7 +24,7 @@ from app.schemas.admin_emails import (
 )
 from app.services.booking import deposit, details
 from app.services.booking.balance import _open_request
-from app.services.email import automatic
+from app.services.email import automatic, unsubscribe
 from app.services.email.automatic import (
     DETAILS_STAGES,
     PACK_DAYS,
@@ -258,6 +258,14 @@ async def send_test(
             raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
     else:
         message, _ = await render_for(db, kind, ref, settings, today=today)
+    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
+    token = unsubscribe.token_for(message.to, kind, secret)
+    if token:  # a click on the test's footer must not unsubscribe the customer
+        real = unsubscribe.page_url(settings.site_url, token)
+        dud = unsubscribe.page_url(settings.site_url, "test-copy")
+        message = replace(
+            message, html=message.html.replace(real, dud), text=message.text.replace(real, dud)
+        )
     test = replace(
         message,
         to=settings.owner_notify_email,
@@ -295,16 +303,45 @@ async def upcoming(db: AsyncSession, booking: Booking, *, today: dt.date) -> lis
     made = booking.created_at.astimezone(automatic.IST).date()
     out: list[UpcomingEmail] = []
 
-    def add(kind: EmailType, stage: int, anchor: dt.date, day: dt.date, note: str | None = None):
-        if day >= today and key_of(kind, booking.id, stage, anchor) not in taken:
-            out.append(
-                UpcomingEmail(type=kind, label=LABEL[kind], on=day, switch_on=on[kind], note=note)
-            )
+    def plan(
+        kind: EmailType,
+        stages: list[tuple[int, dt.date]],
+        anchor: dt.date,
+        *,
+        note: str | None = None,
+        made_rule: bool = True,
+    ) -> None:
+        """Every stage still to come, plus — like the engine's catch-up — the latest one whose
+        day has passed unsent, which the next run sends."""
+        if made_rule:
+            stages = [(st, day) for st, day in stages if day >= made]
+        passed = [(st, day) for st, day in stages if day < today]
+        if passed:
+            stages = [max(passed, key=lambda x: x[1])] + [x for x in stages if x[1] >= today]
+        for st, day in stages:
+            if key_of(kind, booking.id, st, anchor) not in taken:
+                out.append(
+                    UpcomingEmail(
+                        type=kind,
+                        label=LABEL[kind],
+                        on=max(day, today),
+                        switch_on=on[kind],
+                        note=note,
+                    )
+                )
 
     due_on = booking.balance_due_on
-    if booking.status == BookingStatus.PARTIALLY_PAID and due_on:
-        for s in deposit.REMINDER_DAYS:
-            add(EmailType.BALANCE_REMINDER, s, due_on, due_on - dt.timedelta(days=s))
+    if (
+        booking.status == BookingStatus.PARTIALLY_PAID
+        and due_on
+        and today <= deposit.overdue_after(due_on)
+    ):
+        plan(
+            EmailType.BALANCE_REMINDER,
+            [(st, due_on - dt.timedelta(days=st)) for st in deposit.REMINDER_DAYS],
+            due_on,
+            made_rule=False,
+        )
     missing = (
         await db.execute(
             select(details.missing_travellers())
@@ -312,16 +349,27 @@ async def upcoming(db: AsyncSession, booking: Booking, *, today: dt.date) -> lis
             .where(Booking.id == booking.id)
         )
     ).scalar() or 0
-    if booking.status in details.OPEN_STATUSES and missing:
-        for s in DETAILS_STAGES:
-            day = dep.date - dt.timedelta(days=s)
-            if day >= made:
-                add(EmailType.DETAILS_REMINDER, s, dep.date, day, f"{missing} still to fill in")
-    pack_day = dep.date - dt.timedelta(days=PACK_DAYS)
-    if booking.status == BookingStatus.CONFIRMED and pack_day >= made:
-        add(EmailType.TRIP_PACK, PACK_DAYS, dep.date, pack_day)
-    elif booking.status == BookingStatus.PARTIALLY_PAID and pack_day >= made:
-        add(EmailType.TRIP_PACK, PACK_DAYS, dep.date, pack_day, "once paid in full")
+    if (
+        booking.status in details.OPEN_STATUSES
+        and missing
+        and today < dep.date - dt.timedelta(days=details.LOCK_DAYS)
+    ):
+        plan(
+            EmailType.DETAILS_REMINDER,
+            [(st, dep.date - dt.timedelta(days=st)) for st in DETAILS_STAGES],
+            dep.date,
+            note=f"{missing} still to fill in",
+        )
+    if (
+        booking.status in (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
+        and today < dep.date
+    ):
+        plan(
+            EmailType.TRIP_PACK,
+            [(PACK_DAYS, dep.date - dt.timedelta(days=PACK_DAYS))],
+            dep.date,
+            note=None if booking.status == BookingStatus.CONFIRMED else "only once paid in full",
+        )
     reviewed = (
         await db.execute(select(Review.id).where(Review.booking_id == booking.id))
     ).first() is not None
@@ -333,9 +381,12 @@ async def upcoming(db: AsyncSession, booking: Booking, *, today: dt.date) -> lis
             )
         )
     ).first() is not None
-    if booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) and not (
-        reviewed or suppressed
+    back = dep.date + dt.timedelta(days=pkg.nights + REVIEW_AFTER)
+    # Confirmed today, completed by the 01:00 tidy the day after departure.
+    if (
+        booking.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
+        and not (reviewed or suppressed)
+        and today <= back + dt.timedelta(days=automatic.REVIEW_UNTIL - REVIEW_AFTER)
     ):
-        back = dep.date + dt.timedelta(days=pkg.nights + REVIEW_AFTER)
-        add(EmailType.REVIEW_REQUEST, REVIEW_AFTER, dep.date, back)
+        plan(EmailType.REVIEW_REQUEST, [(REVIEW_AFTER, back)], dep.date, made_rule=False)
     return sorted(out, key=lambda u: u.on)

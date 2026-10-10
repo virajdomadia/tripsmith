@@ -136,3 +136,29 @@ async def test_the_booking_lists_what_is_coming_up_with_its_switch(
     ]
     assert b["upcomingEmails"][0]["note"] == "3 still to fill in"
     assert ist_today() < dep.date
+
+
+async def test_coming_up_shows_the_catch_up_the_next_run_sends(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """Booked long ago, the trip now 2 days out and the pack never sent (a missed run): the
+    engine sends it on the next run, so "Coming up" lists it for today."""
+    from sqlalchemy import update
+
+    from app.models import Booking, Departure
+
+    ref, _, dep = await booked(db, db_app, db_client)
+    soon = ist_today() + dt.timedelta(days=2)
+    await db.execute(update(Departure).where(Departure.id == dep.id).values(date=soon))
+    await db.execute(
+        update(Booking)
+        .where(Booking.ref == ref)
+        .values(created_at=dt.datetime.now(dt.UTC) - dt.timedelta(days=60))
+    )
+    await db.commit()
+    owner = await owner_cookie(db)
+    b = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()
+    packs = [u for u in b["upcomingEmails"] if u["type"] == "trip_pack"]
+    assert [(u["on"], u["switchOn"]) for u in packs] == [(ist_today().isoformat(), True)]
+    # Details are locked 3 days out: no reminder is listed any more.
+    assert not [u for u in b["upcomingEmails"] if u["type"] == "details_reminder"]
