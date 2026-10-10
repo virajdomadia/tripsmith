@@ -18,6 +18,7 @@ from app.models.enums import (
 )
 from app.schemas import ApiModel
 from app.schemas.account import AccountCancellation, AccountTraveller, GstDocumentOut
+from app.schemas.admin_emails import UpcomingEmail
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.details import (
@@ -290,6 +291,10 @@ class AdminBooking(ApiModel):
     )
     history: BookingHistory = Field(
         description="Every change, payment and email, oldest first (R54)"
+    )
+    upcoming_emails: list[UpcomingEmail] = Field(
+        default_factory=list,
+        description="P15b (R53): the automatic emails still to come, as the rules stand today",
     )
     cancellation: AdminCancellation | None
     has_voucher: bool

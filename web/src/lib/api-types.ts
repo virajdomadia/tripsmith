@@ -955,6 +955,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["getEmailSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/emails/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Switch */
+        put: operations["setEmailSwitch"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/emails/{kind}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Preview */
+        get: operations["previewEmail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/emails/{kind}/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Samples */
+        get: operations["getEmailSamples"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/emails/{kind}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Test */
+        post: operations["sendTestEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/enquiries": {
         parameters: {
             query?: never;
@@ -2609,6 +2694,11 @@ export interface components {
              * @description In the order they were entered
              */
             travellers: components["schemas"]["AccountTraveller"][];
+            /**
+             * Upcomingemails
+             * @description P15b (R53): the automatic emails still to come, as the rules stand today
+             */
+            upcomingEmails?: components["schemas"]["UpcomingEmail"][];
         };
         /**
          * AdminCancellation
@@ -4939,11 +5029,124 @@ export interface components {
             /** Travellers */
             travellers: components["schemas"]["TravellerDetails"][];
         };
+        /** EmailPreview */
+        EmailPreview: {
+            /**
+             * Asof
+             * Format: date
+             * @description The day it is rendered for — the day it would go
+             */
+            asOf: string;
+            /**
+             * Attachments
+             * @description File names (the trip pack's PDF)
+             */
+            attachments: string[];
+            /** Html */
+            html: string;
+            /** Ref */
+            ref: string;
+            /** Subject */
+            subject: string;
+            /** Text */
+            text: string;
+            /** To */
+            to: string;
+            type: components["schemas"]["EmailType"];
+        };
+        /** EmailSample */
+        EmailSample: {
+            /**
+             * Label
+             * @description Ref · lead · package · date
+             */
+            label: string;
+            /** Ref */
+            ref: string;
+        };
+        /** EmailSamples */
+        EmailSamples: {
+            /**
+             * Items
+             * @description Bookings this email fits, newest first
+             */
+            items: components["schemas"]["EmailSample"][];
+        };
+        /** EmailSettings */
+        EmailSettings: {
+            /**
+             * Owneremail
+             * @description Where a test goes; None = tests can't be sent
+             */
+            ownerEmail: string | null;
+            /**
+             * Sendsat
+             * @description When the daily run goes, e.g. "09:00 IST"
+             */
+            sendsAt: string;
+            /** Types */
+            types: components["schemas"]["EmailTypeSetting"][];
+        };
         /**
          * EmailStatus
          * @enum {string}
          */
         EmailStatus: "sent" | "failed" | "skipped";
+        /** EmailSwitchInput */
+        EmailSwitchInput: {
+            /** On */
+            on: boolean;
+        };
+        /** EmailTestInput */
+        EmailTestInput: {
+            /** Ref */
+            ref: string;
+        };
+        /** EmailTestSent */
+        EmailTestSent: {
+            /** Subject */
+            subject: string;
+            /** To */
+            to: string;
+        };
+        /**
+         * EmailType
+         * @description The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five
+         *     are the automatic ones the owner can switch off; a refund email always goes.
+         * @enum {string}
+         */
+        EmailType: "balance_reminder" | "details_reminder" | "trip_pack" | "review_request" | "still_thinking" | "refund";
+        /** EmailTypeSetting */
+        EmailTypeSetting: {
+            /**
+             * Label
+             * @description "Trip pack", "Review request"…
+             */
+            label: string;
+            /** On */
+            on: boolean;
+            /**
+             * Sent30D
+             * @description Sent (or held in demo mode) in the last 30 days
+             */
+            sent30D: number;
+            /**
+             * Switchable
+             * @description False for the refund email, which always goes
+             */
+            switchable: boolean;
+            /**
+             * Trigger
+             * @description When it goes, in plain words
+             */
+            trigger: string;
+            type: components["schemas"]["EmailType"];
+            /**
+             * Unsubscribable
+             * @description Carries an unsubscribe link (two promotional ones)
+             */
+            unsubscribable: boolean;
+        };
         /** EnquiryCreate */
         EnquiryCreate: {
             /** Adults */
@@ -7653,6 +7856,31 @@ export interface components {
             /** Seatstotal */
             seatsTotal: number;
         };
+        /**
+         * UpcomingEmail
+         * @description One automatic email still to come for a booking, as the rules stand today.
+         */
+        UpcomingEmail: {
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @description e.g. "once the balance is paid"
+             */
+            note?: string | null;
+            /**
+             * On
+             * Format: date
+             * @description The IST day the 09:00 run sends it
+             */
+            on: string;
+            /**
+             * Switchon
+             * @description False: switched off in Settings, so it won't go
+             */
+            switchOn: boolean;
+            type: components["schemas"]["EmailType"];
+        };
         /** UploadedImage */
         UploadedImage: {
             /** Height */
@@ -9613,6 +9841,204 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getEmailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSettings"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    setEmailSwitch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["EmailType"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSwitchInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailTypeSetting"];
+                };
+            };
+            /** @description No switch */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    previewEmail: {
+        parameters: {
+            query: {
+                ref: string;
+            };
+            header?: never;
+            path: {
+                kind: components["schemas"]["EmailType"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailPreview"];
+                };
+            };
+            /** @description Unknown booking */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The booking doesn't fit this email (not_fitting), no owner address (no_owner_email) or the send failed (send_failed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getEmailSamples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["EmailType"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSamples"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    sendTestEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["EmailType"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailTestInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailTestSent"];
+                };
+            };
+            /** @description Unknown booking */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The booking doesn't fit this email (not_fitting), no owner address (no_owner_email) or the send failed (send_failed) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

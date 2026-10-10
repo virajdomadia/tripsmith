@@ -97,6 +97,7 @@ from app.services.booking.voucher import (
     payment_label,
 )
 from app.services.catalog.admin_leaders import departure_leader
+from app.services.email.owner import upcoming as upcoming_emails
 from app.services.email.render import IST
 from app.services.format import inr
 from app.services.gst.documents import documents_out
@@ -545,6 +546,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         refund_to_send_paise=await refund_owed(db, b) + stuck,
         refund_offline_paise=sum(r.amount_paise for r in waiting if r.by_hand),
         history=await booking_history(db, b.id),
+        upcoming_emails=await upcoming_emails(db, b, today=ist_today()),
         cancellation=_admin_cancellation(asked, b, seats.date) if asked else None,
         has_voucher=b.status in HAS_VOUCHER,
         can_mark_paid=payable,
