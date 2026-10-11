@@ -60,6 +60,12 @@ def _refund(p: Payment) -> dict[str, Any]:
     return info if isinstance(info, dict) else {}
 
 
+def captured_at(p: Payment) -> dt.datetime:
+    """When the money came in: a captured payment's last update, or — on one hand-refunded
+    before P13 — the capture time its refund note kept. Never `created_at` (the order)."""
+    return _when(_refund(p).get("capturedAt"), p.updated_at)
+
+
 def _label(p: Payment) -> str:
     if p.provider == PaymentProvider.OFFLINE:
         ref = offline_reference(p)
@@ -104,8 +110,7 @@ async def money_desk(
     by_day: dict[dt.date, list[MoneyLine]] = defaultdict(list)
     collected = count = 0
     for p, ref, name in rows.all():
-        info = _refund(p)
-        captured_on = _when(info.get("capturedAt"), p.updated_at).astimezone(IST).date()
+        captured_on = captured_at(p).astimezone(IST).date()
         who = name
         if captured_on >= window_start:
             by_day[captured_on].append(

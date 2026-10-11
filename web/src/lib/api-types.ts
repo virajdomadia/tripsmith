@@ -1529,6 +1529,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports Route */
+        get: operations["getReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reports/{section}.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Route */
+        get: operations["exportReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/reviews": {
         parameters: {
             query?: never;
@@ -5416,6 +5450,11 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /**
+         * DiscountSource
+         * @enum {string}
+         */
+        DiscountSource: "deal" | "early_bird" | "coupon" | "manual";
         /** EarlyBirdAdmin */
         EarlyBirdAdmin: {
             /** On */
@@ -8020,6 +8059,456 @@ export interface components {
              * @description Optional, shown to the customer
              */
             note?: string | null;
+        };
+        /** ReportAddon */
+        ReportAddon: {
+            /**
+             * Bookings
+             * @description Bookings that took it
+             */
+            bookings: number;
+            /**
+             * Eligible
+             * @description Bookings on packages that offer it
+             */
+            eligible: number;
+            /** Name */
+            name: string;
+            /** Revenuepaise */
+            revenuePaise: number;
+        };
+        /** ReportAddons */
+        ReportAddons: {
+            /** Addons */
+            addons: components["schemas"]["ReportAddon"][];
+            /** Bookings */
+            bookings: number;
+            /** Revenuepaise */
+            revenuePaise: number;
+            /**
+             * Withany
+             * @description Bookings with at least one add-on
+             */
+            withAny: number;
+        };
+        /** ReportBucket */
+        ReportBucket: {
+            /** Bookings */
+            bookings: number;
+            /** Label */
+            label: string;
+        };
+        /** ReportCancellations */
+        ReportCancellations: {
+            /**
+             * Cancelled
+             * @description … of those, cancelled since
+             */
+            cancelled: number;
+            /**
+             * Keptpaise
+             * @description Collected − refunded on the cancelled ones: fees kept
+             */
+            keptPaise: number;
+            /**
+             * Lapsed
+             * @description Never paid: holds that lapsed, failed payments, seats gone
+             */
+            lapsed: components["schemas"]["ReportReason"][];
+            /**
+             * Paidbookings
+             * @description Bookings that ever had a captured payment
+             */
+            paidBookings: number;
+            /** Reasons */
+            reasons: components["schemas"]["ReportReason"][];
+            /** Refundedpaise */
+            refundedPaise: number;
+        };
+        /**
+         * ReportCash
+         * @description What reached or left the bank in the range, by payment and refund date — whatever the
+         *     departure. Not part of the reconcile.
+         */
+        ReportCash: {
+            /** Inpaise */
+            inPaise: number;
+            /** Months */
+            months: components["schemas"]["ReportCashMonth"][];
+            /** Netpaise */
+            netPaise: number;
+            /** Outpaise */
+            outPaise: number;
+        };
+        /** ReportCashMonth */
+        ReportCashMonth: {
+            /** Inpaise */
+            inPaise: number;
+            /**
+             * Month
+             * @description YYYY-MM of the payment or refund, IST
+             */
+            month: string;
+            /** Outpaise */
+            outPaise: number;
+        };
+        /** ReportChannel */
+        ReportChannel: {
+            /** Bookedpaise */
+            bookedPaise: number;
+            /** Bookings */
+            bookings: number;
+            channel: components["schemas"]["BookingChannel"];
+            /** Travellers */
+            travellers: number;
+        };
+        /** ReportCustomers */
+        ReportCustomers: {
+            /** Bookings */
+            bookings: number;
+            /** First */
+            first: number;
+            /**
+             * Lead
+             * @description Days booked before departure
+             */
+            lead: components["schemas"]["ReportBucket"][];
+            /** Party */
+            party: components["schemas"]["ReportBucket"][];
+            /**
+             * Repeat
+             * @description Bookings by an email with two or more paid bookings ever
+             */
+            repeat: number;
+            /** Travellers */
+            travellers: number;
+        };
+        /** ReportDeparture */
+        ReportDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Daystogo */
+            daysToGo: number;
+            /** Departureid */
+            departureId: string;
+            /** Free */
+            free: number;
+            /** Guaranteed */
+            guaranteed: boolean;
+            /**
+             * Held
+             * @description Checkout holds, payment links and date-change holds
+             */
+            held: number;
+            /** Packageid */
+            packageId: string;
+            /** Packagename */
+            packageName: string;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Sold */
+            sold: number;
+        };
+        /** ReportDiscount */
+        ReportDiscount: {
+            /**
+             * Bookedpaise
+             * @description Those bookings' total
+             */
+            bookedPaise: number;
+            /**
+             * Bookings
+             * @description Bookings that carried it
+             */
+            bookings: number;
+            /** Givenpaise */
+            givenPaise: number;
+            /**
+             * Label
+             * @description “Deals”, “Early-bird”, the coupon's code, or “Manual”
+             */
+            label: string;
+            source: components["schemas"]["DiscountSource"];
+        };
+        /** ReportDiscounts */
+        ReportDiscounts: {
+            /** Bookings */
+            bookings: number;
+            /** Discountedbookings */
+            discountedBookings: number;
+            /** Givenpaise */
+            givenPaise: number;
+            /** Sources */
+            sources: components["schemas"]["ReportDiscount"][];
+        };
+        /**
+         * ReportFunnel
+         * @description By activity date: views (our own counter), package enquiries, web holds started, and
+         *     those holds that were ever paid. Enquiries and holds are parallel paths, not steps.
+         */
+        ReportFunnel: {
+            /** Enquiries */
+            enquiries: number;
+            /** Holds */
+            holds: number;
+            /** Packages */
+            packages: components["schemas"]["ReportFunnelPackage"][];
+            /** Paid */
+            paid: number;
+            /** Views */
+            views: number;
+        };
+        /** ReportFunnelPackage */
+        ReportFunnelPackage: {
+            /** Enquiries */
+            enquiries: number;
+            /** Holds */
+            holds: number;
+            /** Name */
+            name: string;
+            /** Packageid */
+            packageId: string;
+            /** Paid */
+            paid: number;
+            /** Views */
+            views: number;
+        };
+        /** ReportKpis */
+        ReportKpis: {
+            /** Balancepaise */
+            balancePaise: number;
+            /** Bookedpaise */
+            bookedPaise: number;
+            /**
+             * Bookings
+             * @description Bookings holding seats (confirmed, deposit paid, done)
+             */
+            bookings: number;
+            /** Collectedpaise */
+            collectedPaise: number;
+            /** Departures */
+            departures: number;
+            /** Netpaise */
+            netPaise: number;
+            previous: components["schemas"]["ReportPrevious"];
+            /** Refundedpaise */
+            refundedPaise: number;
+            /** Seatssold */
+            seatsSold: number;
+            /**
+             * Seatstotal
+             * @description Every seat on the range's departures
+             */
+            seatsTotal: number;
+            /** Travellers */
+            travellers: number;
+        };
+        /** ReportMoney */
+        ReportMoney: {
+            /** Balancebookings */
+            balanceBookings: number;
+            /**
+             * Balancepaise
+             * @description = desk CSV Balance due
+             */
+            balancePaise: number;
+            /**
+             * Bookedpaise
+             * @description Σ total of bookings holding seats = desk CSV Total
+             */
+            bookedPaise: number;
+            cash: components["schemas"]["ReportCash"];
+            /**
+             * Collectedpaise
+             * @description Captured payments, online and offline
+             */
+            collectedPaise: number;
+            /**
+             * Gstpaise
+             * @description The 5 % GST inside net (prices are GST-inclusive)
+             */
+            gstPaise: number;
+            /** Months */
+            months: components["schemas"]["ReportMonth"][];
+            /**
+             * Netpaise
+             * @description collected − refunded = desk CSV Paid, every status
+             */
+            netPaise: number;
+            /**
+             * Refundedpaise
+             * @description Refunds sent or on their way (not failed)
+             */
+            refundedPaise: number;
+        };
+        /** ReportMonth */
+        ReportMonth: {
+            /** Balancepaise */
+            balancePaise: number;
+            /** Bookedpaise */
+            bookedPaise: number;
+            /** Bookings */
+            bookings: number;
+            /** Collectedpaise */
+            collectedPaise: number;
+            /** Gstpaise */
+            gstPaise: number;
+            /**
+             * Month
+             * @description YYYY-MM of the departure
+             * @example 2026-05
+             */
+            month: string;
+            /** Netpaise */
+            netPaise: number;
+            /** Refundedpaise */
+            refundedPaise: number;
+        };
+        /** ReportOccupancy */
+        ReportOccupancy: {
+            /**
+             * Emptiest
+             * @description The emptiest live departures in the next 60 days, whatever the range
+             */
+            emptiest: components["schemas"]["ReportDeparture"][];
+            /**
+             * Past
+             * @description Departures from `from` to yesterday
+             */
+            past: components["schemas"]["ReportPastFill"][];
+            /**
+             * Upcoming
+             * @description Departures from today to `to`
+             */
+            upcoming: components["schemas"]["ReportDeparture"][];
+        };
+        /** ReportPackage */
+        ReportPackage: {
+            /** Bookedpaise */
+            bookedPaise: number;
+            /** Bookings */
+            bookings: number;
+            /** Departures */
+            departures: number;
+            /** Name */
+            name: string;
+            /** Netpaise */
+            netPaise: number;
+            /** Packageid */
+            packageId: string;
+            /** Seatssold */
+            seatsSold: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Travellers */
+            travellers: number;
+        };
+        /** ReportPastFill */
+        ReportPastFill: {
+            /** Departures */
+            departures: number;
+            /** Name */
+            name: string;
+            /** Packageid */
+            packageId: string;
+            /** Seatssold */
+            seatsSold: number;
+            /** Seatstotal */
+            seatsTotal: number;
+        };
+        /** ReportPrevious */
+        ReportPrevious: {
+            /** Bookedpaise */
+            bookedPaise: number;
+            /** Bookings */
+            bookings: number;
+            /** Netpaise */
+            netPaise: number;
+        };
+        /** ReportRange */
+        ReportRange: {
+            /**
+             * Demo
+             * @description True when the seeded demo history is included
+             */
+            demo: boolean;
+            /**
+             * Demobookings
+             * @description Seeded demo bookings departing in the range
+             */
+            demoBookings: number;
+            /**
+             * From
+             * Format: date
+             * @description First departure day, IST
+             */
+            from: string;
+            /**
+             * Previousfrom
+             * Format: date
+             * @description The same number of days just before `from`
+             */
+            previousFrom: string;
+            /**
+             * Previousto
+             * Format: date
+             */
+            previousTo: string;
+            /**
+             * To
+             * Format: date
+             * @description Last departure day, IST (inclusive)
+             */
+            to: string;
+            /**
+             * Today
+             * Format: date
+             * @description IST today, which splits upcoming from past
+             */
+            today: string;
+        };
+        /** ReportReason */
+        ReportReason: {
+            /** Bookings */
+            bookings: number;
+            /**
+             * Keptpaise
+             * @description Collected − refunded on these bookings
+             */
+            keptPaise: number;
+            /** Label */
+            label: string;
+            /**
+             * Reason
+             * @description The cancel reason's key
+             */
+            reason: string;
+            /** Refundedpaise */
+            refundedPaise: number;
+        };
+        /**
+         * ReportSection
+         * @enum {string}
+         */
+        ReportSection: "money" | "cash" | "packages" | "occupancy" | "funnel" | "cancellations" | "discounts" | "addons" | "channels" | "customers";
+        /** Reports */
+        Reports: {
+            addons: components["schemas"]["ReportAddons"];
+            cancellations: components["schemas"]["ReportCancellations"];
+            /** Channels */
+            channels: components["schemas"]["ReportChannel"][];
+            customers: components["schemas"]["ReportCustomers"];
+            discounts: components["schemas"]["ReportDiscounts"];
+            funnel: components["schemas"]["ReportFunnel"];
+            kpis: components["schemas"]["ReportKpis"];
+            money: components["schemas"]["ReportMoney"];
+            occupancy: components["schemas"]["ReportOccupancy"];
+            /** Packages */
+            packages: components["schemas"]["ReportPackage"][];
+            range: components["schemas"]["ReportRange"];
         };
         /**
          * ResolveCancellationInput
@@ -11920,6 +12409,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPackage"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getReports: {
+        parameters: {
+            query?: {
+                /** @description First departure day; omit both for this financial year */
+                from?: string | null;
+                /** @description Last departure day (inclusive) */
+                to?: string | null;
+                /** @description Include the seeded demo history (seed.py --history) */
+                demo?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reports"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    exportReportCsv: {
+        parameters: {
+            query?: {
+                /** @description First departure day; omit both for this financial year */
+                from?: string | null;
+                /** @description Last departure day (inclusive) */
+                to?: string | null;
+                /** @description Include the seeded demo history (seed.py --history) */
+                demo?: boolean;
+            };
+            header?: never;
+            path: {
+                section: components["schemas"]["ReportSection"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One section's table as CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Error envelope (06 C0) */

@@ -476,7 +476,7 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - The trigger refuses UPDATE and DELETE. TRUNCATE and DROP stay possible, since they are schema-owner operations and the test harness truncates.
 
 ### R55. Reports (P12)
-- **`/admin/reports`** with presets: this month, last month, season, 12 months, custom. All in IST.
+- **`/admin/reports`** with presets: this month, last month, next 90 days, this financial year, 12 months, custom. All in IST.
 - **Sections:**
 
   | Section | What it shows |
@@ -494,6 +494,22 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - Every chart has a table view and a CSV export. Charts use shadcn charts (Recharts) in Tripsmith's colours, including dark mode.
 - The seed adds a year of history, marked as seed data.
 - **Accept:** totals reconcile with the desk CSV for the same range.
+- **Decided at row start (Viraj, 2026-10-11):**
+  - **Reads:** one `GET /admin/reports?from=&to=&demo=` returns every section for the range (a few grouped queries, the arithmetic in Python), and `GET /admin/reports/{section}.csv` exports one section's table — `money`, `cash`, `packages`, `occupancy`, `funnel`, `cancellations`, `discounts`, `addons`, `channels`, `customers`. Omitting both days means this financial year; a range wider than three years is refused.
+  - **Which date:** every booking section is keyed on the **departure date**, the range the desk's From/To filter uses — Money, Packages, Occupancy, Cancellations, Discounts, Add-ons, Channels, Customers — so a report and the desk CSV for the same range hold the same bookings. The **Funnel** counts activity on the day it happened (a page view, an enquiry received, a hold started). Money adds a small **Cash this period** table by payment date and refund date: what reached or left the bank, whatever the departure (not part of the reconcile).
+  - **Presets (IST, in the URL):** This month · Last month · Next 90 days · This FY (April–March, the default) · Last 12 months · Custom. "Season" from the first draft became This FY plus Next 90 days. KPI tiles compare with the same number of days just before.
+  - **Money:** booked = Σ total of bookings holding seats (confirmed, deposit paid, completed) = the CSV's Total for those statuses; collected = captured payments, online and offline; refunded = refunds sent or on their way (not failed); **net = collected − refunded = the CSV's Paid summed over every status**; balances due = the CSV's Balance due. Amounts are GST-inclusive, with an "of which GST (5 %)" figure from R51's split of each booking's net. By month = booked vs net by departure month.
+  - **Funnel:** views (our own `package_views` counter, bots excluded) → package enquiries → web holds started → those holds that ever had a captured payment. Counter bookings stay out of it (they show under Channels). Enquiries and holds are parallel paths, so the chart says so; views → paid is shown per package.
+  - **Occupancy:** Upcoming (departures from today to the range's end, one row each) and Past (fill per package for the range's departed dates). Fill = sold ÷ seats, held shown apart (R50's seat maths). The **5 emptiest** live departures in the next 60 days are flagged with "days to go", whatever the range; a guaranteed date already ≥ 70 % full and a sold-out one never are.
+  - **Cancellations:** rate = cancelled after paying ÷ bookings that ever paid; reasons with refunds sent and ₹ kept (collected − refunded); lapsed holds, failed payments and seats gone are listed apart as "never paid", not in the rate.
+  - **Discounts:** per source — deals, early-bird, each coupon code, the counter's manual discount — ₹ given, bookings that carried it, those bookings' booked total and ₹ booked per ₹1 given; plus the share of bookings discounted. The words are "carried", never "brought in": nothing here proves the discount caused the booking.
+  - **Add-ons:** attach rate = bookings that took it ÷ bookings on packages that offer it; revenue per add-on; the share of bookings with at least one.
+  - **Channels:** web, phone, walk-in, WhatsApp, enquiry (R56): bookings, travellers, booked.
+  - **Customers:** party size 1 · 2 · 3 · 4 · 5+; booked ahead under 7 · 7–29 · 30–89 · 90+ days; repeat = a booking by an email with two or more paid bookings ever.
+  - **Seeded history:** `seed.py --history` writes a year of it — four past departures per live package, ~150 bookings priced by the real quote (early-bird from the booking day, add-ons, a demo deal, the demo coupons `DEMOHIST10` / `DEMOFLAT2K`, the counter's manual discount), paid in full or on a deposit, some cancelled with a by-hand refund, lapsed holds and failed payments, plus enquiries and page views. Marked by `history-seed-N@example.com` contacts (every automatic email skips them), refs `TB-H…` / `TS-H…` and a "Demo booking (seed)" history line; no GST numbers are issued. Nothing departs in the last week, nothing was booked in the last 35 days (R40's labels never see it) and no future date is touched. Idempotent. Run locally and on Neon dev; prod only when Viraj says so. The page's **Demo history** chip (on by default) hides it: those bookings and enquiries, and a departure only they booked. Page views carry no contact, so the funnel's views always include the seeded ones.
+  - **Charts:** shadcn chart (Recharts) in Tripsmith's colours. The reports page follows the system's dark mode (the rest of the admin stays light for now). Layout = mockup Reports B (KPI cockpit): six KPI tiles, nine section tiles with a mini chart, a drill-in panel with Chart / Table toggle, CSV and "What it says"; on a phone the tiles stack and the panel follows, tables scroll sideways.
+  - **Accept test:** real bookings (paid, deposit, part-refunded, offline, lapsed, live hold) plus the seeded history; for the same From/To the report's booked, net and balances due equal the desk CSV's columns summed, and every breakdown adds back to the same totals.
+  - **Nav:** "Reports" after Calendar. **Two PRs, no migration:** P12a the api, the CSVs, `--history` and the reconcile test; P12b the page.
 
 ### R56. Counter booking (P18; absorbs R52 phone bookings)
 - **Entry points:**

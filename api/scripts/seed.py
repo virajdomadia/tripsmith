@@ -57,6 +57,14 @@ the web afterwards (or wait for /cron/daily):
 
     uv run python scripts/seed.py --urgency --database-url …
 
+`--history` (P12) writes a year of marked demo history behind the reports (R55): past
+departures, bookings (paid, on a deposit, cancelled with a refund, lapsed holds), package
+enquiries and page views — see scripts/seed_history.py. Contacts are
+`history-seed-N@example.com`, so the reports can hide it and no email ever goes out. It never
+touches a future date. Idempotent; a full seed never runs it. No redeploy needed:
+
+    uv run python scripts/seed.py --history --database-url …
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -130,6 +138,7 @@ from app.services.reviews import recompute_rating  # noqa: E402
 from content import Content, load_content  # noqa: E402
 from content._schema import DestinationContent, PackageContent, Photo  # noqa: E402
 from content.trip_packs import HOTEL_PHONE  # noqa: E402
+from scripts.seed_history import HistoryResult, seed_history  # noqa: E402
 
 
 @dataclass
@@ -1090,6 +1099,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="seed just the past bookings behind the urgency labels (P2); nothing else",
     )
     parser.add_argument(
+        "--history",
+        action="store_true",
+        help="seed just a year of marked demo history for the reports (P12); nothing else",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -1106,11 +1120,14 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.addons or args.early_bird or args.leaders or args.pack or args.urgency:  # no uploads
-        engine = make_engine(url)
+    if args.addons or args.early_bird or args.leaders or args.pack or args.urgency or args.history:
+        engine = make_engine(url)  # none of these upload anything
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-                if args.urgency:
+                result: SeedResult | HistoryResult
+                if args.history:
+                    result = await seed_history(db)
+                elif args.urgency:
                     result = await seed_urgency(db)
                 elif args.pack:
                     result = await seed_trip_packs(db, load_content())

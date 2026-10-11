@@ -36,6 +36,7 @@ from app.routers.admin import enquiries as admin_enquiries
 from app.routers.admin import leaders as admin_leaders
 from app.routers.admin import package_images as admin_package_images
 from app.routers.admin import packages as admin_packages
+from app.routers.admin import reports as admin_reports
 from app.routers.admin import reviews as admin_reviews
 from app.routers.cron import daily, emails, pdf_gc
 from app.routers.cron import waitlist as waitlist_tick
@@ -143,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_emails.router)
     app.include_router(admin_counter.router)
     app.include_router(admin_calendar.router)
+    app.include_router(admin_reports.router)
     app.include_router(catalog.router)
     app.include_router(compare.router)
     app.include_router(site_leaders.router)
