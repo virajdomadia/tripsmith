@@ -7,7 +7,7 @@ type Variant = 'card' | 'hero' | 'bar';
 
 const LOOK: Record<Variant, string> = {
   // On a card photo: a round chip over the top-left corner (the stamps own the top-right).
-  card: 'size-10 justify-center rounded-full bg-white/94 text-ink shadow-[0_6px_16px_-8px_rgb(0_0_0/0.45)] hover:bg-white',
+  card: 'size-11 justify-center rounded-full bg-white/94 text-ink shadow-[0_6px_16px_-8px_rgb(0_0_0/0.45)] hover:bg-white',
   // The package hero, beside Share: the same chip as ShareButtons.
   hero: 'h-9 gap-1.5 rounded-btn bg-white/94 px-3 text-[13px] font-bold text-ink [text-shadow:none] hover:bg-white',
   // The phone's sticky Book bar: the bar's outlined icon buttons.

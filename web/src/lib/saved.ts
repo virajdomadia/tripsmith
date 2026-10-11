@@ -63,9 +63,12 @@ export function readGuest(): GuestSave[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const { slug, at } = item as Partial<GuestSave>;
-    if (typeof slug !== 'string' || !SLUG.test(slug) || seen.has(slug)) continue;
+    // Anything the api would refuse (and so block the whole merge) is dropped or repaired here.
+    if (typeof slug !== 'string' || slug.length > 80 || !SLUG.test(slug) || seen.has(slug))
+      continue;
     seen.add(slug);
-    out.push({ slug, at: typeof at === 'string' ? at : new Date().toISOString() });
+    const valid = typeof at === 'string' && !Number.isNaN(Date.parse(at));
+    out.push({ slug, at: valid ? new Date(at).toISOString() : new Date().toISOString() });
   }
   return out.slice(0, MAX_GUEST);
 }
@@ -123,6 +126,15 @@ async function call(
 }
 
 type SlugsAnswer = { slugs: string[] };
+
+/** A body that is not the api's JSON (a proxy's HTML page, a cut-off answer) reads as none. */
+async function jsonOf<T>(res: Response): Promise<T | undefined> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return undefined;
+  }
+}
 type MergeAnswer = SlugsAnswer & { added: number; leftOut: number };
 
 /**
@@ -134,7 +146,8 @@ export async function mergeGuestSaves(): Promise<MergeAnswer | undefined> {
   if (!guest.length) return undefined;
   const res = await call('/api/account/saved/merge', 'POST', { items: guest });
   if (!res?.ok) return undefined;
-  const answer = (await res.json()) as MergeAnswer;
+  const answer = await jsonOf<MergeAnswer>(res);
+  if (!answer || !Array.isArray(answer.slugs)) return undefined;
   writeGuest([]);
   const note = mergeNote(answer);
   if (note) write(NOTE_KEY, note, 'session');
@@ -159,6 +172,8 @@ export function mergeNote({ added, leftOut }: Pick<MergeAnswer, 'added' | 'leftO
 async function boot(): Promise<void> {
   // Paint at once from what this browser knows, then ask the api who is here.
   const guest = readGuest();
+  // Just signed out (`/account/sign-in?signedout=1`): the account's hearts must not paint here.
+  if (new URLSearchParams(window.location.search).get('signedout') === '1') write(MIRROR_KEY, null);
   const mirror = readMirror();
   if (mirror.length) set({ mode: 'unknown', slugs: mirror });
   else if (guest.length) set({ mode: 'unknown', slugs: guest.map((g) => g.slug) });
@@ -170,8 +185,8 @@ async function boot(): Promise<void> {
   }
 
   const res = await call('/api/account/saved', 'GET');
-  const who = res?.ok ? ((await res.json()) as SlugsAnswer & { signedIn?: boolean }) : null;
-  if (who && who.signedIn !== false) {
+  const who = res?.ok ? await jsonOf<SlugsAnswer & { signedIn?: boolean }>(res) : undefined;
+  if (who && who.signedIn !== false && Array.isArray(who.slugs)) {
     let slugs = who.slugs;
     if (guest.length) {
       const merged = await mergeGuestSaves();
@@ -253,7 +268,6 @@ export async function setSaved(slug: string, name: string, want: boolean): Promi
   }
   const was = state.slugs.includes(slug);
   if (was === want) return want;
-  const before = state;
   const slugs = was ? state.slugs.filter((s) => s !== slug) : [slug, ...state.slugs];
 
   if (state.mode !== 'account') {
@@ -286,12 +300,16 @@ export async function setSaved(slug: string, name: string, want: boolean): Promi
 
   set({ mode: 'account', slugs });
   const res = await call(`/api/account/saved/${encodeURIComponent(slug)}`, was ? 'DELETE' : 'PUT');
+  const answer = res?.ok ? await jsonOf<SlugsAnswer>(res) : undefined;
   if (res?.ok) {
-    set({ mode: 'account', slugs: ((await res.json()) as SlugsAnswer).slugs });
+    // Keep any other tap still in flight: take the server's word for this slug only.
+    if (answer && Array.isArray(answer.slugs) && answer.slugs.includes(slug) !== want)
+      set({ mode: 'account', slugs: flip(state.slugs, slug, answer.slugs.includes(slug)) });
     if (!was) toast({ text: `Saved ${name}` });
-    return !was;
+    return want;
   }
-  set(before);
+  // Undo this tap only — another heart tapped meanwhile keeps its own state.
+  set({ mode: state.mode, slugs: flip(state.slugs, slug, was) });
   let message = 'Couldn’t save that just now — try again';
   if (res) {
     try {
@@ -309,6 +327,11 @@ export async function setSaved(slug: string, name: string, want: boolean): Promi
   }
   toast({ text: message });
   return was;
+}
+
+function flip(slugs: readonly string[], slug: string, on: boolean): string[] {
+  const rest = slugs.filter((s) => s !== slug);
+  return on ? [slug, ...rest] : rest;
 }
 
 /** Test seam: forget everything this module holds. */

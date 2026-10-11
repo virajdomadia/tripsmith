@@ -75,7 +75,10 @@ export function SignInForm({ signedOut }: { signedOut: boolean }) {
       }
       // P1: the ♡ saves made as a guest join the account before My trips loads (at most 4 s —
       // a slow merge is retried by the next page load, which finds the session).
-      await Promise.race([mergeGuestSaves(), new Promise((r) => setTimeout(r, 4000))]);
+      await Promise.race([
+        mergeGuestSaves().catch(() => undefined),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]);
       window.location.assign(ACCOUNT_PATH);
       return;
     }
