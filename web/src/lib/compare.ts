@@ -8,7 +8,7 @@
  */
 
 import type { components } from './api-types';
-import { afterDeal } from './deal';
+import { shownPrice } from './deal';
 
 export type CompareTrip = components['schemas']['CompareTrip'];
 export const MAX_COMPARE = 3;
@@ -53,7 +53,8 @@ export type Row = {
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 const asSet = (items: readonly string[]) => [...new Set(items.map(norm))].sort().join('|');
 
-export const priceFrom = (t: CompareTrip) => afterDeal(t.startingPricePaise, t.deal);
+/** The same "from" price the card and the package page show (the api's deal price). */
+export const priceFrom = (t: CompareTrip) => shownPrice(t);
 
 /** The value a row compares, per trip. */
 const VALUE: Record<RowKey, (t: CompareTrip) => string> = {

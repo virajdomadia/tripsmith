@@ -139,7 +139,10 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                 className="sticky left-0 z-20 bg-bg align-bottom lg:top-[65px] lg:z-30"
               >
                 <span className="sr-only">Fact</span>
-                <span aria-hidden className="label-caps block pb-3 text-left text-[11px] text-mute">
+                <span
+                  aria-hidden
+                  className="label-caps block pb-3 pl-2.5 text-left text-[11px] text-mute"
+                >
                   {plural(trips.length, 'trip')}
                 </span>
               </th>
@@ -184,12 +187,8 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                   {group && (
                     <tr>
                       {/* One cell across the row; the label rides along the left edge. */}
-                      <th
-                        scope="colgroup"
-                        colSpan={trips.length + (slot ? 2 : 1)}
-                        className="pt-6 pb-2 text-left"
-                      >
-                        <span className="label-caps sticky left-0 inline-block bg-bg pr-2 whitespace-nowrap text-mute">
+                      <th colSpan={trips.length + (slot ? 2 : 1)} className="pt-6 pb-2 text-left">
+                        <span className="label-caps sticky left-0 inline-block bg-bg pr-2 pl-2.5 whitespace-nowrap text-mute">
                           {group}
                         </span>
                       </th>
@@ -198,8 +197,8 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                   <tr>
                     <th
                       scope="row"
-                      className={`sticky left-0 z-10 border-t border-line bg-bg py-3 pr-2 text-left align-top ${
-                        r.differs ? 'shadow-[inset_3px_0_0_var(--color-action)] pl-2.5' : 'pl-0'
+                      className={`sticky left-0 z-10 border-t border-line bg-bg py-3 pr-2 pl-2.5 text-left align-top ${
+                        r.differs ? 'shadow-[inset_3px_0_0_var(--color-action)]' : ''
                       }`}
                     >
                       <b className="block text-[13.5px] leading-snug text-ink">{r.label}</b>
@@ -233,7 +232,7 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
             <tr>
               <th
                 scope="row"
-                className="sticky left-0 z-10 border-t border-line bg-bg py-4 pr-2 text-left align-top"
+                className="sticky left-0 z-10 border-t border-line bg-bg py-4 pr-2 pl-2.5 text-left align-top"
               >
                 <b className="block text-[13.5px] text-ink">Ready?</b>
                 <small className="block text-[11.5px] text-mute">Holds your seats for 10 min</small>

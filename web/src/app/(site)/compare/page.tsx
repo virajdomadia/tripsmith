@@ -3,12 +3,12 @@ import Link from 'next/link';
 import { Container } from '@/components/site/Container';
 import { CompareView } from '@/components/site/compare/CompareView';
 import { api, ApiRequestError } from '@/lib/api';
-import { slugsFromParam } from '@/lib/compare';
+import { MAX_COMPARE, slugsFromParam } from '@/lib/compare';
 
 type Search = Record<string, string | string[] | undefined>;
 
 // Every combination of trips is its own page and the seats are live: rendered per request,
-// never prerendered. The api answer itself is CDN-cached for 60 s.
+// never prerendered. The api answer itself is CDN-cached for 60 s (its Cache-Control).
 export const dynamic = 'force-dynamic';
 
 // A shortlist, not a landing page: crawlers follow the trip links but never index the
@@ -22,7 +22,8 @@ export const metadata: Metadata = {
 
 /** `/compare?p=a,b,c` (R39, P1b, mockup Compare A · Sticky table): rendered from the URL alone. */
 export default async function ComparePage({ searchParams }: { searchParams: Promise<Search> }) {
-  const asked = slugsFromParam((await searchParams).p);
+  // At most three: an over-long `p` would otherwise trip the api's length cap (422).
+  const asked = slugsFromParam((await searchParams).p).slice(0, MAX_COMPARE);
   let result: Awaited<ReturnType<typeof load>> = null;
   if (asked.length) result = await load(asked);
 
@@ -56,7 +57,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
 
 async function load(slugs: string[]) {
   try {
-    return await api('/compare', { searchParams: { slugs: slugs.join(',') }, revalidate: 60 });
+    // force-dynamic means no-store here; the 60 s cache is the api's own CDN header.
+    return await api('/compare', { searchParams: { slugs: slugs.join(',') } });
   } catch (e) {
     // An api from before P1b (the web/api deploy race) has no /compare: say so, don't 500.
     if (e instanceof ApiRequestError) return null;

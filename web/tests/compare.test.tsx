@@ -16,6 +16,7 @@ import {
   type CompareTrip,
   compareHref,
   compareRows,
+  priceFrom,
   slugsFromParam,
   winners,
 } from '../src/lib/compare';
@@ -116,6 +117,11 @@ describe('the compare rows', () => {
     });
     const rows = compareRows([trip('a', { startingPricePaise: 18_000_00 }), dealt]);
     expect(rows.find((r) => r.key === 'price')?.differs).toBe(false);
+    // The api's deal price is the truth, even when the stored starting price is lower than
+    // the base the deal was cut from (the card shows `deal.pricePaise` too).
+    expect(priceFrom(trip('c', { startingPricePaise: 17_000_00, deal: dealt.deal }))).toBe(
+      18_000_00,
+    );
   });
 
   it('earns a tag only for a trip that is best alone', () => {
