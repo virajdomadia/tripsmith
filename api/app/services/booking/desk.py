@@ -140,7 +140,6 @@ async def departure_seats(db: AsyncSession, departure_id: str) -> DepartureSeats
                 Departure.date,
                 Departure.seats_total,
                 _travellers_where(Booking.status.in_(SEAT_HOLDING)),
-                _travellers_where(hold_live()),
                 departure_availability.c.seats_left,
             )
             .join(Package, Package.id == Departure.package_id)
@@ -153,7 +152,7 @@ async def departure_seats(db: AsyncSession, departure_id: str) -> DepartureSeats
     ).one_or_none()
     if row is None:
         return None
-    dep_id, pkg_id, pkg_name, date, total, booked, held, left = row
+    dep_id, pkg_id, pkg_name, date, total, booked, left = row
     return DepartureSeats(
         departure_id=dep_id,
         package_id=pkg_id,
@@ -161,7 +160,9 @@ async def departure_seats(db: AsyncSession, departure_id: str) -> DepartureSeats
         date=date,
         seats_total=total,
         booked=int(booked),
-        held=int(held),
+        # P11: everything the view holds back — live holds, payment links, waitlist offers and
+        # date changes moving in — so booked + held + left = total, as on the calendar.
+        held=max(total - int(booked) - int(left), 0),
         seats_left=int(left),
         waiting=(await waitlist.waiting_counts(db, [dep_id])).get(dep_id, 0),
     )

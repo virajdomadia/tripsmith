@@ -73,13 +73,29 @@ function roomsFor(adults: number, children: number): Rooms {
   return { double: (a - 3) / 2, triple: 1, single: 0, children };
 }
 
-function initialDraft(packages: CounterPackage[], e: EnquiryPrefill | null): Draft {
+/** P11: "New booking on this departure" from the calendar — the date, if it can still sell. */
+function calendarPick(packages: CounterPackage[], departureId: string | null) {
+  if (!departureId) return null;
+  for (const p of packages) {
+    const d = p.departures.find((x) => x.id === departureId && !x.onRequest && x.seatsLeft > 0);
+    if (d) return { pkg: p, dep: d };
+  }
+  return null;
+}
+
+function initialDraft(
+  packages: CounterPackage[],
+  e: EnquiryPrefill | null,
+  departureId: string | null,
+): Draft {
   const pkg = e?.packageSlug ? packages.find((p) => p.slug === e.packageSlug) : undefined;
   const month = e?.travelMonth?.slice(0, 7);
   const dep =
+    calendarPick(packages, departureId)?.dep ??
     pkg?.departures.find(
       (d) => !d.onRequest && d.seatsLeft > 0 && month && d.date.startsWith(month),
-    ) ?? null;
+    ) ??
+    null;
   return {
     departureId: dep?.id ?? null,
     rooms: e ? roomsFor(e.adults, e.children) : { double: 1, triple: 0, single: 0, children: 0 },
@@ -110,17 +126,22 @@ export function CounterBooking({
   enquiry,
   owner,
   linkMaxPaise,
+  departureId = null,
 }: {
   packages: CounterPackage[];
   /** P18b: Razorpay's largest link (test mode), or null. */
   linkMaxPaise: number | null;
   enquiry: EnquiryPrefill | null;
   owner: string;
+  /** P11: `?departure=` from the calendar's panel. */
+  departureId?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [draft, setDraft] = useState<Draft>(() => initialDraft(packages, enquiry));
+  const [draft, setDraft] = useState<Draft>(() => initialDraft(packages, enquiry, departureId));
   const [packageId, setPackageId] = useState<string | null>(() => {
+    const byCalendar = calendarPick(packages, departureId)?.pkg;
+    if (byCalendar) return byCalendar.id;
     const byEnquiry = enquiry?.packageSlug
       ? packages.find((p) => p.slug === enquiry.packageSlug)
       : undefined;
@@ -359,7 +380,7 @@ export function CounterBooking({
               onChanged={setDone}
               onNew={() => {
                 if (enquiry) router.push('/admin/bookings/new');
-                setDraft(initialDraft(packages, null));
+                setDraft(initialDraft(packages, null, null));
                 setDone(null);
                 setStep(0);
                 setCouponMsg(null);

@@ -97,9 +97,9 @@ class BookingCounts(ApiModel):
 
 
 class DepartureSeats(ApiModel):
-    """One departure's seats. `seatsLeft` is the `departure_availability` view itself; `booked`
-    and `held` are counted the way the view counts them, so total − booked − held = left
-    (until a lowered `seatsTotal` makes the view clamp at 0)."""
+    """One departure's seats. `seatsLeft` is the `departure_availability` view itself, `booked`
+    is counted the way the view counts it, and `held` is the rest (P11), so total − booked −
+    held = left (until a lowered `seatsTotal` makes the view clamp at 0)."""
 
     departure_id: str
     package_id: str
@@ -107,7 +107,10 @@ class DepartureSeats(ApiModel):
     date: dt.date
     seats_total: int
     booked: int = Field(description="Travellers on confirmed, part-paid and completed bookings")
-    held: int = Field(description="Travellers on pending bookings whose hold is still live")
+    held: int = Field(
+        description="Seats the view holds back: live holds and payment links, waitlist offers, "
+        "date changes moving in (P11: total − booked − left)"
+    )
     seats_left: int
     waiting: int = Field(default=0, description="P6: places on the date's waitlist")
 

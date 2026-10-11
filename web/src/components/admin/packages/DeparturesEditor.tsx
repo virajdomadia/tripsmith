@@ -95,7 +95,7 @@ export function DeparturesEditor({
                 const past = Boolean(date) && String(date) < todayIso();
                 const savedId = rows[i]?.id;
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} id={savedId ? `dep-${savedId}` : undefined}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <FormField

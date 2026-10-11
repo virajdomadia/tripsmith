@@ -356,34 +356,51 @@ def details_due(today: dt.date) -> ColumnElement[bool]:
     )
 
 
-async def departure_readiness(db: AsyncSession, departure_id: str) -> DepartureReadiness:
-    """R49's readiness % per departure: the mean of its paid bookings' readiness, and how many
-    travellers still lack details. The calendar (P11) reuses it."""
-    rows = (
-        await db.execute(
-            select(
-                Booking,
-                select(func.count())
-                .where(BookingTraveller.booking_id == Booking.id)
-                .correlate(Booking)
-                .scalar_subquery(),
-                missing_travellers(),
-                Package.checklist,
-            )
-            .join(Package, Package.id == Booking.package_id)
-            .where(Booking.departure_id == departure_id, Booking.status.in_(OPEN_STATUSES))
+ReadinessRow = tuple[Booking, int, int, list[dict[str, Any]]]
+
+
+async def open_booking_rows(
+    db: AsyncSession, departure_ids: Sequence[str]
+) -> dict[str, list[ReadinessRow]]:
+    """Each departure's paid bookings with (travellers, missing, the package's checklist) — one
+    query for any number of departures."""
+    out: dict[str, list[ReadinessRow]] = {}
+    if not departure_ids:
+        return out
+    rows = await db.execute(
+        select(
+            Booking,
+            select(func.count())
+            .where(BookingTraveller.booking_id == Booking.id)
+            .correlate(Booking)
+            .scalar_subquery(),
+            missing_travellers(),
+            Package.checklist,
         )
-    ).all()
+        .join(Package, Package.id == Booking.package_id)
+        .where(Booking.departure_id.in_(departure_ids), Booking.status.in_(OPEN_STATUSES))
+    )
+    for b, n, m, checklist in rows.all():
+        out.setdefault(b.departure_id, []).append((b, int(n), int(m), checklist))
+    return out
+
+
+def readiness_of(rows: Sequence[ReadinessRow]) -> DepartureReadiness:
     if not rows:
         return DepartureReadiness(percent=None, missing_travellers=0, bookings=0)
-    percents = [
-        booking_percent(b, int(n), int(n) - int(m), checklist) for b, n, m, checklist in rows
-    ]
+    percents = [booking_percent(b, n, n - m, checklist) for b, n, m, checklist in rows]
     return DepartureReadiness(
         percent=round(sum(percents) / len(percents)),
-        missing_travellers=sum(int(m) for _, _, m, _ in rows),
+        missing_travellers=sum(m for _, _, m, _ in rows),
         bookings=len(rows),
     )
+
+
+async def departure_readiness(db: AsyncSession, departure_id: str) -> DepartureReadiness:
+    """R49's readiness % per departure: the mean of its paid bookings' readiness, and how many
+    travellers still lack details. The calendar (P11) batches it (`open_booking_rows`)."""
+    rows = await open_booking_rows(db, [departure_id])
+    return readiness_of(rows.get(departure_id, []))
 
 
 # --- saving -------------------------------------------------------------------------------------

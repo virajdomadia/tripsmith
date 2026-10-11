@@ -460,6 +460,26 @@ export function PackageForm(props: Props) {
     setTimeout(() => toast.success(message), 0);
   }, [draftKey, form]);
 
+  // P11: the calendar's "Edit departure" lands here on `#dep-<id>` — open Dates and prices,
+  // bring that date's row into view and flash it once.
+  const departureIds = (pkg?.departures ?? []).map((d) => d.id).join(',');
+  useEffect(() => {
+    const id = /^#dep-([a-z0-9]{1,40})$/i.exec(window.location.hash)?.[1];
+    if (!id || !departureIds.split(',').includes(id)) return;
+    setPane('edit');
+    setOpen((was) => new Set(was).add('prices'));
+    const t = setTimeout(() => {
+      const row = document.getElementById(`dep-${id}`);
+      if (!row) return;
+      row.scrollIntoView({
+        block: 'center',
+        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+      row.setAttribute('data-flash', '');
+    }, 120);
+    return () => clearTimeout(t);
+  }, [departureIds]);
+
   function onInvalid() {
     toast.error('Could not save — fix the highlighted fields');
     // Open every section so the first highlighted field can take focus.
