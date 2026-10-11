@@ -6,7 +6,7 @@ import Link from 'next/link';
 import type { components } from '@/lib/api-types';
 import { dealEnds } from '@/lib/deal';
 import { duration, formatDate, inr, priceOrOnRequest } from '@/lib/format';
-import { toast, toggleSaved, useSaved } from '@/lib/saved';
+import { setSaved, toast, useSaved } from '@/lib/saved';
 import { SaveHeart } from '@/components/site/saved/SaveHeart';
 
 type SavedTrip = components['schemas']['SavedTrip'];
@@ -128,7 +128,7 @@ function UnsaveHeart({ slug, name }: { slug: string; name: string }) {
           if (!saved)
             toast({
               text: `Removed ${name}`,
-              action: { label: 'Undo', run: () => void toggleSaved(slug, name) },
+              action: { label: 'Undo', run: () => void setSaved(slug, name, true) },
             });
         }}
       />

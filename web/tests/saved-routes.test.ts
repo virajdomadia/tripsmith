@@ -26,9 +26,20 @@ const req = (method: string, headers: Record<string, string> = {}, body?: unknow
 describe('GET /api/account/saved (P1)', () => {
   it('answers a visitor without a session itself — no api hop on every page', async () => {
     const res = await GET(req('GET', { cookie: 'other=1' }));
-    expect(res.status).toBe(401);
+    // A 200, so a guest's console stays clean on every page.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ signedIn: false, slugs: [], max: 60 });
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers an expired session the same way', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ error: { code: 'unauthorized', message: 'Sign in' } }, { status: 401 }),
+    );
+    const res = await GET(req('GET', { cookie: 'ts_session=old' }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).signedIn).toBe(false);
   });
 
   it('forwards a signed-in visitor to the api slugs list with the cookie as sent', async () => {

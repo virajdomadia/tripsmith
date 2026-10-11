@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Container } from '@/components/site/Container';
+import { ActiveTabIntoView } from '@/components/site/account/ActiveTabIntoView';
+import { SavedRefresh } from '@/components/site/account/SavedRefresh';
 import { SavedTrips } from '@/components/site/account/SavedTrips';
 import { TripRow } from '@/components/site/account/TripRow';
 import { WaitlistList } from '@/components/site/account/WaitlistList';
@@ -106,6 +108,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       )}
 
       {/* `?? []`: an api from before P6 (the web/api deploy race) has no waitlist. */}
+      <SavedRefresh rendered={saved.items.map((i) => i.card.slug)} />
       <WaitlistList entries={trips.waitlist ?? []} />
 
       {trips.bookings.length === 0 && saved.items.length === 0 ? (
@@ -124,7 +127,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </section>
       ) : (
         <>
+          <ActiveTabIntoView navId="trip-tabs" />
           <nav
+            id="trip-tabs"
             aria-label="Trips by status"
             className="mt-8 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]"
           >

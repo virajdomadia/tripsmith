@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { isSaved, toggleSaved, useSaved } from '@/lib/saved';
+import { isSaved, setSaved, useSaved } from '@/lib/saved';
 
 type Variant = 'card' | 'hero' | 'bar';
 
@@ -38,7 +38,7 @@ export function SaveHeart({
 
   async function onClick() {
     if (!saved) setPop((n) => n + 1);
-    const now = await toggleSaved(slug, name);
+    const now = await setSaved(slug, name, !saved);
     if (now !== saved) onToggled?.(now);
   }
 
@@ -49,7 +49,7 @@ export function SaveHeart({
       aria-pressed={saved}
       aria-label={variant === 'hero' ? undefined : `Save ${name}`}
       title={saved ? 'Saved — tap to remove' : 'Save this trip'}
-      className={`relative inline-flex items-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${LOOK[variant]} ${className}`}
+      className={`inline-flex items-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${LOOK[variant]} ${className}`}
     >
       <span className="relative grid place-items-center">
         {pop > 0 && saved && (

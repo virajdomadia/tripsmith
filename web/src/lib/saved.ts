@@ -170,8 +170,9 @@ async function boot(): Promise<void> {
   }
 
   const res = await call('/api/account/saved', 'GET');
-  if (res?.status === 200) {
-    let slugs = ((await res.json()) as SlugsAnswer).slugs;
+  const who = res?.ok ? ((await res.json()) as SlugsAnswer & { signedIn?: boolean }) : null;
+  if (who && who.signedIn !== false) {
+    let slugs = who.slugs;
     if (guest.length) {
       const merged = await mergeGuestSaves();
       if (merged) slugs = merged.slugs;
@@ -179,7 +180,7 @@ async function boot(): Promise<void> {
     set({ mode: 'account', slugs });
     return;
   }
-  // 401 (a guest), or the api is unreachable: the browser's own list.
+  // A guest (`signedIn: false`), or the api is unreachable: the browser's own list.
   write(MIRROR_KEY, null);
   set({ mode: 'guest', slugs: guest.map((g) => g.slug) });
 }
@@ -238,10 +239,12 @@ export function isSaved(s: SavedState, slug: string): boolean {
 const SIGN_IN = '/account/sign-in';
 
 /**
- * Saves or unsaves `slug`, optimistically: the heart changes at once and goes back, with a
- * toast, if the api refuses. Returns the new saved flag.
+ * Saves (`want` true) or unsaves `slug`, optimistically: the heart changes at once and goes
+ * back, with a toast, if the api refuses. `want` is what the visitor asked for on the heart they
+ * saw — a tap made before the store painted the hearts must never flip a save the other way.
+ * Returns the new saved flag.
  */
-export async function toggleSaved(slug: string, name: string): Promise<boolean> {
+export async function setSaved(slug: string, name: string, want: boolean): Promise<boolean> {
   // A tap before the store knows who is here waits for that answer (a few hundred ms at most),
   // so a signed-in visitor's first save never lands in the browser list by mistake.
   if (state.mode === 'unknown') {
@@ -249,6 +252,7 @@ export async function toggleSaved(slug: string, name: string): Promise<boolean> 
     await ready;
   }
   const was = state.slugs.includes(slug);
+  if (was === want) return want;
   const before = state;
   const slugs = was ? state.slugs.filter((s) => s !== slug) : [slug, ...state.slugs];
 

@@ -15,7 +15,7 @@ import {
 const fetchMock = vi.fn();
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-const signedOut = () => json({ error: { code: 'unauthorized', message: 'Sign in' } }, 401);
+const signedOut = () => json({ signedIn: false, slugs: [], max: 60 });
 
 beforeEach(() => {
   localStorage.clear();
