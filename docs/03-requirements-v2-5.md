@@ -77,6 +77,16 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - No view counts. The labels are computed by the api, cached with the page, and refreshed by booking events and the cron.
 - The seed adds a small set of realistic past bookings so the labels appear.
 - **Accept:** every label traces to a query, and none shows without data behind it.
+- **Decided at row start (Viraj, 2026-10-11):**
+  - **Wording change:** "Booked N× this month" became "**Booked N× in the last 30 days**" — the window is the last 30 IST days, not the calendar month (which would wipe the count on the 1st), and the label says so.
+  - **What counts:** bookings that are confirmed, part-paid (deposit in) or completed, from any channel (counter bookings are real ones). Cancelled ones never count, even if booked inside the window; holds and pending checkouts never count. The booked time is `bookings.created_at` on its IST day (there is no `confirmed_at`; a web booking captures minutes after its hold).
+  - **Package facts** (`proof` on the package page, cards and compare): "Booked N× in the last 30 days" = counted bookings made today or in the 29 IST days before, at 3 or more. "Last booked" = IST days since the newest counted booking, within 7: "Booked today", "Booked yesterday", "Last booked N days ago".
+  - **Departure badge:** "Likely to sell out" = booked travellers on counted bookings ≥ 70 % of `seats_total` (holds and waitlist offers left out — they come and go) and 2+ counted bookings on that date in the last 14 IST days. One badge per place, in the api's priority: Sold out › Filling fast · N left (4 or fewer) › Likely to sell out › Guaranteed.
+  - **Where:** the departure badge on the departures table row, the Book-now sheet's date chips, compare's "Next departures" cells and the card stamp (the first bookable date, with "N left"). The package facts as one line under the price box (desktop) and above the dates (phone), both facts joined ("Booked 5× in the last 30 days · last booked 2 days ago"); cards and compare's Price row show one ("Booked N×" wins). Counter booking shows none — the owner sees exact seats; the admin dashboard's badge gains the count through the shared rule.
+  - **Computed inside the existing reads** (cards, package page, departures, compare) by `services/catalog/urgency.py` — one grouped query per read, no new endpoint. Booking events already revalidate the package's tags (`freshness.refresh_packages`); `/cron/daily` rebuilds the live packages with a counted booking in the last 31 days, since their day-counted labels move at IST midnight (report field `urgencyRevalidated`). Staleness accepted: a day at most for the day-counted labels; the api's 60 s CDN + 300 s stale-while-revalidate after a booking. The itinerary PDF never draws the package facts and leaves them out of its version hash.
+  - **Seed:** `seed.py --urgency` writes 15 past bookings on 4 packages — Kasol weekend (Booked 4×, newest yesterday), Jaipur–Jodhpur–Udaipur (Booked 3×), one Shimla–Manali date (Likely to sell out, 72 % of 24) and one North Goa date (Filling fast · 3 left, booked weeks ago) — each confirmed and paid offline on the first departure at least a week out, made N days before the run. Marked `urgency-seed-N@example.com` and "Demo booking (seed)" in the history; the automatic emails skip them. Idempotent by ref, never rolled forward: the labels fade honestly. Run on prod by Claude when Viraj says so.
+  - **Tests:** one query function per label with an injected IST `today` in 2099, boundary pairs (2 vs 3 bookings, day 29 vs 30, 60 vs 70 % full, 1 vs 2 bookings in 14 days, 7 vs 8 days), cancelled/pending excluded, and nothing returned without rows behind it.
+  - **One PR** with P4.
 
 ### R41. Trip leader (P3)
 - **Admin:** a Trip leaders page with photo, name, languages, years, regions, a 2–3 line bio and a fun fact. Each package has a default leader, and any departure can switch to another.
@@ -113,6 +123,11 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - Each review card shows: ★ · name · **✓ Verified traveller** · Travelled <Mon YYYY> · with N others · Led by X.
 - Under the package rating: "All reviews are from travellers who completed this trip."
 - The label is automatic and can't be edited by the owner. No invented schema field is added.
+- **Decided at row start (Viraj, 2026-10-11):**
+  - Every review hangs off a completed booking (`reviews.booking_id` is required and unique), so every card is verified — there is no unverified kind to label.
+  - "Travelled <Mon YYYY>" = the month of the booking's departure (its current one after a date change). "With N others" = the booking's travellers, children included, minus one; hidden for a solo traveller. The api adds `party` to each public review.
+  - Under the rating: "All reviews are from travellers who completed this trip" (the count line no longer repeats "from travellers who went").
+  - JSON-LD is unchanged.
 
 ## Customer — booking
 

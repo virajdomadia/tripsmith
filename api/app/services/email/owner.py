@@ -35,6 +35,7 @@ from app.services.email.automatic import (
     refund_key,
     still_thinking_key,
 )
+from app.services.email.send import is_seed_address
 from app.services.email.unsubscribe import UNSUBSCRIBABLE
 from app.services.format import long_date
 from app.services.pdf.trip_pack import trip_pack_filename
@@ -293,6 +294,8 @@ async def upcoming(db: AsyncSession, booking: Booking, *, today: dt.date) -> lis
         return []
     asked = (await db.execute(select(_open_request()).where(Booking.id == booking.id))).scalar()
     if asked or booking.status in (BookingStatus.PENDING, BookingStatus.CANCELLED):
+        return []
+    if is_seed_address(booking.contact_email):  # P2: the engine skips seed bookings too
         return []
     on = await automatic.switches(db)
     taken = set(

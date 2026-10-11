@@ -21,7 +21,12 @@ async def test_meta_lists_themes_with_labels(client: AsyncClient) -> None:
 async def test_meta_lists_badges_with_labels(client: AsyncClient) -> None:
     res = await client.get("/meta")
     badges = res.json()["badges"]
-    assert [b["value"] for b in badges] == ["filling-fast", "sold-out", "guaranteed"]
+    assert [b["value"] for b in badges] == [
+        "filling-fast",
+        "sold-out",
+        "likely-to-sell-out",
+        "guaranteed",
+    ]
     assert all(b["label"] for b in badges)
 
 

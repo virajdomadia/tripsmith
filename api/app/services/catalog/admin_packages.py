@@ -50,7 +50,7 @@ from app.schemas.catalog import (
 from app.services.analytics import ist_today
 from app.services.booking import trip_pack, waitlist
 from app.services.booking.details import apply_details_settings, details_settings
-from app.services.catalog import admin_leaders, deals, early_bird
+from app.services.catalog import admin_leaders, deals, early_bird, urgency
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
 from app.services.format import inr
@@ -200,6 +200,30 @@ async def revalidate_ended_early_birds(db: AsyncSession, *, today: dt.date) -> i
     if tags:
         await revalidate(tags)
     return len(ended)
+
+
+async def revalidate_urgency(db: AsyncSession, *, today: dt.date) -> int:
+    """Daily (`/cron/daily`, after IST midnight): P2's day-counted labels ("Last booked 2 days
+    ago", the 30- and 14-day windows) move with the IST day, not with a booking event — the live
+    packages with a counted booking in the last 31 days are rebuilt, so a label that just
+    lapsed leaves the page too. Nothing is written."""
+    ids = await urgency.labelled_packages(db, today)
+    if not ids:
+        return 0
+    rows = (
+        await db.execute(
+            select(Package.slug, Destination.slug)
+            .join(Destination, Destination.id == Package.destination_id)
+            .where(Package.id.in_(ids), Package.status == PackageStatus.LIVE)
+            .order_by(Package.slug)
+        )
+    ).all()
+    tags: list[str] = []
+    for slug, destination_slug in rows:
+        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
+    if tags:
+        await revalidate(tags)
+    return len(rows)
 
 
 def publish_rules(pkg: Package, *, image_count: int, today: dt.date) -> list[PublishRule]:

@@ -17,6 +17,7 @@ import { MobileCtaBar } from '@/components/site/package/MobileCtaBar';
 import { OccupancyPricing } from '@/components/site/package/OccupancyPricing';
 import { PackageHero } from '@/components/site/package/PackageHero';
 import { PriceBox } from '@/components/site/package/PriceBox';
+import { ProofLine } from '@/components/site/ProofLine';
 import { QuickFacts } from '@/components/site/package/QuickFacts';
 import { RelatedPackages } from '@/components/site/package/RelatedPackages';
 import { Reviews } from '@/components/site/package/Reviews';
@@ -34,6 +35,7 @@ import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
+import { proofLine } from '@/lib/urgency';
 
 type Params = { slug: string };
 
@@ -82,6 +84,8 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
   const url = absolute(`/packages/${pkg.slug}`);
   const faq = faqJsonLd(pkg);
   const bookable = offersBooking(pkg.departures);
+  // `?? null`: a build against an api from before P2 sends no `proof` (deploy race).
+  const proof = proofLine(pkg.proof ?? null, 'both');
 
   return (
     <BookNowProvider
@@ -155,6 +159,10 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
               </Section>
             )}
             <Section id="dates" title="Dates & prices">
+              {proof && (
+                // P2 (R40): the desktop price box carries it; a phone sees it above the dates.
+                <ProofLine text={proof} className="mb-3 lg:hidden" />
+              )}
               <DeparturesTable
                 departures={pkg.departures}
                 deal={pkg.deal}

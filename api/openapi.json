@@ -3369,6 +3369,7 @@
         "enum": [
           "filling-fast",
           "sold-out",
+          "likely-to-sell-out",
           "guaranteed"
         ],
         "title": "Badge",
@@ -3890,6 +3891,41 @@
           "departureCity"
         ],
         "title": "BookingPackage",
+        "type": "object"
+      },
+      "BookingProof": {
+        "description": "P2 (R40): what real bookings say about a package — each fact traces to one query in\n`services/catalog/urgency.py`, and is null when it is under its threshold.",
+        "properties": {
+          "lastBookedDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Last booked N days ago\": IST days since the newest counted booking (0 = today); null past 7",
+            "title": "Lastbookeddays"
+          },
+          "recentBookings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Booked N× in the last 30 days\": counted bookings made in the last 30 IST days; null below 3",
+            "title": "Recentbookings"
+          }
+        },
+        "required": [
+          "recentBookings",
+          "lastBookedDays"
+        ],
+        "title": "BookingProof",
         "type": "object"
       },
       "BookingRequest": {
@@ -4818,6 +4854,17 @@
             },
             "title": "Places",
             "type": "array"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingProof"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P2: the package page's booking facts (Price from row)"
           },
           "rating": {
             "anyOf": [
@@ -10476,6 +10523,17 @@
             "title": "Nights",
             "type": "integer"
           },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingProof"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P2: null when no booking fact passes its threshold"
+          },
           "rating": {
             "anyOf": [
               {
@@ -10486,6 +10544,18 @@
               }
             ],
             "description": "Published reviews only; null when none (B13)"
+          },
+          "seatsLeft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P2: seats left on the date the badge describes",
+            "title": "Seatsleft"
           },
           "slug": {
             "title": "Slug",
@@ -10679,6 +10749,17 @@
           "nights": {
             "title": "Nights",
             "type": "integer"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingProof"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "P2: null when no booking fact passes its threshold"
           },
           "rating": {
             "anyOf": [
@@ -11233,6 +11314,12 @@
             "description": "First name + last initial, e.g. 'Asha B.'",
             "title": "Name",
             "type": "string"
+          },
+          "party": {
+            "default": 1,
+            "description": "P4 (R42): travellers on the reviewer's booking, children included; \"with N others\" is party − 1",
+            "title": "Party",
+            "type": "integer"
           },
           "rating": {
             "title": "Rating",

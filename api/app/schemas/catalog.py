@@ -118,6 +118,20 @@ class EarlyBirdOut(ApiModel):
     )
 
 
+class BookingProof(ApiModel):
+    """P2 (R40): what real bookings say about a package — each fact traces to one query in
+    `services/catalog/urgency.py`, and is null when it is under its threshold."""
+
+    recent_bookings: int | None = Field(
+        description='"Booked N× in the last 30 days": counted bookings made in the last 30 IST '
+        "days; null below 3"
+    )
+    last_booked_days: int | None = Field(
+        description='"Last booked N days ago": IST days since the newest counted booking '
+        "(0 = today); null past 7"
+    )
+
+
 class PackageCard(ApiModel):
     slug: str
     name: str
@@ -130,6 +144,12 @@ class PackageCard(ApiModel):
     highlights: list[str]
     badge: Badge | None = Field(
         description="From the next upcoming departure with seats; sold-out only when all are full"
+    )
+    seats_left: int | None = Field(
+        default=None, description="P2: seats left on the date the badge describes"
+    )
+    proof: BookingProof | None = Field(
+        default=None, description="P2: null when no booking fact passes its threshold"
     )
     deal: DealOut | None = Field(description="Null when no deal is running")
     early_bird: bool = Field(
@@ -293,6 +313,9 @@ class PackageDetail(ApiModel):
     reviews: list[PublicReview] = Field(
         description="The first page of published reviews, newest first; the rest via "
         "`/packages/{slug}/reviews`"
+    )
+    proof: BookingProof | None = Field(
+        default=None, description="P2: null when no booking fact passes its threshold"
     )
     leader: LeaderCardOut | None = Field(
         default=None,

@@ -78,6 +78,7 @@ from app.services.email.balance import render_balance_reminder
 from app.services.email.bookings import _message, _vars, deliver
 from app.services.email.details import render_details_link, still_owed
 from app.services.email.render import IST
+from app.services.email.send import is_seed_address
 from app.services.format import inr, long_date
 from app.services.pdf.trip_pack import render_trip_pack, trip_pack_filename
 
@@ -194,7 +195,7 @@ async def _unclaimed(db: AsyncSession, dues: list[Due]) -> list[Due]:
         .scalars()
         .all()
     )
-    return [d for d in dues if d.key not in taken]
+    return [d for d in dues if d.key not in taken and not is_seed_address(d.email)]
 
 
 async def due_balance(db: AsyncSession, today: dt.date) -> list[Due]:

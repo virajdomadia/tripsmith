@@ -77,6 +77,7 @@ def trip_of(p: PackageDetail, *, deposit: bool) -> CompareTrip:
         exclusions=p.exclusions,
         departures=[d for d in p.departures if d.seats_left > 0][:NEXT_DEPARTURES],
         rating=p.rating,
+        proof=p.proof,
         leader=(
             PublicLeaderRef(slug=p.leader.slug, name=p.leader.name, photo_url=p.leader.photo_url)
             if p.leader

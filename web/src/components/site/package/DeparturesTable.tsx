@@ -104,7 +104,7 @@ export function DeparturesTable({
                   </span>
                 </td>
                 <td className="px-3.5 py-3">
-                  <Badge value={d.badge} />
+                  <Badge value={d.badge} seatsLeft={d.seatsLeft} />
                 </td>
               </tr>
             );

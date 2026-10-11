@@ -21,7 +21,12 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
         "adventure",
         "heritage",
     ]
-    assert schemas["Badge"]["enum"] == ["filling-fast", "sold-out", "guaranteed"]
+    assert schemas["Badge"]["enum"] == [
+        "filling-fast",
+        "sold-out",
+        "likely-to-sell-out",
+        "guaranteed",
+    ]
     assert schemas["EnquiryType"]["enum"] == ["standard", "custom", "contact"]
     assert doc["paths"]["/health"]["get"]["operationId"] == "getHealth"
     assert doc["paths"]["/meta"]["get"]["operationId"] == "getMeta"

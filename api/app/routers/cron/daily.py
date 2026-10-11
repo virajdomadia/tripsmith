@@ -23,6 +23,8 @@ IST midnight, so `ist_today()` is the new day:
    send the emails that owes.
 10. (P9) delete the traveller details of trips that came back 30 or more days ago (R49) —
    early, beside the balances, so a failing Blob GC never keeps ID numbers another day.
+11. (P2) revalidate the pages of live packages whose day-counted urgency labels ("Last booked
+   N days ago", the 30- and 14-day windows) move with the new IST day (R40).
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
 """
@@ -48,6 +50,7 @@ from app.services.catalog.admin_packages import (
     recompute_all_starting_prices,
     revalidate_ended_deals,
     revalidate_ended_early_birds,
+    revalidate_urgency,
 )
 from app.services.email.waitlist import walk_and_send
 from app.services.pdf.service import PdfService
@@ -85,4 +88,5 @@ async def daily(
         waitlist_offers=walked.offered,
         waitlist_lapsed=walked.lapsed,
         details_purged=purged,
+        urgency_revalidated=await revalidate_urgency(db, today=today),
     )

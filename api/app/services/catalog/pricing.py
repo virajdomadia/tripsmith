@@ -15,12 +15,15 @@ class DepartureLike(Protocol):
     price_double_paise: int
 
 
-def badge_for(departure: DepartureLike) -> Badge | None:
-    """*Sold out* 0 seats · *Filling fast* ≤ 4 · *Guaranteed* flag · else none."""
+def badge_for(departure: DepartureLike, *, likely: bool = False) -> Badge | None:
+    """*Sold out* 0 seats · *Filling fast* ≤ 4 · *Likely to sell out* (P2: `likely`, from
+    `urgency.likely_to_sell_out`) · *Guaranteed* flag · else none. One badge per place."""
     if departure.seats_left <= 0:
         return Badge.SOLD_OUT
     if departure.seats_left <= FILLING_FAST_MAX_SEATS:
         return Badge.FILLING_FAST
+    if likely:
+        return Badge.LIKELY_TO_SELL_OUT
     if departure.guaranteed:
         return Badge.GUARANTEED
     return None

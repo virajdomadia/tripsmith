@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/site/Badge';
+import { ProofLine } from '@/components/site/ProofLine';
 import { LeaderAvatar } from '@/components/site/LeaderAvatar';
 import { Stars } from '@/components/site/Stars';
 import { SaveHeart } from '@/components/site/saved/SaveHeart';
@@ -24,6 +25,7 @@ import { enquireHref } from '@/lib/enquiry-form-state';
 import { inr, MONTHS, priceOrOnRequest } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
 import { reviewsCount } from '@/lib/reviews';
+import { proofLine } from '@/lib/urgency';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const day = (iso: string) => {
@@ -334,6 +336,7 @@ function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
   switch (key) {
     case 'price': {
       const top = t.earlyBird?.tiers[0];
+      const proof = proofLine(t.proof);
       return (
         <div className="grid gap-1">
           <b className="num text-[20px] font-extrabold tracking-tight">
@@ -356,6 +359,7 @@ function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
           ) : (
             <small className="text-[12.5px] text-mute">No offer running</small>
           )}
+          {proof && <ProofLine text={proof} />}
         </div>
       );
     }
@@ -366,7 +370,7 @@ function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
             <li key={d.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="num min-w-[78px] font-semibold">{day(d.date)}</span>
               {d.badge && d.badge !== 'guaranteed' ? (
-                <Badge value={d.badge} />
+                <Badge value={d.badge} seatsLeft={d.seatsLeft} />
               ) : (
                 <span
                   className={`text-[12.5px] font-semibold ${d.seatsLeft <= 4 ? 'text-warn' : 'text-mute'}`}

@@ -21,7 +21,16 @@ from sqlalchemy.orm import selectinload
 
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
-from app.models import Booking, Departure, Package, PackageImage, Review, TripLeader, User
+from app.models import (
+    Booking,
+    BookingTraveller,
+    Departure,
+    Package,
+    PackageImage,
+    Review,
+    TripLeader,
+    User,
+)
 from app.models.enums import BookingActor, BookingStatus, PackageStatus
 from app.schemas.public_leaders import ReviewLeader
 from app.schemas.reviews import (
@@ -128,11 +137,19 @@ async def list_public_reviews(
     """Published only, newest first. A page past the end is empty, not an error."""
     where = and_(Review.package_id == package_id, PUBLISHED)
     total = (await db.execute(select(func.count()).select_from(Review).where(where))).scalar_one()
+    # P4 (R42): the party the reviewer travelled with — "with N others" is party − 1.
+    party = (
+        select(func.count())
+        .where(BookingTraveller.booking_id == Booking.id)
+        .correlate(Booking)
+        .scalar_subquery()
+    )
     rows = await db.execute(
         select(
             Review,
             Booking.contact_name,
             Departure.date,
+            party,
             TripLeader.name,
             TripLeader.slug,
             TripLeader.active,
@@ -157,12 +174,13 @@ async def list_public_reviews(
                 text=r.text,
                 name=public_name(name),
                 travelled=departs,
+                party=max(1, travellers),
                 created_at=r.created_at,
                 led_by=(
                     ReviewLeader(name=leader, slug=slug if active else None) if leader else None
                 ),
             )
-            for r, name, departs, leader, slug, active in rows
+            for r, name, departs, travellers, leader, slug, active in rows
         ],
         page=page,
         total=total,

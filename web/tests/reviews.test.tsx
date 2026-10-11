@@ -28,6 +28,7 @@ const review = (n: number): PublicReview => ({
   text: `Review ${n} — ${TEXT}`,
   name: 'Asha B.',
   travelled: '2026-08-01',
+  party: 2,
   createdAt: '2026-08-10T06:00:00Z',
 });
 
@@ -172,7 +173,8 @@ describe('package page reviews', () => {
       />,
     );
     expect(screen.getByRole('img', { name: 'Rated 4.4 out of 5' })).toBeTruthy();
-    expect(screen.getByText(/7 reviews from travellers/)).toBeTruthy();
+    expect(screen.getByText('7 reviews')).toBeTruthy();
+    expect(screen.getByText(/All reviews are from travellers who completed/)).toBeTruthy();
     expect(screen.getAllByText(/Travelled Aug 2026/)).toHaveLength(6);
 
     await user.click(screen.getByRole('button', { name: /Show more reviews/ }));

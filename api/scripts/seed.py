@@ -46,6 +46,17 @@ public changes, so no redeploy is needed:
 
     uv run python scripts/seed.py --pack --database-url …
 
+`--urgency` (P2) writes a small set of realistic past bookings so the honest urgency labels have
+data behind them (R40): Kasol weekend "Booked 4×", the Rajasthan circuit "Booked 3×", one
+Shimla–Manali date "Likely to sell out" and one North Goa date "Filling fast · 3 left". Each is a
+confirmed, paid-in-full (offline) booking on the package's first departure at least a week out,
+made N days before the run. They are marked: `urgency-seed-N@example.com`, a "Demo booking
+(seed)" history line, and the automatic emails skip them. Idempotent by ref — a re-run adds
+nothing — so the labels fade honestly as the days pass. A full seed never runs it. Redeploy
+the web afterwards (or wait for /cron/daily):
+
+    uv run python scripts/seed.py --urgency --database-url …
+
 A departure that has bookings is never deleted by a re-seed, even when the content no longer
 lists it: bookings reference it (ON DELETE RESTRICT), and a past departure carries history.
 
@@ -94,8 +105,10 @@ from app.models import (  # noqa: E402
     User,
     coupon_packages,
 )
+from app.models.catalog import departure_availability  # noqa: E402
 from app.models.enums import (  # noqa: E402
     BookingActor,
+    BookingChannel,
     BookingStatus,
     CouponKind,
     Occupancy,
@@ -112,6 +125,7 @@ from app.services.booking import history  # noqa: E402
 from app.services.booking.pricing import build_quote  # noqa: E402
 from app.services.catalog.deals import end_of_ist_day  # noqa: E402
 from app.services.catalog.pricing import starting_price  # noqa: E402
+from app.services.email.send import SEED_LOCAL_PREFIX  # noqa: E402
 from app.services.reviews import recompute_rating  # noqa: E402
 from content import Content, load_content  # noqa: E402
 from content._schema import DestinationContent, PackageContent, Photo  # noqa: E402
@@ -706,6 +720,209 @@ async def seed_demo_coupon(db: AsyncSession, *, today: dt.date | None = None) ->
     return result
 
 
+@dataclass(frozen=True)
+class UrgencySeed:
+    """Past bookings on one package's first departure at least `URGENCY_LEAD_DAYS` out:
+    `days_ago` = when each was made; `party` = each one's travellers, or (with `fill_percent` /
+    `leave`) the travellers needed are spread over the bookings."""
+
+    slug: str
+    prefix: str
+    days_ago: tuple[int, ...]
+    party: tuple[int, ...] = ()
+    fill_percent: int | None = None  # book up to this share of the seats
+    leave: int | None = None  # book until this many seats are left
+
+
+URGENCY_LEAD_DAYS = 7
+URGENCY_SEEDS = (
+    # 4 in 30 days, the newest yesterday: "Booked 4× in the last 30 days · booked yesterday".
+    UrgencySeed("kasol-weekend-camp", "TB-URGK", (1, 6, 13, 22), party=(2, 3, 2, 4)),
+    # 3 in 30 days: "Booked 3×" (the newest 4 days ago).
+    UrgencySeed("jaipur-jodhpur-udaipur", "TB-URGJ", (4, 11, 27), party=(2, 2, 4)),
+    # 72 % of 24 seats, two in the last 14 days: "Likely to sell out", 6 left.
+    UrgencySeed("shimla-manali-classic", "TB-URGS", (2, 10, 33, 41, 52), fill_percent=72),
+    # Booked weeks ago down to 3 seats: "Filling fast · 3 left", nothing recent to say.
+    UrgencySeed("north-goa-beaches", "TB-URGG", (35, 44, 58), leave=3),
+)
+URGENCY_NAMES = (
+    ("Ananya Kulkarni", 29),
+    ("Rohit Menon", 31),
+    ("Sneha Pillai", 27),
+    ("Karan Malhotra", 34),
+    ("Divya Sharma", 30),
+    ("Vikram Rao", 38),
+    ("Ishita Bose", 26),
+    ("Aditya Joshi", 33),
+)
+
+
+def _spread(total: int, bookings: int) -> list[int]:
+    """`total` travellers over `bookings` parties, the larger ones first."""
+    base, extra = divmod(total, bookings)
+    return [base + (i < extra) for i in range(bookings)]
+
+
+async def seed_urgency(
+    db: AsyncSession,
+    *,
+    today: dt.date | None = None,
+    seeds: tuple[UrgencySeed, ...] = URGENCY_SEEDS,
+) -> SeedResult:
+    """The P2 urgency seed (see the module docstring). A package that is not live, has no
+    departure far enough out, or already has its seed bookings is skipped with a note."""
+    today = today or ist_today()
+    now = dt.datetime.now(dt.UTC)
+    result = SeedResult()
+    made = 0
+    first = 1  # each plan's first contact number, so the emails stay stable across re-runs
+    for plan in seeds:
+        refs = [f"{plan.prefix}{i + 1:02d}" for i in range(len(plan.days_ago))]
+        numbers = range(first, first + len(refs))
+        first += len(refs)
+        if (await db.execute(select(Booking.id).where(Booking.ref.in_(refs)))).first():
+            result.warnings.append(f"{plan.slug}: already seeded — left alone")
+            continue
+        pkg = (
+            await db.execute(
+                select(Package).where(
+                    Package.slug == plan.slug, Package.status == PackageStatus.LIVE
+                )
+            )
+        ).scalar_one_or_none()
+        if pkg is None:
+            result.warnings.append(f"{plan.slug}: not live here — skipped")
+            continue
+        dep = (
+            (
+                await db.execute(
+                    select(Departure)
+                    .where(
+                        Departure.package_id == pkg.id,
+                        Departure.date >= today + dt.timedelta(days=URGENCY_LEAD_DAYS),
+                        Departure.price_double_paise > 0,
+                    )
+                    .order_by(Departure.date)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if dep is None:
+            result.warnings.append(f"{plan.slug}: no departure a week out — skipped")
+            continue
+        left = (
+            await db.execute(
+                select(departure_availability.c.seats_left).where(
+                    departure_availability.c.departure_id == dep.id
+                )
+            )
+        ).scalar_one()
+        if plan.fill_percent is not None:
+            booked = dep.seats_total - left
+            wanted = -(-dep.seats_total * plan.fill_percent // 100) - booked
+        elif plan.leave is not None:
+            wanted = left - plan.leave
+        else:
+            wanted = sum(plan.party)
+        parties = list(plan.party) or _spread(max(wanted, 0), len(refs))
+        if wanted <= 0 or sum(parties) > left or 0 in parties:
+            result.warnings.append(f"{plan.slug}: {dep.date} has {left} seats left — skipped")
+            continue
+        for ref, n, days, party in zip(refs, numbers, plan.days_ago, parties, strict=True):
+            await _urgency_booking(
+                db, pkg, dep, ref, n, days=days, party=party, today=today, now=now
+            )
+            made += 1
+    await db.commit()
+    result.counts.update(urgency_bookings=made)
+    return result
+
+
+async def _urgency_booking(
+    db: AsyncSession,
+    pkg: Package,
+    dep: Departure,
+    ref: str,
+    n: int,
+    *,
+    days: int,
+    party: int,
+    today: dt.date,
+    now: dt.datetime,
+) -> None:
+    """One confirmed, paid-in-full booking made `days` IST days before `today` (mid-morning
+    IST): pairs share a double room, an odd one out takes a single."""
+    occupancies = [Occupancy.DOUBLE] * (party - party % 2) + [Occupancy.SINGLE] * (party % 2)
+    quote = build_quote(
+        dep,
+        pkg,
+        [QuoteTraveller(occupancy=o) for o in occupancies],
+        seats_left=dep.seats_total,
+        deal_base=0,
+        now=now,
+    )
+    lead, lead_age = URGENCY_NAMES[(n - 1) % len(URGENCY_NAMES)]
+    day = today - dt.timedelta(days=days)
+    booked_at = dt.datetime.combine(day, dt.time(4 + n % 6, 7 * n % 60), tzinfo=dt.UTC)
+    booking = Booking(
+        ref=ref,
+        package_id=pkg.id,
+        departure_id=dep.id,
+        status=BookingStatus.CONFIRMED,
+        channel=BookingChannel.PHONE if n % 4 == 0 else BookingChannel.WEB,
+        hold_expires_at=booked_at + dt.timedelta(minutes=10),
+        contact_name=lead,
+        contact_phone=DEMO_PHONE,
+        contact_email=f"{SEED_LOCAL_PREFIX}{n}@example.com",
+        quote=quote.model_dump(mode="json", by_alias=True),
+        total_paise=quote.total_paise,
+        paid_paise=quote.total_paise,
+        created_at=booked_at,
+    )
+    db.add(booking)
+    await db.flush()
+    first_name = lead.split()[0]
+    for position, occupancy in enumerate(occupancies):
+        name, age = (lead, lead_age) if position == 0 else (f"{first_name}'s guest {position}", 30)
+        db.add(
+            BookingTraveller(
+                booking_id=booking.id, name=name, age=age, occupancy=occupancy, position=position
+            )
+        )
+    paid_at = booked_at + dt.timedelta(minutes=4)
+    db.add(
+        Payment(
+            booking_id=booking.id,
+            provider=PaymentProvider.OFFLINE,
+            amount_paise=quote.total_paise,
+            status=PaymentStatus.CAPTURED,
+            created_at=paid_at,
+            updated_at=paid_at,
+        )
+    )
+    total = history.money(quote.total_paise)
+    who = history.travellers(party)
+    for at, kind, text, customer in (
+        (
+            booked_at,
+            "booked",
+            f"Demo booking (seed) · {who} · {total} — real data for the urgency labels",
+            f"You booked {who} · {total}",
+        ),
+        (
+            paid_at,
+            "payment.offline",
+            f"Demo payment (seed) · {total} — booking confirmed",
+            f"Payment of {total} received — booking confirmed",
+        ),
+    ):
+        history.record(
+            db, booking.id, kind, actor=BookingActor.SYSTEM, text=text, customer=customer, at=at
+        )
+    await db.flush()
+
+
 async def _demo_booking(
     db: AsyncSession,
     pkg: Package,
@@ -868,6 +1085,11 @@ async def main(argv: list[str] | None = None) -> int:
         help="fill just the trip packs' meeting points, notes and hotel contacts (P10)",
     )
     parser.add_argument(
+        "--urgency",
+        action="store_true",
+        help="seed just the past bookings behind the urgency labels (P2); nothing else",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         metavar="SLUG",
@@ -884,11 +1106,13 @@ async def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.addons or args.early_bird or args.leaders or args.pack:  # nothing is uploaded
+    if args.addons or args.early_bird or args.leaders or args.pack or args.urgency:  # no uploads
         engine = make_engine(url)
         try:
             async with async_sessionmaker(engine, expire_on_commit=False)() as db:
-                if args.pack:
+                if args.urgency:
+                    result = await seed_urgency(db)
+                elif args.pack:
                     result = await seed_trip_packs(db, load_content())
                 elif args.leaders:
                     result = await seed_leaders(db, load_content())

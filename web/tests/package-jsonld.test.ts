@@ -133,6 +133,7 @@ describe('packageJsonLd', () => {
             text: 'Wonderful houseboat night.',
             name: 'Asha B.',
             travelled: '2026-08-01',
+            party: 2,
             createdAt: '2026-08-10T06:00:00Z',
           },
         ],

@@ -137,9 +137,20 @@ function DepartureRow({
   onChoose: () => void;
   slug: string;
 }) {
+  // One badge per date (P2, R40), the api's priority: Filling fast › Likely to sell out ›
+  // Guaranteed. The exact count is always printed.
   const meta =
     d.seatsLeft > 0 && d.seatsLeft <= 4 ? (
-      <span className="rounded-chip bg-warn-soft px-2 py-0.5 text-warn">{seats(d.seatsLeft)}</span>
+      <span className="rounded-chip bg-warn-soft px-2 py-0.5 text-warn">
+        Filling fast · {d.seatsLeft} left
+      </span>
+    ) : d.badge === 'likely-to-sell-out' ? (
+      <>
+        <span className="rounded-chip bg-primary-soft px-2 py-0.5 text-primary-ink">
+          Likely to sell out
+        </span>
+        {seats(d.seatsLeft)}
+      </>
     ) : d.guaranteed ? (
       <>
         <span className="rounded-chip bg-ok-soft px-2 py-0.5 text-ok">Guaranteed</span>
