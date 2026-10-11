@@ -1200,3 +1200,87 @@
     transition: none;
   }
 }
+
+/* --- Reports (R55, P12): mockup Reports B ----------------------------------------------------
+   Two series colours, validated for colour-blind separation on both surfaces (ΔE ≥ 29). The
+   page follows the system's dark mode on its own (the rest of the admin is light for now): it
+   redefines the theme tokens inside `.rpt`, including shadcn's, which resolve where declared. */
+.rpt {
+  --c1: #1b4fd8;
+  --c2: #c98314;
+  --rg: #ebeef2;
+  --rbase: #c9d1d9;
+  --rhov: rgb(20 32 42 / 0.05);
+  --rtrack: #edf0f3;
+}
+@media (prefers-color-scheme: dark) {
+  .rpt {
+    --color-bg: #141d26;
+    --color-bg2: #18222c;
+    --color-ink: #e6ebf0;
+    --color-ink2: #c3ccd5;
+    --color-mute: #98a6b3;
+    --color-line: #26323d;
+    --color-primary: #5b84f5;
+    --color-primary-ink: #b9cbff;
+    --color-primary-soft: #1b2a4a;
+    --color-ok: #5cc08a;
+    --color-ok-soft: #16301f;
+    --color-warn: #f0a064;
+    --color-warn-soft: #3a2616;
+    --color-bad: #f29b92;
+    --color-bad-soft: #3a1d1b;
+    --background: var(--color-bg);
+    --foreground: var(--color-ink);
+    --card: var(--color-bg);
+    --popover: var(--color-bg);
+    --muted: var(--color-bg2);
+    --muted-foreground: var(--color-mute);
+    --border: var(--color-line);
+    --c1: #5b84f5;
+    --c2: #c0801a;
+    --rg: #202c36;
+    --rbase: #3a4854;
+    --rhov: rgb(255 255 255 / 0.05);
+    --rtrack: #22303b;
+    color-scheme: dark;
+    color: var(--color-ink);
+    background: #0d141b;
+    border-radius: var(--radius-card);
+    padding: 18px;
+  }
+}
+.rpt .rpt-grow {
+  transform-origin: bottom;
+  animation: rpt-grow 0.6s var(--ease-out) both;
+}
+.rpt .rpt-grow-x {
+  transform-origin: left;
+  animation: rpt-grow-x 0.7s var(--ease-out) both;
+}
+.rpt .rpt-rise {
+  animation: rpt-rise 0.45s var(--ease-out) both;
+}
+@keyframes rpt-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes rpt-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes rpt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rpt .rpt-grow,
+  .rpt .rpt-grow-x,
+  .rpt .rpt-rise {
+    animation: none;
+  }
+}
