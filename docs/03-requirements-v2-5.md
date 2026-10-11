@@ -61,6 +61,12 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
   - **Owner dashboard:** "Most saved" — top 5 by saves in the last 30 days (IST), the all-time count small beside it, in its own panel under Coming in · Going out · At risk (Dashboard C has no top-lists panel any more; built in P1a); footnote "Signed-in travellers only — saves on guests' devices aren't counted."
   - **Analytics:** saves are their own record (P12 reads `saved_packages`); compares are not counted (no new tracking).
   - **Two PRs:** P1a — 0024, save/merge/list api, the ♡ everywhere, guest store and merge, the Saved tab, the dashboard line; P1b — the compare endpoint, the tray, `/compare`, the phone layout.
+  - **Built in P1b (2026-10-11):**
+    - `GET /compare?slugs=` reuses the package page's own read for each trip (same deal, early-bird, live seats, leader), so a column never disagrees with the page it links to. Always 200; trips that are not live come back in `missing`.
+    - Places are the hotel cities in order (each stretch once), falling back to the destination. Departures are the next 3 dates that still have seats. Meals are counted from the itinerary.
+    - The tray holds trips in sessionStorage; the compare page makes the tray what it shows. The tray sits above the WhatsApp button and the phone Book bar; "Compare (n)" links only from 2 trips.
+    - From `lg` the trip headers stay pinned under the site header; on a phone the row names stay pinned and the table snaps a trip at a time, with dots. Group labels run across the row.
+    - The "Payment" row says "Reserve with 25 % now…" or "Pay in full"; "Cancellation" is the site policy's first tier with a link to the full policy (the same on every trip, so never highlighted).
 
 ### R40. Honest urgency labels (P2)
 - The existing badges stay, with the exact count added: "Filling fast · 3 left" at 4 seats or fewer.

@@ -43,6 +43,7 @@ from app.routers.site import (
     bookings,
     calendar,
     catalog,
+    compare,
     enquiries,
     health,
     meta,
@@ -141,6 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_emails.router)
     app.include_router(admin_counter.router)
     app.include_router(catalog.router)
+    app.include_router(compare.router)
     app.include_router(site_leaders.router)
     app.include_router(pdf.router)
     app.include_router(enquiries.router)

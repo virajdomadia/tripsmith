@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Photo } from '@/components/site/Photo';
+import { CompareTick } from '@/components/site/compare/CompareTick';
 import { SaveHeart } from '@/components/site/saved/SaveHeart';
 import { Stars } from '@/components/site/Stars';
 import type { components } from '@/lib/api-types';
@@ -58,6 +59,10 @@ export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <SaveHeart slug={pkg.slug} name={pkg.name} variant="hero" />
+            <CompareTick
+              item={{ slug: pkg.slug, name: pkg.name, coverUrl: pkg.cover?.url ?? null }}
+              variant="hero"
+            />
             <ShareButtons
               name={pkg.name}
               line={`${duration(pkg.nights, pkg.days)} · ${pkg.destination.name}`}

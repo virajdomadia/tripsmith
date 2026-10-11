@@ -4,6 +4,7 @@ import { dealEnds, dealLabel } from '@/lib/deal';
 import { duration, inr, isPriced } from '@/lib/format';
 import { reviewsCount } from '@/lib/reviews';
 import { Photo } from './Photo';
+import { CompareTick } from './compare/CompareTick';
 import { SaveHeart } from './saved/SaveHeart';
 import { DealStamp, Stamp } from './Stamp';
 import { Stars } from './Stars';
@@ -89,12 +90,13 @@ export function PackageCard({ card }: { card: Card }) {
           </div>
         </div>
       </Link>
-      <SaveHeart
-        slug={card.slug}
-        name={card.name}
-        variant="card"
-        className="absolute top-2.5 left-2.5"
-      />
+      <div className="absolute top-2.5 left-2.5 flex gap-2">
+        <SaveHeart slug={card.slug} name={card.name} variant="card" />
+        <CompareTick
+          item={{ slug: card.slug, name: card.name, coverUrl: card.coverUrl }}
+          variant="card"
+        />
+      </div>
     </div>
   );
 }

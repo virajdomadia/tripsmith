@@ -31,7 +31,10 @@ export function MobileCtaBar({
   bookable: boolean;
 }) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-4 mt-10 flex items-center gap-2 border-t border-line bg-bg/95 px-4 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+    <div
+      data-cta-bar
+      className="sticky bottom-0 z-20 -mx-4 mt-10 flex items-center gap-2 border-t border-line bg-bg/95 px-4 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] backdrop-blur lg:hidden"
+    >
       <div className="mr-auto min-w-0 leading-tight">
         {pkg.deal ? (
           <>

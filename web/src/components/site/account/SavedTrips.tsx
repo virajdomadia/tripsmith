@@ -7,6 +7,7 @@ import type { components } from '@/lib/api-types';
 import { dealEnds } from '@/lib/deal';
 import { duration, formatDate, inr, priceOrOnRequest } from '@/lib/format';
 import { setSaved, toast, useSaved } from '@/lib/saved';
+import { CompareTick } from '@/components/site/compare/CompareTick';
 import { SaveHeart } from '@/components/site/saved/SaveHeart';
 
 type SavedTrip = components['schemas']['SavedTrip'];
@@ -111,7 +112,10 @@ function SavedRow({ item, index }: { item: SavedTrip; index: number }) {
         )}
       </p>
 
-      <UnsaveHeart slug={c.slug} name={c.name} />
+      <div className="relative z-10 col-start-3 row-start-1 flex flex-col items-end gap-2 self-start sm:col-start-4 sm:flex-row sm:items-center sm:self-center">
+        <CompareTick item={{ slug: c.slug, name: c.name, coverUrl: c.coverUrl }} variant="row" />
+        <UnsaveHeart slug={c.slug} name={c.name} />
+      </div>
     </li>
   );
 }
@@ -119,19 +123,17 @@ function SavedRow({ item, index }: { item: SavedTrip; index: number }) {
 /** The row's ♡: removing says so, with Undo (which saves the trip again). */
 function UnsaveHeart({ slug, name }: { slug: string; name: string }) {
   return (
-    <div className="relative z-10 col-start-3 row-start-1 self-start sm:col-start-4 sm:self-center">
-      <SaveHeart
-        slug={slug}
-        name={name}
-        variant="bar"
-        onToggled={(saved) => {
-          if (!saved)
-            toast({
-              text: `Removed ${name}`,
-              action: { label: 'Undo', run: () => void setSaved(slug, name, true) },
-            });
-        }}
-      />
-    </div>
+    <SaveHeart
+      slug={slug}
+      name={name}
+      variant="bar"
+      onToggled={(saved) => {
+        if (!saved)
+          toast({
+            text: `Removed ${name}`,
+            action: { label: 'Undo', run: () => void setSaved(slug, name, true) },
+          });
+      }}
+    />
   );
 }
