@@ -61,7 +61,13 @@ const MONTH: CalendarMonth = {
     { id: 'l2', slug: 'kavya', name: 'Kavya Rawat', photoUrl: null, active: true },
   ],
   leaderTrips: [
-    { leaderId: 'l1', departureId: 'd', packageName: 'Kasol Weekend Camp', date: '2099-11-06', returns: '2099-11-09' },
+    {
+      leaderId: 'l1',
+      departureId: 'd',
+      packageName: 'Kasol Weekend Camp',
+      date: '2099-11-06',
+      returns: '2099-11-09',
+    },
   ],
   nextBusyMonth: '2099-12',
   prevBusyMonth: null,
@@ -108,7 +114,11 @@ describe('filters', () => {
     expect(screen.getByText(/Showing/).textContent).toContain('6 of 6');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Destination' }), 'x2');
     expect(screen.getByText(/Showing/).textContent).toContain('3 of 6');
-    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/admin/calendar?month=2099-11&dest=x2');
+    expect(replaceState).toHaveBeenLastCalledWith(
+      null,
+      '',
+      '/admin/calendar?month=2099-11&dest=x2',
+    );
     const strip = screen.getByRole('region', { name: 'November at a glance' });
     expect(within(strip).getByText('3')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
@@ -140,7 +150,9 @@ describe('adding a departure', () => {
   it('prefills from the package and greys out a leader already on a trip', async () => {
     board();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Package' }), 'p1');
-    await userEvent.click(screen.getAllByRole('button', { name: 'Add departure on Sat 7 Nov' })[0]!);
+    await userEvent.click(
+      screen.getAllByRole('button', { name: 'Add departure on Sat 7 Nov' })[0]!,
+    );
     const form = screen.getByRole('form', { name: 'Add departure' });
     expect((within(form).getByLabelText('Seats') as HTMLInputElement).value).toBe('20');
     const leader = within(form).getByLabelText('Trip leader') as HTMLSelectElement;
@@ -169,6 +181,37 @@ describe('adding a departure', () => {
       leaderId: 'l2',
     });
     expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe('every leader away', () => {
+  it('offers no "no leader" for a package with a default, and blocks the day', async () => {
+    board({
+      leaderTrips: [
+        ...MONTH.leaderTrips,
+        {
+          leaderId: 'l2',
+          departureId: 'f',
+          packageName: 'Goa Beach Week',
+          date: '2099-11-05',
+          returns: '2099-11-10',
+        },
+      ],
+    });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Package' }), 'p1');
+    await userEvent.click(
+      screen.getAllByRole('button', { name: 'Add departure on Sat 7 Nov' })[0]!,
+    );
+    const form = screen.getByRole('form', { name: 'Add departure' });
+    expect(
+      within(form).getByText(/Every leader is on a trip these days — pick another day/),
+    ).toBeTruthy();
+    expect(
+      (within(form).getByRole('button', { name: 'Create departure' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    const leader = within(form).getByLabelText('Trip leader') as HTMLSelectElement;
+    expect([...leader.options].some((o) => o.textContent === 'No leader yet')).toBe(false);
   });
 });
 

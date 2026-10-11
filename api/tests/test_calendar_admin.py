@@ -25,7 +25,7 @@ from app.models.waitlist import WaitlistEntry
 from app.services.admin_calendar import month_bounds
 from app.services.analytics import ist_today
 from tests.razorpay_fake import FakeRazorpay
-from tests.test_booking_orders import SOON, seats_left, seeded
+from tests.test_booking_orders import SOON, dep, seats_left, seeded
 from tests.test_booking_payments import callback, rzp
 from tests.test_bookings_desk import hold, owner_cookie
 
@@ -313,3 +313,27 @@ async def test_a_leader_on_another_trip_cannot_take_the_new_date(
         url, json=new_date(day + dt.timedelta(days=20), leaderId="nope"), headers=owner
     )
     assert unknown.status_code == 400
+
+
+async def test_a_switched_off_leader_and_a_61st_date_are_refused(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    owner = await owner_cookie(db)
+    off = TripLeader(slug="off", name="Ravi Off", phone="+91 90000 00003", active=False)
+    db.add(off)
+    pkg, _ = await seeded(db, seats=10)
+    await db.commit()
+    url = f"/admin/packages/{pkg.id}/departures"
+    res = await db_client.post(
+        url, json=new_date(SOON + dt.timedelta(days=2), leaderId=off.id), headers=owner
+    )
+    assert (
+        res.status_code == 400 and "switched off" in res.json()["error"]["fieldErrors"]["leaderId"]
+    )
+    for i in range(58):  # 2 seeded + 58 = the 60-date cap
+        row = dep(SOON + dt.timedelta(days=40 + i), 4, 10_000_00)
+        row.package_id = pkg.id
+        db.add(row)
+    await db.commit()
+    full = await db_client.post(url, json=new_date(SOON + dt.timedelta(days=200)), headers=owner)
+    assert full.status_code == 409 and "60 dates" in full.json()["error"]["fieldErrors"]["date"]

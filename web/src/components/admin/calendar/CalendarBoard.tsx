@@ -169,7 +169,8 @@ export function CalendarBoard({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
-      if (e.key === 'PageUp' || e.key === 'PageDown') {
+      // Not while the phone's sheet is open: it is a dialog over the month.
+      if ((e.key === 'PageUp' || e.key === 'PageDown') && (wide || !(sel || adding || day))) {
         e.preventDefault();
         router.push(monthHref(shiftMonth(month, e.key === 'PageUp' ? -1 : 1)), { scroll: false });
       } else if (e.key === 'Escape' && wide && (sel || adding || day)) {

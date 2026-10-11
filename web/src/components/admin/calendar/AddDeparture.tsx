@@ -147,13 +147,18 @@ export function AddDeparture({
   }
 
   const fieldErr = (...keys: string[]) => keys.map((k) => errors[k]).find(Boolean);
+  // A date with no leader of its own follows the package's default, so a package that has one
+  // offers no "none" choice: with every leader away, the day has to move instead.
+  const stuck = Boolean(pkg?.leaderId) && !leaderId;
   const leaderNote = !pkg
     ? null
     : leaderId
       ? `${leaders.find((l) => l.id === leaderId)?.name ?? 'They'} ${leaderId === pkg.leaderId ? '(the package’s leader) ' : ''}is free ${dayLabel(day)} → ${dayLabel(returns)}. Leaders already on a trip are greyed out.`
-      : leaders.some((l) => l.active && !taken(l.id))
-        ? 'No leader picked — add one later in Edit departure.'
-        : 'Every leader is on a trip these days. Pick another day, or add a leader later.';
+      : stuck
+        ? 'Every leader is on a trip these days — pick another day.'
+        : leaders.some((l) => l.active && !taken(l.id))
+          ? 'No leader picked — add one later in Edit departure.'
+          : 'Every leader is on a trip these days. Pick another day, or add a leader later.';
 
   return (
     <form onSubmit={submit} className="grid gap-0" aria-label="Add departure" noValidate>
@@ -305,7 +310,11 @@ export function AddDeparture({
             onChange={(e) => setLeaderId(e.target.value)}
             aria-invalid={!!errors.leaderId}
           >
-            <option value="">No leader yet</option>
+            {(!pkg?.leaderId || stuck) && (
+              <option value="" disabled={stuck}>
+                {stuck ? 'Everyone is away' : 'No leader yet'}
+              </option>
+            )}
             {leaders
               .filter((l) => l.active)
               .map((l) => {
@@ -321,7 +330,7 @@ export function AddDeparture({
           {errors.leaderId ? (
             <span className={err}>{errors.leaderId}</span>
           ) : (
-            leaderNote && <span className={hint}>{leaderNote}</span>
+            leaderNote && <span className={stuck ? err : hint}>{leaderNote}</span>
           )}
         </div>
         <p className={hint}>
@@ -340,7 +349,7 @@ export function AddDeparture({
       <section className="flex gap-2 p-4">
         <button
           type="submit"
-          disabled={busy || !pkg}
+          disabled={busy || !pkg || stuck}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-btn bg-action px-4 py-2 text-[14px] font-bold text-ink transition-colors hover:bg-action-ink disabled:opacity-50',
           )}
