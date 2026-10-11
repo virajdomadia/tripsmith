@@ -23,6 +23,7 @@ from app.schemas.trip_pack import (
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NIGHTS_MAX = 30
 BUDGET_MAX_RUPEES = 10_000_000
+DEPARTURES_MAX = 60  # per package: the editor's list and the calendar's add (P11)
 PRICE_MAX_PAISE = 100_000_000  # Rs 10,00,000 — a sanity ceiling, not a business rule
 DEAL_LABEL_MAX = 24  # fits the card's corner stamp
 ADDONS_MAX = 12  # per package
@@ -611,7 +612,7 @@ class PackageInput(ApiModel):
     faq: list[FaqItem] = Field(default_factory=list, max_length=15)
     featured: bool = False
     itinerary: list[ItineraryDayInput] = Field(default_factory=list, max_length=NIGHTS_MAX + 1)
-    departures: list[DepartureInput] = Field(default_factory=list, max_length=60)
+    departures: list[DepartureInput] = Field(default_factory=list, max_length=DEPARTURES_MAX)
     addons: list[AddonInput] = Field(default_factory=list, max_length=ADDONS_MAX)
     deal_price_paise: int | None = Field(
         default=None,

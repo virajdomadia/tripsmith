@@ -11,7 +11,8 @@ type SearchParams = Record<string, string | string[] | undefined>;
 /**
  * Counter booking (R56, P18) — mockup C, wizard + receipt. Bookings → New booking, or
  * "Convert to booking" from an enquiry (`?enquiry=<id>`: trip, party and customer pre-filled;
- * booking marks the enquiry converted and links it). The calendar's entry point lands with P11.
+ * booking marks the enquiry converted and links it), or "New booking on this departure" from
+ * the calendar (`?departure=<id>`: package and date pre-picked, P11).
  */
 export default async function NewBookingPage({
   searchParams,
@@ -20,8 +21,11 @@ export default async function NewBookingPage({
 }) {
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
-  const raw = (await searchParams).enquiry;
-  const enquiryId = typeof raw === 'string' && /^[a-z0-9]{1,40}$/i.test(raw) ? raw : null;
+  const params = await searchParams;
+  const idOf = (raw: string | string[] | undefined) =>
+    typeof raw === 'string' && /^[a-z0-9]{1,40}$/i.test(raw) ? raw : null;
+  const enquiryId = idOf(params.enquiry);
+  const departureId = idOf(params.departure);
   const [trips, enquiry] = await Promise.all([
     api('/admin/counter/trips', { auth: true }),
     enquiryId ? loadEnquiry(enquiryId) : Promise.resolve(null),
@@ -32,7 +36,8 @@ export default async function NewBookingPage({
       linkMaxPaise={trips.linkMaxPaise ?? null}
       enquiry={enquiry}
       owner={session.user.name}
-      key={enquiryId ?? 'new'}
+      departureId={departureId}
+      key={enquiryId ?? departureId ?? 'new'}
     />
   );
 }

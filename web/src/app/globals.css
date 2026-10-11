@@ -927,3 +927,276 @@
     animation: none;
   }
 }
+
+/*
+ * P11 (R50) — the owner's departure calendar, mockup Calendar A. A chip's colour is its fill
+ * state (`--c`); the bar shows sold (solid) then held (hatched) over the free track. Bars grow
+ * in and the month slides on each month change (the view is keyed on the month); nothing moves
+ * under reduced motion.
+ */
+.cal {
+  --st-full: var(--color-primary);
+  --st-hot: var(--color-ok);
+  --st-open: #9a6412;
+  --st-low: var(--color-bad);
+}
+.cal .st-full {
+  --c: var(--st-full);
+}
+.cal .st-hot {
+  --c: var(--st-hot);
+}
+.cal .st-open {
+  --c: var(--st-open);
+}
+.cal .st-low {
+  --c: var(--st-low);
+}
+.cal-bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--c) 14%, #e6ebef);
+  overflow: hidden;
+}
+.cal-bar i {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: var(--s);
+  background: var(--c);
+  border-radius: 99px;
+  transform-origin: left;
+  animation: cal-grow 0.9s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 28ms + 120ms);
+}
+.cal-bar i.h {
+  left: var(--s);
+  width: var(--h);
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--c) 0 2px,
+    color-mix(in srgb, var(--c) 25%, #fff) 2px 4px
+  );
+  animation-delay: calc(var(--i, 0) * 28ms + 480ms);
+}
+@keyframes cal-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.cal-wl {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--color-action);
+  color: var(--color-ink);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  flex: none;
+}
+.cal-slide-next {
+  animation: cal-in-r 0.5s var(--ease-out) both;
+}
+.cal-slide-prev {
+  animation: cal-in-l 0.5s var(--ease-out) both;
+}
+@keyframes cal-in-r {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+}
+@keyframes cal-in-l {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+  }
+}
+.ga-c {
+  min-height: 116px;
+  padding: 6px;
+  border-right: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  position: relative;
+  min-width: 0;
+}
+.ga-wk > .ga-c:last-child {
+  border-right: 0;
+}
+.ga-wk:last-child > .ga-c {
+  border-bottom: 0;
+}
+.ga-c.we {
+  background: color-mix(in srgb, var(--color-bg2) 60%, var(--color-bg));
+}
+.ga-c.out {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--color-line) 70%, transparent) 7px 8px
+  );
+}
+.ga-c.out .ga-dn,
+.ga-c.past .ga-dn {
+  color: #8995a0;
+}
+.ga-c.today {
+  box-shadow: inset 0 0 0 2px var(--color-action);
+}
+.ga-add {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.ga-c:hover .ga-add,
+.ga-add:focus-visible {
+  opacity: 1;
+}
+.ga-empty {
+  opacity: 0;
+  border: 1.5px dashed transparent;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
+}
+.ga-c:hover .ga-empty,
+.ga-empty:focus-visible {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  background: var(--color-primary-soft);
+}
+.ga-chip {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px 7px;
+  text-align: left;
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--c) 7%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--c) 30%, var(--color-line));
+  border-left: 3px solid var(--c);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--ease-out),
+    box-shadow 0.2s;
+}
+.ga-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--c) 70%, transparent);
+}
+.ga-chip.draft {
+  border-style: dashed;
+  border-left-style: solid;
+}
+.ga-chip.past {
+  opacity: 0.62;
+}
+.ga-chip .w {
+  color: var(--c);
+}
+.ga-chip[aria-pressed='true'] {
+  background: var(--c);
+  border-color: var(--c);
+  color: #fff;
+  box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--c) 80%, transparent);
+}
+.ga-chip[aria-pressed='true'] .w {
+  color: #fff;
+}
+.ga-chip[aria-pressed='true'] .cal-bar {
+  background: rgb(255 255 255 / 0.28);
+}
+.ga-chip[aria-pressed='true'] .cal-bar i {
+  background: #fff;
+}
+.ga-chip[aria-pressed='true'] .cal-bar i.h {
+  background: repeating-linear-gradient(135deg, #fff 0 2px, rgb(255 255 255 / 0.35) 2px 4px);
+}
+.ag-row {
+  border: 1px solid var(--color-line);
+  border-left: 4px solid var(--c);
+  transition:
+    transform 0.2s var(--ease-out),
+    border-color 0.2s;
+}
+.ag-row[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--c) 6%, var(--color-bg));
+  box-shadow: 0 0 0 2px var(--c);
+}
+.cal-meter {
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: 99px;
+  background: #e6ebef;
+  overflow: hidden;
+}
+.cal-meter i {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: var(--s);
+  background: var(--c, var(--color-primary));
+  border-radius: 99px;
+}
+.cal-meter i.h {
+  left: var(--s);
+  width: var(--h);
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--c, var(--color-primary)) 0 2px,
+    color-mix(in srgb, var(--c, var(--color-primary)) 25%, #fff) 2px 4px
+  );
+}
+.cal-key {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--c);
+}
+.cal-key.hh {
+  --c: var(--color-mute);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--c) 0 2px,
+    color-mix(in srgb, var(--c) 25%, #fff) 2px 4px
+  );
+}
+/* The package editor's row, arrived at from the calendar's "Edit departure". */
+[data-flash] {
+  animation: dep-flash 2.4s var(--ease-out);
+}
+@keyframes dep-flash {
+  0%,
+  40% {
+    background: color-mix(in srgb, var(--color-action) 32%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-bar i,
+  .cal-slide-next,
+  .cal-slide-prev,
+  [data-flash] {
+    animation: none;
+  }
+  [data-flash] {
+    outline: 2px solid var(--color-action);
+  }
+  .ga-chip,
+  .ag-row {
+    transition: none;
+  }
+}

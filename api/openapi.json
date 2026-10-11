@@ -4192,6 +4192,42 @@
         "title": "BookingTraveller",
         "type": "object"
       },
+      "BusyLeaderTrip": {
+        "description": "A departure someone leads near the month, so the add form can grey out busy leaders.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "leaderId": {
+            "title": "Leaderid",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "returns": {
+            "format": "date",
+            "title": "Returns",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leaderId",
+          "departureId",
+          "packageName",
+          "date",
+          "returns"
+        ],
+        "title": "BusyLeaderTrip",
+        "type": "object"
+      },
       "CalendarBlock": {
         "description": "The booking page's calendar coupon. Both links are signed api paths (prefix `/api` on the\nsite) that record the click, then send the event.",
         "properties": {
@@ -4275,6 +4311,455 @@
           "location"
         ],
         "title": "CalendarBlock",
+        "type": "object"
+      },
+      "CalendarDeparture": {
+        "description": "One chip: a departure starting in the month.",
+        "properties": {
+          "balanceBookings": {
+            "title": "Balancebookings",
+            "type": "integer"
+          },
+          "balancePaise": {
+            "description": "Σ total − paid of its part-paid bookings",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "collectedPaise": {
+            "description": "Σ paid of the same bookings",
+            "title": "Collectedpaise",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "firstDueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The earliest balance due date",
+            "title": "Firstdueon"
+          },
+          "free": {
+            "description": "The `departure_availability` view's seats left",
+            "title": "Free",
+            "type": "integer"
+          },
+          "guaranteed": {
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "held": {
+            "description": "seats total − sold − free: holds, links, offers, date changes",
+            "title": "Held",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its own leader, else the package's default",
+            "title": "Leaderid"
+          },
+          "missingTravellers": {
+            "description": "Paid travellers still missing a detail (R49)",
+            "title": "Missingtravellers",
+            "type": "integer"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "priceDoublePaise": {
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "readyPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "R49 readiness: null with no paid bookings",
+            "title": "Readypercent"
+          },
+          "returns": {
+            "description": "date + the package's nights",
+            "format": "date",
+            "title": "Returns",
+            "type": "string"
+          },
+          "revenuePaise": {
+            "description": "Σ total of confirmed, part-paid, completed bookings",
+            "title": "Revenuepaise",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "smallestWaitingParty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The smallest party still waiting (not offered) — can free seats go to it?",
+            "title": "Smallestwaitingparty"
+          },
+          "sold": {
+            "description": "Travellers on confirmed, part-paid and completed bookings",
+            "title": "Sold",
+            "type": "integer"
+          },
+          "waiting": {
+            "description": "Live waitlist places (waiting, offered or claiming)",
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "packageId",
+          "date",
+          "returns",
+          "leaderId",
+          "seatsTotal",
+          "sold",
+          "held",
+          "free",
+          "waiting",
+          "smallestWaitingParty",
+          "guaranteed",
+          "priceDoublePaise",
+          "revenuePaise",
+          "collectedPaise",
+          "balancePaise",
+          "balanceBookings",
+          "firstDueOn",
+          "missingTravellers",
+          "readyPercent"
+        ],
+        "title": "CalendarDeparture",
+        "type": "object"
+      },
+      "CalendarMonth": {
+        "description": "`GET /admin/calendar?month=YYYY-MM`: everything the month grid draws. Filters run in the\nbrowser, so this is the whole month.",
+        "properties": {
+          "departures": {
+            "description": "By date, then package name",
+            "items": {
+              "$ref": "#/components/schemas/CalendarDeparture"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "leaderTrips": {
+            "description": "Trips overlapping the month ± 31 days",
+            "items": {
+              "$ref": "#/components/schemas/BusyLeaderTrip"
+            },
+            "title": "Leadertrips",
+            "type": "array"
+          },
+          "leaders": {
+            "description": "Switched on, plus any leading this month",
+            "items": {
+              "$ref": "#/components/schemas/LeaderRef"
+            },
+            "title": "Leaders",
+            "type": "array"
+          },
+          "month": {
+            "pattern": "^20[2-9][0-9]-(0[1-9]|1[0-2])$",
+            "title": "Month",
+            "type": "string"
+          },
+          "nextBusyMonth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first later month with departures",
+            "title": "Nextbusymonth"
+          },
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarPackage"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "prevBusyMonth": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last earlier month with departures",
+            "title": "Prevbusymonth"
+          },
+          "today": {
+            "description": "IST",
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "today",
+          "departures",
+          "packages",
+          "leaders",
+          "leaderTrips",
+          "nextBusyMonth",
+          "prevBusyMonth"
+        ],
+        "title": "CalendarMonth",
+        "type": "object"
+      },
+      "CalendarPackage": {
+        "description": "A package for the filters and the add form, with the prefill of its latest date.",
+        "properties": {
+          "destinationId": {
+            "title": "Destinationid",
+            "type": "string"
+          },
+          "destinationName": {
+            "title": "Destinationname",
+            "type": "string"
+          },
+          "draft": {
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's default leader",
+            "title": "Leaderid"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "priceChildPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricechildpaise"
+          },
+          "priceDoublePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricedoublepaise"
+          },
+          "priceTriplePaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricetriplepaise"
+          },
+          "seatsTotal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Prefill: its latest departure's, else null",
+            "title": "Seatstotal"
+          },
+          "singleSupplementPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Singlesupplementpaise"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "destinationId",
+          "destinationName",
+          "nights",
+          "draft",
+          "leaderId",
+          "seatsTotal",
+          "priceDoublePaise",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise"
+        ],
+        "title": "CalendarPackage",
+        "type": "object"
+      },
+      "CalendarPanel": {
+        "description": "`GET /admin/calendar/departures/{id}`: the side panel. The waitlist itself comes from\n`getDepartureWaitlist`, which walks the list first.",
+        "properties": {
+          "bookings": {
+            "items": {
+              "$ref": "#/components/schemas/PanelBooking"
+            },
+            "title": "Bookings",
+            "type": "array"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/CalendarDeparture"
+          },
+          "destinationName": {
+            "title": "Destinationname",
+            "type": "string"
+          },
+          "draft": {
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/PanelHold"
+            },
+            "title": "Holds",
+            "type": "array"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeskLeader"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeetingPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "priceChildPaise": {
+            "title": "Pricechildpaise",
+            "type": "integer"
+          },
+          "priceTriplePaise": {
+            "title": "Pricetriplepaise",
+            "type": "integer"
+          },
+          "readinessParts": {
+            "description": "Mean of each part over the paid bookings; empty with none",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessShare"
+            },
+            "title": "Readinessparts",
+            "type": "array"
+          },
+          "singleSupplementPaise": {
+            "title": "Singlesupplementpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departure",
+          "packageName",
+          "packageSlug",
+          "destinationName",
+          "nights",
+          "draft",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise",
+          "leader",
+          "meeting",
+          "readinessParts",
+          "bookings",
+          "holds"
+        ],
+        "title": "CalendarPanel",
         "type": "object"
       },
       "CancelReason": {
@@ -6195,7 +6680,7 @@
         "type": "object"
       },
       "DepartureSeats": {
-        "description": "One departure's seats. `seatsLeft` is the `departure_availability` view itself; `booked`\nand `held` are counted the way the view counts them, so total − booked − held = left\n(until a lowered `seatsTotal` makes the view clamp at 0).",
+        "description": "One departure's seats. `seatsLeft` is the `departure_availability` view itself, `booked`\nis counted the way the view counts it, and `held` is the rest (P11), so total − booked −\nheld = left (until a lowered `seatsTotal` makes the view clamp at 0).",
         "properties": {
           "booked": {
             "description": "Travellers on confirmed, part-paid and completed bookings",
@@ -6212,7 +6697,7 @@
             "type": "string"
           },
           "held": {
-            "description": "Travellers on pending bookings whose hold is still live",
+            "description": "Seats the view holds back: live holds and payment links, waitlist offers, date changes moving in (P11: total − booked − left)",
             "title": "Held",
             "type": "integer"
           },
@@ -8695,6 +9180,48 @@
         "title": "LeaderList",
         "type": "object"
       },
+      "LeaderRef": {
+        "description": "Enough to draw a leader's avatar and name anywhere.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = draw the monogram",
+            "title": "Photourl"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "photoUrl",
+          "active"
+        ],
+        "title": "LeaderRef",
+        "type": "object"
+      },
       "LeaderSummary": {
         "properties": {
           "bio": {
@@ -10171,6 +10698,98 @@
         "title": "MoveRequest",
         "type": "object"
       },
+      "NewDeparture": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "packageId",
+          "date"
+        ],
+        "title": "NewDeparture",
+        "type": "object"
+      },
+      "NewDepartureInput": {
+        "description": "`POST /admin/packages/{id}/departures`: one date added from the calendar. Never touches\nthe package's other dates (the editor's PUT replaces the whole list).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "guaranteed": {
+            "default": false,
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null = the package's default leader",
+            "title": "Leaderid"
+          },
+          "priceChildPaise": {
+            "maximum": 100000000.0,
+            "minimum": 100.0,
+            "title": "Pricechildpaise",
+            "type": "integer"
+          },
+          "priceDoublePaise": {
+            "maximum": 100000000.0,
+            "minimum": 100.0,
+            "title": "Pricedoublepaise",
+            "type": "integer"
+          },
+          "priceTriplePaise": {
+            "maximum": 100000000.0,
+            "minimum": 100.0,
+            "title": "Pricetriplepaise",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "singleSupplementPaise": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Singlesupplementpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "seatsTotal",
+          "priceDoublePaise",
+          "priceTriplePaise",
+          "priceChildPaise",
+          "singleSupplementPaise"
+        ],
+        "title": "NewDepartureInput",
+        "type": "object"
+      },
       "Occupancy": {
         "enum": [
           "double",
@@ -11147,6 +11766,147 @@
         "title": "PackageStatusInput",
         "type": "object"
       },
+      "PanelBooking": {
+        "description": "A booking on the departure's panel. Holds come first, then balances, then paid.",
+        "properties": {
+          "balanceDueOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Part-paid only",
+            "title": "Balancedueon"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/BookingChannel"
+          },
+          "holdExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pending only: a live hold or link",
+            "title": "Holdexpiresat"
+          },
+          "leadName": {
+            "title": "Leadname",
+            "type": "string"
+          },
+          "missingTravellers": {
+            "title": "Missingtravellers",
+            "type": "integer"
+          },
+          "paidPaise": {
+            "title": "Paidpaise",
+            "type": "integer"
+          },
+          "readyPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readypercent"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BookingStatus"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "status",
+          "leadName",
+          "travellers",
+          "totalPaise",
+          "paidPaise",
+          "balanceDueOn",
+          "channel",
+          "holdExpiresAt",
+          "missingTravellers",
+          "readyPercent"
+        ],
+        "title": "PanelBooking",
+        "type": "object"
+      },
+      "PanelHold": {
+        "description": "Seats held by something other than a booking: a waitlist offer or a date change.",
+        "properties": {
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "kind": {
+            "enum": [
+              "waitlist_offer",
+              "date_change"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "Who it is for",
+            "title": "Name",
+            "type": "string"
+          },
+          "party": {
+            "title": "Party",
+            "type": "integer"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The moving booking (date change)",
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "party",
+          "expiresAt"
+        ],
+        "title": "PanelHold",
+        "type": "object"
+      },
       "PaymentCallback": {
         "description": "What Checkout's success handler receives, posted back as-is to confirm the booking.",
         "properties": {
@@ -12032,6 +12792,36 @@
           "done"
         ],
         "title": "ReadinessPart",
+        "type": "object"
+      },
+      "ReadinessShare": {
+        "properties": {
+          "key": {
+            "enum": [
+              "details",
+              "balance",
+              "pack",
+              "calendar",
+              "items"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "percent"
+        ],
+        "title": "ReadinessShare",
         "type": "object"
       },
       "RefundMadeInput": {
@@ -15951,6 +16741,100 @@
         ]
       }
     },
+    "/admin/calendar": {
+      "get": {
+        "operationId": "getCalendarMonth",
+        "parameters": [
+          {
+            "description": "YYYY-MM; omitted = this IST month",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^20[2-9][0-9]-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM; omitted = this IST month",
+              "title": "Month"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarMonth"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Month Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/calendar/departures/{id}": {
+      "get": {
+        "operationId": "getCalendarDeparture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarPanel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Panel Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/cancellations/{id}/resolve": {
       "post": {
         "description": "Approve (the booking is cancelled, its seats freed, the agreed refund sent) or reject\n(the booking stands). The customer is emailed either way. 409 `resolved` when already\nanswered, `not_active` when approving a booking that no longer holds its seats.",
@@ -18259,6 +19143,59 @@
           }
         },
         "summary": "Update Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/packages/{id}/departures": {
+      "post": {
+        "description": "P11: one date from the calendar; the package's other dates are left alone. 409 when the\npackage already leaves that day, has 60 dates, or the leader is on another trip then.",
+        "operationId": "addDeparture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDepartureInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewDeparture"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Add Departure Route",
         "tags": [
           "admin"
         ]

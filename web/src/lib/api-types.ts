@@ -740,6 +740,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Month Route */
+        get: operations["getCalendarMonth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/calendar/departures/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Panel Route */
+        get: operations["getCalendarDeparture"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/cancellations/{id}/resolve": {
         parameters: {
             query?: never;
@@ -1399,6 +1433,27 @@ export interface paths {
         post?: never;
         /** Delete Route */
         delete: operations["deletePackage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/packages/{id}/departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Departure Route
+         * @description P11: one date from the calendar; the package's other dates are left alone. 409 when the
+         *     package already leaves that day, has 60 dates, or the leader is on another trip then.
+         */
+        post: operations["addDeparture"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3998,6 +4053,28 @@ export interface components {
             occupancy: components["schemas"]["Occupancy"];
         };
         /**
+         * BusyLeaderTrip
+         * @description A departure someone leads near the month, so the add form can grey out busy leaders.
+         */
+        BusyLeaderTrip: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /** Leaderid */
+            leaderId: string;
+            /** Packagename */
+            packageName: string;
+            /**
+             * Returns
+             * Format: date
+             */
+            returns: string;
+        };
+        /**
          * CalendarBlock
          * @description The booking page's calendar coupon. Both links are signed api paths (prefix `/api` on the
          *     site) that record the click, then send the event.
@@ -4032,6 +4109,208 @@ export interface components {
             starts: string;
             /** Via */
             via?: ("google" | "ics") | null;
+        };
+        /**
+         * CalendarDeparture
+         * @description One chip: a departure starting in the month.
+         */
+        CalendarDeparture: {
+            /** Balancebookings */
+            balanceBookings: number;
+            /**
+             * Balancepaise
+             * @description Σ total − paid of its part-paid bookings
+             */
+            balancePaise: number;
+            /**
+             * Collectedpaise
+             * @description Σ paid of the same bookings
+             */
+            collectedPaise: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Firstdueon
+             * @description The earliest balance due date
+             */
+            firstDueOn: string | null;
+            /**
+             * Free
+             * @description The `departure_availability` view's seats left
+             */
+            free: number;
+            /** Guaranteed */
+            guaranteed: boolean;
+            /**
+             * Held
+             * @description seats total − sold − free: holds, links, offers, date changes
+             */
+            held: number;
+            /** Id */
+            id: string;
+            /**
+             * Leaderid
+             * @description Its own leader, else the package's default
+             */
+            leaderId: string | null;
+            /**
+             * Missingtravellers
+             * @description Paid travellers still missing a detail (R49)
+             */
+            missingTravellers: number;
+            /** Packageid */
+            packageId: string;
+            /** Pricedoublepaise */
+            priceDoublePaise: number;
+            /**
+             * Readypercent
+             * @description R49 readiness: null with no paid bookings
+             */
+            readyPercent: number | null;
+            /**
+             * Returns
+             * Format: date
+             * @description date + the package's nights
+             */
+            returns: string;
+            /**
+             * Revenuepaise
+             * @description Σ total of confirmed, part-paid, completed bookings
+             */
+            revenuePaise: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /**
+             * Smallestwaitingparty
+             * @description The smallest party still waiting (not offered) — can free seats go to it?
+             */
+            smallestWaitingParty: number | null;
+            /**
+             * Sold
+             * @description Travellers on confirmed, part-paid and completed bookings
+             */
+            sold: number;
+            /**
+             * Waiting
+             * @description Live waitlist places (waiting, offered or claiming)
+             */
+            waiting: number;
+        };
+        /**
+         * CalendarMonth
+         * @description `GET /admin/calendar?month=YYYY-MM`: everything the month grid draws. Filters run in the
+         *     browser, so this is the whole month.
+         */
+        CalendarMonth: {
+            /**
+             * Departures
+             * @description By date, then package name
+             */
+            departures: components["schemas"]["CalendarDeparture"][];
+            /**
+             * Leadertrips
+             * @description Trips overlapping the month ± 31 days
+             */
+            leaderTrips: components["schemas"]["BusyLeaderTrip"][];
+            /**
+             * Leaders
+             * @description Switched on, plus any leading this month
+             */
+            leaders: components["schemas"]["LeaderRef"][];
+            /** Month */
+            month: string;
+            /**
+             * Nextbusymonth
+             * @description The first later month with departures
+             */
+            nextBusyMonth: string | null;
+            /** Packages */
+            packages: components["schemas"]["CalendarPackage"][];
+            /**
+             * Prevbusymonth
+             * @description The last earlier month with departures
+             */
+            prevBusyMonth: string | null;
+            /**
+             * Today
+             * Format: date
+             * @description IST
+             */
+            today: string;
+        };
+        /**
+         * CalendarPackage
+         * @description A package for the filters and the add form, with the prefill of its latest date.
+         */
+        CalendarPackage: {
+            /** Destinationid */
+            destinationId: string;
+            /** Destinationname */
+            destinationName: string;
+            /** Draft */
+            draft: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Leaderid
+             * @description The package's default leader
+             */
+            leaderId: string | null;
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /** Pricechildpaise */
+            priceChildPaise: number | null;
+            /** Pricedoublepaise */
+            priceDoublePaise: number | null;
+            /** Pricetriplepaise */
+            priceTriplePaise: number | null;
+            /**
+             * Seatstotal
+             * @description Prefill: its latest departure's, else null
+             */
+            seatsTotal: number | null;
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number | null;
+        };
+        /**
+         * CalendarPanel
+         * @description `GET /admin/calendar/departures/{id}`: the side panel. The waitlist itself comes from
+         *     `getDepartureWaitlist`, which walks the list first.
+         */
+        CalendarPanel: {
+            /** Bookings */
+            bookings: components["schemas"]["PanelBooking"][];
+            departure: components["schemas"]["CalendarDeparture"];
+            /** Destinationname */
+            destinationName: string;
+            /** Draft */
+            draft: boolean;
+            /** Holds */
+            holds: components["schemas"]["PanelHold"][];
+            leader: components["schemas"]["DeskLeader"] | null;
+            meeting: components["schemas"]["MeetingPoint"] | null;
+            /** Nights */
+            nights: number;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Pricechildpaise */
+            priceChildPaise: number;
+            /** Pricetriplepaise */
+            priceTriplePaise: number;
+            /**
+             * Readinessparts
+             * @description Mean of each part over the paid bookings; empty with none
+             */
+            readinessParts: components["schemas"]["ReadinessShare"][];
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number;
         };
         /**
          * CancelReason
@@ -4926,9 +5205,9 @@ export interface components {
         };
         /**
          * DepartureSeats
-         * @description One departure's seats. `seatsLeft` is the `departure_availability` view itself; `booked`
-         *     and `held` are counted the way the view counts them, so total − booked − held = left
-         *     (until a lowered `seatsTotal` makes the view clamp at 0).
+         * @description One departure's seats. `seatsLeft` is the `departure_availability` view itself, `booked`
+         *     is counted the way the view counts it, and `held` is the rest (P11), so total − booked −
+         *     held = left (until a lowered `seatsTotal` makes the view clamp at 0).
          */
         DepartureSeats: {
             /**
@@ -4945,7 +5224,7 @@ export interface components {
             departureId: string;
             /**
              * Held
-             * @description Travellers on pending bookings whose hold is still live
+             * @description Seats the view holds back: live holds and payment links, waitlist offers, date changes moving in (P11: total − booked − left)
              */
             held: number;
             /** Packageid */
@@ -6080,6 +6359,25 @@ export interface components {
              */
             items: components["schemas"]["LeaderSummary"][];
         };
+        /**
+         * LeaderRef
+         * @description Enough to draw a leader's avatar and name anywhere.
+         */
+        LeaderRef: {
+            /** Active */
+            active: boolean;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Photourl
+             * @description Null = draw the monogram
+             */
+            photoUrl: string | null;
+            /** Slug */
+            slug: string;
+        };
         /** LeaderSummary */
         LeaderSummary: {
             /** Bio */
@@ -6747,6 +7045,50 @@ export interface components {
              */
             travellers?: components["schemas"]["CounterTraveller"][] | null;
         };
+        /** NewDeparture */
+        NewDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: string;
+            /** Packageid */
+            packageId: string;
+        };
+        /**
+         * NewDepartureInput
+         * @description `POST /admin/packages/{id}/departures`: one date added from the calendar. Never touches
+         *     the package's other dates (the editor's PUT replaces the whole list).
+         */
+        NewDepartureInput: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Guaranteed
+             * @default false
+             */
+            guaranteed: boolean;
+            /**
+             * Leaderid
+             * @description Null = the package's default leader
+             */
+            leaderId?: string | null;
+            /** Pricechildpaise */
+            priceChildPaise: number;
+            /** Pricedoublepaise */
+            priceDoublePaise: number;
+            /** Pricetriplepaise */
+            priceTriplePaise: number;
+            /** Seatstotal */
+            seatsTotal: number;
+            /** Singlesupplementpaise */
+            singleSupplementPaise: number;
+        };
         /**
          * Occupancy
          * @enum {string}
@@ -7099,6 +7441,63 @@ export interface components {
         /** PackageStatusInput */
         PackageStatusInput: {
             status: components["schemas"]["PackageStatus"];
+        };
+        /**
+         * PanelBooking
+         * @description A booking on the departure's panel. Holds come first, then balances, then paid.
+         */
+        PanelBooking: {
+            /**
+             * Balancedueon
+             * @description Part-paid only
+             */
+            balanceDueOn: string | null;
+            channel: components["schemas"]["BookingChannel"];
+            /**
+             * Holdexpiresat
+             * @description Pending only: a live hold or link
+             */
+            holdExpiresAt: string | null;
+            /** Leadname */
+            leadName: string;
+            /** Missingtravellers */
+            missingTravellers: number;
+            /** Paidpaise */
+            paidPaise: number;
+            /** Readypercent */
+            readyPercent: number | null;
+            /** Ref */
+            ref: string;
+            status: components["schemas"]["BookingStatus"];
+            /** Totalpaise */
+            totalPaise: number;
+            /** Travellers */
+            travellers: number;
+        };
+        /**
+         * PanelHold
+         * @description Seats held by something other than a booking: a waitlist offer or a date change.
+         */
+        PanelHold: {
+            /** Expiresat */
+            expiresAt: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "waitlist_offer" | "date_change";
+            /**
+             * Name
+             * @description Who it is for
+             */
+            name: string;
+            /** Party */
+            party: number;
+            /**
+             * Ref
+             * @description The moving booking (date change)
+             */
+            ref?: string | null;
         };
         /**
          * PaymentCallback
@@ -7552,6 +7951,18 @@ export interface components {
              * @description One line under the label
              */
             note: string;
+        };
+        /** ReadinessShare */
+        ReadinessShare: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "details" | "balance" | "pack" | "calendar" | "items";
+            /** Label */
+            label: string;
+            /** Percent */
+            percent: number;
         };
         /** RefundMadeInput */
         RefundMadeInput: {
@@ -9652,6 +10063,69 @@ export interface operations {
             };
         };
     };
+    getCalendarMonth: {
+        parameters: {
+            query?: {
+                /** @description YYYY-MM; omitted = this IST month */
+                month?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarMonth"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getCalendarDeparture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarPanel"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     resolveCancellation: {
         parameters: {
             query?: never;
@@ -11210,6 +11684,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    addDeparture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewDepartureInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewDeparture"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

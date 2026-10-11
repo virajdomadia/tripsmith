@@ -16,6 +16,7 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.revalidate import revalidate
 from app.models import Departure, Package, TripLeader
+from app.schemas.admin_calendar import BusyLeaderTrip
 from app.schemas.leaders import AdminLeader, DeskLeader, LeaderInput, LeaderRef
 from app.services.analytics import ist_today
 from app.services.catalog.cover_url import cover_url_problem
@@ -63,6 +64,40 @@ async def departure_leader(db: AsyncSession, departure_id: str) -> DeskLeader | 
         phone=leader.phone,
         by_default=own is None,
     )
+
+
+MAX_NIGHTS = 60  # no trip is longer: bounds the leader-trip scan
+
+
+def _returns(departs: dt.date, nights: int) -> dt.date:
+    return departs + dt.timedelta(days=nights)
+
+
+async def trips_between(db: AsyncSession, start: dt.date, end: dt.date) -> list[BusyLeaderTrip]:
+    """Every led departure overlapping [start, end] (its return day counts) — the calendar's
+    busy leaders (P11)."""
+    leader = effective_leader_id()
+    rows = await db.execute(
+        select(Departure.id, Departure.date, Package.nights, Package.name, leader)
+        .join(Package, Package.id == Departure.package_id)
+        .where(
+            leader.is_not(None),
+            Departure.date <= end,
+            Departure.date >= start - dt.timedelta(days=MAX_NIGHTS),
+        )
+        .order_by(Departure.date)
+    )
+    return [
+        BusyLeaderTrip(
+            leader_id=lid,
+            departure_id=did,
+            package_name=name,
+            date=date,
+            returns=_returns(date, nights),
+        )
+        for did, date, nights, name, lid in rows.all()
+        if _returns(date, nights) >= start
+    ]
 
 
 def ref(row: TripLeader) -> LeaderRef:

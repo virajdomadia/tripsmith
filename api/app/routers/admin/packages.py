@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.schemas.admin_calendar import NewDeparture, NewDepartureInput
 from app.schemas.catalog import (
     AdminPackage,
     AdminPackageList,
@@ -62,6 +63,21 @@ async def set_status_route(
 async def duplicate_route(id: str, response: Response, db: Db) -> AdminPackage:
     response.headers.update(NO_STORE)
     return await svc.duplicate_package(db, id)
+
+
+@router.post(
+    "/{id}/departures",
+    operation_id="addDeparture",
+    status_code=status.HTTP_201_CREATED,
+    response_model_by_alias=True,
+)
+async def add_departure_route(
+    id: str, payload: NewDepartureInput, response: Response, db: Db
+) -> NewDeparture:
+    """P11: one date from the calendar; the package's other dates are left alone. 409 when the
+    package already leaves that day, has 60 dates, or the leader is on another trip then."""
+    response.headers.update(NO_STORE)
+    return await svc.add_departure(db, id, payload)
 
 
 @router.get("/{id}", operation_id="getAdminPackage", response_model_by_alias=True)

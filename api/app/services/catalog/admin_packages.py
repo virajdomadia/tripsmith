@@ -25,10 +25,13 @@ from app.models import (
     Package,
     PackageAddon,
     PackageImage,
+    TripLeader,
 )
 from app.models.catalog import departure_availability
 from app.models.enums import BookingStatus, PackageStatus
+from app.schemas.admin_calendar import NewDeparture, NewDepartureInput
 from app.schemas.catalog import (
+    DEPARTURES_MAX,
     AddonInput,
     AdminAddon,
     AdminDeparture,
@@ -53,7 +56,7 @@ from app.services.booking.details import apply_details_settings, details_setting
 from app.services.catalog import admin_leaders, deals, early_bird, urgency
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
-from app.services.format import inr
+from app.services.format import inr, long_date
 
 DUPLICATE_SLUG = "A package with this slug already exists"
 ENQUIRY_WINDOW_DAYS = 30
@@ -1111,3 +1114,79 @@ async def delete_package(db: AsyncSession, id: str) -> None:
     await db.delete(pkg)
     await db.commit()
     await revalidate(revalidate_tags(slug, destination_slug) + await _leader_tags(db, leaders))
+
+
+# --- one date from the calendar (R50, P11) ------------------------------------------------------
+
+DEPARTURE_IN_PAST = "Pick today or a later day"
+DEPARTURE_TAKEN = "This package already leaves on that day — open that date instead"
+DEPARTURES_FULL = f"This package already has {DEPARTURES_MAX} dates — remove a past one first"
+
+
+async def add_departure(db: AsyncSession, id: str, payload: NewDepartureInput) -> NewDeparture:
+    """Add one date and leave the others alone (the editor's PUT replaces the whole list). The
+    package row is locked, so the duplicate-day and 60-date checks cannot race, and `edited_at`
+    moves: an editor open in another tab answers the stale 409 instead of saving its list over
+    the new date."""
+    pkg = await load(db, id, lock=True)
+    today = ist_today()
+    if payload.date < today:
+        raise ApiError("validation", DEPARTURE_IN_PAST, field_errors={"date": DEPARTURE_IN_PAST})
+    if any(d.date == payload.date for d in pkg.departures):
+        raise ApiError("conflict", DEPARTURE_TAKEN, field_errors={"date": DEPARTURE_TAKEN})
+    if len(pkg.departures) >= DEPARTURES_MAX:
+        raise ApiError("conflict", DEPARTURES_FULL, field_errors={"date": DEPARTURES_FULL})
+    own = payload.leader_id if payload.leader_id != pkg.leader_id else None
+    if own and (errors := await admin_leaders.check_assignable(db, [("leaderId", own, None)])):
+        raise ApiError("validation", errors["leaderId"], field_errors=errors)
+    if busy := await _leader_busy(db, own or pkg.leader_id, payload.date, pkg.nights):
+        raise ApiError("conflict", busy, field_errors={"leaderId": busy})
+    dep = _fill_departure(
+        Departure(),
+        DepartureInput(
+            date=payload.date,
+            seats_total=payload.seats_total,
+            guaranteed=payload.guaranteed,
+            price_double_paise=payload.price_double_paise,
+            price_triple_paise=payload.price_triple_paise,
+            price_child_paise=payload.price_child_paise,
+            single_supplement_paise=payload.single_supplement_paise,
+        ),
+    )
+    dep.leader_id = own
+    pkg.departures.append(dep)
+    await _flush_or_conflict(db)
+    pkg.starting_price_paise = recompute_starting_price(
+        pkg, today=today, seats_left=await _seats_left(db, pkg)
+    )
+    now = dt.datetime.now(dt.UTC)
+    pkg.updated_at = pkg.edited_at = now
+    out = NewDeparture(id=dep.id, package_id=pkg.id, date=dep.date)
+    slug, destination_slug, leaders = pkg.slug, pkg.destination.slug, _leader_ids(pkg)
+    await _commit_or_conflict(db)
+    await revalidate(revalidate_tags(slug, destination_slug) + await _leader_tags(db, leaders))
+    return out
+
+
+async def _leader_busy(
+    db: AsyncSession, leader_id: str | None, departs: dt.date, nights: int
+) -> str | None:
+    """The leader already leads a trip overlapping these days (the return day counts)."""
+    if leader_id is None:
+        return None
+    clash = next(
+        (
+            t
+            for t in await admin_leaders.trips_between(
+                db, departs, departs + dt.timedelta(days=nights)
+            )
+            if t.leader_id == leader_id
+        ),
+        None,
+    )
+    if clash is None:
+        return None
+    name = (await db.get(TripLeader, leader_id)).name  # type: ignore[union-attr]
+    return (
+        f"{name} is on {clash.package_name} until {long_date(clash.returns)} — pick another leader"
+    )

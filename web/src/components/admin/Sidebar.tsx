@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   Eye,
   Inbox,
   LayoutGrid,
@@ -22,6 +23,7 @@ export const NAV = [
   { href: '/admin/destinations', label: 'Destinations', icon: MapPin },
   { href: '/admin/leaders', label: 'Trip leaders', icon: UserRound },
   { href: '/admin/bookings', label: 'Bookings', icon: Ticket },
+  { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
   { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },
   { href: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
