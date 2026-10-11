@@ -2,7 +2,7 @@
 
 import { Download, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PageHead } from '@/components/admin/PageHead';
 import {
   PRESETS,
@@ -15,6 +15,7 @@ import {
   lakh,
   pct,
   rangeLabel,
+  parseReportParams,
   reportsHref,
   type ReportParams,
   type Reports,
@@ -33,6 +34,16 @@ export function ReportsCockpit({ data, params }: { data: Reports; params: Report
   const sections = useMemo(() => buildSections(data), [data]);
   const [open, setOpen] = useState<TileSection>(params.section);
   const [views, setViews] = useState<Partial<Record<TileSection, 'chart' | 'table'>>>({});
+  // A tile only rewrites the URL (no server render), so every link is built from the open
+  // section, not the one the page was loaded with; and back / forward reopen the URL's tile.
+  const current = useMemo(() => ({ ...params, section: open }), [params, open]);
+  useEffect(() => setOpen(params.section), [params.section]);
+  useEffect(() => {
+    const onPop = () =>
+      setOpen(parseReportParams(Object.fromEntries(new URLSearchParams(location.search))).section);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const s = sections[open];
 
   const pick = (id: TileSection) => {
@@ -59,7 +70,7 @@ export function ReportsCockpit({ data, params }: { data: Reports; params: Report
           <>{rangeLabel(data.range.from, data.range.to)} · IST · bookings by departure date</>
         }
       />
-      <RangeBar params={params} data={data} />
+      <RangeBar params={current} data={data} />
       <Kpis data={data} />
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] xl:items-start">
         <div
@@ -83,7 +94,7 @@ export function ReportsCockpit({ data, params }: { data: Reports; params: Report
           section={s}
           view={views[open] ?? 'chart'}
           onView={(v) => setViews((was) => ({ ...was, [open]: v }))}
-          params={params}
+          params={current}
         />
       </div>
     </div>
@@ -148,7 +159,7 @@ function RangeBar({ params, data }: { params: ReportParams; data: Reports }) {
               className="rpt-date rounded-[9px] border border-line bg-bg px-2 py-1 text-ink tabular-nums"
             />
           </label>
-          <button type="submit" className="rounded-[9px] bg-primary px-3 py-1.5 text-white">
+          <button type="submit" className="rounded-[9px] bg-ink px-3 py-1.5 text-bg">
             Apply
           </button>
         </form>
@@ -156,7 +167,6 @@ function RangeBar({ params, data }: { params: ReportParams; data: Reports }) {
       <Link
         href={reportsHref(params, { demo: !demoOn })}
         scroll={false}
-        aria-pressed={demoOn}
         title={
           demoOn
             ? 'Includes the seeded demo year (seed.py --history). Click to hide it.'

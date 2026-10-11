@@ -278,6 +278,14 @@ describe('ReportsCockpit', () => {
     expect(within(panel()).getByText(/2 of 22/)).toBeTruthy();
     expect(within(panel()).getByText(/Never paid \(9\)/)).toBeTruthy();
 
+    // Every link now carries the open section (the server page was rendered for Money).
+    expect(screen.getByRole('link', { name: 'Last month' }).getAttribute('href')).toBe(
+      '/admin/reports?p=last&s=cancellations',
+    );
+    expect(screen.getByRole('link', { name: /Demo history/ }).getAttribute('href')).toBe(
+      '/admin/reports?demo=0&s=cancellations',
+    );
+
     await userEvent.click(within(panel()).getByRole('button', { name: 'table' }));
     const table = within(panel()).getByRole('table');
     expect(within(table).getByText('Hold expired')).toBeTruthy();
