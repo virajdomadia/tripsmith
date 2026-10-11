@@ -1,6 +1,7 @@
 'use client';
 
-import { inTray, MAX_COMPARE, toggleCompare, type TrayItem, useCompareTray } from '@/lib/compare';
+import { MAX_COMPARE } from '@/lib/compare';
+import { inTray, toggleCompare, type TrayItem, useCompareTray } from '@/lib/compare-tray';
 import { toast } from '@/lib/saved';
 
 type Variant = 'card' | 'hero' | 'row';

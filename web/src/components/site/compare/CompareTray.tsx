@@ -4,7 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { clearTray, compareHref, MAX_COMPARE, removeFromTray, useCompareTray } from '@/lib/compare';
+import { compareHref, MAX_COMPARE } from '@/lib/compare';
+import { clearTray, removeFromTray, useCompareTray } from '@/lib/compare-tray';
 
 /**
  * The compare tray (R39, P1b): a bar at the foot of the window once a trip is ticked, kept for

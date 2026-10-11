@@ -14,11 +14,11 @@ import {
   compareRows,
   MAX_COMPARE,
   priceFrom,
-  replaceTray,
   type Row,
   type RowKey,
   winners,
 } from '@/lib/compare';
+import { replaceTray } from '@/lib/compare-tray';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { inr, MONTHS, priceOrOnRequest } from '@/lib/format';
@@ -110,10 +110,13 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
           Add a second trip to see where they differ.
         </p>
       ) : (
-        <p className="mt-5 flex items-center gap-2 text-[13px] text-mute">
-          <i aria-hidden className="inline-block h-3.5 w-1 rounded-full bg-action" />
+        <p className="mt-5 text-[13px] leading-snug text-mute">
+          <i
+            aria-hidden
+            className="mr-2 inline-block h-3.5 w-1 rounded-full bg-action align-[-2px]"
+          />
           Highlighted rows differ between trips
-          <span className="lg:hidden">· swipe sideways, row names stay put</span>
+          <span className="lg:hidden"> · swipe sideways, row names stay put</span>
         </p>
       )}
 
@@ -136,6 +139,9 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                 className="sticky left-0 z-20 bg-bg align-bottom lg:top-[65px] lg:z-30"
               >
                 <span className="sr-only">Fact</span>
+                <span aria-hidden className="label-caps block pb-3 text-left text-[11px] text-mute">
+                  {plural(trips.length, 'trip')}
+                </span>
               </th>
               {trips.map((t) => (
                 <th
@@ -177,14 +183,16 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                 <Fragment key={r.key}>
                   {group && (
                     <tr>
+                      {/* One cell across the row; the label rides along the left edge. */}
                       <th
                         scope="colgroup"
-                        colSpan={1}
-                        className="sticky left-0 z-10 bg-bg pt-6 pb-2 text-left"
+                        colSpan={trips.length + (slot ? 2 : 1)}
+                        className="pt-6 pb-2 text-left"
                       >
-                        <span className="label-caps text-mute">{group}</span>
+                        <span className="label-caps sticky left-0 inline-block bg-bg pr-2 whitespace-nowrap text-mute">
+                          {group}
+                        </span>
                       </th>
-                      <td colSpan={trips.length + (slot ? 1 : 0)} className="pt-6 pb-2" />
                     </tr>
                   )}
                   <tr>

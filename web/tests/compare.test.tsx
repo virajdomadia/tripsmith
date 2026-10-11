@@ -16,12 +16,10 @@ import {
   type CompareTrip,
   compareHref,
   compareRows,
-  resetTrayForTests,
   slugsFromParam,
-  toggleCompare,
-  useCompareTray,
   winners,
 } from '../src/lib/compare';
+import { resetTrayForTests, toggleCompare, useCompareTray } from '../src/lib/compare-tray';
 import { resetSavedForTests } from '../src/lib/saved';
 
 function trip(slug: string, over: Partial<CompareTrip> = {}): CompareTrip {
