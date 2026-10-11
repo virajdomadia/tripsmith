@@ -4686,6 +4686,183 @@
         "title": "ChecklistTick",
         "type": "object"
       },
+      "CompareResult": {
+        "properties": {
+          "items": {
+            "description": "In the order asked, at most 3",
+            "items": {
+              "$ref": "#/components/schemas/CompareTrip"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "missing": {
+            "description": "Asked-for slugs that are not live packages (unknown, draft or malformed)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "missing"
+        ],
+        "title": "CompareResult",
+        "type": "object"
+      },
+      "CompareTrip": {
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departureCity": {
+            "title": "Departurecity",
+            "type": "string"
+          },
+          "departures": {
+            "description": "The next 3 upcoming dates that still have seats",
+            "items": {
+              "$ref": "#/components/schemas/DepartureOut"
+            },
+            "title": "Departures",
+            "type": "array"
+          },
+          "deposit": {
+            "description": "P5: the trip can be reserved with 25 % now",
+            "title": "Deposit",
+            "type": "boolean"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationRef"
+          },
+          "earlyBird": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EarlyBirdOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "hotels": {
+            "items": {
+              "$ref": "#/components/schemas/HotelOut"
+            },
+            "title": "Hotels",
+            "type": "array"
+          },
+          "inclusions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Inclusions",
+            "type": "array"
+          },
+          "leader": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicLeaderRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The package's default trip leader"
+          },
+          "meals": {
+            "$ref": "#/components/schemas/MealCount"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nights": {
+            "title": "Nights",
+            "type": "integer"
+          },
+          "places": {
+            "description": "Where the nights are spent, in order (hotel cities)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "startingPricePaise": {
+            "description": "Cheapest upcoming double-sharing price",
+            "title": "Startingpricepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "destination",
+          "nights",
+          "days",
+          "departureCity",
+          "cover",
+          "startingPricePaise",
+          "deal",
+          "earlyBird",
+          "places",
+          "hotels",
+          "meals",
+          "inclusions",
+          "exclusions",
+          "departures",
+          "rating",
+          "leader",
+          "deposit"
+        ],
+        "title": "CompareTrip",
+        "type": "object"
+      },
       "CounterBookingRequest": {
         "description": "`POST /admin/counter/bookings`: book and settle in one step.\n\n`paid` = the whole total taken now (cash, UPI or bank), confirmed at once with a receipt;\n`deposit` = the quote's deposit taken now, the balance due later as on the website.",
         "properties": {
@@ -9129,6 +9306,30 @@
           }
         },
         "title": "MarkPaidInput",
+        "type": "object"
+      },
+      "MealCount": {
+        "description": "Included meals over the whole trip, counted from the itinerary.",
+        "properties": {
+          "breakfasts": {
+            "title": "Breakfasts",
+            "type": "integer"
+          },
+          "dinners": {
+            "title": "Dinners",
+            "type": "integer"
+          },
+          "lunches": {
+            "title": "Lunches",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "breakfasts",
+          "lunches",
+          "dinners"
+        ],
+        "title": "MealCount",
         "type": "object"
       },
       "Meals": {
@@ -19139,6 +19340,58 @@
           }
         },
         "summary": "Open Google Calendar",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/compare": {
+      "get": {
+        "operationId": "compareTrips",
+        "parameters": [
+          {
+            "description": "Comma-separated package slugs; the first 3 are used",
+            "in": "query",
+            "name": "slugs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 400,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated package slugs; the first 3 are used",
+              "title": "Slugs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Compare Route",
         "tags": [
           "public"
         ]

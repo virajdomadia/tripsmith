@@ -1797,6 +1797,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare Route */
+        get: operations["compareTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/destinations": {
         parameters: {
             query?: never;
@@ -4218,6 +4235,66 @@ export interface components {
             /** Done */
             done: boolean;
         };
+        /** CompareResult */
+        CompareResult: {
+            /**
+             * Items
+             * @description In the order asked, at most 3
+             */
+            items: components["schemas"]["CompareTrip"][];
+            /**
+             * Missing
+             * @description Asked-for slugs that are not live packages (unknown, draft or malformed)
+             */
+            missing: string[];
+        };
+        /** CompareTrip */
+        CompareTrip: {
+            cover: components["schemas"]["ImageOut"] | null;
+            /** Days */
+            days: number;
+            deal: components["schemas"]["DealOut"] | null;
+            /** Departurecity */
+            departureCity: string;
+            /**
+             * Departures
+             * @description The next 3 upcoming dates that still have seats
+             */
+            departures: components["schemas"]["DepartureOut"][];
+            /**
+             * Deposit
+             * @description P5: the trip can be reserved with 25 % now
+             */
+            deposit: boolean;
+            destination: components["schemas"]["DestinationRef"];
+            earlyBird: components["schemas"]["EarlyBirdOut"] | null;
+            /** Exclusions */
+            exclusions: string[];
+            /** Hotels */
+            hotels: components["schemas"]["HotelOut"][];
+            /** Inclusions */
+            inclusions: string[];
+            /** @description The package's default trip leader */
+            leader: components["schemas"]["PublicLeaderRef"] | null;
+            meals: components["schemas"]["MealCount"];
+            /** Name */
+            name: string;
+            /** Nights */
+            nights: number;
+            /**
+             * Places
+             * @description Where the nights are spent, in order (hotel cities)
+             */
+            places: string[];
+            rating: components["schemas"]["RatingOut"] | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Startingpricepaise
+             * @description Cheapest upcoming double-sharing price
+             */
+            startingPricePaise: number;
+        };
         /**
          * CounterBookingRequest
          * @description `POST /admin/counter/bookings`: book and settle in one step.
@@ -6263,6 +6340,18 @@ export interface components {
              * @description Optional: bank UTR, 'cash at office'…
              */
             reference?: string | null;
+        };
+        /**
+         * MealCount
+         * @description Included meals over the whole trip, counted from the itinerary.
+         */
+        MealCount: {
+            /** Breakfasts */
+            breakfasts: number;
+            /** Dinners */
+            dinners: number;
+            /** Lunches */
+            lunches: number;
         };
         /** Meals */
         Meals: {
@@ -11915,6 +12004,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    compareTrips: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated package slugs; the first 3 are used */
+                slugs?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompareResult"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

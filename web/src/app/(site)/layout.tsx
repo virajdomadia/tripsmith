@@ -1,6 +1,7 @@
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { SiteHeader } from '@/components/site/SiteHeader';
 import { SavedToasts } from '@/components/site/saved/SavedToasts';
+import { CompareTray } from '@/components/site/compare/CompareTray';
 import { WhatsAppProvider } from '@/components/site/whatsapp/WhatsAppContext';
 import { WhatsAppFab } from '@/components/site/whatsapp/WhatsAppFab';
 
@@ -23,6 +24,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       </main>
       <SiteFooter />
       <WhatsAppFab />
+      <CompareTray />
       <SavedToasts />
     </WhatsAppProvider>
   );

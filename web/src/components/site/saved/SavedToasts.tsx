@@ -19,7 +19,7 @@ export function SavedToasts() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 top-[76px] z-40 grid justify-items-center gap-2 lg:inset-x-auto lg:top-auto lg:bottom-6 lg:left-6 lg:max-w-[420px] lg:justify-items-start"
+      className="pointer-events-none fixed inset-x-4 top-[76px] z-40 grid justify-items-center gap-2 lg:inset-x-auto lg:top-auto lg:bottom-6 lg:left-6 lg:[body:has([data-compare-tray])_&]:bottom-24 lg:max-w-[420px] lg:justify-items-start"
     >
       {toasts.map((t) => (
         <ToastRow key={t.id} toast={t} />

@@ -193,6 +193,29 @@
   }
 }
 
+/* P1b: the compare tray shakes when a fourth trip is refused; still under reduced motion. */
+@keyframes tray-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-7px);
+  }
+  40%,
+  80% {
+    transform: translateX(7px);
+  }
+}
+
+@utility animate-tray-shake {
+  animation: tray-shake 0.5s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
 /* P1: the ♡ fills with a short pop (and a ring that spreads); still under reduced motion. */
 @keyframes heart-pop {
   0% {
