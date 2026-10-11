@@ -30,6 +30,12 @@ class PackageCount(ApiModel):
     count: int
 
 
+class SavedCount(PackageCount):
+    """A bar in "Most saved" (R39, P1): `count` is the last 30 IST days, `allTime` every save."""
+
+    all_time: int
+
+
 class UpcomingDeparture(ApiModel):
     id: str
     package_id: str
@@ -66,6 +72,11 @@ class Dashboard(ApiModel):
     by_status: StatusCounts
     top_by_enquiries: list[PackageCount]
     top_by_views: list[PackageCount]
+    top_by_saves: list[SavedCount] = Field(
+        default_factory=list,
+        description="P1: saves by signed-in travellers in the 30-day window; guests' browser "
+        "saves never reach the server",
+    )
     upcoming_departures: list[UpcomingDeparture] = Field(
         description=f"At most {MAX_DEPARTURES}; `upcomingDeparturesTotal` is the real count"
     )

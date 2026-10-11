@@ -193,6 +193,48 @@
   }
 }
 
+/* P1: the ♡ fills with a short pop (and a ring that spreads); still under reduced motion. */
+@keyframes heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.32);
+  }
+  70% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes heart-ring {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@utility animate-heart-pop {
+  animation: heart-pop 0.45s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@utility animate-heart-ring {
+  animation: heart-ring 0.55s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* The hero photo drifts in for 30 s and back (mockup `kb`); still under reduced motion. */
 @keyframes kenburns {
   from {

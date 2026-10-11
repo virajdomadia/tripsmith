@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Container } from '@/components/site/Container';
+import { SavedTrips } from '@/components/site/account/SavedTrips';
 import { TripRow } from '@/components/site/account/TripRow';
 import { WaitlistList } from '@/components/site/account/WaitlistList';
 import { groupTrips, type Tab, TABS } from '@/lib/account';
@@ -40,8 +41,16 @@ const EMPTY: Record<Tab, string> = {
  */
 export default async function AccountPage({ searchParams }: { searchParams: Promise<Search> }) {
   let trips;
+  let saved;
   try {
-    trips = await api('/account/bookings', { auth: true });
+    [trips, saved] = await Promise.all([
+      api('/account/bookings', { auth: true }),
+      // P1. An api from before P1 (the web/api deploy race) has no saved list: show none.
+      api('/account/saved', { auth: true }).catch((e: unknown) => {
+        if (e instanceof ApiRequestError && e.status === 401) throw e;
+        return { items: [], max: 60 };
+      }),
+    ]);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 401) redirect(ACCOUNT_SIGN_IN);
     throw e;
@@ -55,9 +64,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         : undefined;
   const first = trips.name.split(' ')[0];
   const groups = groupTrips(trips.bookings, trips.today);
-  const asked = TABS.find((t) => t.id === sp.tab)?.id;
-  const tab: Tab = asked ?? TABS.find((t) => groups[t.id].length > 0)?.id ?? 'upcoming';
-  const rows = groups[tab];
+  const counts: Record<Tab | 'saved', number> = {
+    upcoming: groups.upcoming.length,
+    past: groups.past.length,
+    cancelled: groups.cancelled.length,
+    saved: saved.items.length,
+  };
+  const tabs = [...TABS, { id: 'saved' as const, label: 'Saved' }];
+  const asked = tabs.find((t) => t.id === sp.tab)?.id;
+  const tab = asked ?? tabs.find((t) => counts[t.id] > 0)?.id ?? 'upcoming';
+  const rows = tab === 'saved' ? [] : groups[tab];
 
   return (
     <Container className="max-w-[900px] pt-8 pb-16 sm:pt-12">
@@ -92,7 +108,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {/* `?? []`: an api from before P6 (the web/api deploy race) has no waitlist. */}
       <WaitlistList entries={trips.waitlist ?? []} />
 
-      {trips.bookings.length === 0 ? (
+      {trips.bookings.length === 0 && saved.items.length === 0 ? (
         <section className="mt-10 grid justify-items-start gap-3 rounded-card border border-dashed border-line bg-bg2 p-8">
           <h2 className="text-[22px]">No trips on this email yet.</h2>
           <p className="max-w-[52ch] text-ink2">
@@ -112,7 +128,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             aria-label="Trips by status"
             className="mt-8 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-line [scrollbar-width:none]"
           >
-            {TABS.map((t) => {
+            {tabs.map((t) => {
               const on = t.id === tab;
               return (
                 <Link
@@ -124,13 +140,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                     on ? 'border-primary text-ink' : 'border-transparent text-mute hover:text-ink'
                   }`}
                 >
-                  {t.label}{' '}
-                  <span className="num font-semibold text-mute">· {groups[t.id].length}</span>
+                  {t.label} <span className="num font-semibold text-mute">· {counts[t.id]}</span>
                 </Link>
               );
             })}
           </nav>
-          {rows.length === 0 ? (
+          {tab === 'saved' ? (
+            <SavedTrips items={saved.items} />
+          ) : rows.length === 0 ? (
             <p className="mt-8 text-ink2">{EMPTY[tab]}</p>
           ) : (
             <ol

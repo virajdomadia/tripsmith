@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { control, Field } from '@/components/site/enquiry/Field';
 import { requestCode, SIGN_IN_EMAIL_KEY, type SignInError, verifyCode } from '@/lib/account';
+import { mergeGuestSaves } from '@/lib/saved';
 import { ACCOUNT_PATH } from '@/lib/auth/gate';
 
 type Sent = { email: string; demoCode: string | null };
@@ -72,6 +73,9 @@ export function SignInForm({ signedOut }: { signedOut: boolean }) {
       } catch {
         // nothing to clean up
       }
+      // P1: the ♡ saves made as a guest join the account before My trips loads (at most 4 s —
+      // a slow merge is retried by the next page load, which finds the session).
+      await Promise.race([mergeGuestSaves(), new Promise((r) => setTimeout(r, 4000))]);
       window.location.assign(ACCOUNT_PATH);
       return;
     }

@@ -2727,7 +2727,7 @@
           "nextDeparture": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/NextDeparture"
+                "$ref": "#/components/schemas/app__schemas__catalog__NextDeparture"
               },
               {
                 "type": "null"
@@ -5578,6 +5578,14 @@
               "$ref": "#/components/schemas/PackageCount"
             },
             "title": "Topbyenquiries",
+            "type": "array"
+          },
+          "topBySaves": {
+            "description": "P1: saves by signed-in travellers in the 30-day window; guests' browser saves never reach the server",
+            "items": {
+              "$ref": "#/components/schemas/SavedCount"
+            },
+            "title": "Topbysaves",
             "type": "array"
           },
           "topByViews": {
@@ -9915,32 +9923,6 @@
         "title": "MoveRequest",
         "type": "object"
       },
-      "NextDeparture": {
-        "description": "A package card's seat fill (R59, P20 · Packages B).",
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "seats": {
-            "title": "Seats",
-            "type": "integer"
-          },
-          "taken": {
-            "description": "Booked or held in checkout: seats − seats left",
-            "title": "Taken",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "seats",
-          "taken"
-        ],
-        "title": "NextDeparture",
-        "type": "object"
-      },
       "Occupancy": {
         "enum": [
           "double",
@@ -12056,6 +12038,195 @@
         "title": "ReviewStats",
         "type": "object"
       },
+      "SavedCount": {
+        "description": "A bar in \"Most saved\" (R39, P1): `count` is the last 30 IST days, `allTime` every save.",
+        "properties": {
+          "allTime": {
+            "title": "Alltime",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "count",
+          "allTime"
+        ],
+        "title": "SavedCount",
+        "type": "object"
+      },
+      "SavedMerge": {
+        "properties": {
+          "added": {
+            "description": "Browser saves that are new to the account",
+            "title": "Added",
+            "type": "integer"
+          },
+          "leftOut": {
+            "description": "Browser saves dropped because the account was full (oldest first)",
+            "title": "Leftout",
+            "type": "integer"
+          },
+          "max": {
+            "default": 60,
+            "description": "How many trips one account can keep",
+            "title": "Max",
+            "type": "integer"
+          },
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Slugs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slugs",
+          "added",
+          "leftOut"
+        ],
+        "title": "SavedMerge",
+        "type": "object"
+      },
+      "SavedMergeInput": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedMergeItem"
+            },
+            "maxItems": 30,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SavedMergeInput",
+        "type": "object"
+      },
+      "SavedMergeItem": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the guest saved it; clamped to the last year, else now",
+            "title": "At"
+          },
+          "slug": {
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "title": "SavedMergeItem",
+        "type": "object"
+      },
+      "SavedSlugs": {
+        "description": "What the hearts need: the account's saved live packages, newest first.",
+        "properties": {
+          "max": {
+            "default": 60,
+            "description": "How many trips one account can keep",
+            "title": "Max",
+            "type": "integer"
+          },
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Slugs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slugs"
+        ],
+        "title": "SavedSlugs",
+        "type": "object"
+      },
+      "SavedTrip": {
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/PackageCard"
+          },
+          "nextDeparture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/app__schemas__saved__NextDeparture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The soonest upcoming date with seats; null when none is on sale"
+          },
+          "savedAt": {
+            "format": "date-time",
+            "title": "Savedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "savedAt",
+          "card",
+          "nextDeparture"
+        ],
+        "title": "SavedTrip",
+        "type": "object"
+      },
+      "SavedTrips": {
+        "properties": {
+          "items": {
+            "description": "Live packages only, newest save first",
+            "items": {
+              "$ref": "#/components/schemas/SavedTrip"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "max": {
+            "default": 60,
+            "title": "Max",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SavedTrips",
+        "type": "object"
+      },
       "SearchFacets": {
         "description": "What the filter panel offers — derived from the live catalog, never hard-coded.",
         "properties": {
@@ -13215,6 +13386,51 @@
         ],
         "title": "WaitlistJoined",
         "type": "object"
+      },
+      "app__schemas__catalog__NextDeparture": {
+        "description": "A package card's seat fill (R59, P20 · Packages B).",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "seats": {
+            "title": "Seats",
+            "type": "integer"
+          },
+          "taken": {
+            "description": "Booked or held in checkout: seats − seats left",
+            "title": "Taken",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "seats",
+          "taken"
+        ],
+        "title": "NextDeparture",
+        "type": "object"
+      },
+      "app__schemas__saved__NextDeparture": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "seatsLeft": {
+            "title": "Seatsleft",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "seatsLeft"
+        ],
+        "title": "NextDeparture",
+        "type": "object"
       }
     }
   },
@@ -14017,6 +14233,200 @@
         "summary": "Get Account Voucher",
         "tags": [
           "public"
+        ]
+      }
+    },
+    "/account/saved": {
+      "get": {
+        "description": "The Saved tab: live packages as cards with the next date that has seats.",
+        "operationId": "listSavedTrips",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTrips"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Saved Trips",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/saved/merge": {
+      "post": {
+        "description": "A guest's browser saves join the account on sign-in (union; the older time wins; past\nthe cap the oldest browser saves are left out and counted in `leftOut`).",
+        "operationId": "mergeSavedTrips",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedMergeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedMerge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Merge",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/saved/slugs": {
+      "get": {
+        "operationId": "listSavedSlugs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSlugs"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Saved Slugs",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/account/saved/{slug}": {
+      "delete": {
+        "operationId": "unsaveTrip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSlugs"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Delete Saved",
+        "tags": [
+          "account"
+        ]
+      },
+      "put": {
+        "description": "Idempotent. 404 for a trip that is not live; 409 `saved_full` past the cap.",
+        "operationId": "saveTrip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedSlugs"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Put Saved",
+        "tags": [
+          "account"
         ]
       }
     },

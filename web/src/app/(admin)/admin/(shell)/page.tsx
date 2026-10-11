@@ -134,6 +134,26 @@ export default async function AdminHome() {
           </List>
         </Panel>
       </div>
+
+      <div className="grid items-start gap-3.5 lg:grid-cols-3">
+        <Panel title="Most saved" sub="· 30 days">
+          {/* `?? []`: an api from before P1 (the web/api deploy race) sends no saves. */}
+          <List empty="No trip saved in the last 30 days.">
+            {(data.topBySaves ?? []).map((p) => (
+              <Row
+                key={p.id}
+                href={`/admin/packages/${p.id}`}
+                who={p.name}
+                what={`${p.allTime} ${p.allTime === 1 ? 'save' : 'saves'} all time`}
+                amount={<>♡ {p.count}</>}
+              />
+            ))}
+          </List>
+          <p className="px-4 pb-4 text-[12px] text-mute">
+            Signed-in travellers only — saves on guests&rsquo; devices aren&rsquo;t counted.
+          </p>
+        </Panel>
+      </div>
     </>
   );
 }
