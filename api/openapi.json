@@ -7117,6 +7117,16 @@
         "title": "DestinationRef",
         "type": "object"
       },
+      "DiscountSource": {
+        "enum": [
+          "deal",
+          "early_bird",
+          "coupon",
+          "manual"
+        ],
+        "title": "DiscountSource",
+        "type": "string"
+      },
       "EarlyBirdAdmin": {
         "properties": {
           "on": {
@@ -12940,6 +12950,950 @@
           }
         },
         "title": "RemoveAddonInput",
+        "type": "object"
+      },
+      "ReportAddon": {
+        "properties": {
+          "bookings": {
+            "description": "Bookings that took it",
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "eligible": {
+            "description": "Bookings on packages that offer it",
+            "title": "Eligible",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revenuePaise": {
+            "title": "Revenuepaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "bookings",
+          "eligible",
+          "revenuePaise"
+        ],
+        "title": "ReportAddon",
+        "type": "object"
+      },
+      "ReportAddons": {
+        "properties": {
+          "addons": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAddon"
+            },
+            "title": "Addons",
+            "type": "array"
+          },
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "revenuePaise": {
+            "title": "Revenuepaise",
+            "type": "integer"
+          },
+          "withAny": {
+            "description": "Bookings with at least one add-on",
+            "title": "Withany",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revenuePaise",
+          "withAny",
+          "bookings",
+          "addons"
+        ],
+        "title": "ReportAddons",
+        "type": "object"
+      },
+      "ReportBucket": {
+        "properties": {
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "bookings"
+        ],
+        "title": "ReportBucket",
+        "type": "object"
+      },
+      "ReportCancellations": {
+        "properties": {
+          "cancelled": {
+            "description": "… of those, cancelled since",
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "keptPaise": {
+            "description": "Collected − refunded on the cancelled ones: fees kept",
+            "title": "Keptpaise",
+            "type": "integer"
+          },
+          "lapsed": {
+            "description": "Never paid: holds that lapsed, failed payments, seats gone",
+            "items": {
+              "$ref": "#/components/schemas/ReportReason"
+            },
+            "title": "Lapsed",
+            "type": "array"
+          },
+          "paidBookings": {
+            "description": "Bookings that ever had a captured payment",
+            "title": "Paidbookings",
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ReportReason"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "refundedPaise": {
+            "title": "Refundedpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paidBookings",
+          "cancelled",
+          "refundedPaise",
+          "keptPaise",
+          "reasons",
+          "lapsed"
+        ],
+        "title": "ReportCancellations",
+        "type": "object"
+      },
+      "ReportCash": {
+        "description": "What reached or left the bank in the range, by payment and refund date — whatever the\ndeparture. Not part of the reconcile.",
+        "properties": {
+          "inPaise": {
+            "title": "Inpaise",
+            "type": "integer"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/ReportCashMonth"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "outPaise": {
+            "title": "Outpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inPaise",
+          "outPaise",
+          "netPaise",
+          "months"
+        ],
+        "title": "ReportCash",
+        "type": "object"
+      },
+      "ReportCashMonth": {
+        "properties": {
+          "inPaise": {
+            "title": "Inpaise",
+            "type": "integer"
+          },
+          "month": {
+            "description": "YYYY-MM of the payment or refund, IST",
+            "title": "Month",
+            "type": "string"
+          },
+          "outPaise": {
+            "title": "Outpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "inPaise",
+          "outPaise"
+        ],
+        "title": "ReportCashMonth",
+        "type": "object"
+      },
+      "ReportChannel": {
+        "properties": {
+          "bookedPaise": {
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/BookingChannel"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "bookings",
+          "travellers",
+          "bookedPaise"
+        ],
+        "title": "ReportChannel",
+        "type": "object"
+      },
+      "ReportCustomers": {
+        "properties": {
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "first": {
+            "title": "First",
+            "type": "integer"
+          },
+          "lead": {
+            "description": "Days booked before departure",
+            "items": {
+              "$ref": "#/components/schemas/ReportBucket"
+            },
+            "title": "Lead",
+            "type": "array"
+          },
+          "party": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBucket"
+            },
+            "title": "Party",
+            "type": "array"
+          },
+          "repeat": {
+            "description": "Bookings by an email with two or more paid bookings ever",
+            "title": "Repeat",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bookings",
+          "travellers",
+          "party",
+          "lead",
+          "repeat",
+          "first"
+        ],
+        "title": "ReportCustomers",
+        "type": "object"
+      },
+      "ReportDeparture": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "daysToGo": {
+            "title": "Daystogo",
+            "type": "integer"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "free": {
+            "title": "Free",
+            "type": "integer"
+          },
+          "guaranteed": {
+            "title": "Guaranteed",
+            "type": "boolean"
+          },
+          "held": {
+            "description": "Checkout holds, payment links and date-change holds",
+            "title": "Held",
+            "type": "integer"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "sold": {
+            "title": "Sold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departureId",
+          "packageId",
+          "packageName",
+          "date",
+          "seatsTotal",
+          "sold",
+          "held",
+          "free",
+          "guaranteed",
+          "daysToGo"
+        ],
+        "title": "ReportDeparture",
+        "type": "object"
+      },
+      "ReportDiscount": {
+        "properties": {
+          "bookedPaise": {
+            "description": "Those bookings' total",
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "description": "Bookings that carried it",
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "givenPaise": {
+            "title": "Givenpaise",
+            "type": "integer"
+          },
+          "label": {
+            "description": "“Deals”, “Early-bird”, the coupon's code, or “Manual”",
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DiscountSource"
+          }
+        },
+        "required": [
+          "source",
+          "label",
+          "givenPaise",
+          "bookings",
+          "bookedPaise"
+        ],
+        "title": "ReportDiscount",
+        "type": "object"
+      },
+      "ReportDiscounts": {
+        "properties": {
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "discountedBookings": {
+            "title": "Discountedbookings",
+            "type": "integer"
+          },
+          "givenPaise": {
+            "title": "Givenpaise",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ReportDiscount"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "givenPaise",
+          "discountedBookings",
+          "bookings",
+          "sources"
+        ],
+        "title": "ReportDiscounts",
+        "type": "object"
+      },
+      "ReportFunnel": {
+        "description": "By activity date: views (our own counter), package enquiries, web holds started, and\nthose holds that were ever paid. Enquiries and holds are parallel paths, not steps.",
+        "properties": {
+          "enquiries": {
+            "title": "Enquiries",
+            "type": "integer"
+          },
+          "holds": {
+            "title": "Holds",
+            "type": "integer"
+          },
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/ReportFunnelPackage"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "integer"
+          },
+          "views": {
+            "title": "Views",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "views",
+          "enquiries",
+          "holds",
+          "paid",
+          "packages"
+        ],
+        "title": "ReportFunnel",
+        "type": "object"
+      },
+      "ReportFunnelPackage": {
+        "properties": {
+          "enquiries": {
+            "title": "Enquiries",
+            "type": "integer"
+          },
+          "holds": {
+            "title": "Holds",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "integer"
+          },
+          "views": {
+            "title": "Views",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packageId",
+          "name",
+          "views",
+          "enquiries",
+          "holds",
+          "paid"
+        ],
+        "title": "ReportFunnelPackage",
+        "type": "object"
+      },
+      "ReportKpis": {
+        "properties": {
+          "balancePaise": {
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "bookedPaise": {
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "description": "Bookings holding seats (confirmed, deposit paid, done)",
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "collectedPaise": {
+            "title": "Collectedpaise",
+            "type": "integer"
+          },
+          "departures": {
+            "title": "Departures",
+            "type": "integer"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/ReportPrevious"
+          },
+          "refundedPaise": {
+            "title": "Refundedpaise",
+            "type": "integer"
+          },
+          "seatsSold": {
+            "title": "Seatssold",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "description": "Every seat on the range's departures",
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bookedPaise",
+          "collectedPaise",
+          "refundedPaise",
+          "netPaise",
+          "balancePaise",
+          "bookings",
+          "travellers",
+          "seatsSold",
+          "seatsTotal",
+          "departures",
+          "previous"
+        ],
+        "title": "ReportKpis",
+        "type": "object"
+      },
+      "ReportMoney": {
+        "properties": {
+          "balanceBookings": {
+            "title": "Balancebookings",
+            "type": "integer"
+          },
+          "balancePaise": {
+            "description": "= desk CSV Balance due",
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "bookedPaise": {
+            "description": "Σ total of bookings holding seats = desk CSV Total",
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/ReportCash"
+          },
+          "collectedPaise": {
+            "description": "Captured payments, online and offline",
+            "title": "Collectedpaise",
+            "type": "integer"
+          },
+          "gstPaise": {
+            "description": "The 5 % GST inside net (prices are GST-inclusive)",
+            "title": "Gstpaise",
+            "type": "integer"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/ReportMonth"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "netPaise": {
+            "description": "collected − refunded = desk CSV Paid, every status",
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "refundedPaise": {
+            "description": "Refunds sent or on their way (not failed)",
+            "title": "Refundedpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bookedPaise",
+          "collectedPaise",
+          "refundedPaise",
+          "netPaise",
+          "gstPaise",
+          "balancePaise",
+          "balanceBookings",
+          "months",
+          "cash"
+        ],
+        "title": "ReportMoney",
+        "type": "object"
+      },
+      "ReportMonth": {
+        "properties": {
+          "balancePaise": {
+            "title": "Balancepaise",
+            "type": "integer"
+          },
+          "bookedPaise": {
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "collectedPaise": {
+            "title": "Collectedpaise",
+            "type": "integer"
+          },
+          "gstPaise": {
+            "title": "Gstpaise",
+            "type": "integer"
+          },
+          "month": {
+            "description": "YYYY-MM of the departure",
+            "examples": [
+              "2026-05"
+            ],
+            "title": "Month",
+            "type": "string"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "refundedPaise": {
+            "title": "Refundedpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "bookings",
+          "bookedPaise",
+          "collectedPaise",
+          "refundedPaise",
+          "netPaise",
+          "gstPaise",
+          "balancePaise"
+        ],
+        "title": "ReportMonth",
+        "type": "object"
+      },
+      "ReportOccupancy": {
+        "properties": {
+          "emptiest": {
+            "description": "The emptiest live departures in the next 60 days, whatever the range",
+            "items": {
+              "$ref": "#/components/schemas/ReportDeparture"
+            },
+            "title": "Emptiest",
+            "type": "array"
+          },
+          "past": {
+            "description": "Departures from `from` to yesterday",
+            "items": {
+              "$ref": "#/components/schemas/ReportPastFill"
+            },
+            "title": "Past",
+            "type": "array"
+          },
+          "upcoming": {
+            "description": "Departures from today to `to`",
+            "items": {
+              "$ref": "#/components/schemas/ReportDeparture"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          }
+        },
+        "required": [
+          "upcoming",
+          "past",
+          "emptiest"
+        ],
+        "title": "ReportOccupancy",
+        "type": "object"
+      },
+      "ReportPackage": {
+        "properties": {
+          "bookedPaise": {
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "departures": {
+            "title": "Departures",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "seatsSold": {
+            "title": "Seatssold",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          },
+          "travellers": {
+            "title": "Travellers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packageId",
+          "name",
+          "bookings",
+          "travellers",
+          "bookedPaise",
+          "netPaise",
+          "departures",
+          "seatsSold",
+          "seatsTotal"
+        ],
+        "title": "ReportPackage",
+        "type": "object"
+      },
+      "ReportPastFill": {
+        "properties": {
+          "departures": {
+            "title": "Departures",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "seatsSold": {
+            "title": "Seatssold",
+            "type": "integer"
+          },
+          "seatsTotal": {
+            "title": "Seatstotal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "packageId",
+          "name",
+          "departures",
+          "seatsSold",
+          "seatsTotal"
+        ],
+        "title": "ReportPastFill",
+        "type": "object"
+      },
+      "ReportPrevious": {
+        "properties": {
+          "bookedPaise": {
+            "title": "Bookedpaise",
+            "type": "integer"
+          },
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "netPaise": {
+            "title": "Netpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bookedPaise",
+          "netPaise",
+          "bookings"
+        ],
+        "title": "ReportPrevious",
+        "type": "object"
+      },
+      "ReportRange": {
+        "properties": {
+          "demo": {
+            "description": "True when the seeded demo history is included",
+            "title": "Demo",
+            "type": "boolean"
+          },
+          "demoBookings": {
+            "description": "Seeded demo bookings departing in the range",
+            "title": "Demobookings",
+            "type": "integer"
+          },
+          "from": {
+            "description": "First departure day, IST",
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "previousFrom": {
+            "description": "The same number of days just before `from`",
+            "format": "date",
+            "title": "Previousfrom",
+            "type": "string"
+          },
+          "previousTo": {
+            "format": "date",
+            "title": "Previousto",
+            "type": "string"
+          },
+          "to": {
+            "description": "Last departure day, IST (inclusive)",
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "today": {
+            "description": "IST today, which splits upcoming from past",
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "previousFrom",
+          "previousTo",
+          "today",
+          "demo",
+          "demoBookings"
+        ],
+        "title": "ReportRange",
+        "type": "object"
+      },
+      "ReportReason": {
+        "properties": {
+          "bookings": {
+            "title": "Bookings",
+            "type": "integer"
+          },
+          "keptPaise": {
+            "description": "Collected − refunded on these bookings",
+            "title": "Keptpaise",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "description": "The cancel reason's key",
+            "title": "Reason",
+            "type": "string"
+          },
+          "refundedPaise": {
+            "title": "Refundedpaise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "label",
+          "bookings",
+          "refundedPaise",
+          "keptPaise"
+        ],
+        "title": "ReportReason",
+        "type": "object"
+      },
+      "ReportSection": {
+        "enum": [
+          "money",
+          "cash",
+          "packages",
+          "occupancy",
+          "funnel",
+          "cancellations",
+          "discounts",
+          "addons",
+          "channels",
+          "customers"
+        ],
+        "title": "ReportSection",
+        "type": "string"
+      },
+      "Reports": {
+        "properties": {
+          "addons": {
+            "$ref": "#/components/schemas/ReportAddons"
+          },
+          "cancellations": {
+            "$ref": "#/components/schemas/ReportCancellations"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/ReportChannel"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "customers": {
+            "$ref": "#/components/schemas/ReportCustomers"
+          },
+          "discounts": {
+            "$ref": "#/components/schemas/ReportDiscounts"
+          },
+          "funnel": {
+            "$ref": "#/components/schemas/ReportFunnel"
+          },
+          "kpis": {
+            "$ref": "#/components/schemas/ReportKpis"
+          },
+          "money": {
+            "$ref": "#/components/schemas/ReportMoney"
+          },
+          "occupancy": {
+            "$ref": "#/components/schemas/ReportOccupancy"
+          },
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/ReportPackage"
+            },
+            "title": "Packages",
+            "type": "array"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ReportRange"
+          }
+        },
+        "required": [
+          "range",
+          "kpis",
+          "money",
+          "packages",
+          "occupancy",
+          "funnel",
+          "cancellations",
+          "discounts",
+          "addons",
+          "channels",
+          "customers"
+        ],
+        "title": "Reports",
         "type": "object"
       },
       "ResolveCancellationInput": {
@@ -19495,6 +20449,176 @@
           }
         },
         "summary": "Set Status Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/reports": {
+      "get": {
+        "operationId": "getReports",
+        "parameters": [
+          {
+            "description": "First departure day; omit both for this financial year",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First departure day; omit both for this financial year",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last departure day (inclusive)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last departure day (inclusive)",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Include the seeded demo history (seed.py --history)",
+            "in": "query",
+            "name": "demo",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Include the seeded demo history (seed.py --history)",
+              "title": "Demo",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reports"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Reports Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/reports/{section}.csv": {
+      "get": {
+        "operationId": "exportReportCsv",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "section",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReportSection"
+            }
+          },
+          {
+            "description": "First departure day; omit both for this financial year",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First departure day; omit both for this financial year",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last departure day (inclusive)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last departure day (inclusive)",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Include the seeded demo history (seed.py --history)",
+            "in": "query",
+            "name": "demo",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Include the seeded demo history (seed.py --history)",
+              "title": "Demo",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "One section's table as CSV"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Export Route",
         "tags": [
           "admin"
         ]

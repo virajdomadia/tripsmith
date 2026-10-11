@@ -51,10 +51,15 @@ def is_demo_address(email: str) -> bool:
 # (`urgency-seed-N@example.com`). Nobody is behind them, so the automatic emails skip them —
 # otherwise every reminder would land in the owner's inbox as a "[Test → …]" copy.
 SEED_LOCAL_PREFIX = "urgency-seed-"
+# P12: the year of past bookings and enquiries `seed.py --history` writes for the reports
+# (`history-seed-N@example.com`); the reports can leave them out by this mark.
+HISTORY_LOCAL_PREFIX = "history-seed-"
 
 
 def is_seed_address(email: str) -> bool:
-    return is_demo_address(email) and _address(email).startswith(SEED_LOCAL_PREFIX)
+    return is_demo_address(email) and _address(email).startswith(
+        (SEED_LOCAL_PREFIX, HISTORY_LOCAL_PREFIX)
+    )
 
 
 def held_back(settings: Settings, to: str) -> bool:
