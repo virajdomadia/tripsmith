@@ -1,7 +1,7 @@
 import type { BadgeValue } from './Badge';
 
 const COPY: Record<BadgeValue, [string, string, string]> = {
-  'filling-fast': ['Filling', 'fast', 'few seats'],
+  'filling-fast': ['Filling', 'fast', 'this date'], // the count replaces it when known
   'sold-out': ['Sold', 'out', 'this date'],
   'likely-to-sell-out': ['Likely to', 'sell out', 'next date'],
   guaranteed: ['Departure', '✓', 'guaranteed'],

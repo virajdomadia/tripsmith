@@ -13,15 +13,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Booking, BookingTraveller, Departure, Destination, Package, Review
-from app.models.enums import BookingChannel, BookingStatus, CancelReason, Occupancy, PackageStatus
+from app.models.enums import (
+    BookingChannel,
+    BookingStatus,
+    CancelReason,
+    EmailType,
+    Occupancy,
+    PackageStatus,
+)
 from app.schemas.catalog import BookingProof
 from app.schemas.meta import Badge
 from app.services.catalog import admin_packages, urgency
 from app.services.catalog.availability import Availability
 from app.services.catalog.pricing import badge_for
 from app.services.catalog.urgency import Proof
+from app.services.email import automatic
 from app.services.email.send import is_seed_address
+from app.services.pdf.itinerary import pdf_version
 from scripts.seed import UrgencySeed, seed_urgency
+from tests import pdf_fixture
 from tests.test_booking_orders import dep
 from tests.test_db import goa, package
 from tests.test_reviews import extra_review
@@ -336,3 +346,29 @@ async def test_the_urgency_seed_gives_each_label_real_bookings_once(db: AsyncSes
 
     again = await seed_urgency(db, today=TODAY, seeds=plans)
     assert again.counts == {"urgency_bookings": 0}  # by ref: nothing is added twice
+
+
+def test_the_booking_facts_never_mint_a_new_itinerary_pdf() -> None:
+    pkg = pdf_fixture.package()
+    site = {"site_url": "https://x.test", "whatsapp_number": "91"}
+    busy = pkg.model_copy(update={"proof": BookingProof(recent_bookings=5, last_booked_days=2)})
+    assert pdf_version(pkg, **site) == pdf_version(busy, **site)
+
+
+@pytest.mark.db
+async def test_the_automatic_emails_skip_seed_bookings_only(db: AsyncSession) -> None:
+    def due(email: str) -> automatic.Due:
+        return automatic.Due(
+            type=EmailType.DETAILS_REMINDER,
+            key=f"details:{email}",
+            email=email,
+            booking_id=None,
+            ref=None,
+            package_id=None,
+        )
+
+    kept = await automatic._unclaimed(  # noqa: SLF001
+        db, [due("urgency-seed-3@example.com"), due("asha@example.com"), due("a@b.in")]
+    )
+    assert [d.email for d in kept] == ["asha@example.com", "a@b.in"]
+    assert not is_seed_address("urgency-seed-3@gmail.com")  # only the reserved demo domain
