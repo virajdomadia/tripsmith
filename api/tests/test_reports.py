@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.models import Booking, Departure, Enquiry, PackageView
+from app.models import Booking, Departure, Enquiry, PackageView, Payment
 from app.models.enums import BookingActor, BookingStatus
 from app.schemas.reports import DiscountSource
 from app.services import reports
@@ -140,6 +140,9 @@ def test_money_in_the_csv_is_whole_rupees_unless_there_are_paise() -> None:
     assert reports.rupees(12_345_00) == "12345"
     assert reports.rupees(1_234_56) == "1234.56"
     assert reports.percent(1, 3) == "33.3" and reports.percent(1, 0) == ""
+    assert reports.cell(reports.rupees(-1_500_00)) == "-1500"  # a net-negative month stays a number
+    assert reports.cell("-12.50") == "-12.50"
+    assert reports.cell("=SUM(A1)") == "'=SUM(A1)" and reports.cell("-x") == "'-x"
 
 
 # --- the database -------------------------------------------------------------------------------
@@ -355,3 +358,31 @@ async def test_every_section_exports_a_csv(db: AsyncSession, db_client: AsyncCli
         assert res.status_code == 200, section
         assert res.text.startswith("﻿") and res.headers["content-type"].startswith("text/csv")
         assert len(_csv(res.text)) >= 1, section
+
+
+@pytest.mark.db
+async def test_cash_counts_a_payment_on_the_day_it_was_captured(
+    db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """An order opened late one IST day and paid the next is the next day's money."""
+    owner = await owner_cookie(db)
+    _, departure = await seeded(db, seats=4)
+    h = await hold(db_client, departure.id, 1, 9)
+    res = await db_client.post(
+        f"/bookings/{h['bookingRef']}/confirm", json=callback(str(h["orderId"]), "pay_RptCash01")
+    )
+    assert res.status_code == 200, res.text
+    opened = dt.datetime(2026, 1, 31, 23, 50, tzinfo=reports.IST)
+    paid = dt.datetime(2026, 2, 1, 0, 5, tzinfo=reports.IST)
+    booking_id = (
+        await db.execute(select(Booking.id).where(Booking.ref == h["bookingRef"]))
+    ).scalar_one()
+    await db.execute(
+        update(Payment)
+        .where(Payment.booking_id == booking_id)
+        .values(created_at=opened, updated_at=paid)
+    )
+    await db.commit()
+    r = await _report(db_client, owner, **{"from": "2026-01-01", "to": "2026-02-28"})
+    cash = {m["month"]: m["inPaise"] for m in r["money"]["cash"]["months"]}
+    assert cash["2026-01"] == 0 and cash["2026-02"] == int(h["amountPaise"])

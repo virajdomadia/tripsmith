@@ -19,6 +19,7 @@ booked. Page views carry no contact, so the funnel's views always include the se
 """
 
 import datetime as dt
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -87,6 +88,7 @@ from app.services.booking.desk import CANCEL_LABELS, SEAT_HOLDING
 from app.services.email.render import IST
 from app.services.email.send import HISTORY_LOCAL_PREFIX
 from app.services.gst import tax
+from app.services.money import captured_at
 
 BAD_RANGE = "Pick both days, the first on or before the last"
 TOO_WIDE = f"Pick at most {SPAN_MAX_DAYS} days"
@@ -455,9 +457,10 @@ def _money(rows: Sequence[Row], start: dt.date, end: dt.date, cash: ReportCash) 
 
 async def _cash(db: AsyncSession, start: dt.date, end: dt.date, *, demo: bool) -> ReportCash:
     since, until = ist_day_start(start), ist_day_start(end + dt.timedelta(days=1))
-    ins = select(Payment.created_at, Payment.amount_paise).where(
-        Payment.status.in_(PAID_STATUSES), Payment.created_at >= since, Payment.created_at < until
-    )
+    # Capture time, as the money desk counts it (`money.captured_at`): an order opened late on
+    # the 31st and paid on the 1st is next month's money. A capture is never newer than
+    # `updated_at`, so that bound only trims.
+    ins = select(Payment).where(Payment.status.in_(PAID_STATUSES), Payment.updated_at >= since)
     when = func.coalesce(Refund.processed_at, Refund.created_at)
     outs = select(when, Refund.amount_paise).where(
         Refund.status != RefundStatus.FAILED, when >= since, when < until
@@ -472,8 +475,10 @@ async def _cash(db: AsyncSession, start: dt.date, end: dt.date, *, demo: bool) -
     months = {
         m: ReportCashMonth(month=m, in_paise=0, out_paise=0) for m in months_between(start, end)
     }
-    for at, amount in (await db.execute(ins)).all():
-        months[month_key(ist_date(at))].in_paise += int(amount)
+    for p in (await db.execute(ins)).scalars():
+        day = ist_date(captured_at(p))
+        if start <= day <= end:
+            months[month_key(day)].in_paise += p.amount_paise
     for at, amount in (await db.execute(outs)).all():
         months[month_key(ist_date(at))].out_paise += int(amount)
     total_in = sum(m.in_paise for m in months.values())
@@ -1205,9 +1210,18 @@ CSV_BUILDERS = {
 }
 
 
+NUMBER_RE = re.compile(r"-?\d+(\.\d+)?")
+
+
+def cell(value: str) -> str:
+    """`csv_safe` for text (names, labels, coupon codes); a number — a negative month's net
+    included — stays a number the spreadsheet can sum."""
+    return value if NUMBER_RE.fullmatch(value) else csv_safe(value)
+
+
 def section_csv(r: Reports, section: ReportSection) -> Table:
     head, rows = CSV_BUILDERS[section](r)
-    return head, [[csv_safe(v) for v in row] for row in rows]
+    return head, [[cell(v) for v in row] for row in rows]
 
 
 def csv_filename(r: Reports, section: ReportSection) -> str:
