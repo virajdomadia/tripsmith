@@ -50,7 +50,9 @@ describe('the URL', () => {
       dep: 'd1',
     });
     expect(p).toEqual({ month: '2026-11', dest: 'x1', pkg: 'p1', leader: 'l1', dep: 'd1' });
-    expect(calendarHref(p)).toBe('/admin/calendar?month=2026-11&dest=x1&package=p1&leader=l1&dep=d1');
+    expect(calendarHref(p)).toBe(
+      '/admin/calendar?month=2026-11&dest=x1&package=p1&leader=l1&dep=d1',
+    );
     expect(parseCalendarParams({ month: '2026-13', dep: '<x>' })).toMatchObject({
       month: null,
       dep: null,
@@ -63,7 +65,15 @@ describe('filters and the strip', () => {
   const pkgs = [pkg(), pkg({ id: 'p2', destinationId: 'x2', name: 'Goa' })];
   const deps = [
     dep(),
-    dep({ id: 'd2', packageId: 'p2', leaderId: 'l1', sold: 20, held: 0, free: 0, firstDueOn: '2099-10-01' }),
+    dep({
+      id: 'd2',
+      packageId: 'p2',
+      leaderId: 'l1',
+      sold: 20,
+      held: 0,
+      free: 0,
+      firstDueOn: '2099-10-01',
+    }),
     dep({ id: 'd3', missingTravellers: 3, balancePaise: 0, balanceBookings: 0, firstDueOn: null }),
   ];
 
@@ -125,7 +135,13 @@ describe('needs you', () => {
 
 describe('busy leaders', () => {
   const trips = [
-    { leaderId: 'l1', departureId: 'd1', packageName: 'Leh', date: '2099-11-06', returns: '2099-11-12' },
+    {
+      leaderId: 'l1',
+      departureId: 'd1',
+      packageName: 'Leh',
+      date: '2099-11-06',
+      returns: '2099-11-12',
+    },
   ];
   it('counts the return day and the start day as overlapping', () => {
     expect(busyTrip(trips, 'l1', '2099-11-12', 2)).toBeTruthy();
@@ -139,7 +155,9 @@ describe('busy leaders', () => {
 describe('motion', () => {
   it('stops the bars, slides and flash under reduced motion', () => {
     const css = readFileSync(new URL('../src/app/globals.css', import.meta.url), 'utf8');
-    const reduced = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(reduced).toMatch(/\.cal-bar i,\s*\.cal-slide-next,\s*\.cal-slide-prev,\s*\[data-flash\]\s*\{\s*animation: none;/);
+    // Any reduced-motion block will do (later rows append their own after this one).
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.cal-bar i,\s*\.cal-slide-next,\s*\.cal-slide-prev,\s*\[data-flash\]\s*\{\s*animation: none;/,
+    );
   });
 });

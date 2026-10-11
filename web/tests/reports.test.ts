@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   apiQuery,
@@ -121,5 +122,14 @@ describe('numbers', () => {
     expect(monthLabel('2026-05')).toBe('May');
     expect(monthLabel('2026-05', true)).toBe('May ’26');
     expect(monthLong('2025-11')).toBe('Nov 2025');
+  });
+});
+
+describe('motion', () => {
+  it('stops the report bars under reduced motion', () => {
+    const css = readFileSync(new URL('../src/app/globals.css', import.meta.url), 'utf8');
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\.rpt \.rpt-grow,\s*\.rpt \.rpt-grow-x,\s*\.rpt \.rpt-rise\s*\{\s*animation: none;/,
+    );
   });
 });
