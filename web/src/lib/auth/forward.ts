@@ -27,12 +27,16 @@ export type AuthPath =
   | `/account/bookings/${string}/cancellation`
   | `/account/bookings/${string}/review`
   | `/account/bookings/${string}/extras`
-  | `/account/bookings/${string}/extras/quote`;
+  | `/account/bookings/${string}/extras/quote`
+  | '/account/saved/slugs'
+  | '/account/saved/merge'
+  | `/account/saved/${string}`;
 
 export async function forwardAuth(
   path: AuthPath,
   request: Request,
   body?: unknown,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'POST',
 ): Promise<Response | undefined> {
   // Read per call, not at module scope: tests override `process.env.API_URL` after this module
   // is first imported, and a module-level constant would freeze the pre-test default forever.
@@ -51,7 +55,7 @@ export async function forwardAuth(
     headers['X-Internal-Secret'] = secret;
   }
   return fetch(`${apiUrl}${path}`, {
-    method: 'POST',
+    method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: 'no-store',

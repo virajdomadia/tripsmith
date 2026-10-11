@@ -293,6 +293,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Saved Trips
+         * @description The Saved tab: live packages as cards with the next date that has seats.
+         */
+        get: operations["listSavedTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/saved/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Merge
+         * @description A guest's browser saves join the account on sign-in (union; the older time wins; past
+         *     the cap the oldest browser saves are left out and counted in `leftOut`).
+         */
+        post: operations["mergeSavedTrips"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/saved/slugs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Saved Slugs */
+        get: operations["listSavedSlugs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/saved/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Saved
+         * @description Idempotent. 404 for a trip that is not live; 409 `saved_full` past the cap.
+         */
+        put: operations["saveTrip"];
+        post?: never;
+        /** Delete Saved */
+        delete: operations["unsaveTrip"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bookings": {
         parameters: {
             query?: never;
@@ -3244,7 +3323,7 @@ export interface components {
             /** Name */
             name: string;
             /** @description The first date from today on */
-            nextDeparture: components["schemas"]["NextDeparture"] | null;
+            nextDeparture: components["schemas"]["app__schemas__catalog__NextDeparture"] | null;
             /** Nights */
             nights: number;
             /**
@@ -4546,6 +4625,11 @@ export interface components {
             today: string;
             /** Topbyenquiries */
             topByEnquiries: components["schemas"]["PackageCount"][];
+            /**
+             * Topbysaves
+             * @description P1: saves by signed-in travellers in the 30-day window; guests' browser saves never reach the server
+             */
+            topBySaves?: components["schemas"]["SavedCount"][];
             /** Topbyviews */
             topByViews: components["schemas"]["PackageCount"][];
             /**
@@ -6556,24 +6640,6 @@ export interface components {
             travellers?: components["schemas"]["CounterTraveller"][] | null;
         };
         /**
-         * NextDeparture
-         * @description A package card's seat fill (R59, P20 · Packages B).
-         */
-        NextDeparture: {
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Seats */
-            seats: number;
-            /**
-             * Taken
-             * @description Booked or held in checkout: seats − seats left
-             */
-            taken: number;
-        };
-        /**
          * Occupancy
          * @enum {string}
          */
@@ -7509,6 +7575,96 @@ export interface components {
             publishedThisMonth: number;
         };
         /**
+         * SavedCount
+         * @description A bar in "Most saved" (R39, P1): `count` is the last 30 IST days, `allTime` every save.
+         */
+        SavedCount: {
+            /** Alltime */
+            allTime: number;
+            /** Count */
+            count: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** SavedMerge */
+        SavedMerge: {
+            /**
+             * Added
+             * @description Browser saves that are new to the account
+             */
+            added: number;
+            /**
+             * Leftout
+             * @description Browser saves dropped because the account was full (oldest first)
+             */
+            leftOut: number;
+            /**
+             * Max
+             * @description How many trips one account can keep
+             * @default 60
+             */
+            max: number;
+            /** Slugs */
+            slugs: string[];
+        };
+        /** SavedMergeInput */
+        SavedMergeInput: {
+            /** Items */
+            items: components["schemas"]["SavedMergeItem"][];
+        };
+        /** SavedMergeItem */
+        SavedMergeItem: {
+            /**
+             * At
+             * @description When the guest saved it; clamped to the last year, else now
+             */
+            at?: string | null;
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * SavedSlugs
+         * @description What the hearts need: the account's saved live packages, newest first.
+         */
+        SavedSlugs: {
+            /**
+             * Max
+             * @description How many trips one account can keep
+             * @default 60
+             */
+            max: number;
+            /** Slugs */
+            slugs: string[];
+        };
+        /** SavedTrip */
+        SavedTrip: {
+            card: components["schemas"]["PackageCard"];
+            /** @description The soonest upcoming date with seats; null when none is on sale */
+            nextDeparture: components["schemas"]["app__schemas__saved__NextDeparture"] | null;
+            /**
+             * Savedat
+             * Format: date-time
+             */
+            savedAt: string;
+        };
+        /** SavedTrips */
+        SavedTrips: {
+            /**
+             * Items
+             * @description Live packages only, newest save first
+             */
+            items: components["schemas"]["SavedTrip"][];
+            /**
+             * Max
+             * @default 60
+             */
+            max: number;
+        };
+        /**
          * SearchFacets
          * @description What the filter panel offers — derived from the live catalog, never hard-coded.
          */
@@ -7973,6 +8129,34 @@ export interface components {
              * @description Everyone on this date's list now, this party included
              */
             waiting: number;
+        };
+        /**
+         * NextDeparture
+         * @description A package card's seat fill (R59, P20 · Packages B).
+         */
+        app__schemas__catalog__NextDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Seats */
+            seats: number;
+            /**
+             * Taken
+             * @description Booked or held in checkout: seats − seats left
+             */
+            taken: number;
+        };
+        /** NextDeparture */
+        app__schemas__saved__NextDeparture: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Seatsleft */
+            seatsLeft: number;
         };
     };
     responses: never;
@@ -8521,6 +8705,159 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listSavedTrips: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedTrips"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    mergeSavedTrips: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedMergeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedMerge"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listSavedSlugs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSlugs"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    saveTrip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSlugs"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    unsaveTrip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedSlugs"];
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

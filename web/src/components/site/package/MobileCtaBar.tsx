@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BookNowButton } from '@/components/site/booking/BookNow';
+import { SaveHeart } from '@/components/site/saved/SaveHeart';
 import { File, WhatsApp } from '@/components/site/home/icons';
 import type { components } from '@/lib/api-types';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
@@ -53,6 +54,7 @@ export function MobileCtaBar({
           </>
         )}
       </div>
+      <SaveHeart slug={pkg.slug} name={pkg.name} variant="bar" />
       <a
         href={itineraryPdfHref(pkg.slug)}
         target="_blank"

@@ -47,6 +47,7 @@ from app.routers.site import (
     health,
     meta,
     pdf,
+    saved,
     unsubscribe,
     views,
     vouchers,
@@ -147,6 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(vouchers.router)
     app.include_router(calendar.router)
     app.include_router(account.router)
+    app.include_router(saved.router)
     app.include_router(webhooks.router)
     app.include_router(views.router)
     app.include_router(waitlist.router)
