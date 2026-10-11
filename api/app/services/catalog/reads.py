@@ -31,7 +31,7 @@ from app.schemas.catalog import (
 )
 from app.services.analytics import ist_today
 from app.services.booking import waitlist
-from app.services.catalog import deals, early_bird, leaders
+from app.services.catalog import deals, early_bird, leaders, urgency
 from app.services.catalog.availability import Availability, next_departures
 from app.services.catalog.cards import package_card
 from app.services.catalog.pricing import badge_for
@@ -79,7 +79,7 @@ def _image_out(image: PackageImage) -> ImageOut:
     return ImageOut(url=image.url, alt=image.alt, width=image.width, height=image.height)
 
 
-def _departure_out(d: Departure, seats_left: int) -> DepartureOut:
+def _departure_out(d: Departure, seats_left: int, *, likely: bool = False) -> DepartureOut:
     availability = Availability(seats_left, d.guaranteed, d.price_double_paise)
     return DepartureOut(
         id=d.id,
@@ -91,7 +91,7 @@ def _departure_out(d: Departure, seats_left: int) -> DepartureOut:
         price_triple_paise=d.price_triple_paise,
         price_child_paise=d.price_child_paise,
         single_supplement_paise=d.single_supplement_paise,
-        badge=badge_for(availability),
+        badge=badge_for(availability, likely=likely),
     )
 
 
@@ -114,10 +114,11 @@ async def _upcoming_departures(
         stmt = stmt.where(Departure.date >= start, Departure.date < end)
     rows = (await db.execute(stmt)).all()
     waiting = await waitlist.waiting_counts(db, [d.id for d, _ in rows])
+    likely = await urgency.likely_to_sell_out(db, [d.id for d, _ in rows], today)
     # P3: each date's leader — its own, else the package's default (switched-off ones hidden).
     led = await leaders.active_by_id(db, [d.leader_id or default_leader_id for d, _ in rows])
     return [
-        _departure_out(d, seats_left).model_copy(
+        _departure_out(d, seats_left, likely=d.id in likely).model_copy(
             update={
                 "waiting": waiting.get(d.id, 0),
                 "waitlist_open": waitlist.join_open(d.date, today),
@@ -165,9 +166,15 @@ async def _related(
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
     savings = await early_bird.with_savings(db, today)
+    proven = await urgency.proofs(db, today)
     cards = {
         p.id: package_card(
-            p, upcoming.get(p.id), deal_base=base.get(p.id, 0), early_bird=p.id in savings, now=now
+            p,
+            upcoming.get(p.id),
+            deal_base=base.get(p.id, 0),
+            early_bird=p.id in savings,
+            proof=proven.get(p.id),
+            now=now,
         )
         for p in candidates
     }
@@ -245,6 +252,7 @@ async def get_package(
         related=await _related(db, p, today, now) if with_related else [],
         rating=rating_out(p.rating_avg, p.rating_count),
         reviews=(await list_public_reviews(db, p.id)).items if p.rating_count else [],
+        proof=(await urgency.proofs(db, today, [p.id])).get(p.id),
         leader=leaders.card(default_leader) if default_leader else None,
         updated_at=p.updated_at,
     )
@@ -333,6 +341,7 @@ async def get_destination(
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
     savings = await early_bird.with_savings(db, today)
+    proven = await urgency.proofs(db, today)
     return DestinationDetail(
         slug=d.slug,
         name=d.name,
@@ -347,6 +356,7 @@ async def get_destination(
                 upcoming.get(p.id),
                 deal_base=base.get(p.id, 0),
                 early_bird=p.id in savings,
+                proof=proven.get(p.id),
                 now=now,
             )
             for p in packages

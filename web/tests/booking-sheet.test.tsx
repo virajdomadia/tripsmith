@@ -551,7 +551,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     // Read after the hold: 0 left to others, our 2 added back.
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Fri 20 Nov 2099/ }).textContent).toContain(
-        '2 seats left',
+        'Filling fast · 2 left',
       ),
     );
     const again = await screen.findByRole('button', { name: 'Pay again' });

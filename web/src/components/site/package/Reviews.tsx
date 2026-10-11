@@ -1,3 +1,4 @@
+import { BadgeCheck } from 'lucide-react';
 import { Stars } from '@/components/site/Stars';
 import { type PublicReview, type Rating, reviewsCount } from '@/lib/reviews';
 import { MoreReviews } from './MoreReviews';
@@ -30,10 +31,13 @@ export function Reviews({
             label={`Rated ${rating.avg.toFixed(1)} out of 5`}
             className="text-lg"
           />
-          <span className="text-sm text-mute">
-            {reviewsCount(rating.count)} from travellers who went
-          </span>
+          <span className="text-sm text-mute">{reviewsCount(rating.count)}</span>
         </span>
+        {/* P4 (R42): every review hangs off a completed booking — there is no other kind. */}
+        <p className="flex basis-full items-center gap-1.5 text-sm font-semibold text-ink2">
+          <BadgeCheck aria-hidden className="size-4 text-ok" />
+          All reviews are from travellers who completed this trip
+        </p>
       </div>
       <ul className="grid gap-4 sm:grid-cols-2">
         {reviews.map((r, i) => (

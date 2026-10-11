@@ -34,7 +34,7 @@ from app.schemas.saved import (
     SavedTrips,
 )
 from app.services.admin_enquiries import ist_day_start
-from app.services.catalog import deals, early_bird
+from app.services.catalog import deals, early_bird, urgency
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
 
@@ -214,6 +214,7 @@ async def trips(db: AsyncSession, user_id: str, *, today: dt.date, now: dt.datet
     upcoming = await next_departures(db, today)
     base = await deals.bases(db, today)
     savings = await early_bird.with_savings(db, today)
+    proven = await urgency.proofs(db, today)
     nxt = await _next_open(db, ids, today)
     return SavedTrips(
         items=[
@@ -224,6 +225,7 @@ async def trips(db: AsyncSession, user_id: str, *, today: dt.date, now: dt.datet
                     upcoming.get(p.id),
                     deal_base=base.get(p.id, 0),
                     early_bird=p.id in savings,
+                    proof=proven.get(p.id),
                     now=now,
                 ),
                 next_departure=nxt.get(p.id),

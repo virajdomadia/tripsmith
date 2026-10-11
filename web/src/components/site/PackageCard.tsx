@@ -3,7 +3,9 @@ import type { components } from '@/lib/api-types';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { duration, inr, isPriced } from '@/lib/format';
 import { reviewsCount } from '@/lib/reviews';
+import { proofLine } from '@/lib/urgency';
 import { Photo } from './Photo';
+import { ProofLine } from './ProofLine';
 import { CompareTick } from './compare/CompareTick';
 import { SaveHeart } from './saved/SaveHeart';
 import { DealStamp, Stamp } from './Stamp';
@@ -13,6 +15,7 @@ type Card = components['schemas']['PackageCard'];
 
 export function PackageCard({ card }: { card: Card }) {
   const deal = card.deal;
+  const proof = proofLine(card.proof);
   return (
     // The ♡ sits beside the link, not inside it: a button nested in an `<a>` is invalid HTML.
     <div className="relative grid overflow-hidden rounded-card border border-line bg-bg transition-[transform,box-shadow] duration-500 ease-(--ease-out) hover:-translate-y-1 hover:shadow-lift">
@@ -24,7 +27,11 @@ export function PackageCard({ card }: { card: Card }) {
             sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
             className="aspect-[16/10]"
           >
-            {deal ? <DealStamp label={dealLabel(deal)} /> : <Stamp value={card.badge} />}
+            {deal ? (
+              <DealStamp label={dealLabel(deal)} />
+            ) : (
+              <Stamp value={card.badge} seatsLeft={card.seatsLeft} />
+            )}
           </Photo>
         ) : (
           <div className="aspect-[16/10] bg-bg2" />
@@ -47,6 +54,7 @@ export function PackageCard({ card }: { card: Card }) {
               <span className="text-mute">({reviewsCount(card.rating.count)})</span>
             </p>
           )}
+          {proof && <ProofLine text={proof} />}
           <p className="line-clamp-2 text-[13px] text-mute">{card.highlights[0]}</p>
           <div className="mt-1 flex items-end justify-between border-t border-line pt-3">
             <div>

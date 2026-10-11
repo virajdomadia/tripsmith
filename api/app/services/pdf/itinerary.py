@@ -39,6 +39,7 @@ from app.services.pdf.document import (
     OK,
     OK_SOFT,
     PRIMARY,
+    PRIMARY_SOFT,
     R_BTN,
     R_CARD,
     R_PANEL,
@@ -60,6 +61,7 @@ BADGE = 7.5  # day number badge (the web's 34 px)
 PILL_TONE = {
     Badge.FILLING_FAST: (WARN_SOFT, WARN),
     Badge.SOLD_OUT: (LINE, MUTE),
+    Badge.LIKELY_TO_SELL_OUT: (PRIMARY_SOFT, PRIMARY),
     Badge.GUARANTEED: (OK_SOFT, OK),
 }
 
@@ -99,7 +101,8 @@ def _renderer_hash() -> str:
 _RENDERER = _renderer_hash()
 
 
-NOT_DRAWN = {"related", "updated_at", "deal", "early_bird", "rating", "reviews", "addons"}
+# P2: `proof` ("Booked N×", "Last booked") moves every IST day — never drawn, never versioned.
+NOT_DRAWN = {"related", "updated_at", "deal", "early_bird", "rating", "reviews", "addons", "proof"}
 
 
 def pdf_version(pkg: PackageDetail, *, site_url: str, whatsapp_number: str) -> str:

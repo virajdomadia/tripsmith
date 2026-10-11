@@ -7,6 +7,8 @@ import { enquireHref } from '@/lib/enquiry-form-state';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { formatDate, inr, priceOrOnRequest } from '@/lib/format';
 import { CANCELLATION_SCHEDULE } from '@/lib/policies';
+import { proofLine } from '@/lib/urgency';
+import { ProofLine } from '../ProofLine';
 import { ItineraryPdfLink } from '../ItineraryPdfLink';
 
 type PackageDetail = components['schemas']['PackageDetail'];
@@ -28,6 +30,7 @@ export function PriceBox({
 }) {
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   const deal = pkg.deal;
+  const proof = proofLine(pkg.proof, 'both');
   return (
     <div className="sticky top-24 grid gap-3 rounded-card border border-line bg-bg p-5.5 shadow-[0_30px_60px_-40px_rgb(20_32_42/0.35)]">
       {deal && (
@@ -73,6 +76,7 @@ export function PriceBox({
           </span>
         </div>
       )}
+      {proof && <ProofLine text={proof} />}
       {bookable && (
         <BookNowButton
           fallbackHref={enquireHref(pkg.slug)}

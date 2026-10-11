@@ -74,6 +74,11 @@ class PublicReview(ApiModel):
     text: str
     name: str = Field(description="First name + last initial, e.g. 'Asha B.'")
     travelled: dt.date = Field(description="The departure date; the page shows its month")
+    party: int = Field(
+        default=1,
+        description="P4 (R42): travellers on the reviewer's booking, children included; "
+        '"with N others" is party − 1',
+    )
     created_at: dt.datetime
     led_by: ReviewLeader | None = Field(
         default=None, description="P3: the leader of the departure the reviewer travelled on"

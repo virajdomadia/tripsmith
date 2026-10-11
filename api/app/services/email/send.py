@@ -47,6 +47,16 @@ def is_demo_address(email: str) -> bool:
     return _address(email).rsplit("@", 1)[-1] in DEMO_DOMAINS
 
 
+# P2: the past bookings `seed.py --urgency` writes so the urgency labels have data behind them
+# (`urgency-seed-N@example.com`). Nobody is behind them, so the automatic emails skip them —
+# otherwise every reminder would land in the owner's inbox as a "[Test → …]" copy.
+SEED_LOCAL_PREFIX = "urgency-seed-"
+
+
+def is_seed_address(email: str) -> bool:
+    return is_demo_address(email) and _address(email).startswith(SEED_LOCAL_PREFIX)
+
+
 def held_back(settings: Settings, to: str) -> bool:
     """True when a customer email to `to` must not be really sent (see the module docstring)."""
     return is_test_mode(settings.email_from) or is_demo_address(to)

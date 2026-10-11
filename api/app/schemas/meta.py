@@ -25,6 +25,7 @@ class Badge(StrEnum):
 
     FILLING_FAST = "filling-fast"
     SOLD_OUT = "sold-out"
+    LIKELY_TO_SELL_OUT = "likely-to-sell-out"  # P2 (R40): services/catalog/urgency.py
     GUARANTEED = "guaranteed"
 
 
@@ -67,6 +68,7 @@ THEME_LABELS: dict[Theme, str] = {
 BADGE_LABELS: dict[Badge, str] = {
     Badge.FILLING_FAST: "Filling fast",
     Badge.SOLD_OUT: "Sold out",
+    Badge.LIKELY_TO_SELL_OUT: "Likely to sell out",
     Badge.GUARANTEED: "Guaranteed departure",
 }
 

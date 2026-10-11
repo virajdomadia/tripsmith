@@ -4,6 +4,7 @@ from pydantic import Field
 
 from app.schemas import ApiModel
 from app.schemas.catalog import (
+    BookingProof,
     DealOut,
     DepartureOut,
     DestinationRef,
@@ -46,6 +47,9 @@ class CompareTrip(ApiModel):
         description=f"The next {NEXT_DEPARTURES} upcoming dates that still have seats"
     )
     rating: RatingOut | None
+    proof: BookingProof | None = Field(
+        default=None, description="P2: the package page's booking facts (Price from row)"
+    )
     leader: PublicLeaderRef | None = Field(description="The package's default trip leader")
     deposit: bool = Field(description="P5: the trip can be reserved with 25 % now")
 

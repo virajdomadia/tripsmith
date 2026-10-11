@@ -3616,7 +3616,7 @@ export interface components {
          * @description Computed per departure by `services/catalog/pricing.badge_for` (04 §3).
          * @enum {string}
          */
-        Badge: "filling-fast" | "sold-out" | "guaranteed";
+        Badge: "filling-fast" | "sold-out" | "likely-to-sell-out" | "guaranteed";
         /** BadgeOption */
         BadgeOption: {
             /** Label */
@@ -3863,6 +3863,23 @@ export interface components {
             nights: number;
             /** Slug */
             slug: string;
+        };
+        /**
+         * BookingProof
+         * @description P2 (R40): what real bookings say about a package — each fact traces to one query in
+         *     `services/catalog/urgency.py`, and is null when it is under its threshold.
+         */
+        BookingProof: {
+            /**
+             * Lastbookeddays
+             * @description "Last booked N days ago": IST days since the newest counted booking (0 = today); null past 7
+             */
+            lastBookedDays: number | null;
+            /**
+             * Recentbookings
+             * @description "Booked N× in the last 30 days": counted bookings made in the last 30 IST days; null below 3
+             */
+            recentBookings: number | null;
         };
         /**
          * BookingRequest
@@ -4286,6 +4303,8 @@ export interface components {
              * @description Where the nights are spent, in order (hotel cities)
              */
             places: string[];
+            /** @description P2: the package page's booking facts (Price from row) */
+            proof?: components["schemas"]["BookingProof"] | null;
             rating: components["schemas"]["RatingOut"] | null;
             /** Slug */
             slug: string;
@@ -6867,8 +6886,15 @@ export interface components {
             name: string;
             /** Nights */
             nights: number;
+            /** @description P2: null when no booking fact passes its threshold */
+            proof?: components["schemas"]["BookingProof"] | null;
             /** @description Published reviews only; null when none (B13) */
             rating: components["schemas"]["RatingOut"] | null;
+            /**
+             * Seatsleft
+             * @description P2: seats left on the date the badge describes
+             */
+            seatsLeft?: number | null;
             /** Slug */
             slug: string;
             /** Startingpricepaise */
@@ -6935,6 +6961,8 @@ export interface components {
             name: string;
             /** Nights */
             nights: number;
+            /** @description P2: null when no booking fact passes its threshold */
+            proof?: components["schemas"]["BookingProof"] | null;
             /** @description Published reviews only, never testimonials; null when none (B13) */
             rating: components["schemas"]["RatingOut"] | null;
             /**
@@ -7160,6 +7188,12 @@ export interface components {
              * @description First name + last initial, e.g. 'Asha B.'
              */
             name: string;
+            /**
+             * Party
+             * @description P4 (R42): travellers on the reviewer's booking, children included; "with N others" is party − 1
+             * @default 1
+             */
+            party: number;
             /** Rating */
             rating: number;
             /** Text */

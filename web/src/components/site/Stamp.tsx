@@ -1,20 +1,36 @@
 import type { BadgeValue } from './Badge';
 
 const COPY: Record<BadgeValue, [string, string, string]> = {
-  'filling-fast': ['Filling', 'fast', 'few seats'],
+  'filling-fast': ['Filling', 'fast', 'this date'], // the count replaces it when known
   'sold-out': ['Sold', 'out', 'this date'],
+  'likely-to-sell-out': ['Likely to', 'sell out', 'next date'],
   guaranteed: ['Departure', '✓', 'guaranteed'],
 };
 const TONE: Record<BadgeValue, string> = {
   'filling-fast': 'text-warn',
   'sold-out': 'text-mute',
+  'likely-to-sell-out': 'text-primary',
   guaranteed: 'text-ok',
 };
 
-/** Dashed-circle postmark (direction K), rotated −12°, top-right inside a `relative` photo box. */
-export function Stamp({ value }: { value: BadgeValue | null | undefined }) {
+/**
+ * Dashed-circle postmark (direction K), rotated −12°, top-right inside a `relative` photo box.
+ * P2 (R40): with `seatsLeft`, Filling fast and Likely to sell out print the exact count.
+ */
+export function Stamp({
+  value,
+  seatsLeft,
+}: {
+  value: BadgeValue | null | undefined;
+  seatsLeft?: number | null;
+}) {
   if (!value) return null;
-  const [top, big, bottom] = COPY[value];
+  const [top, big, fallback] = COPY[value];
+  const counted =
+    (value === 'filling-fast' || value === 'likely-to-sell-out') &&
+    seatsLeft != null &&
+    seatsLeft > 0;
+  const bottom = counted ? `${seatsLeft} left` : fallback;
   return (
     <div
       role="img"

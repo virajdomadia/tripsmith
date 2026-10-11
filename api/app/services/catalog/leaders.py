@@ -16,7 +16,7 @@ from app.models import Departure, Package, TripLeader
 from app.models.enums import PackageStatus
 from app.schemas.catalog import LeaderDetail, LeaderSummary, LeaderTrip
 from app.schemas.public_leaders import LeaderCardOut, PublicLeaderRef
-from app.services.catalog import deals, early_bird
+from app.services.catalog import deals, early_bird, urgency
 from app.services.catalog.admin_leaders import effective_leader_id
 from app.services.catalog.availability import next_departures
 from app.services.catalog.cards import package_card
@@ -110,6 +110,7 @@ async def get_public(
         upcoming = await next_departures(db, today)
         base = await deals.bases(db, today)
         savings = await early_bird.with_savings(db, today)
+        proven = await urgency.proofs(db, today)
         for package_id, days in dates.items():  # insertion order = soonest date first
             p = packages[package_id]
             trips.append(
@@ -119,6 +120,7 @@ async def get_public(
                         upcoming.get(p.id),
                         deal_base=base.get(p.id, 0),
                         early_bird=p.id in savings,
+                        proof=proven.get(p.id),
                         now=now,
                     ),
                     dates=days,

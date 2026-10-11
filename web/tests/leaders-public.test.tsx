@@ -83,6 +83,7 @@ describe('reviews', () => {
     text: 'Loved every minute of it.',
     name: 'Asha B.',
     travelled: '2026-11-20',
+    party: 2,
     createdAt: '2026-11-25T00:00:00Z',
   };
 
