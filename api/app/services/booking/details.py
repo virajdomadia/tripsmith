@@ -753,8 +753,11 @@ def manifest_traveller(
     t: BookingTraveller,
     row: TravellerDetail | None,
     required: Sequence[DetailField],
+    *,
+    full_id: bool = True,
 ) -> ManifestTraveller:
-    """Every field, the ID number decrypted — the printable manifest only."""
+    """Every field, the ID number decrypted — the printable manifest only. `full_id=False`
+    (P19: the public demo login on a real customer's booking) prints it masked instead."""
     out = ManifestTraveller(
         traveller_id=t.id,
         name=t.name,
@@ -764,7 +767,9 @@ def manifest_traveller(
     )
     if row is not None:
         out.id_type = row.id_type
-        if row.id_type is not None and row.id_number_enc:
+        if row.id_type is not None and row.id_number_enc and not full_id:
+            out.id_number = id_numbers.masked(row.id_type, row.id_last4) if row.id_last4 else None
+        elif row.id_type is not None and row.id_number_enc:
             number = id_numbers.reveal(settings, row.id_number_enc)
             out.id_number = id_numbers.spaced(row.id_type, number) if number else None
         out.dob = row.dob

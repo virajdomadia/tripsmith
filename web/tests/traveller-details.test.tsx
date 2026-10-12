@@ -72,7 +72,7 @@ describe('TravellerDetails', () => {
     const mira = screen.getByRole('article', { name: 'Mira Rao’s details' });
     expect(within(mira).getByText('1 field left')).toBeTruthy();
     expect(within(mira).getByRole('button', { name: 'Save Mira’s details' })).toBeTruthy();
-    expect(screen.getByText(/Demo site: use made-up ID numbers only/)).toBeTruthy();
+    expect(screen.getByText(/Demo site: use made-up details only/)).toBeTruthy();
   });
 
   it('saves the card through the api and shows its field error', async () => {

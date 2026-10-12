@@ -25,12 +25,14 @@ import logging
 from dataclasses import replace
 
 import sentry_sdk
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.business import BUSINESS, whatsapp_href
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender
-from app.models.enums import BookingStatus
+from app.models import Booking
+from app.models.enums import BookingChannel, BookingStatus
 from app.services.analytics import ist_today
 from app.services.booking.calendar import calendar_path, trip_link_exp
 from app.services.booking.history import EmailLine, record_emails
@@ -266,6 +268,19 @@ async def send_booking_emails(
     await deliver(sender, settings, labelled, ref=facts.ref, what="booking", db=db)
 
 
+async def _owner_made(db: AsyncSession | None, settings: Settings, ref: str) -> bool:
+    """P19: with the owner login public, anyone can make a counter booking for any address
+    and have the site mail it — so on such a booking every customer email goes to the owner's
+    inbox (`[Test → …]`), now and from the cron later. Web bookings are typed by the customer
+    themselves and keep the usual rule."""
+    if not settings.public_demo_owner or db is None or not ref:
+        return False
+    channel = (
+        await db.execute(select(Booking.channel).where(Booking.ref == ref))
+    ).scalar_one_or_none()
+    return channel is not None and channel != BookingChannel.WEB
+
+
 async def deliver(
     sender: EmailSender,
     settings: Settings,
@@ -281,8 +296,9 @@ async def deliver(
     what happened to each (the P15 ledger reads the customer's)."""
     redirected: list[tuple[str, EmailMessage, str, bool]] = []
     skipped: list[EmailLine] = []
+    owner_made = await _owner_made(db, settings, ref)
     for role, m in labelled:
-        held = role == "customer" and held_back(settings, m.to)
+        held = role == "customer" and (owner_made or held_back(settings, m.to))
         if held:
             if not settings.owner_notify_email:
                 skipped.append(EmailLine(role, m.subject, "skipped"))

@@ -91,9 +91,10 @@ export function TravellerDetails({
         <p className="flex items-start gap-2.5 rounded-btn bg-bg2 p-3 text-[13px] text-ink2">
           <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
           <span>
-            <b className="text-ink">Demo site: use made-up ID numbers only.</b> IDs show masked
-            everywhere — only the trip leader’s printed manifest has them in full — and we delete
-            every detail 30 days after you’re back.
+            <b className="text-ink">Demo site: use made-up details only.</b> Anyone using the public
+            demo login can read what you enter here — dates of birth, emergency contacts, food and
+            medical notes — with ID numbers masked. We delete every detail 30 days after you’re
+            back.
           </span>
         </p>
       )}
