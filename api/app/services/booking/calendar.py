@@ -128,6 +128,7 @@ def _escape(text: str) -> str:
         .replace(",", "\\,")
         .replace("\r\n", "\\n")
         .replace("\n", "\\n")
+        .replace("\r", "")  # P19: a lone CR would end the line
     )
 
 

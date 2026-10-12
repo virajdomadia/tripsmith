@@ -14,6 +14,7 @@ from app.infra.razorpay import Razorpay
 from app.models import User
 from app.models.enums import BookingActor
 from app.routers.site.bookings import BookingRef, extras_rate_limit, razorpay
+from app.routers.site.guards import same_origin_write
 from app.schemas.account import (
     AccountBookingDetail,
     AccountBookings,
@@ -43,7 +44,7 @@ from app.services.email.reviews import send_review_email
 from app.services.email.waitlist import send_due
 from app.services.reviews import submit_review
 
-router = APIRouter(prefix="/account", tags=["account"])
+router = APIRouter(prefix="/account", tags=["account"], dependencies=[Depends(same_origin_write)])
 
 
 @router.get("/bookings", operation_id="listMyBookings", response_model_by_alias=True)

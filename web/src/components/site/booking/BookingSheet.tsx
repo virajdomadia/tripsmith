@@ -233,11 +233,11 @@ export function BookingSheet({
                   <Info className="mt-0.5 size-4 flex-none" aria-hidden />
                   <span>
                     <b>Demo site.</b> Payments run in Razorpay test mode — no real money moves. Use
-                    a Razorpay test card or UPI ID <b>success@razorpay</b>. Bookings are visible to
-                    anyone using the public demo login, so use a made-up name and phone. Emails are
-                    real: the voucher goes to the address you give — use one ending in{' '}
-                    <b>@example.com</b> to keep it on screen only. Razorpay’s test mode takes
-                    payments up to {inr(TEST_MODE_MAX_PAISE)}, so a bigger booking stops at
+                    a Razorpay test card or UPI ID <b>success@razorpay</b>. Bookings and traveller
+                    details are visible to anyone using the public demo login, so use a made-up name
+                    and phone. Emails are real: the voucher goes to the address you give — use one
+                    ending in <b>@example.com</b> to keep it on screen only. Razorpay’s test mode
+                    takes payments up to {inr(TEST_MODE_MAX_PAISE)}, so a bigger booking stops at
                     Razorpay’s window; every step before it is live.{' '}
                     <Link href="/privacy#demo" className="whitespace-nowrap text-primary-ink">
                       Privacy

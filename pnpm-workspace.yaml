@@ -13,5 +13,9 @@ onlyBuiltDependencies:
 # H4 (docs/12): `next` still resolves postcss 8.4.31, which carries four advisories — two high
 # (arbitrary .map file read through an attacker-controlled sourceMappingURL) and two moderate.
 # They are build-time only and our CSS is our own, but the fix is a one-line floor, so take it.
+# P19 (docs/12): the same floor for next's source-map-js (event-loop DoS on crafted maps, build
+# time) and its optional sharp (librsvg CVE; Vercel's optimizer doesn't use it, but it's free).
 overrides:
   postcss@<8.5.23: '>=8.5.23'
+  sharp@<0.35.5: '>=0.35.5'
+  source-map-js@<1.2.2: '>=1.2.2'

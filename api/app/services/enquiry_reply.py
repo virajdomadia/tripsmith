@@ -109,7 +109,8 @@ async def _deliver(
         return None, ERR_REJECTED
     if attachment is not None:
         message = replace(message, attachments=(attachment,))
-    if held_back(settings, to):
+    # P19: with the owner login public, a reply's address and words are both anyone's choice.
+    if held_back(settings, to) or settings.public_demo_owner:
         if not settings.owner_notify_email:
             return None, ERR_OFF
         message = replace(

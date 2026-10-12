@@ -113,15 +113,15 @@ const privacy: PolicyDoc = {
   title: 'Privacy policy',
   short: 'Privacy',
   summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-  updated: '2026-09-24',
+  updated: '2026-10-12',
   blocks: [
     {
       id: 'demo',
       h: 'This site is a portfolio demo',
       p: [
         'Tripsmith is a working demonstration built for a developer’s portfolio, not a trading travel agency. Nobody will call you back, and no trip will be booked.',
-        'The owner dashboard has a public demo login so that anyone can try it. That means every enquiry sent through this site — name, phone number, email and message included — can be read by anyone who signs in with it. Please do not submit real personal details; made-up ones show the flow just as well.',
-        'Emails are really sent: sign-in codes, booking confirmations and replies go to the address you type. An address ending in @example.com is never emailed — its sign-in code shows on screen instead — so use one of those if you would rather not receive anything.',
+        'The owner dashboard has a public demo login so that anyone can try it. That means everything sent through this site can be read by anyone who signs in with it: enquiries (name, phone number, email and message), bookings, waitlist entries, and the traveller details asked for after booking — dates of birth, emergency contacts, food and medical notes. ID numbers are the exception: the demo shows them masked. Please do not submit real personal details; made-up ones show the flow just as well.',
+        'Emails are really sent: sign-in codes, booking confirmations and waitlist offers go to the address you type. An address ending in @example.com is never emailed — its sign-in code shows on screen instead — so use one of those if you would rather not receive anything. Because anyone can act as the owner here, emails the owner sends from the dashboard — inbox replies, and everything about a booking made at the counter — go to the demo owner’s own inbox, never to the address on the booking.',
       ],
     },
     {

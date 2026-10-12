@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     session_secret: SecretStr | None = None
     owner_email: str | None = None
     owner_password: SecretStr | None = None
+    # P19: the owner login is printed on the site (it's a portfolio demo). True = what an owner
+    # does can't reach a real inbox or a real customer's full ID number: customer emails on
+    # counter bookings and inbox replies go to OWNER_NOTIFY_EMAIL, and the manifest masks the
+    # IDs of anyone but the seeded demo addresses. Set on production.
+    public_demo_owner: bool = False
 
     # --- Email: SMTP when host, user and password are all set (v2.5 P0: Gmail), else Resend ---
     smtp_host: str | None = None

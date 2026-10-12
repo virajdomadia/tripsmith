@@ -16,7 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.cache import NO_STORE
+from app.infra.client_ip import RateLimited
 from app.infra.db import get_session
+from app.infra.ratelimit import RateLimiter
 from app.infra.razorpay import Razorpay
 from app.models import User
 from app.models.enums import BookingActor
@@ -57,6 +59,8 @@ from app.services.email.waitlist import send_due, walk_and_send
 from app.services.format import short_name
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
+DETAILS_LINK_LIMIT = 3  # P19: per booking per day
+DETAILS_LINK_WINDOW = 24 * 60 * 60
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 Filters = Annotated[BookingFilters, Query()]
@@ -277,8 +281,15 @@ async def details_route(
 async def details_link_route(
     ref: str, request: Request, response: Response, db: Db
 ) -> AdminBooking:
-    """P9: email the customer which details are still missing, with a link to fill them in."""
+    """P9: email the customer which details are still missing, with a link to fill them in.
+    P19: 3 per booking per day — the owner login is public, and this mails a real customer."""
     response.headers.update(NO_STORE)
+    limiter: RateLimiter = request.app.state.rate_limiter
+    hit = await limiter.hit(
+        f"details-link:{ref}", limit=DETAILS_LINK_LIMIT, window_seconds=DETAILS_LINK_WINDOW
+    )
+    if not hit.allowed:
+        raise RateLimited(hit.retry_after, "This booking was sent its details link recently")
     await email_details_link(db, ref, Notify.of(request.app.state), today=ist_today())
     return await desk.get_booking(db, ref)
 

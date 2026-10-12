@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { BellRing, Check, Minus, Plus } from 'lucide-react';
 import { useId, useState } from 'react';
 import { errorFromResponse } from '@/lib/api-errors';
@@ -131,7 +133,13 @@ export function WaitlistJoin({
     >
       <p className="text-[13px] leading-relaxed text-ink2">
         <b className="text-ink">No account needed.</b> If seats free up, the first party in line
-        that fits gets them held for 24 hours, with a link to book in full or with a deposit.
+        that fits gets them held for 24 hours, with a link to book in full or with a deposit.{' '}
+        <b className="text-ink">Demo site:</b> the waitlist is visible to anyone using the public
+        demo login, so use a made-up name — and an address ending in <b>@example.com</b> if you’d
+        rather not get the offer email.{' '}
+        <Link href="/privacy#demo" className="whitespace-nowrap text-primary-ink">
+          Privacy
+        </Link>
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Your name" name={`${id}-name`} error={errors.name}>

@@ -99,6 +99,7 @@ from app.services.booking.voucher import (
 from app.services.catalog.admin_leaders import departure_leader
 from app.services.email.owner import upcoming as upcoming_emails
 from app.services.email.render import IST
+from app.services.email.send import is_demo_address
 from app.services.format import inr
 from app.services.gst.documents import documents_out
 from app.services.reviews import review_for_booking
@@ -747,7 +748,13 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
                 b.cancellation is not None and b.cancellation.status == CancellationStatus.REQUESTED
             ),
             travellers=[
-                details.manifest_traveller(settings, t, found.get(t.id), required)
+                details.manifest_traveller(
+                    settings,
+                    t,
+                    found.get(t.id),
+                    required,
+                    full_id=not settings.public_demo_owner or is_demo_address(b.contact_email),
+                )
                 for t in sorted(b.travellers, key=lambda t: (t.position, t.id))
             ],
             addons=[a.label for a in addon_facts(b.addons)],
