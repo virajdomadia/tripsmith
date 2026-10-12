@@ -90,6 +90,10 @@ async def test_account_writes_refuse_other_sites(db_client: AsyncClient) -> None
             headers={"Sec-Fetch-Site": site},
         )
         assert res.status_code == 403 and res.json()["error"]["code"] == "forbidden"
+    res = await client.put(
+        "/account/saved/goa-quiet-escape", headers={"Sec-Fetch-Site": "cross-site"}
+    )
+    assert res.status_code == 403
     # The site itself (through the rewrite) or a server-side handler (no header) gets through to
     # the sign-in check.
     for headers in ({"Sec-Fetch-Site": "same-origin"}, {}):

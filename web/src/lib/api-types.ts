@@ -499,6 +499,7 @@ export interface paths {
         /**
          * Details Link Route
          * @description P9: email the customer which details are still missing, with a link to fill them in.
+         *     P19: 3 per booking per day — the owner login is public, and this mails a real customer.
          */
         post: operations["emailDetailsLink"];
         delete?: never;

@@ -14,13 +14,16 @@ from app.infra.client_ip import RateLimited
 from app.infra.db import get_session
 from app.infra.ratelimit import RateLimiter
 from app.models import User
+from app.routers.site.guards import same_origin_write
 from app.schemas.catalog import SLUG_PATTERN
 from app.schemas.saved import SavedMerge, SavedMergeInput, SavedSlugs, SavedTrips
 from app.services import saved
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_user
 
-router = APIRouter(prefix="/account/saved", tags=["account"])
+router = APIRouter(
+    prefix="/account/saved", tags=["account"], dependencies=[Depends(same_origin_write)]
+)
 
 SAVED_LIMIT = 60
 SAVED_WINDOW_SECONDS = 600
