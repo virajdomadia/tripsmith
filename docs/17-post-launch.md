@@ -1,8 +1,8 @@
-# Tripsmith — Post-launch review (v1, v2)
+# Tripsmith — Post-launch review (v1, v2, v2.5)
 
-**Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine
+**Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2), 2.5.5 (v2.5) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2), 2026-10-12 (v2.5) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine; v2.5, Strengthen
 
-v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the honest version of what it took, what held up, what did not, and what v2 inherits. **v2 (the booking engine) has its own section at the end: [v2 — Booking engine](#v2--booking-engine).**
+v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the honest version of what it took, what held up, what did not, and what v2 inherits. **v2 (the booking engine) and v2.5 (Strengthen) have their own sections at the end: [v2 — Booking engine](#v2--booking-engine), [v2.5 — Strengthen](#v25--strengthen).**
 
 ---
 
@@ -181,3 +181,106 @@ v1's twelve open items, as they end v2:
 1. **Money has exactly one door.** Four ways a payment can arrive, one locked function that settles it, one hook that reacts. Replays, races and late payments are dull by construction, which is what you want from the part of a site that takes money.
 2. **The price is the server's.** The browser describes a party; the api prices it, deals and coupons included, and Razorpay is asked for exactly that. Adding coupons in the last row meant one new quote line and nothing in Checkout.
 3. **The provider taught more than the docs.** A ₹15,000 test cap, two undocumented script hosts, a popup blanked by a security header, a success callback that sometimes never fires. Each one was found by paying for real, which is why the webhook, not the browser, has the last word.
+
+---
+
+# v2.5 — Strengthen
+
+**Milestones:** 2.5.0 Groundwork · 2.5.1 Money · 2.5.2 Seats · 2.5.3 The trip · 2.5.4 Browse · 2.5.5 Owner insight & close · **Written:** 2026-10-12 (P19)
+
+v2 could take a booking. v2.5 makes it hold up next to a real operator. Research across fourteen
+booking sites and eight operator tools produced seventeen features; all of them shipped, plus a
+full counter booking screen and a redesign of every admin page. Payments are still in **Razorpay
+test mode**. Email is now **real** (Gmail SMTP), which is why this close's security pass had to
+look again at the public demo owner login ([docs/12](12-security-performance.md#p19--v25-close-security--performance)).
+
+## What shipped
+
+|          |                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Span     | 2026-09-27 (requirements, #81) → 2026-10-12 (P19), PRs #81–#120, budget ≈ 63 h across rows P0–P20 (P14 merged into P18; P20 added after the mockups)                                                                                                                                                                                                                                                                                                                          |
+| Book     | A wide Book-now sheet with a live receipt: add-ons ("Make it yours"), early-bird tiers with a price ladder, a 25 % deposit with the balance due 30 days out, GST state and optional GSTIN. Honest urgency labels (exact seats left, "Booked N× in the last 30 days", "Likely to sell out", "Last booked …"), each traced to a query. A waitlist on sold-out dates with 24-hour claim holds                                                                                    |
+| Browse   | ♡ saves that follow a guest into their account, a Saved tab, and `/compare` for up to three trips with the differences highlighted. Trip leader profiles (`/leaders/[slug]`) and "Led by" on departures and reviews. Verified-traveller reviews with the travel month and party                                                                                                                                                                                               |
+| Customer | Pay the balance in parts, add extras until a week out, change date (fee by tier, pay or get back the difference), traveller details with a readiness bar and checklist, Google/Apple calendar, a trip pack that unlocks 7 days out, and an Activity log                                                                                                                                                                                                                       |
+| Money    | Real refunds through Razorpay's refund API with refund webhooks; receipts, tax invoices and credit notes with gap-free financial-year numbering (5 % GST, CGST+SGST or IGST); counter booking with a manual discount and Razorpay Payment Links (copy, WhatsApp, email)                                                                                                                                                                                                       |
+| Owner    | Every admin page redesigned (Ink rail; Money desk dashboard, Lifecycle booking page, enquiry inbox with follow-ups). A departure calendar with fill bars and a side panel; reports (money, packages, occupancy, funnel, cancellations, discounts, add-ons, channels, customers) with a table and CSV each that reconcile with the desk; a per-booking history log a trigger keeps append-only; automatic emails with previews and switches; a move tool for any date or party |
+| Data     | Fifteen add-only migrations (`0010`–`0024`), each rehearsed on the Neon dev branch and run on production before its code merged                                                                                                                                                                                                                                                                                                                                               |
+| Surface  | 116 documented api paths / 134 operations (v2: 58 / 69); 25 admin pages (v2: 17); a 15-minute GitHub Actions tick plus the daily Vercel cron                                                                                                                                                                                                                                                                                                                                  |
+| Tests    | 1,073 pytest · 696 vitest (723 · 466 at v2), with a forced-race test on every new lock path: the waitlist's two offers, the date-change swap, invoice numbering, a coupon's last use, cancellation against a late capture                                                                                                                                                                                                                                                     |
+
+## What worked
+
+**Decide, then build — one row per chat.** Every row opened with its open questions answered in
+chat and written under its requirement before any code, and each row ran in a fresh chat with
+its own worktree. Twenty rows closed in sixteen days without one reopening a decided question.
+
+**One door for money held.** v2's single settle function took deposits, balance parts, extras,
+date-change top-ups and payment links as new kinds of payment without a second path. Refunds got
+the same treatment: one function, planned under the lock, sent after commit, applied by webhook.
+The P0 concurrency test caught a real money bug (a capture racing an approval kept a second
+payment) before any of it was built on.
+
+**Expand-first, again.** Fifteen migrations, each run on production before its merge, and the
+site never ran against a schema it did not expect.
+
+**Mockups first.** P0's mockups with real photos settled every signature screen by a letter pick
+before code, which is why the twenty rows had no redesign churn.
+
+## What did not
+
+**Production web builds failed silently for three merges.** From P6b to P7b, `tripsmith`'s
+production build timed out prerendering package pages, and production stayed on P6a while I
+reported each merge verified — my checks hit the api and redirects that already existed. Since
+#105 the build retries and every merge is verified by the deployment's status and sha, not by
+probes.
+
+**Two Vercel projects, no ordering.** The web prerenders against whichever api is live, so after
+almost every merge the web had to be redeployed once the api was Ready. Once, GitHub
+rate-limited Vercel's app and neither project deployed at all.
+
+**The public demo login outgrew its premise.** B14 accepted public owner credentials while no
+real email left the site and no real personal data was asked for. P0 and P9 changed both, and
+nobody re-read the premise until this close. #120 fixed it (owner-sent emails held back, IDs
+masked); the lesson is to re-check an accepted risk whenever a row changes what it rests on.
+
+**Local test runs got slow.** A full api run grew from ~6 to over 20 minutes on this laptop, and
+web runs under load timed out; rows leaned on targeted local runs and CI for the full suite.
+
+**Production data waits on the owner.** Every migration and most prod seeds were a handoff, which
+added a pause to most rows. It stays that way on purpose.
+
+## Metrics at sign-off
+
+Measured on production.
+
+|          |                                                                                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PSI_ROWS |
+| CSP      | 92 URLs, including 47 admin pages and the signed-in customer pages: **zero violations**                                                            |
+| Security | three independent reviews plus read-only probes: 2 medium, 3 low found and fixed (#120), 1 low accepted; `pip-audit` and `pnpm audit --prod` clean |
+| Tests    | 1,073 pytest · 696 vitest, green in CI alongside ruff, pyright, eslint, prettier, tsc and the contract gate                                        |
+
+## What v3 inherits
+
+v2's four open items, as they end v2.5:
+
+- **Closed:** 1 real email delivery (P0: Gmail SMTP; the site moved to tripsmith.virajdomadia.com on 2026-09-28); 3 lock paths (every v2.5 lock path, plus the coupon's last use and cancellation versus late capture, has a forced-race test).
+- **Carried:** 2 the demo credentials, now bounded by `PUBLIC_DEMO_OWNER`; 4 Blob orphans, now triggered: trip-leader photos are the first owner-uploaded objects, so v3 should delete an object when its leader or photo goes.
+
+**New, in the order they should be taken:**
+
+1. CRON_ITEM
+2. ICS_ITEM
+3. **The api's ignore-build step fails after a force-push** (`VERCEL_GIT_PREVIOUS_SHA` is gone after a rebase → "bad object"). Harmless on main; guard it with `git cat-file -e` before v3 rebases anything.
+4. **Small UI debts noted in rows and not fixed:** the desk's "secondary" status badge is faint for part-paid and pending; a failed payment-link email still toasts success (the history shows the failure).
+
+## For the case study (v2.5)
+
+1. **Twenty features, one door for money.** Deposits, balance parts, extras, date-change top-ups,
+   payment links and refunds all went through the settle and refund functions v2 built. New ways
+   to pay became new rows in a table, not new code paths.
+2. **Honest by construction.** Every urgency label traces to a query, reviews come only from
+   travellers who completed the trip, and reports reconcile with the desk CSV to the rupee.
+3. **The demo had to grow up.** Real email and real traveller IDs turned a harmless public login
+   into a risk. The close caught it; the fix keeps the demo open and keeps owner actions out of
+   strangers' inboxes.

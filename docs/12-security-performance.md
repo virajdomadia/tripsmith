@@ -2,7 +2,7 @@
 
 **Lifecycle step:** 12 of 17 · **Milestone:** 1.4 Harden · **Started:** 2026-09-23 (H2 performance)
 
-Three rows live here: **H2 Performance**, **H4 Security**, and the v2 close **B14** (security + one PageSpeed Insights run).
+Four rows live here: **H2 Performance**, **H4 Security**, the v2 close **B14** (security + one PageSpeed Insights run), and the v2.5 close **P19** (the same again, for the v2.5 surface).
 
 ---
 
@@ -562,3 +562,81 @@ TBT counts it, instead of before FCP. That is well inside the budget. PSI still 
 image delivery" (it suggests stronger compression on the hero). Re-encoding the photo as AVIF
 was measured: at comparable quality it was no smaller for this photo, so the image path is
 unchanged. The ~14 kB of legacy polyfills are Next's own, as in H2.
+
+## P19 — v2.5 close: security + performance
+
+**Method.** v2.5 added a lot of surface: payment links, real refunds, GST documents, traveller
+IDs, a waitlist with claim links, counter booking, a trip pack with calendar links, automatic
+emails with unsubscribe tokens, saved trips and compare, and reports. Each flow was read against
+the checklist below twice: by me, and by three independent read-only reviewers (money; documents
+and personal data; signed links, public endpoints and cron). I checked every reviewer finding
+against the code. Then, on production and read-only: every new route was called unauthenticated,
+every signed link was forged, and the demo traveller's session was tried against someone else's
+booking. The CSP sweep was re-run over every page, including the v2.5 ones. `pip-audit` (api) and
+`pnpm audit --prod` (web) covered the dependencies. B14's v1 and v2 verdicts were not re-audited.
+Two medium findings, three lows and four outdated dependencies were fixed in #120 before this
+write-up; one low is accepted below.
+
+### The checklist (R58)
+
+|                                              | Verdict                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Payment links and the callback               | **Clean**                         | The callback's HMAC (over `link_id`, `reference_id`, `status`, `payment_id`; `compare_digest`) must name this ref's link and our payment row, and even then it only triggers a sync that reads the paid state from Razorpay (`services/booking/links.py`). A link payment that reaches the webhook as an unknown order is matched only through the signed event's notes, to a row with that link, the same amount and no other order. Capture applies our row's amount, never the event's; links are created with `accept_partial: false`. A forged callback on production → 404.                                              |
+| Counter booking and manual discounts         | **Clean**                         | Owner-only. The manual discount comes after deal, early-bird and coupon, in whole rupees, never below ₹1 of fare, with a required reason; there is no upward override. `expectedTotalPaise` only guards against a stale screen (409 `price_changed`): the amount charged is always the server's quote.                                                                                                                                                                                                                                                                                                                         |
+| Refunds and the refund webhook               | **Clean**                         | One refund function. What is owed is recomputed under the booking lock and capped at what was paid. The refund row's id is Razorpay's idempotency key; a 4xx is believed only after Razorpay confirms no refund exists under that key; `refund.processed` / `refund.failed` change a row only while it is `requested`. A double click is a 409. A forged webhook on production → 400.                                                                                                                                                                                                                                          |
+| Customer money: balance, extras, date change | **Clean**                         | Each route checks ownership with `services/account.owned_by`. Balance parts are bounded by the server (at least ₹1,000 or the rest, at most what is left); extras and date-change amounts are computed by the api, and the client's figure is only a 409 check. Two parts paid at once refund the surplus automatically.                                                                                                                                                                                                                                                                                                       |
+| GST documents                                | **Clean**                         | A document key is looked up only among that booking's own documents, so another booking's payment or refund id is a 404. Customers get 401/403 unless they own the booking; the web proxy validates ref and key and answers `private, no-store`. On production the demo traveller got 403 for another customer's invoice.                                                                                                                                                                                                                                                                                                      |
+| Traveller details and IDs                    | **Clean after #120**              | IDs are Fernet-encrypted and `reveal` has one reader, the manifest. The desk, CSV, emails, history and Sentry only ever see `XXXX XXXX 1234`; Sentry's denylist scrubs every details field. Customers edit only their own travellers, and details are purged 30 days after return. **#120:** see M2 below.                                                                                                                                                                                                                                                                                                                     |
+| Trip pack and calendar links                 | **Clean**                         | The pack's content is added only once it is open (7 days out and fully paid), and its PDF answers 409 to anyone but the owner before that. Calendar links are an HMAC over `calendar:{ref}:{exp}` with a checked expiry (forged → 403 on production); they carry only the trip name, dates and meeting place, and the Google redirect goes to a fixed host. **#120:** `.ics` text now also drops a lone CR (it was already unreachable: meeting fields refuse control characters).                                                                                                                                             |
+| Waitlist claim links                         | **Clean**                         | HMAC over `waitlist:{entry}:{offer_no}`: a re-offer kills the older link, a lapsed or booked entry fails, and the claim's email must be the entry's. The owner's remove and offer-by-hand are owner-only. A forged claim on production → 404.                                                                                                                                                                                                                                                                                                                                                                                  |
+| Unsubscribe and the other signed tokens      | **Clean**                         | Five signers with five prefixes (`waitlist:`, `unsub:`, `calendar:`, `voucher:`, `otp:`), all `compare_digest` under `SESSION_SECRET`, all failing closed without it. Unsubscribe only reads on GET and acts on POST; `List-Unsubscribe` carries nothing user-controlled.                                                                                                                                                                                                                                                                                                                                                      |
+| Cron                                         | **Clean**                         | Every `/cron/*` router requires the `CRON_SECRET` bearer (timing-safe; unset → 401). The GitHub tick has `permissions: {}` and no inputs. All three cron routes → 401 on production.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Reports and CSVs                             | **Clean**                         | Owner-only (403 for the demo traveller, 401 signed out). The section is an enum, and every text cell goes through `csv_safe`, so a customer's name or reason can't become a formula.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Saved trips and compare                      | **Clean after #120**              | Saves need a session, are rate-limited and capped; compare takes at most three well-formed slugs. **#120:** writes now carry the same-origin guard (L2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Admin routes                                 | **Clean**                         | Every v2.5 admin router (calendar, reports, counter, leaders, emails, waitlist) declares `require_owner`; the demo traveller got 403 on each one probed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| CSP, every page                              | **Clean, verified on production** | 92 URLs on `tripsmith.virajdomadia.com` in headless Chromium with a `securitypolicyviolation` listener: the sitemap's pages, `/compare`, `/leaders`, two package pages with Book now open (`#book`), `/account/sign-in`, `/unsubscribe/…`, `/pay/…`, `/enquiry/thanks` and the 404 page; 47 admin pages signed in as the demo owner (every nav screen, the counter, calendar, reports, email settings, 30+ booking pages and a departure manifest); and My trips plus a booking page signed in as the demo traveller. **Zero violations** apart from zod's `new Function("")` probe, which the policy refuses by design (B14). |
+| Dependencies                                 | **Clean after #120**              | `next` 15.5.25 had two moderate ISR cache-poisoning advisories; its `sharp` (librsvg) and postcss's `source-map-js` had one high each; `urllib3` (under sentry-sdk) had three. #120 moves `next` to 15.5.27, floors `sharp` at 0.35.5 and `source-map-js` at 1.2.2, and takes urllib3 2.8.0. Both audits are now clean.                                                                                                                                                                                                                                                                                                        |
+
+### Fixed in #120
+
+- **M1 — the public owner login could make Tripsmith email anyone.** B14 accepted the public demo
+  owner login while customer email was held back. P0 made email real. From then on, anyone could
+  sign in as the owner, make a counter booking for any address (or reply to an enquiry, with their
+  own words) and have Tripsmith's Gmail send it, as often as they liked. That meant phishing under
+  the brand, and a way to burn the ~500/day cap that sign-in codes depend on. Now, with
+  `PUBLIC_DEMO_OWNER` on (production), every customer email on a booking made at the counter (now
+  and from the cron) and every inbox reply goes to the owner's inbox as `[Test → …]`. A web
+  booking, whose address the customer typed, still mails them. Sending a booking its details link
+  is limited to 3 a day.
+- **M2 — the public owner login could read full ID numbers.** P9 promised customers their IDs are
+  masked everywhere except the printed manifest, and the manifest was one public sign-in away.
+  With `PUBLIC_DEMO_OWNER` on, the manifest masks every real customer's ID. The seeded demo
+  bookings (`@example.com`) still print in full, so the feature still shows. The other details
+  (date of birth, emergency contact, medical notes) stay readable to the owner, as enquiries
+  always were, so the copy on the details form, the booking sheet and `/privacy#demo` now says so
+  plainly.
+- **L2 — `/account` writes had no explicit same-origin check.** Five of them reach the api through
+  the web's rewrite with no route handler in front. Only SameSite=Lax and the JSON body's CORS
+  preflight stood between them and another `*.virajdomadia.com` page. Every `/account` and
+  `/account/saved` write now refuses `Sec-Fetch-Site: cross-site` or `same-site`.
+- **L3 — the waitlist form didn't say the demo login can read it.** It does now.
+
+### Accepted risks added in v2.5
+
+- **The waitlist tells whether an address is waiting.** Joining with an address already on that
+  date's list answers 409 `already_waiting`. Using it needs the victim's email and the exact
+  sold-out date, and is limited to 5 tries per 10 minutes per connection. Closing it would mean
+  telling a real customer the wrong place in the queue.
+- **The public owner login still reads what the owner reads:** bookings, waitlists, traveller
+  details other than full IDs, and reports. That is the point of the demo. The site says so
+  wherever someone types personal data, and `PUBLIC_DEMO_OWNER` keeps owner actions out of other
+  people's inboxes.
+- **A demo counter booking's emails reach the owner, not the person typing.** A visitor who tries
+  the counter with their own address won't receive the payment link; the desk shows it to copy
+  instead.
+- **Upstash fails open.** If the rate limiter is down, the new limits (details link, saved trips)
+  lapse with it, as all of them do; the database-backed checks still hold.
+
+### Performance: PageSpeed Insights (R58)
+
+PSI_SECTION

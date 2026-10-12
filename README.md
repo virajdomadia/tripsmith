@@ -2,9 +2,9 @@
 
 **Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, and — from v3 — have an AI concierge plan the itinerary and start the booking for you.
 
-> **Status: v2** (2026-09-26): the booking engine is live on top of the v1 agency website. Visitors can pick a date, build a party and pay by Razorpay with live seats, deals and coupons, then get a PDF voucher and manage the trip (cancel, review) from an email-code account. The owner runs bookings, refunds, cancellations, deals, coupons and reviews from the admin. Payments are in **Razorpay test mode** (use a test card) and emails are **real** (sent from a Tripsmith Gmail; addresses ending in `@example.com` are never mailed and get their sign-in code on screen). The honest account of v1 and v2 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v2.5 Strengthen**, which brings deposits, a waitlist, date changes, add-ons, real refunds with GST invoices, a trip pack, a departure calendar, reports and counter booking ([requirements](docs/03-requirements-v2-5.md)). **v3**, an AI concierge, comes after it. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.vercel.app).
+> **Status: v2.5** (2026-10-13): the booking engine now holds up next to a real operator. On top of v2's checkout, accounts, deals, coupons and reviews: add-ons, early-bird tiers, a 25 % deposit with the balance paid in parts, a waitlist with 24-hour claim holds, self-serve date changes, real refunds through Razorpay with GST receipts, invoices and credit notes, traveller details, calendar links and a trip pack, saved trips and compare, honest urgency labels and trip-leader profiles. The owner gets a redesigned admin, counter booking with Razorpay Payment Links, a departure calendar, reports and automatic trip emails. Payments are in **Razorpay test mode** (use a test card) and emails are **real** (sent from a Tripsmith Gmail; addresses ending in `@example.com` are never mailed and get their sign-in code on screen). The owner sign-in is public for the demo, so what it sends goes to the demo owner's own inbox. The honest account of v1, v2 and v2.5 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v3**, an AI concierge. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.com).
 >
-> **Live:** [tripsmith.vercel.app](https://tripsmith.vercel.app) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
+> **Live:** [tripsmith.virajdomadia.com](https://tripsmith.virajdomadia.com) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
 
 ## What it proves
 
@@ -27,15 +27,17 @@ A real product, not a CRUD demo. It has a public catalog that is fast and indexa
                    │  same-origin /api/:path* rewrite  (+ X-Client-Ip, signed)
                    ▼
         ┌─────────────────────────────────┐        Razorpay
-        │  api — FastAPI (Python 3.12)    │ ◀────▶ orders · payments (httpx)
+        │  api — FastAPI (Python 3.12)    │ ◀────▶ orders · payments · links · refunds (httpx)
         │  routers → services → models    │ ◀────  POST /webhooks/razorpay (signed)
+        │                                 │ ◀────  /cron/* — Vercel cron (daily, emails)
+        │                                 │        + GitHub Actions tick (15 min)
         └───┬─────────┬─────────┬─────────┘
             │         │         │
        PostgreSQL  Vercel    Gmail SMTP · Upstash · Sentry
         (Neon)      Blob     email    limits    errors
             │         │
-       SQLAlchemy   photos + itinerary PDFs (vouchers are rendered on demand, never stored)
-       + Alembic
+       SQLAlchemy   photos + itinerary PDFs (vouchers, GST documents and trip packs are
+       + Alembic    rendered on demand, never stored)
                    │
                    └──▶ POST /revalidate back to the web after every admin write
                         (cache tags: packages, package:<slug>, destination:<slug>)
@@ -50,11 +52,22 @@ Four decisions carry most of the design:
 
 ## Stack
 
-**web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
-**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, signed webhook) · fpdf2 (itinerary PDFs, vouchers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
-**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract)
+**web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (+ charts, Recharts) · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
+**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, Payment Links, refunds, signed webhook) · fpdf2 (itinerary PDFs, vouchers, GST documents, trip packs) · cryptography (Fernet, traveller ID numbers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
+**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract; a 15-minute tick for the waitlist and emails) · Vercel cron
 
-After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 security pass and its one PageSpeed Insights run are in [docs/12](docs/12-security-performance.md#b14--v2-close-security--performance).
+After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 and v2.5 security passes and their PageSpeed Insights runs are in [docs/12](docs/12-security-performance.md#p19--v25-close-security--performance).
+
+## What is in v2.5
+
+|          |                                                                                                                                                                                                                                                                                                 |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Book     | A wide Book-now sheet with a live receipt: add-ons, early-bird tiers and a price ladder, pay in full or a 25 % deposit, GST state and optional GSTIN; honest urgency labels (exact seats left, booked N× in 30 days, likely to sell out); a waitlist on sold-out dates with 24-hour claim holds |
+| Browse   | Saved trips (guest → account), compare up to three at `/compare`, trip-leader pages, verified-traveller reviews                                                                                                                                                                                 |
+| Customer | Pay the balance in parts, add extras, change date (fee tier, pay or get back the difference), traveller details with a readiness bar, Google/Apple calendar, a trip pack 7 days out, an Activity log                                                                                            |
+| Money    | Real refunds through the Razorpay refund API and refund webhooks; receipts, tax invoices and credit notes with gap-free FY numbering; counter booking with a manual discount and Payment Links                                                                                                  |
+| Owner    | Every admin page redesigned; a departure calendar; reports with a table and CSV each; automatic trip emails with previews; move any booking; an append-only history per booking                                                                                                                 |
+| Under it | Fifteen add-only migrations (`0010`–`0024`); a forced-race test on every new lock path; `PUBLIC_DEMO_OWNER` keeps the public owner login out of real inboxes and full ID numbers                                                                                                                |
 
 ## What is in v2
 
@@ -83,7 +96,7 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
                     sitemap.ts · robots.ts · opengraph-image.tsx per detail route · middleware.ts
   src/components/   site/ (home, package, destinations, enquiry, whatsapp) · admin/ · ui/ (shadcn)
   src/lib/          api.ts (typed client) · api-types.ts (generated) · seo/ · og/ · admin/ · business.ts
-  tests/            68 vitest files (466 tests)
+  tests/            95 vitest files (696 tests)
 api/        FastAPI (Python 3.12, uv)
   app/routers/      site/ (catalog, enquiries, pdf, views, meta, health, bookings, webhooks,
                     vouchers, account) · admin/ (packages, images, destinations, enquiries,
@@ -92,7 +105,7 @@ api/        FastAPI (Python 3.12, uv)
                     · reviews · enquiries · admin_enquiries · enquiry_reply · auth/ · email/ · pdf/ · images
   app/infra/        db · razorpay · storage (Blob) · email · ratelimit · revalidate · cache · client_ip · observability
   app/models/ schemas/ · middleware.py (request id, blank params, fresh, security headers) · errors.py
-  alembic/ content/ scripts/seed.py · tests/ (723 pytest, DB harness)
+  alembic/ content/ scripts/seed.py · tests/ (1,073 pytest, DB harness)
 docs/       lifecycle steps 3–12: requirements v1–v4, user flows, technical design, architecture,
             data + API, plan, security + performance, post-launch review
 mockups/    every v1 screen in the final K · Ocean + Marigold system, plus the direction explorations
@@ -122,8 +135,8 @@ Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both
 
 ## Roadmap
 
-The 17-step [project lifecycle](../PROCESS.md) — steps 1–7 are done for all four versions, and v1 and v2 have each closed steps 8–17 (v2 re-entered at step 3 with a re-validation).
+The 17-step [project lifecycle](../PROCESS.md) — steps 1–7 are done for all four versions, and v1, v2 and v2.5 have each closed steps 8–17 (v2 re-entered at step 3 with a re-validation).
 
-**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking) → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) → **v4** "Tripsmith anywhere" (an MCP server, so the catalog and the booking flow are usable from any AI client).
+**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking and an admin redesign) ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) → **v4** "Tripsmith anywhere" (an MCP server, so the catalog and the booking flow are usable from any AI client).
 
 Each later version re-enters the lifecycle at step 3 with a short re-validation before any code.

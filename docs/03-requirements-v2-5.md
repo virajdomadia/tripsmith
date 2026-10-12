@@ -592,6 +592,18 @@ Viraj approved 17 researched items plus a full admin counter-booking screen, all
 - One PageSpeed Insights run each on `/compare` and on a package page with Book now open, with ≥ 85 as the target.
 - Write-ups: docs/12, a docs/17 v2.5 section, the README and the portfolio card.
 
+**Decided at row start (Viraj, 2026-10-12):**
+- **Security pass scope:** payment links and the link callback; refunds and the refund webhooks; GST/receipt documents; traveller-details encryption and the manifest reveal; waitlist claim links; counter manual discounts; reports and CSV access. Across all of them: every new signed token (calendar, unsubscribe, details link, claim), the `/cron/*` endpoints, and an ownership check on each new customer route.
+- **Method:** code read against a checklist per flow (as in B14) by me plus an independent read-only reviewer; read-only probes on production (unauthenticated → 401, forged signatures → 400/403, another customer's booking → 403/404); the headless CSP sweep re-run over every page including the v2.5 ones; `pip-audit` (api) and `pnpm audit --prod` (web). No DAST, no paid tools.
+- **Pass:** high and medium findings are fixed inside P19 in their own `fix/p19-*` PR, merged before the docs PR; a low finding is fixed if it takes under 30 minutes, otherwise recorded in docs/12 as an accepted risk; anything big goes back to Viraj.
+- **PSI:** mobile only, run by hand by Viraj on pagespeed.web.dev against production: `/compare?p=munnar-alleppey-houseboat,kasol-weekend-camp,old-goa-weekend` and `/packages/munnar-alleppey-houseboat#book` (early-bird, add-ons and deposit: the heaviest sheet). Under 85 → fixed inside P19 before sign-off.
+- **Docs:** docs/12 "P19 — v2.5 close" shaped like B14; docs/17 "v2.5 — Strengthen" (what shipped, worked, did not, metrics, what v3 inherits, case-study paragraph); README versions table, feature list, Gmail SMTP and the cron tick in the stack.
+- **Portfolio:** one PR in `virajdomadia/portfolio`: status `v2.5 live · bookings, payments + operator desk`, blurb ≤ 220 characters, screenshot = the Munnar wide sheet at 1280 px, the Tripsmith project page's status and feature line.
+- **Prod seeds:** `seed.py --urgency` and `seed.py --history` run on production as part of the close, after any fix PR and before the PSI runs and the screenshot.
+- **CRON_SECRET:** rotated to a new value set on tripsmith-api production and as the GitHub repo secret, so the 15-minute tick authenticates.
+- **R48 `.ics` import:** Viraj imports one real `.ics` into Google Calendar and an iPhone; if skipped, docs/17 records it as not verified on a device.
+- **PRs:** a `fix/p19-*` PR only if findings need code, then one `docs/p19-v2-5-close` PR, then the portfolio PR.
+
 ## Out of scope for v2.5
 - **Stays in the after-v4 add-on bucket:** split payment for groups; a credit wallet and referrals; review photos; departure-city pricing; the Trip hub.
 - **Not planned:**
