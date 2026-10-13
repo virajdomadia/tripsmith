@@ -6,8 +6,9 @@ import { stripDraftCookie } from './enquiry-form-state';
 
 export {
   ApiRequestError,
-  apiErrorResponseSchema,
+  ERROR_CODES,
   errorFromResponse,
+  parseErrorEnvelope,
   type ApiErrorResponse,
   type ErrorCode,
 } from './api-errors';

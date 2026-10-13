@@ -204,7 +204,7 @@ export function BookingSheet({
                 )}
                 <Step n={1} title="Pick a date" done={done.date}>
                   <DeparturePicker flow={flow} pkg={pkg} />
-                  <PriceLadder flow={flow} />
+                  <PriceLadder flow={flow} pkg={pkg} />
                 </Step>
                 <Step n={2} title="Who’s travelling" done={done.party}>
                   <PartyBuilder flow={flow} />
@@ -272,6 +272,11 @@ function Receipt({
   const { phase, party, departure } = flow;
   // R43 (P5): what Pay charges now — the deposit when chosen — and the balance after it.
   const now = total !== undefined ? flow.payNow : undefined;
+  // P19: before the first quote, judge the demo-limit note by the date's double-sharing price
+  // for the party, so the phone drawer doesn't grow under the steps when the quote lands.
+  const estimate =
+    now ??
+    (departure && flow.quote.status !== 'error' ? departure.priceDoublePaise * party : undefined);
   const deposit = flow.pay === 'deposit' ? flow.depositOffer : null;
   // On a phone the drawer starts closed; a price or code problem must not hide inside it.
   const problem = flow.quote.status === 'error' || !!flow.coupon.error;
@@ -321,7 +326,7 @@ function Receipt({
         <PayChoice flow={flow} />
       </div>
       <div className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] max-md:px-3.5">
-        {now !== undefined && now > TEST_MODE_MAX_PAISE && (
+        {estimate !== undefined && estimate > TEST_MODE_MAX_PAISE && (
           <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
             Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this payment
             will stop at Razorpay. For a full test payment, try{' '}

@@ -12,7 +12,7 @@ import {
   type Rooms,
   type Slot,
 } from '@/lib/booking';
-import { EMAIL_RE, normalisePhone, PHONE_RE } from '@/lib/enquiry-schema';
+import { EMAIL_RE, normalisePhone, PHONE_RE } from '@/lib/contact-rules';
 import { inr } from '@/lib/format';
 
 /**

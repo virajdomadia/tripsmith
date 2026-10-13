@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import type { components } from './api-types';
+import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './contact-rules';
+
+export { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE };
 
 /**
  * zod mirror of the api's `EnquiryCreate` (api/app/schemas/enquiries.py) — same normalisation,
@@ -19,28 +22,14 @@ export const BUDGET = { min: 1_000, max: 10_00_000 } as const;
 const grouped = (n: number) => n.toLocaleString('en-US');
 export const BUDGET_MESSAGE = `Between ₹${grouped(BUDGET.min)} and ₹${grouped(BUDGET.max)} per person`;
 export const NAME_MAX = 80;
-export const PHONE_MESSAGE = 'Enter a 10-digit Indian mobile number';
 
 export const NAME_CONTROL_MESSAGE = 'Enter your name on one line, without special characters';
 
-export const PHONE_RE = /^[6-9][0-9]{9}$/;
-/** C0 + DEL + C1 controls and U+2028/9 — mirrors `CONTROL_RE` in the api schema. */
-export const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 /** Python's `str.strip()` also drops U+001C–U+001F and U+0085, which JS `trim()` keeps — so a
  * name wrapped in them must not be refused here for a control character the api never sees. */
 const pythonStrip = (v: string) =>
   v.replace(/^[\s\u001c-\u001f\u0085]+|[\s\u001c-\u001f\u0085]+$/g, '');
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MONTH_RE = /^[0-9]{4}-(0[1-9]|1[0-2])(-[0-9]{2})?$/; // YYYY-MM (the form) or a date (the contract)
-
-/** `+91 98450-22110` / `09845022110` / `919845022110` → `9845022110`. Never invents digits. */
-export function normalisePhone(raw: string): string {
-  let digits = raw.trim().replace(/[\s\-.()]/g, '');
-  if (digits.startsWith('+91')) digits = digits.slice(3);
-  else if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
-  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-  return digits;
-}
 
 /** Native forms post '' for untouched fields; the api wants them absent. */
 const blankToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
