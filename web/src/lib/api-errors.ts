@@ -34,7 +34,8 @@ const isStringRecord = (v: unknown): v is Record<string, string> =>
 /**
  * Every non-2xx response from the api: `{ error: { code, message, fieldErrors?, reason? } }`
  * (`fieldErrors` only for `validation`; `reason` on some 409s, e.g. a booking's `sold_out`).
- * Returns a fresh object with only those keys, or null when `raw` isn't one.
+ * Returns a fresh object with only those keys (a null optional reads as absent), or null when
+ * `raw` isn't one.
  */
 export function parseErrorEnvelope(raw: unknown): ApiErrorResponse | null {
   if (typeof raw !== 'object' || raw === null) return null;
@@ -42,14 +43,14 @@ export function parseErrorEnvelope(raw: unknown): ApiErrorResponse | null {
   if (typeof e !== 'object' || e === null) return null;
   const { code, message, fieldErrors, reason } = e as Record<string, unknown>;
   if (!isCode(code) || typeof message !== 'string') return null;
-  if (fieldErrors !== undefined && !isStringRecord(fieldErrors)) return null;
-  if (reason !== undefined && typeof reason !== 'string') return null;
+  if (fieldErrors != null && !isStringRecord(fieldErrors)) return null;
+  if (reason != null && typeof reason !== 'string') return null;
   return {
     error: {
       code,
       message,
-      ...(fieldErrors !== undefined && { fieldErrors }),
-      ...(reason !== undefined && { reason }),
+      ...(fieldErrors != null && { fieldErrors }),
+      ...(reason != null && { reason }),
     },
   };
 }

@@ -212,6 +212,14 @@ describe('parseErrorEnvelope', () => {
     expect(parseErrorEnvelope(raw)).toBeNull();
   });
 
+  it('reads a null reason or fieldErrors as absent', () => {
+    expect(
+      parseErrorEnvelope({
+        error: { code: 'conflict', message: 'x', reason: null, fieldErrors: null },
+      }),
+    ).toEqual({ error: { code: 'conflict', message: 'x' } });
+  });
+
   it('keeps only the envelope keys', () => {
     expect(
       parseErrorEnvelope({
