@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { z } from 'zod';
 import {
   api,
   ApiRequestError,
-  apiErrorResponseSchema,
+  ERROR_CODES,
+  parseErrorEnvelope,
   errorFromResponse,
   type ApiErrorResponse,
 } from '../src/lib/api';
@@ -184,11 +184,49 @@ describe('api() — typed server-side fetch', () => {
 });
 
 describe('error envelope', () => {
-  it('the runtime schema is exactly the generated ApiErrorResponse type', () => {
-    expectTypeOf<z.infer<typeof apiErrorResponseSchema>>().toEqualTypeOf<
-      components['schemas']['ApiErrorResponse']
+  it('the guard knows exactly the contract codes and returns its type', () => {
+    expectTypeOf<(typeof ERROR_CODES)[number]>().toEqualTypeOf<ErrorCode>();
+    expectTypeOf<ReturnType<typeof parseErrorEnvelope>>().toEqualTypeOf<
+      components['schemas']['ApiErrorResponse'] | null
     >();
     expectTypeOf<ApiErrorResponse>().toEqualTypeOf<components['schemas']['ApiErrorResponse']>();
+  });
+});
+
+describe('parseErrorEnvelope', () => {
+  it.each([
+    ['not an object', 'oops'],
+    ['no error key', { message: 'x' }],
+    ['an unknown code', { error: { code: 'teapot', message: 'x' } }],
+    ['a non-string message', { error: { code: 'internal', message: 1 } }],
+    [
+      'non-string field errors',
+      { error: { code: 'validation', message: 'x', fieldErrors: { a: 1 } } },
+    ],
+    [
+      'field errors as an array',
+      { error: { code: 'validation', message: 'x', fieldErrors: ['a'] } },
+    ],
+    ['a non-string reason', { error: { code: 'conflict', message: 'x', reason: 3 } }],
+  ])('refuses %s', (_label, raw) => {
+    expect(parseErrorEnvelope(raw)).toBeNull();
+  });
+
+  it('reads a null reason or fieldErrors as absent', () => {
+    expect(
+      parseErrorEnvelope({
+        error: { code: 'conflict', message: 'x', reason: null, fieldErrors: null },
+      }),
+    ).toEqual({ error: { code: 'conflict', message: 'x' } });
+  });
+
+  it('keeps only the envelope keys', () => {
+    expect(
+      parseErrorEnvelope({
+        error: { code: 'conflict', message: 'Gone', reason: 'sold_out', extra: 1 },
+        trace: 'x',
+      }),
+    ).toEqual({ error: { code: 'conflict', message: 'Gone', reason: 'sold_out' } });
   });
 });
 

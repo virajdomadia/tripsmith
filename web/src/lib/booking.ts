@@ -1,7 +1,7 @@
 import type { components } from './api-types';
 import { inr } from '@/lib/format';
 import { billingErrors, normaliseGstin } from '@/lib/gst';
-import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './enquiry-schema';
+import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './contact-rules';
 
 /**
  * Book now (B5): the party the sheet builds, and the rules it shows before the api is asked.

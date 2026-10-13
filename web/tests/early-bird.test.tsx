@@ -2,7 +2,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PriceLadder } from '../src/components/site/booking/PriceLadder';
-import type { BookingFlow } from '../src/components/site/booking/use-booking';
+import type { BookingFlow, BookingPackage } from '../src/components/site/booking/use-booking';
 import { PackageCard } from '../src/components/site/PackageCard';
 import { DeparturesTable } from '../src/components/site/package/DeparturesTable';
 import { packageSchema, toInput } from '../src/lib/admin/package-schema';
@@ -104,6 +104,7 @@ describe('the price ladder', () => {
       reason: null,
       party: 2,
     }) as unknown as BookingFlow;
+  const PKG = { earlyBird: EB } as unknown as BookingPackage;
   const tier = (n: number, off: number, bookBy: string) => ({
     tier: n,
     days: n === 1 ? 90 : 45,
@@ -114,6 +115,7 @@ describe('the price ladder', () => {
   it('shows today, then each step up with the tier (and a deal) that ended', () => {
     render(
       <PriceLadder
+        pkg={PKG}
         flow={flow(
           quote([
             {
@@ -146,11 +148,41 @@ describe('the price ladder', () => {
   it('says so when every tier has ended, and is absent without early-bird', () => {
     const { container, rerender } = render(
       <PriceLadder
+        pkg={PKG}
         flow={flow(quote([{ fromOn: null, earlyBird: null, deal: false, farePaise: 45_998_00 }]))}
       />,
     );
     expect(screen.getByText(/No early bird left on 12 Feb/)).toBeTruthy();
-    rerender(<PriceLadder flow={flow(quote([]))} />);
+    rerender(<PriceLadder pkg={PKG} flow={flow(quote([]))} />);
+    expect(container.textContent).toBe('');
+  });
+});
+
+describe('the ladder before its first quote (P19)', () => {
+  const loading = (date: string) =>
+    ({
+      quote: { status: 'loading' },
+      departure: { id: 'd1', date },
+      reason: null,
+      party: 2,
+    }) as unknown as BookingFlow;
+  const pkg = (eb: EarlyBird | null) => ({ earlyBird: eb }) as unknown as BookingPackage;
+
+  it('holds one bar per running tier plus today, hidden from assistive tech', () => {
+    // Far enough out that both tiers still run, whatever today is.
+    const { container } = render(<PriceLadder pkg={pkg(EB)} flow={loading('2099-06-01')} />);
+    const box = container.firstElementChild as HTMLElement;
+    expect(box.getAttribute('aria-hidden')).toBe('true');
+    expect(box.querySelectorAll('.grid.items-end > div')).toHaveLength(3);
+    expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it('holds a single bar once every tier has ended, and nothing without early-bird', () => {
+    const { container, rerender } = render(
+      <PriceLadder pkg={pkg(EB)} flow={loading('2000-01-01')} />,
+    );
+    expect(container.querySelectorAll('.grid.items-end > div')).toHaveLength(1);
+    rerender(<PriceLadder pkg={pkg(null)} flow={loading('2099-06-01')} />);
     expect(container.textContent).toBe('');
   });
 });
