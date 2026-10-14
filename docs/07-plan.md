@@ -199,6 +199,40 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 ---
 
+## v2.6 — Hardening (≈ 23 h) — findings: [12-security-performance.md § v2.6](12-security-performance.md#v26--hardening-audit)
+**Locked 2026-10-14.** Before v3, a full code review and production-readiness audit of main `d567c60` ran four tracks: security (access and money), code quality and the database, best practices, and production readiness. It found **no P0, 8 P1 and 22 P2** findings. Every P1 was re-checked against the code. Viraj approved the nine rows below in chat. Each row fixes the findings it names; nothing else. The scorecard, with evidence for every area, is the artifact *Tripsmith Readiness Scorecard*.
+
+**Rules for every row:**
+- Same as v2.5: own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`, and a **new chat per row**.
+- Migrations are expand-first. Viraj runs each on prod before the code merges.
+- Every finding a row closes gets a test that fails before the fix, where the finding is testable.
+- **This version lifts lean rule 6 for its own rows** (Viraj, 2026-10-14): monitoring, backups, runbooks and CI hardening are the point of v2.6, not setup to avoid.
+
+### Milestone 2.6.0 — Fix (≈ 11.5 h)
+| # | Task | Findings | Est. | Done when |
+|---|---|---|---|---|
+| V1 | **Money correctness:** keep `kept_paise` at the cancellation decision (expand-only column) so `refund_owed` refunds money that arrives after an approved cancellation; clamp the deal to leave ≥ ₹1 per line; judge hold liveness with `clock_timestamp()` | SB-1, SB-2, SB-3 | 3 h | deposit + approval + late balance → the late part is refunded; a triple under the biggest deal costs ≥ ₹1; tests for each |
+| V2 | **Demo-owner limits:** while `PUBLIC_DEMO_OWNER` is on, only customer-triggered mail (sign-in code, own capture receipt) reaches a real address, everything else goes to the owner as `[Test → …]`, waitlist included; the switch defaults on in production and refuses `rzp_live_` keys; a limiter on every owner route that calls Razorpay; `same_origin_write` on every admin router | SA-1, SA-3, SB-4, SA-4 | 2.5 h | a renamed package or a decline note never reaches a customer's inbox; an unset env var keeps IDs masked |
+| V3 | **Sign-in and email abuse:** a database cap on codes per email (5 / 15 min, 20 / day) that holds with Upstash down; a global daily budget for code emails (200) so the Gmail cap stays free for booking mail; correct the B14 sentence in docs/12 | SA-2, SA-5 | 1 h | with the limiter failing open, the 6th code in 15 min is refused |
+| V4 | **Observability and alerting:** no request bodies to Sentry, `EmailSendError` without the recipients, browser `beforeSend` strips query strings; webhook signature failures as one Sentry error; `/health/ready` (`SELECT 1`, no-store); UptimeRobot on web + api; healthchecks.io pings from `/cron/daily` and `/cron/emails`; the 15-minute tick moves to cron-job.org and its skip paths exit 1; `/cron/daily` gets a time budget and the balance-cancel email moves onto the ledger | OP-4, OP-7, OP-1, OP-2, OP-6 | 3 h | a forced 500 on `/enquiries` reaches Sentry without the body; a stopped cron alerts within its grace |
+| V5 | **Privacy and terms match the code:** enquiry purge (12 months, no booking) in `/cron/daily`; "What we collect" and "How long we keep it" rewritten from the models (DOB, emergency contact, medical/food notes, GSTIN, accounts, cookies, keyed IP hash, Razorpay, Gmail, Sentry, the 30-day details purge); payment terms rendered from the `deposit.py` constants | OP-5 | 2 h | every retention promise names the job that keeps it; terms show 25 % / 30 days |
+
+### Milestone 2.6.1 — Operate (≈ 7 h)
+| # | Task | Findings | Est. | Done when |
+|---|---|---|---|---|
+| V6 | **Backups, runbook, rollback:** nightly `pg_dump -Fc` with a read-only role, `age`-encrypted (the repo is public), 30-day artifact; one restore drill run and timed; `docs/18-runbook.md` (webhook failing, SMTP quota, Neon down, SESSION_SECRET and CRON_SECRET rotation, restore, rollback order, Razorpay go-live); `SESSION_SECRET_PREVIOUS` accepted for verification; fix the api host named in the docs | OP-3, OP-8, OP-9, DOC-1 | 3 h | a dump restores into a Neon branch and the counts match prod |
+| V9 | **CI hardening:** Dependabot (npm, pip, actions); `pip-audit` + `pnpm audit --prod` + gitleaks jobs; ruff `S`, `ASYNC`; `noUncheckedIndexedAccess`; api coverage with greenlet concurrency gated at 94 %; vitest for the Checkout loader and the refund-made action; Playwright P0 journeys (book → pay → voucher, sign in → My trips, owner refund) against local web + api; floors for the two dev advisories | Q-1, Q-7, SA-6 | 4 h | CI fails on a new advisory, a leaked secret, a coverage drop or a broken P0 journey |
+
+### Milestone 2.6.2 — Tidy (≈ 4.5 h) — closes lifecycle 10–12, 17 for v2.6
+| # | Task | Findings | Est. | Done when |
+|---|---|---|---|---|
+| V7 | **Database and cleanup:** money-desk N+1 → two `IN` queries; one migration with six indexes; delete the unused `cn` package, `ui/tabs.tsx` and three dead api functions; the order-body fallback; the PDF render timeout as a setting (30 s in tests); image `minimumCacheTTL` 30 days | Q-3, Q-4, Q-6, Q-8, Q-2, OP-11 | 2 h | the money desk's query count is constant in the number of bookings |
+| V8 | **Contract and duplication, then close:** error `reason` as an enum in the contract; balance days, cancellation tiers and age limits served from `/meta` and read by web; `suggested_refund_paise` from the tiers; GSTIN parity test; re-run the scorecard, docs/12 and docs/17 v2.6 sections | OP-10, Q-5 | 2.5 h | no hand-copied business constant left in web; scorecard has no FAIL |
+
+**v2.6 total: ≈ 23 h** (11.5 + 7 + 4.5). Build order: V1 → V2 → V3 → V4 → V5 → V6 → V9 → V7 → V8.
+
+---
+
 ## v3 — AI concierge (≈ 15 h) — requirements: [03-requirements-v3.md](03-requirements-v3.md)
 Starts **after v2.5 closes (P19)**, with a step-3 re-validation (30 min): confirm the provider/free-tier situation and R26–R33 against v1+v2 as shipped.
 
@@ -256,9 +290,10 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | v1 | 1.0 – 1.4 | 35 | 35 |
 | v2 | 2.0 – 2.3 | 20.5 | 55.5 |
 | v2.5 | 2.5.0 – 2.5.5 | 56 | 111.5 |
-| v3 | 3.0 – 3.3 | 15 | 126.5 |
-| v4 | 4.0 | 6 | 132.5 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 164.5 |
+| v2.6 | 2.6.0 – 2.6.2 | 23 | 134.5 |
+| v3 | 3.0 – 3.3 | 15 | 149.5 |
+| v4 | 4.0 | 6 | 155.5 |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 187.5 |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 
