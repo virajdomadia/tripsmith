@@ -96,7 +96,7 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
                     sitemap.ts · robots.ts · opengraph-image.tsx per detail route · middleware.ts
   src/components/   site/ (home, package, destinations, enquiry, whatsapp) · admin/ · ui/ (shadcn)
   src/lib/          api.ts (typed client) · api-types.ts (generated) · seo/ · og/ · admin/ · business.ts
-  tests/            95 vitest files (696 tests)
+  tests/            95 vitest files (707 tests)
 api/        FastAPI (Python 3.12, uv)
   app/routers/      site/ (catalog, enquiries, pdf, views, meta, health, bookings, webhooks,
                     vouchers, account) · admin/ (packages, images, destinations, enquiries,

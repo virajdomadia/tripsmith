@@ -575,7 +575,8 @@ every signed link was forged, and the demo traveller's session was tried against
 booking. The CSP sweep was re-run over every page, including the v2.5 ones. `pip-audit` (api) and
 `pnpm audit --prod` (web) covered the dependencies. B14's v1 and v2 verdicts were not re-audited.
 Two medium findings, three lows and four outdated dependencies were fixed in #120 before this
-write-up; one low is accepted below.
+write-up; one low is accepted below. The package page's PageSpeed run missed the bar at 82, so
+#121 fixed it before sign-off.
 
 ### The checklist (R58)
 
@@ -639,4 +640,44 @@ write-up; one low is accepted below.
 
 ### Performance: PageSpeed Insights (R58)
 
-PSI_SECTION
+Both runs were on [pagespeed.web.dev](https://pagespeed.web.dev/), mobile (emulated Moto G
+Power, Slow 4G, Lighthouse 13), on production, done by hand by Viraj, as in B14. There was no
+local Lighthouse score, for the reasons in H2; local runs were used only to compare LCP phases and
+the requests that start before the LCP.
+
+|                                                                    | Performance | FCP   | LCP   | TBT    | CLS   | Speed Index |
+| ------------------------------------------------------------------ | ----------- | ----- | ----- | ------ | ----- | ----------- |
+| `/compare?p=munnar-…,kasol-…,old-goa-…`, 2026-10-14 01:29 IST      | **95**      | 1.1 s | 2.8 s | 80 ms  | 0     | 2.8 s       |
+| `/packages/munnar-alleppey-houseboat#book`, 01:31 IST, before #121 | 82          | 1.4 s | 4.1 s | 20 ms  | 0.107 | 3.5 s       |
+| **Same page, 14:07 IST, after #121**                               | **88**      | 1.4 s | 3.2 s | 150 ms | 0.002 | 5.0 s       |
+
+Accessibility 100 on all three; Best Practices 100 (96 before #121); SEO 100 on the package page.
+`/compare` scores 66 for SEO only because it is `noindex` by design (R39: a compare URL is a
+visitor's own selection, not a page to rank).
+
+**Why the package page missed.** B14 measured Kasol, which has no early-bird and no deposit; the
+v2.5 sheet on Munnar has both, and that is where the time went.
+
+- **Layout shift.** On a phone the sheet opens before its first quote. When the quote landed,
+  two things appeared above the fold: the early-bird price ladder in step 1, pushing "Who's
+  travelling" down about 214 px, and the ₹15,000 test-mode note, which grew the bottom drawer.
+  Together that was a 0.10 shift.
+- **JavaScript before the hero paints.** Lighthouse's simulation charges every request started
+  before the LCP to the LCP; render delay was most of it. Two imports had pulled all of zod
+  (~90 kB) into the package page: the shared error-envelope parser and the contact-field regexes
+  the sheet borrowed from the enquiry schema. GSAP for the itinerary (~40 kB) also loaded up
+  front, though the itinerary is well below the fold.
+
+**The fix (#121).** The ladder holds its place with a same-shaped placeholder until the quote
+lands, and the test-mode note is decided from the date's price before the first quote. The error
+envelope is now a hand-written guard pinned to the contract in a test, the contact rules moved to a
+zod-free module, and GSAP loads when the itinerary comes near the viewport. The package page's
+first-load JS went from 272 to 177 kB; measured on the same throttled profile, CLS went from 0.100
+to 0.0014.
+
+**Left as it is.** Speed Index read 5.0 s on the passing run (3.5 s before). It is the filmstrip's
+visual-progress measure, and with `#book` the sheet slides over the page after load, so the frames
+keep changing after the hero has painted; it moved without a change to anything above the fold,
+and the score still clears the bar. TBT rose from 20 to 150 ms for the same reason as in B14: the
+sheet's work lands after load, where TBT counts it. PSI still suggests stronger compression on the
+hero (53 kB); B14 measured AVIF for this kind of photo and it was no smaller.

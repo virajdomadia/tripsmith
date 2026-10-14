@@ -206,7 +206,7 @@ look again at the public demo owner login ([docs/12](12-security-performance.md#
 | Owner    | Every admin page redesigned (Ink rail; Money desk dashboard, Lifecycle booking page, enquiry inbox with follow-ups). A departure calendar with fill bars and a side panel; reports (money, packages, occupancy, funnel, cancellations, discounts, add-ons, channels, customers) with a table and CSV each that reconcile with the desk; a per-booking history log a trigger keeps append-only; automatic emails with previews and switches; a move tool for any date or party |
 | Data     | Fifteen add-only migrations (`0010`–`0024`), each rehearsed on the Neon dev branch and run on production before its code merged                                                                                                                                                                                                                                                                                                                                               |
 | Surface  | 116 documented api paths / 134 operations (v2: 58 / 69); 25 admin pages (v2: 17); a 15-minute GitHub Actions tick plus the daily Vercel cron                                                                                                                                                                                                                                                                                                                                  |
-| Tests    | 1,073 pytest · 696 vitest (723 · 466 at v2), with a forced-race test on every new lock path: the waitlist's two offers, the date-change swap, invoice numbering, a coupon's last use, cancellation against a late capture                                                                                                                                                                                                                                                     |
+| Tests    | 1,073 pytest · 707 vitest (723 · 466 at v2), with a forced-race test on every new lock path: the waitlist's two offers, the date-change swap, invoice numbering, a coupon's last use, cancellation against a late capture                                                                                                                                                                                                                                                     |
 
 ## What worked
 
@@ -246,6 +246,8 @@ masked); the lesson is to re-check an accepted risk whenever a row changes what 
 **Local test runs got slow.** A full api run grew from ~6 to over 20 minutes on this laptop, and
 web runs under load timed out; rows leaned on targeted local runs and CI for the full suite.
 
+**The 15-minute tick needed a secret nobody could read.** Vercel's copy of `CRON_SECRET` is write-only, so the GitHub tick ran green for nearly two weeks while skipping every walk. Closed at P19: the secret was rotated on both sides and the tick now returns the waitlist report. Lesson: a scheduled job that can skip should fail loudly, not exit 0.
+
 **Production data waits on the owner.** Every migration and most prod seeds were a handoff, which
 added a pause to most rows. It stays that way on purpose.
 
@@ -253,12 +255,12 @@ added a pause to most rows. It stays that way on purpose.
 
 Measured on production.
 
-|          |                                                                                                                                                    |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PSI_ROWS |
-| CSP      | 92 URLs, including 47 admin pages and the signed-in customer pages: **zero violations**                                                            |
-| Security | three independent reviews plus read-only probes: 2 medium, 3 low found and fixed (#120), 1 low accepted; `pip-audit` and `pnpm audit --prod` clean |
-| Tests    | 1,073 pytest · 696 vitest, green in CI alongside ruff, pyright, eslint, prettier, tsc and the contract gate                                        |
+|                             |                                                                                                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PageSpeed Insights (mobile) | `/compare` **95** (LCP 2.8 s, CLS 0); package page with Book now open **88** (LCP 3.2 s, CLS 0.002) after #121 fixed an 82. Details in [docs/12](12-security-performance.md#performance-pagespeed-insights-r58) |
+| CSP                         | 92 URLs, including 47 admin pages and the signed-in customer pages: **zero violations**                                                                                                                         |
+| Security                    | three independent reviews plus read-only probes: 2 medium, 3 low found and fixed (#120), 1 low accepted; `pip-audit` and `pnpm audit --prod` clean                                                              |
+| Tests                       | 1,073 pytest · 707 vitest, green in CI alongside ruff, pyright, eslint, prettier, tsc and the contract gate                                                                                                     |
 
 ## What v3 inherits
 
@@ -269,10 +271,9 @@ v2's four open items, as they end v2.5:
 
 **New, in the order they should be taken:**
 
-1. CRON_ITEM
-2. ICS_ITEM
-3. **The api's ignore-build step fails after a force-push** (`VERCEL_GIT_PREVIOUS_SHA` is gone after a rebase → "bad object"). Harmless on main; guard it with `git cat-file -e` before v3 rebases anything.
-4. **Small UI debts noted in rows and not fixed:** the desk's "secondary" status badge is faint for part-paid and pending; a failed payment-link email still toasts success (the history shows the failure).
+1. **Apple Calendar import is untested on a device.** R48 asked for the `.ics` to import into Google and Apple Calendar. The file is checked by unit tests (stable UID, folding, escaping) and the Google Calendar link is generated and tested, but neither was imported on a real device at sign-off (no iPhone to hand). Import both once before v3 relies on them.
+2. **The api's ignore-build step fails after a force-push** (`VERCEL_GIT_PREVIOUS_SHA` is gone after a rebase → "bad object"). Harmless on main; guard it with `git cat-file -e` before v3 rebases anything.
+3. **Small UI debts noted in rows and not fixed:** the desk's "secondary" status badge is faint for part-paid and pending; a failed payment-link email still toasts success (the history shows the failure).
 
 ## For the case study (v2.5)
 
