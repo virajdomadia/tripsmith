@@ -260,7 +260,8 @@ def build_quote(
         deal = QuoteDeal(label=pkg.deal_label, ends_at=pkg.deal_ends_at, per_traveller_paise=off)
         for occ in ORDER:
             if counts[occ]:
-                dealt[occ] = min(off, unit_price(dep, occ))
+                # ₹1 each stays (V1 / SB-2): a ₹0 line or order is one Razorpay refuses.
+                dealt[occ] = max(0, min(off, unit_price(dep, occ) - MIN_TOTAL_PAISE))
                 line(QuoteLineKind.DEAL, occ, -dealt[occ])
 
     early_bird = early_bird_for(pkg, date=dep.date, today=ist_today(now))

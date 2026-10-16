@@ -16,7 +16,9 @@ async def lock_booking(db: AsyncSession, ref: str) -> tuple[Booking, bool]:
 
     The departure first — the order `create_booking_order` takes — so a capture and a new hold on
     the same date serialise, and a seat re-check here sees every hold committed before it. The
-    hold is judged by the database clock, the one `departure_availability` compares against.
+    hold is judged by the database clock as it reads once the locks are held
+    (`clock_timestamp()`, V1 / SB-3), not the transaction's start: a capture can wait on the
+    departure lock past the end of its hold.
     """
     departure_id = (
         await db.execute(select(Booking.departure_id).where(Booking.ref == ref))
@@ -45,7 +47,7 @@ async def lock_change(db: AsyncSession, ref: str, other_departure_id: str) -> tu
 async def _lock_row(db: AsyncSession, ref: str, locked: set[str]) -> tuple[Booking, bool]:
     booking, live = (
         await db.execute(
-            select(Booking, Booking.hold_expires_at > func.now())
+            select(Booking, Booking.hold_expires_at > func.clock_timestamp())
             .where(Booking.ref == ref)
             .with_for_update(of=Booking)
             .execution_options(populate_existing=True)

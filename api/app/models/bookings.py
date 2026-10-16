@@ -122,6 +122,9 @@ class Booking(IdMixin, TimestampsMixin, Base):
     balance_due_on: Mapped[date | None] = mapped_column(Date)
     # The refund the policy gave when the balance went unpaid (`balance_unpaid`).
     balance_refund_paise: Mapped[int | None] = mapped_column(Integer)
+    # 0025 (V1): what the cancellation kept of what was paid, fixed at the decision (approval or
+    # the tidy); anything paid beyond it is owed back. Null = decided before 0025.
+    kept_paise: Mapped[int | None] = mapped_column(Integer)
     # 0017 (P18, R56): where it came from, the owner who made it at the counter, and the enquiry
     # it was converted from.
     channel: Mapped[BookingChannel] = mapped_column(

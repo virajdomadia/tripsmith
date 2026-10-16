@@ -79,7 +79,16 @@ async def refund_owed(db: AsyncSession, booking: Booking) -> int:
     so does one the daily tidy made for an unpaid balance (P5: the policy's refund, kept on the
     booking); any other cancelled booking everything it holds; a live one only what it holds
     beyond its total (a second payment). A refund in flight or done is already off
-    `paid_paise`; a failed one is back on it."""
+    `paid_paise`; a failed one is back on it.
+
+    V1 (SB-1): a decision since 0025 fixed `kept_paise`, so the owed amount is simply what is
+    held beyond it — a deposit refunded on approval and a balance captured later owe the whole
+    balance. Captured-ever against the price would call that balance covered."""
+    if booking.kept_paise is not None and booking.cancel_reason in (
+        CancelReason.CANCELLATION_APPROVED,
+        CancelReason.BALANCE_UNPAID,
+    ):
+        return max(0, booking.paid_paise - booking.kept_paise)
     agreed = (
         await db.execute(
             select(BookingCancellation.refund_paise).where(
