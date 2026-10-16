@@ -99,6 +99,9 @@ async def resolve_cancellation(
                 .values(
                     status=BookingStatus.CANCELLED,
                     cancel_reason=CancelReason.CANCELLATION_APPROVED,
+                    # V1: kept = the price's share not refunded; money beyond the price is
+                    # never kept, and anything captured after this goes back in full.
+                    kept_paise=max(0, min(booking.paid_paise, booking.total_paise) - refund),
                     updated_at=func.now(),
                 )
                 .execution_options(synchronize_session=False)

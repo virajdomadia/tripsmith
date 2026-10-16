@@ -518,3 +518,46 @@ async def test_a_part_that_lands_after_the_cancel_goes_back_in_full(
     assert (b.balance_refund_paise, b.paid_paise, b.refund_needed) == (5_000_00, DEPOSIT, False)
     refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
     assert [(r.amount_paise, r.status.value) for r in refunds] == [(5_000_00, "processed")]
+
+
+async def test_a_balance_that_lands_after_an_approved_cancellation_goes_back_in_full(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    """V1 / SB-1: the deposit is refunded on approval, then the balance (Checkout left open)
+    captures. The approval kept nothing, so all of the late money is owed back — counting
+    captured-ever against the total would call it covered by the booking's price."""
+    ref, _, _ = await on_deposit(db, db_app, db_client)
+    rzp.captured["pay_Deposit00001"] = DEPOSIT
+    cookie = with_cookie(await signed_in(db_client))
+    part = (await balance_order(db_client, ref, cookie, BALANCE)).json()  # Checkout left open
+    asked = await db_client.post(
+        f"/account/bookings/{ref}/cancellation",
+        json={"reason": "Plans changed, sorry about this"},
+        headers=cookie,
+    )
+    assert asked.status_code == 201, asked.text
+    owner = await owner_cookie(db)
+    request_id = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()[
+        "cancellation"
+    ]["id"]
+    done = await db_client.post(
+        f"/admin/cancellations/{request_id}/resolve",
+        json={
+            "decision": "approve",
+            "note": "Refunding the whole deposit.",
+            "refundPaise": DEPOSIT,
+        },
+        headers=owner,
+    )
+    assert done.status_code == 200, done.text
+    assert done.json()["paidPaise"] == 0
+
+    rzp.captured["pay_LateBal0001"] = BALANCE
+    await capture(db_client, part, "pay_LateBal0001")
+    b = await row(db, ref)
+    assert (b.paid_paise, b.refund_needed) == (0, False)
+    refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
+    assert sorted((r.amount_paise, r.status.value) for r in refunds) == [
+        (DEPOSIT, "processed"),
+        (BALANCE, "processed"),
+    ]

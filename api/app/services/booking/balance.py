@@ -341,6 +341,7 @@ async def _cancel_overdue(
                 status=BookingStatus.CANCELLED,
                 cancel_reason=CancelReason.BALANCE_UNPAID,
                 balance_refund_paise=agreed,
+                kept_paise=paid - agreed,  # V1: a later part goes back in full
                 updated_at=func.now(),
             )
             .execution_options(synchronize_session=False)

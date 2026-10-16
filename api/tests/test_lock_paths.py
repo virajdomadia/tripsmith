@@ -6,6 +6,7 @@ contenders start and are seen waiting on it in `pg_stat_activity`, then the lock
 Needs TEST_DATABASE_URL."""
 
 import asyncio
+import datetime as dt
 import json
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
@@ -13,14 +14,16 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.errors import ApiError
-from app.models import Booking, Coupon, Departure, Payment, Refund
+from app.models import Booking, Coupon, DateChange, Departure, Payment, Refund
 from app.models.enums import BookingStatus, CancelReason
 from app.schemas.admin_bookings import ResolveCancellationInput
 from app.schemas.bookings import BookingOrder
+from app.services.booking.changes import change_hold
+from app.services.booking.locking import lock_booking
 from app.services.booking.orders import create_booking_order
 from app.services.booking.payments import capture_razorpay_payment
 from app.services.booking.resolve import resolve_cancellation
@@ -30,6 +33,8 @@ from tests.test_booking_orders import order, seeded
 from tests.test_booking_payments import booking, payments, rzp
 from tests.test_cancellation_resolve import NOTE, asked
 from tests.test_coupons import add_coupon
+from tests.test_date_changes import UP, move
+from tests.test_date_changes import setup as change_setup
 
 __all__ = ["rzp"]
 
@@ -208,3 +213,53 @@ async def test_approval_and_a_late_capture_on_the_same_booking_settle_the_same_e
     )
     late_row = next(p for p in out["payments"] if p["paymentId"] == "pay_RaceLate01")
     assert (late_row["status"], late_row["refundedPaise"]) == ("captured", late)
+
+
+# --- V1 / SB-3: holds judged by the clock at lock time ------------------------------------------
+
+
+async def lapse_while_waiting(db: AsyncSession, table: type[Booking] | type[DateChange], id: str):
+    """The hold runs out ~1 s from now; then a transaction starts while it is live and outlasts
+    it — as a capture does when it waits on the departure lock."""
+    await db.execute(
+        update(table)
+        .where(table.id == id)
+        .values(hold_expires_at=func.clock_timestamp() + dt.timedelta(seconds=1))
+    )
+    await db.commit()
+    await db.execute(text("select now()"))  # the transaction's clock starts here
+    await asyncio.sleep(1.5)
+
+
+async def test_a_hold_that_lapses_while_the_capture_waits_is_not_live(
+    db: AsyncSession, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    _, dep = await seeded(db, seats=4)
+    res = await db_client.post(
+        "/bookings",
+        json={
+            "departureId": dep.id,
+            "travellers": [{"name": "Ravi", "age": 30, "occupancy": "single"}],
+            "contact": {"name": "Ravi", "phone": "9000000073", "email": "ravi@example.test"},
+        },
+    )
+    assert res.status_code == 201, res.text
+    b = await booking(db, res.json()["bookingRef"])
+    await lapse_while_waiting(db, Booking, b.id)
+    _, live = await lock_booking(db, b.ref)
+    await db.rollback()
+    assert live is False
+
+
+async def test_a_change_hold_that_lapses_while_the_capture_waits_is_not_live(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
+) -> None:
+    (_, high), ref, cookie, _ = await change_setup(
+        db, db_app, db_client, (40, 8, 20_000_00), (47, 12, 25_000_00)
+    )
+    assert (await move(db_client, ref, cookie, high, UP)).status_code == 201
+    change_id = (await db.execute(select(DateChange.id))).scalar_one()
+    await lapse_while_waiting(db, DateChange, change_id)
+    live, _ = await change_hold(db, change_id)
+    await db.rollback()
+    assert live is False

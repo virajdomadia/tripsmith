@@ -798,6 +798,21 @@ async def apply_swap(
     return refund
 
 
+async def change_hold(db: AsyncSession, change_id: str) -> tuple[bool, bool]:
+    """(hold still live, change recent enough to move on a late capture), by the database clock
+    as it reads now — not the transaction's start (V1 / SB-3): a capture can wait on the
+    departure locks for a while after its transaction began."""
+    live, recent = (
+        await db.execute(
+            select(
+                DateChange.hold_expires_at > func.clock_timestamp(),
+                DateChange.created_at > func.clock_timestamp() - LATE_CAPTURE,
+            ).where(DateChange.id == change_id)
+        )
+    ).one()
+    return bool(live), bool(recent)
+
+
 async def settle_change(
     db: AsyncSession,
     booking: Booking,
@@ -824,14 +839,7 @@ async def settle_change(
     )
     await db.flush()
     await db.refresh(booking)
-    hold_live, recent = (
-        await db.execute(
-            select(
-                DateChange.hold_expires_at > func.now(),
-                DateChange.created_at > func.now() - LATE_CAPTURE,
-            ).where(DateChange.id == change.id)
-        )
-    ).one()
+    hold_live, recent = await change_hold(db, change.id)
     # A capture after the hold still moves the booking while the seats are free — but only soon
     # after (a Razorpay order never expires: days later, the quote and the fee tier are stale),
     # and never once the customer has asked to cancel.

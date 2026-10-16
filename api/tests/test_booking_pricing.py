@@ -104,8 +104,18 @@ def test_deal_is_a_flat_amount_off_every_traveller() -> None:
 
 def test_deal_never_exceeds_a_travellers_own_price() -> None:
     q = quote([D, D, C], departure(price_child_paise=2_000_00), **DEAL)
-    assert lines(q)[-2:] == [("deal", "double", 2, -6_000_00), ("deal", "child", 1, -2_000_00)]
-    assert q.total_paise == 49_998_00 + 2_000_00 - 8_000_00
+    # ₹1 of the child's fare stays (V1 / SB-2), as early-bird leaves it.
+    assert lines(q)[-2:] == [("deal", "double", 2, -6_000_00), ("deal", "child", 1, -1_999_00)]
+    assert q.total_paise == 49_998_00 + 2_000_00 - 7_999_00
+
+
+def test_the_biggest_deal_leaves_every_traveller_at_least_a_rupee() -> None:
+    """V1 / SB-2, the audit's probe: double ₹24,999, a ₹10,000 deal (₹14,999 off), triple
+    ₹12,000 — the triples used to cost ₹0, a ₹0 order Razorpay refuses."""
+    deal = DEAL | {"deal_price_paise": 10_000_00}
+    q = quote([T, T, T], departure(price_triple_paise=12_000_00), **deal)
+    assert lines(q)[-1] == ("deal", "triple", 3, -3 * 11_999_00)
+    assert q.total_paise == 3 * 1_00
 
 
 def test_deal_ends_at_its_instant_not_after() -> None:

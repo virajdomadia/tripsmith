@@ -58,9 +58,9 @@ const departure = (over: Partial<Departure> = {}): Departure => ({
 });
 
 describe('deal helpers', () => {
-  it('takes the flat amount off, never more than the price, and leaves on-request alone', () => {
+  it('takes the flat amount off, leaving at least ₹1, and leaves on-request alone', () => {
     expect(afterDeal(14_499_00, deal)).toBe(11_499_00);
-    expect(afterDeal(2_000_00, deal)).toBe(0);
+    expect(afterDeal(2_000_00, deal)).toBe(1_00); // ₹1 stays (V1 / SB-2)
     expect(afterDeal(0, deal)).toBe(0);
     expect(afterDeal(14_499_00, null)).toBe(14_499_00);
   });
@@ -114,7 +114,7 @@ describe('package page tables with a deal', () => {
     render(<OccupancyPricing departures={[departure()]} deal={deal} />);
     expect(screen.getByText('₹11,499')).toBeTruthy();
     expect(screen.getByText('₹10,499')).toBeTruthy();
-    expect(screen.getByText('₹0')).toBeTruthy();
+    expect(screen.getByText('₹1')).toBeTruthy(); // ₹1 stays (V1 / SB-2)
     expect(screen.getByText('+ ₹6,000')).toBeTruthy();
   });
 });
