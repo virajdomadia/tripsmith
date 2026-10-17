@@ -17,7 +17,10 @@ What is due (IST), each skipped while a cancellation request is open:
 - review request — 2 days after return, `completed` with no review yet;
 - still thinking — the morning after a web hold lapsed, when that address booked nothing
   since; once per address per package, ever;
-- refund — a Razorpay refund processed (always on; also sent at once from the webhook).
+- refund — a Razorpay refund processed (always on; also sent at once from the webhook);
+- balance cancelled — the daily tidy cancelled the booking for a balance unpaid past its grace
+  (always on; V4: sent by the tidy right after the cancellation, through the ledger, so a send
+  that failed at 01:00 goes again here).
 
 A missed run catches up with the latest stage that is due, never two stages of one type in one
 run; a stage whose day fell before the booking was made is not sent at all. Each run sends at
@@ -40,10 +43,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.business import refund_tier
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage
 from app.models import (
     Booking,
+    BookingEvent,
     BookingTraveller,
     Departure,
     EmailSend,
@@ -74,7 +79,7 @@ from app.services.booking.history import EmailLine, money
 from app.services.booking.pricing import MIN_DAYS_AHEAD
 from app.services.booking.voucher import BookingFacts, load_booking_facts
 from app.services.email import unsubscribe
-from app.services.email.balance import render_balance_reminder
+from app.services.email.balance import render_balance_cancelled, render_balance_reminder
 from app.services.email.bookings import _message, _vars, deliver
 from app.services.email.details import render_details_link, still_owed
 from app.services.email.render import IST
@@ -149,6 +154,14 @@ def key_of(kind: EmailType, booking_id: str, stage: int, anchor: dt.date | None)
 
 def refund_key(refund_id: str) -> str:
     return f"{EmailType.REFUND.value}:{refund_id}"
+
+
+def balance_cancelled_key(booking_id: str) -> str:
+    return f"{EmailType.BALANCE_CANCELLED.value}:{booking_id}"
+
+
+# The history entry `balance._cancel_overdue` writes; its day is the cancellation's.
+BALANCE_CANCELLED_KIND = "cancelled.balance_unpaid"
 
 
 def still_thinking_key(email: str, package_id: str) -> str:
@@ -460,6 +473,49 @@ async def due_refunds(db: AsyncSession, *, booking_id: str | None = None) -> lis
     out = [
         Due(EmailType.REFUND, refund_key(rid), email.lower(), bid, ref, pkg, refund_id=rid)
         for rid, bid, ref, email, pkg in rows
+    ]
+    return await _unclaimed(db, out)
+
+
+async def due_balance_cancelled(db: AsyncSession, *, booking_id: str | None = None) -> list[Due]:
+    """Bookings the tidy cancelled for an unpaid balance in the last `RETRY_WITHIN`, whose email
+    is not claimed yet. Stage = days before departure on the cancellation day (the anchor), which
+    picks the policy tier the email names."""
+    when = func.date(func.timezone("Asia/Kolkata", BookingEvent.at))
+    rows = (
+        await db.execute(
+            select(
+                Booking.id,
+                Booking.ref,
+                Booking.contact_email,
+                Booking.package_id,
+                Departure.date,
+                func.max(when),
+            )
+            .join(Departure, Departure.id == Booking.departure_id)
+            .join(BookingEvent, BookingEvent.booking_id == Booking.id)
+            .where(
+                Booking.status == BookingStatus.CANCELLED,
+                Booking.cancel_reason == CancelReason.BALANCE_UNPAID,
+                BookingEvent.kind == BALANCE_CANCELLED_KIND,
+                BookingEvent.at >= func.now() - RETRY_WITHIN,
+                *([Booking.id == booking_id] if booking_id else []),
+            )
+            .group_by(Booking.id, Departure.date)
+        )
+    ).all()
+    out = [
+        Due(
+            EmailType.BALANCE_CANCELLED,
+            balance_cancelled_key(bid),
+            email.lower(),
+            bid,
+            ref,
+            pkg,
+            max((departs - day).days, 0),
+            day,
+        )
+        for bid, ref, email, pkg, departs, day in rows
     ]
     return await _unclaimed(db, out)
 
@@ -816,6 +872,30 @@ async def _render_still_thinking(db: AsyncSession, due: Due, settings: Settings,
     return [("customer", message)], None
 
 
+async def _render_balance_cancelled(db: AsyncSession, due: Due, settings: Settings, today: dt.date):
+    booking = await db.get(Booking, due.booking_id) if due.booking_id else None
+    facts = await _facts(db, due)
+    if (
+        booking is None
+        or facts is None
+        or booking.status != BookingStatus.CANCELLED
+        or booking.cancel_reason != CancelReason.BALANCE_UNPAID
+    ):
+        return None, None
+    refund = booking.balance_refund_paise or 0
+    # What was paid when it was cancelled: the part kept plus the part refunded (V1's kept_paise).
+    paid_before = (booking.kept_paise or 0) + refund
+    labelled = render_balance_cancelled(
+        facts,
+        settings,
+        paid_before_paise=paid_before,
+        refund_paise=refund,
+        days_out=due.stage,
+        tier=refund_tier(due.stage),
+    )
+    return labelled, None
+
+
 async def _render_refund(db: AsyncSession, due: Due, settings: Settings, today: dt.date):
     if due.refund_id is None:
         return None, None
@@ -841,6 +921,7 @@ RENDER = {
     EmailType.REVIEW_REQUEST: _render_review,
     EmailType.STILL_THINKING: _render_still_thinking,
     EmailType.REFUND: _render_refund,
+    EmailType.BALANCE_CANCELLED: _render_balance_cancelled,
 }
 
 
@@ -902,8 +983,8 @@ async def run_due(
     limit: int = LIMIT,
     budget: float = BUDGET_SECONDS,
 ) -> Run:
-    """`/cron/emails`: refunds first (always on), then retries, then each switched-on type in
-    order. One email's failure never stops the rest."""
+    """`/cron/emails`: balance cancellations and refunds first (always on), then retries, then
+    each switched-on type in order. One email's failure never stops the rest."""
     started = time.monotonic()
     run = Run(sent=Counter())
     on = await switches(db)
@@ -915,6 +996,7 @@ async def run_due(
 
     queue: list[tuple[str | None, Due]] = []
     try:
+        queue += [(None, d) for d in await due_balance_cancelled(db)]
         queue += [(None, d) for d in await due_refunds(db)]
         queue += await _failed(db, on)
         for kind, finder in FINDERS.items():
@@ -944,6 +1026,25 @@ async def run_due(
             sentry_sdk.capture_exception(exc)
             run.failed += 1
     return run
+
+
+async def send_balance_cancelled(db: AsyncSession, notify: Notify, booking_id: str) -> bool:
+    """Right after the tidy cancels a booking for its balance (V4): claim its ledger row, then
+    send. Never raises; a failed send stays `failed` and `/cron/emails` retries it."""
+    try:
+        dues = await due_balance_cancelled(db, booking_id=booking_id)
+        await db.rollback()
+        for due in dues:
+            row_id = await claim(db, due)
+            if row_id is None:
+                continue
+            state = await _send(db, notify, row_id, due, today=ist_today())
+            return state in (EmailSendState.SENT, EmailSendState.HELD)
+    except Exception as exc:
+        await db.rollback()
+        log.exception("Could not send the balance cancellation for booking %s", booking_id)
+        sentry_sdk.capture_exception(exc)
+    return False
 
 
 async def send_refund_emails(db: AsyncSession, notify: Notify, booking_id: str) -> int:

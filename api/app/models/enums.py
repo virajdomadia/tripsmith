@@ -193,7 +193,9 @@ class FoodChoice(StrEnum):
 
 class EmailType(StrEnum):
     """The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five
-    are the automatic ones the owner can switch off; a refund email always goes."""
+    are the automatic ones the owner can switch off; a refund email always goes, and so does the
+    cancellation for a balance unpaid past its grace (V4: sent by the daily tidy, retried by
+    `/cron/emails`)."""
 
     BALANCE_REMINDER = "balance_reminder"
     DETAILS_REMINDER = "details_reminder"
@@ -201,6 +203,7 @@ class EmailType(StrEnum):
     REVIEW_REQUEST = "review_request"
     STILL_THINKING = "still_thinking"
     REFUND = "refund"
+    BALANCE_CANCELLED = "balance_cancelled"
 
 
 class EmailSendState(StrEnum):

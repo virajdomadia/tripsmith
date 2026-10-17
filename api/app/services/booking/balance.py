@@ -28,13 +28,14 @@ has asked to cancel is left for the owner to decide, like the completion sweep d
 
 import datetime as dt
 import logging
+import time
 from typing import NamedTuple
 
 import sentry_sdk
 from sqlalchemy import Exists, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.business import refund_tier, suggested_refund_paise
+from app.business import suggested_refund_paise
 from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import Booking, BookingCancellation, Departure, Payment, User
@@ -57,8 +58,7 @@ from app.services.booking.locking import lock_booking
 from app.services.booking.payments import settle_capture
 from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
 from app.services.booking.settled import Capture
-from app.services.booking.voucher import load_booking_facts, offline_label
-from app.services.email.balance import send_balance_cancelled
+from app.services.booking.voucher import offline_label
 
 NO_BALANCE = "This booking has no balance to pay"
 ASKED = "You've asked to cancel this booking, so the balance is on hold until we reply"
@@ -306,6 +306,7 @@ async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | N
 
 class BalanceSweep(NamedTuple):
     cancelled: int
+    more: bool = False  # stopped at the deadline with overdue bookings left
 
 
 async def _cancel_overdue(
@@ -372,15 +373,25 @@ async def _cancel_overdue(
         raise
 
 
-async def sweep_balances(db: AsyncSession, notify: Notify, *, today: dt.date) -> BalanceSweep:
+async def sweep_balances(
+    db: AsyncSession, notify: Notify, *, today: dt.date, deadline: float | None = None
+) -> BalanceSweep:
     """`/cron/daily`: cancel the bookings whose balance is past its grace. One booking's failure
     is logged and never stops the rest. The reminders moved to `/cron/emails` in P15 (R53,
     services/email/automatic.py), which runs at 09:00 IST — after this, so a cancelled booking
-    is never reminded."""
+    is never reminded.
+
+    V4 (OP-6): each cancellation can take a Razorpay refund (10 s), a revalidation and an SMTP
+    send (15 s), so no new one starts once `deadline` (a `time.monotonic()` value) has passed;
+    the rest wait for tomorrow's run (`more`). The email goes through the email ledger: claimed,
+    then sent — a failed send is retried by `/cron/emails`, a re-run never sends it twice."""
+    # Here, not at the top: automatic.py reads this module's reminder rules.
+    from app.services.email.automatic import send_balance_cancelled
+
     last_due = today - dt.timedelta(days=deposit.GRACE_DAYS + 1)
     overdue = (
         await db.execute(
-            select(Booking.ref, Booking.package_id).where(
+            select(Booking.id, Booking.ref, Booking.package_id).where(
                 Booking.status == BookingStatus.PARTIALLY_PAID,
                 Booking.balance_due_on <= last_due,
             )
@@ -388,7 +399,9 @@ async def sweep_balances(db: AsyncSession, notify: Notify, *, today: dt.date) ->
     ).all()
     await db.rollback()
     cancelled = 0
-    for ref, package_id in overdue:
+    for booking_id, ref, package_id in overdue:
+        if deadline is not None and time.monotonic() >= deadline:
+            return BalanceSweep(cancelled=cancelled, more=True)
         try:
             done = await _cancel_overdue(db, ref, today)
         except Exception as exc:
@@ -398,40 +411,8 @@ async def sweep_balances(db: AsyncSession, notify: Notify, *, today: dt.date) ->
         if done is None:
             continue
         cancelled += 1
-        paid, agreed, days_out = done
         await send_refunds(db, ref, notify.razorpay)
         await refresh_quietly(db, {package_id}, after=f"cancelling {ref} (balance unpaid)")
-        await _email(db, ref, notify, cancelled=(paid, agreed, days_out))
+        await send_balance_cancelled(db, notify, booking_id)
 
     return BalanceSweep(cancelled=cancelled)
-
-
-async def _email(
-    db: AsyncSession,
-    ref: str,
-    notify: Notify,
-    *,
-    cancelled: tuple[int, int, int],
-) -> None:
-    """Read the booking's facts in a short transaction, then send. Never raises."""
-    try:
-        facts = await load_booking_facts(db, ref)
-    except Exception as exc:
-        log.exception("Could not load booking %s for its balance email", ref)
-        sentry_sdk.capture_exception(exc)
-        return
-    finally:
-        await db.rollback()
-    if facts is None:
-        return
-    paid, agreed, days_out = cancelled
-    await send_balance_cancelled(
-        notify.sender,
-        notify.settings,
-        facts,
-        paid_before_paise=paid,
-        refund_paise=agreed,
-        days_out=days_out,
-        tier=refund_tier(days_out),
-        db=db,
-    )

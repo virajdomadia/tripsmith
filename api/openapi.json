@@ -7437,14 +7437,15 @@
         "type": "object"
       },
       "EmailType": {
-        "description": "The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five\nare the automatic ones the owner can switch off; a refund email always goes.",
+        "description": "The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five\nare the automatic ones the owner can switch off; a refund email always goes, and so does the\ncancellation for a balance unpaid past its grace (V4: sent by the daily tidy, retried by\n`/cron/emails`).",
         "enum": [
           "balance_reminder",
           "details_reminder",
           "trip_pack",
           "review_request",
           "still_thinking",
-          "refund"
+          "refund",
+          "balance_cancelled"
         ],
         "title": "EmailType",
         "type": "string"

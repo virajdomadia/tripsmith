@@ -53,11 +53,13 @@ async def test_the_settings_list_and_its_switches(
         "trip_pack",
         "review_request",
         "still_thinking",
+        "balance_cancelled",
         "refund",
     ]
     assert all(t["on"] for t in body["types"]) and body["sendsAt"] == "09:00 IST"
     flags = {t["type"]: (t["switchable"], t["unsubscribable"]) for t in body["types"]}
     assert flags["refund"] == (False, False) and flags["review_request"] == (True, True)
+    assert flags["balance_cancelled"] == (False, False)
 
     off = await db_client.put("/admin/emails/trip_pack", json={"on": False}, headers=owner)
     assert off.status_code == 200 and off.json()["on"] is False

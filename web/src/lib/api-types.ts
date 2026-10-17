@@ -5611,10 +5611,12 @@ export interface components {
         /**
          * EmailType
          * @description The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five
-         *     are the automatic ones the owner can switch off; a refund email always goes.
+         *     are the automatic ones the owner can switch off; a refund email always goes, and so does the
+         *     cancellation for a balance unpaid past its grace (V4: sent by the daily tidy, retried by
+         *     `/cron/emails`).
          * @enum {string}
          */
-        EmailType: "balance_reminder" | "details_reminder" | "trip_pack" | "review_request" | "still_thinking" | "refund";
+        EmailType: "balance_reminder" | "details_reminder" | "trip_pack" | "review_request" | "still_thinking" | "refund" | "balance_cancelled";
         /** EmailTypeSetting */
         EmailTypeSetting: {
             /**

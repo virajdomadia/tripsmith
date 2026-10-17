@@ -14,7 +14,7 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender, EmailSendError
 from app.models import Booking, Departure, EmailSend, EmailSuppression, Package, Refund, Review
-from app.models.enums import BookingStatus, EmailType, RefundStatus
+from app.models.enums import BookingStatus, CancelReason, EmailType, RefundStatus
 from app.schemas.admin_emails import (
     EmailPreview,
     EmailSample,
@@ -31,6 +31,7 @@ from app.services.email.automatic import (
     REVIEW_AFTER,
     SWITCHABLE,
     Due,
+    balance_cancelled_key,
     key_of,
     refund_key,
     still_thinking_key,
@@ -48,6 +49,7 @@ LABEL = {
     EmailType.REVIEW_REQUEST: "Review request",
     EmailType.STILL_THINKING: "Still thinking?",
     EmailType.REFUND: "Refund on its way",
+    EmailType.BALANCE_CANCELLED: "Cancelled for an unpaid balance",
 }
 TRIGGER = {
     EmailType.BALANCE_REMINDER: "7 and 3 days before the balance is due, and on the day",
@@ -57,8 +59,10 @@ TRIGGER = {
     EmailType.REVIEW_REQUEST: "2 days after the trip ends, until they review",
     EmailType.STILL_THINKING: "The morning after a hold lapses unpaid — once per email per trip",
     EmailType.REFUND: "As soon as Razorpay reports a refund processed",
+    EmailType.BALANCE_CANCELLED: "When the 01:00 tidy cancels a booking whose balance is 2 days "
+    "overdue",
 }
-ORDER = (*SWITCHABLE, EmailType.REFUND)
+ORDER = (*SWITCHABLE, EmailType.BALANCE_CANCELLED, EmailType.REFUND)
 NOT_FITTING = "This booking doesn't fit this email any more — pick another"
 
 
@@ -118,6 +122,11 @@ async def samples(
         )
     elif kind == EmailType.STILL_THINKING:
         q = q.where(automatic._lapsed_hold())
+    elif kind == EmailType.BALANCE_CANCELLED:
+        q = q.where(
+            Booking.status == BookingStatus.CANCELLED,
+            Booking.cancel_reason == CancelReason.BALANCE_UNPAID,
+        )
     else:  # refund
         q = q.where(
             exists().where(
@@ -181,6 +190,12 @@ async def _due_for(
     elif kind == EmailType.STILL_THINKING:
         return Due(kind, still_thinking_key(email, b.package_id), email, b.id, b.ref,
                    b.package_id), today  # fmt: skip
+    elif kind == EmailType.BALANCE_CANCELLED:
+        if b.cancel_reason != CancelReason.BALANCE_UNPAID:
+            raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+        on = b.updated_at.astimezone(automatic.IST).date()
+        return Due(kind, balance_cancelled_key(b.id), email, b.id, b.ref, b.package_id,
+                   max((departs - on).days, 0), on), today  # fmt: skip
     else:
         refund_id = (
             await db.execute(

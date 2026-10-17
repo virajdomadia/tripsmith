@@ -146,10 +146,12 @@ class SmtpSender:
         try:
             await asyncio.to_thread(self._send_blocking, mime)
         except smtplib.SMTPException as exc:
-            # Refused: bad login, rejected recipient, over Gmail's daily cap. Never the address.
-            raise EmailSendError(f"SMTP refused: {type(exc).__name__}") from exc
+            # Refused: bad login, rejected recipient, over Gmail's daily cap. Never the address —
+            # and `from None` (V4, OP-4): SMTPRecipientsRefused carries every refused address,
+            # and a chained cause is printed in full in the Sentry event.
+            raise EmailSendError(f"SMTP refused: {type(exc).__name__}") from None
         except OSError as exc:  # DNS, connect, timeout
-            raise EmailSendError(f"SMTP unreachable: {type(exc).__name__}") from exc
+            raise EmailSendError(f"SMTP unreachable: {type(exc).__name__}") from None
         return msg_id
 
 

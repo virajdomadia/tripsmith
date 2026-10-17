@@ -69,6 +69,11 @@ class Settings(BaseSettings):
 
     # --- Cron ---
     cron_secret: SecretStr | None = None
+    # V4 (OP-1): healthchecks.io ping URLs, hit at the end of /cron/daily and /cron/emails, so a
+    # job that stops running alerts within its grace. Secrets: whoever holds one can report the
+    # job healthy. Unset = no ping (local dev, previews).
+    healthcheck_daily_url: SecretStr | None = None
+    healthcheck_emails_url: SecretStr | None = None
 
     # --- Cross-service URLs ---
     web_url: str = "http://localhost:3000"

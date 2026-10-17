@@ -2,26 +2,31 @@
 
 Registered on production only, at https://tripsmith-api.vercel.app/webhooks/razorpay (previews
 are behind Vercel's SSO). The raw body's HMAC is checked with `RAZORPAY_WEBHOOK_SECRET` before
-the body is parsed: a forged or unsigned call is a 400 and a log line. Once an event is recorded
-(or deliberately ignored) the answer is 200, so Razorpay stops retrying; a database error is a
-500 and Razorpay retries it. Not in the OpenAPI contract: the web never calls it.
+the body is parsed: a forged or unsigned call is a 400 and a log line. A signature that is
+present but wrong is also one Sentry error under a fixed fingerprint (V4, OP-7) — a rotated
+secret set on one side only fails every event the same way, and that must page someone; a call
+with no signature at all is a scanner and stays a warning. Neither names the caller. Once an
+event is recorded (or deliberately ignored) the answer is 200, so Razorpay stops retrying; a
+database error is a 500 and Razorpay retries it. Not in the OpenAPI contract: the web never
+calls it.
 """
 
 import json
 import logging
 from typing import Annotated, Any
 
+import sentry_sdk
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
-from app.infra.client_ip import client_ip
 from app.infra.db import get_session
 from app.infra.razorpay import verify_webhook_signature
 from app.services.booking.after_capture import Notify
 from app.services.booking.webhook import handle_razorpay_event
 
 BAD_SIGNATURE = "Webhook signature missing or wrong"
+BAD_SIGNATURE_FINGERPRINT = ["razorpay-webhook-bad-signature"]
 
 log = logging.getLogger(__name__)
 
@@ -41,8 +46,14 @@ async def signed_event(request: Request) -> dict[str, Any]:
         )
     body = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
-    if not signature or not verify_webhook_signature(secret, body, signature):
-        log.warning("Razorpay webhook signature did not verify (from %s)", client_ip(request))
+    if not signature:
+        log.warning("Razorpay webhook call without a signature")
+        raise ApiError("validation", BAD_SIGNATURE)
+    if not verify_webhook_signature(secret, body, signature):
+        log.warning("Razorpay webhook signature did not verify")
+        with sentry_sdk.new_scope() as scope:
+            scope.fingerprint = BAD_SIGNATURE_FINGERPRINT
+            sentry_sdk.capture_message("Razorpay webhook signature did not verify", level="error")
         raise ApiError("validation", BAD_SIGNATURE)
     try:
         event = json.loads(body)

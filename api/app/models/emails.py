@@ -1,6 +1,7 @@
 """Automatic trip emails (R53, P15; migration 0023).
 
-- `email_sends` is the ledger: one row per email the cron (or the refund webhook) owes, keyed by
+- `email_sends` is the ledger: one row per email the cron (or the refund webhook, or the daily
+  tidy's balance cancellation — V4, migration 0026) owes, keyed by
   `key` — `<type>:<booking>:<stage>:<anchor>` for a booking's email (the anchor is the departure
   day, or the balance's due day, so a date change re-arms every stage), `refund:<refund id>`, and
   `still_thinking:<email>:<package>` (once per address per package, ever). The row is inserted
@@ -32,12 +33,15 @@ TYPES = (
     "'balance_reminder', 'details_reminder', 'trip_pack', 'review_request', 'still_thinking', "
     "'refund'"
 )
+# V4 (migration 0026): only the ledger takes the balance cancellation — it has no switch and no
+# unsubscribe.
+SEND_TYPES = f"{TYPES}, 'balance_cancelled'"
 
 
 class EmailSend(IdMixin, TimestampsMixin, Base):
     __tablename__ = "email_sends"
     __table_args__ = (
-        CheckConstraint(f"type IN ({TYPES})", name="type"),
+        CheckConstraint(f"type IN ({SEND_TYPES})", name="type"),
         CheckConstraint("state IN ('sending', 'sent', 'held', 'failed', 'skipped')", name="state"),
         Index("uq_email_sends_key", "key", unique=True),
         Index("ix_email_sends_booking_id", "booking_id"),

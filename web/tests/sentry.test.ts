@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sentryOptions, withoutTracing } from '../src/lib/sentry';
+import { sentryOptions, stripQueryStrings, withoutTracing } from '../src/lib/sentry';
 
 describe('sentryOptions', () => {
   it('is disabled without a DSN', () => {
@@ -57,5 +57,47 @@ describe('sentryOptions debug switch', () => {
   it('SENTRY_DEBUG=1 turns on SDK logging, otherwise off', () => {
     expect(sentryOptions({ SENTRY_DSN: 'x' }).debug).toBe(false);
     expect(sentryOptions({ SENTRY_DSN: 'x', SENTRY_DEBUG: '1' }).debug).toBe(true);
+  });
+});
+
+describe('the browser beforeSend (V4, OP-4)', () => {
+  // A page URL can carry a booking ref, an email or a signed token (?date=…&email=…, a voucher
+  // link's ?exp=…&sig=…); none of it belongs in an error report.
+  const browser = sentryOptions({ NEXT_PUBLIC_SENTRY_DSN: 'x' }, 'browser');
+
+  it('is set for the browser only', () => {
+    expect(browser.beforeSend).toBe(stripQueryStrings);
+    expect('beforeSend' in sentryOptions({ SENTRY_DSN: 'x' })).toBe(false);
+  });
+
+  it('strips query strings and fragments from the request and every breadcrumb', () => {
+    const event = {
+      request: {
+        url: 'https://tripsmith.virajdomadia.com/account/bookings/TB-ABC123?sig=deadbeef#pack',
+        query_string: 'sig=deadbeef',
+        headers: { Referer: 'https://tripsmith.virajdomadia.com/login?email=priya%40customer.in' },
+      },
+      breadcrumbs: [
+        { category: 'navigation', data: { from: '/packages/kasol?date=2026-11-07', to: '/x?a=1' } },
+        { category: 'fetch', data: { url: '/api/bookings/TB-ABC123/voucher.pdf?exp=1&sig=ff' } },
+        { category: 'ui.click', message: 'button.pay' },
+      ],
+    };
+    const out = stripQueryStrings(event);
+    expect(out.request).toEqual({
+      url: 'https://tripsmith.virajdomadia.com/account/bookings/TB-ABC123',
+      headers: { Referer: 'https://tripsmith.virajdomadia.com/login' },
+    });
+    expect(out.breadcrumbs).toEqual([
+      { category: 'navigation', data: { from: '/packages/kasol', to: '/x' } },
+      { category: 'fetch', data: { url: '/api/bookings/TB-ABC123/voucher.pdf' } },
+      { category: 'ui.click', message: 'button.pay' },
+    ]);
+    expect(JSON.stringify(out)).not.toMatch(/sig=|email=|date=|exp=/);
+  });
+
+  it('leaves an event without a request or breadcrumbs alone', () => {
+    const plain = { message: 'boom', breadcrumbs: [] };
+    expect(stripQueryStrings(plain)).toEqual({ message: 'boom', breadcrumbs: [] });
   });
 });

@@ -1,6 +1,7 @@
 """The balance emails (R43, P5): the reminders (7 and 3 days before the due day, and on it — sent
 by `/cron/emails` since P15, services/email/automatic.py) and the cancellation for an unpaid
-balance the daily tidy sends (the customer, and the owner).
+balance (the customer, and the owner) — sent through the email ledger since V4, by the daily
+tidy and retried by `/cron/emails`.
 
 Same rules as the booking emails: demo mode redirects the customer's copy to the owner's inbox,
 every send lands in the booking's history, and nothing here raises.
@@ -10,14 +11,11 @@ import datetime as dt
 import logging
 from dataclasses import replace
 
-import sentry_sdk
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.config import Settings
-from app.infra.email import EmailMessage, EmailSender
+from app.infra.email import EmailMessage
 from app.services.booking.deposit import overdue_after
 from app.services.booking.voucher import BookingFacts
-from app.services.email.bookings import _message, _vars, deliver
+from app.services.email.bookings import _message, _vars
 from app.services.format import inr, long_date
 
 log = logging.getLogger(__name__)
@@ -93,30 +91,3 @@ def render_balance_cancelled(
         )
         out.append(("owner", replace(owner, reply_to=facts.lead_email)))
     return out
-
-
-async def send_balance_cancelled(
-    sender: EmailSender,
-    settings: Settings,
-    facts: BookingFacts,
-    *,
-    paid_before_paise: int,
-    refund_paise: int,
-    days_out: int,
-    tier: str,
-    db: AsyncSession | None = None,
-) -> None:
-    try:
-        labelled = render_balance_cancelled(
-            facts,
-            settings,
-            paid_before_paise=paid_before_paise,
-            refund_paise=refund_paise,
-            days_out=days_out,
-            tier=tier,
-        )
-    except Exception as exc:
-        log.exception("Could not render the balance cancellation for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
-        return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="balance cancellation", db=db)

@@ -2,6 +2,7 @@
 
 import {
   Backpack,
+  CalendarX,
   Eye,
   Hourglass,
   IdCard,
@@ -33,6 +34,7 @@ const ICON: Record<EmailType, LucideIcon> = {
   review_request: Star,
   still_thinking: Hourglass,
   refund: Undo2,
+  balance_cancelled: CalendarX,
 };
 
 /** One card per automatic email: what it is, when it goes, its switch, preview and test. */
