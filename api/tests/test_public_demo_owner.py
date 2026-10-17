@@ -119,10 +119,11 @@ async def test_counter_booking_emails_go_to_the_owner_on_the_public_demo(
     demo_owner(db_app)
     sender = db_app.state.email_sender
 
-    # A web booking was typed by the customer: their email still reaches them.
+    # V2 (SA-1): even on a web booking, mail the owner sends goes to the owner's inbox.
     sender.sent.clear()
     assert (await db_client.post(f"/admin/bookings/{ref}/details-link", headers=owner)).is_success
-    assert [m.to for m in sender.sent] == [EMAIL]
+    [mail] = sender.sent
+    assert mail.to == OWNER_INBOX and mail.subject.startswith(f"[Test → {EMAIL}]")
 
     # Made at the counter, the address is anyone's choice: the owner gets it instead.
     await db.execute(update(Booking).where(Booking.ref == ref).values(channel=BookingChannel.PHONE))

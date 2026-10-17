@@ -1,4 +1,5 @@
-"""P19: shared guards for the customer's `/account/*` routers (account, saved)."""
+"""P19: shared guards for the customer's `/account/*` routers (account, saved); V2 (SA-4):
+every `/admin` router too."""
 
 from fastapi import Request
 
@@ -16,4 +17,4 @@ async def same_origin_write(request: Request) -> None:
         "cross-site",
         "same-site",
     ):
-        raise ApiError("forbidden", "Requests to your account must come from this site")
+        raise ApiError("forbidden", "Changes must come from this site")

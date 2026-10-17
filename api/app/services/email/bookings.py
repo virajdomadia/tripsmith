@@ -256,6 +256,7 @@ async def send_booking_emails(
     voucher: EmailAttachment | None = None,
     invoice: EmailAttachment | None = None,
     db: AsyncSession | None = None,
+    customer_triggered: bool = False,
 ) -> None:
     try:
         labelled = render_booking_emails(
@@ -265,7 +266,15 @@ async def send_booking_emails(
         log.exception("Could not render booking emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="booking", db=db)
+    await deliver(
+        sender,
+        settings,
+        labelled,
+        ref=facts.ref,
+        what="booking",
+        db=db,
+        customer_triggered=customer_triggered,
+    )
 
 
 async def _owner_made(db: AsyncSession | None, settings: Settings, ref: str) -> bool:
@@ -289,16 +298,25 @@ async def deliver(
     ref: str,
     what: str,
     db: AsyncSession | None = None,
+    customer_triggered: bool = False,
 ) -> list[EmailLine]:
     """Send `(role, message)` pairs: in demo mode the customer's copy is redirected to the
     owner's inbox; a failed send is logged by role (never the address) and reported. With `db`,
     each email lands in the booking's history (P16) — its subject, never its address. Returns
-    what happened to each (the P15 ledger reads the customer's)."""
+    what happened to each (the P15 ledger reads the customer's).
+
+    V2 (SA-1): with the owner login public, the owner (or the cron, or a waitlist walk) could
+    put text it controls — a renamed package, a decline note — into a stranger's inbox. So
+    while PUBLIC_DEMO_OWNER is on, the customer's copy reaches their real address only when
+    `customer_triggered`: the customer did it themselves in this request (their own capture
+    receipt). Everything else goes to the owner as `[Test → …]`. False by default — a new
+    caller fails safe."""
     redirected: list[tuple[str, EmailMessage, str, bool]] = []
     skipped: list[EmailLine] = []
     owner_made = await _owner_made(db, settings, ref)
+    demo_held = settings.public_demo_owner and not customer_triggered
     for role, m in labelled:
-        held = role == "customer" and (owner_made or held_back(settings, m.to))
+        held = role == "customer" and (demo_held or owner_made or held_back(settings, m.to))
         if held:
             if not settings.owner_notify_email:
                 skipped.append(EmailLine(role, m.subject, "skipped"))

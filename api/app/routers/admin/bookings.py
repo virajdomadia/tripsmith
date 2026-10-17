@@ -22,6 +22,8 @@ from app.infra.ratelimit import RateLimiter
 from app.infra.razorpay import Razorpay
 from app.models import User
 from app.models.enums import BookingActor
+from app.routers.admin.limits import owner_razorpay_limit
+from app.routers.site.guards import same_origin_write
 from app.schemas.admin_bookings import (
     AdminBooking,
     BookingFilters,
@@ -58,7 +60,11 @@ from app.services.email.details import email_details_link
 from app.services.email.waitlist import send_due, walk_and_send
 from app.services.format import short_name
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 DETAILS_LINK_LIMIT = 3  # P19: per booking per day
 DETAILS_LINK_WINDOW = 24 * 60 * 60
 
@@ -98,7 +104,10 @@ async def get_route(ref: str, response: Response, db: Db) -> AdminBooking:
 
 
 @router.post(
-    "/bookings/{ref}/mark-paid", operation_id="markBookingPaid", response_model_by_alias=True
+    "/bookings/{ref}/mark-paid",
+    dependencies=[Depends(owner_razorpay_limit)],
+    operation_id="markBookingPaid",
+    response_model_by_alias=True,
 )
 async def mark_paid_route(
     ref: str,
@@ -116,6 +125,7 @@ async def mark_paid_route(
 
 @router.post(
     "/bookings/{ref}/balance-paid",
+    dependencies=[Depends(owner_razorpay_limit)],
     operation_id="markBalancePaid",
     response_model_by_alias=True,
 )
@@ -170,7 +180,12 @@ async def move_quote_route(
     return await moves.move_quote(db, ref, payload)
 
 
-@router.post("/bookings/{ref}/move", operation_id="moveBooking", response_model_by_alias=True)
+@router.post(
+    "/bookings/{ref}/move",
+    dependencies=[Depends(owner_razorpay_limit)],
+    operation_id="moveBooking",
+    response_model_by_alias=True,
+)
 async def move_route(
     ref: str, payload: MoveRequest, request: Request, response: Response, db: Db, owner: Owner
 ) -> AdminBooking:
@@ -196,7 +211,10 @@ def _razorpay(request: Request) -> Razorpay:
 
 
 @router.post(
-    "/bookings/{ref}/link/check", operation_id="checkPaymentLink", response_model_by_alias=True
+    "/bookings/{ref}/link/check",
+    dependencies=[Depends(owner_razorpay_limit)],
+    operation_id="checkPaymentLink",
+    response_model_by_alias=True,
 )
 async def link_check_route(ref: str, request: Request, response: Response, db: Db) -> AdminBooking:
     """P18b: ask Razorpay whether the booking's payment link was paid, and apply it through
@@ -207,7 +225,10 @@ async def link_check_route(ref: str, request: Request, response: Response, db: D
 
 
 @router.post(
-    "/bookings/{ref}/link/cancel", operation_id="cancelPaymentLink", response_model_by_alias=True
+    "/bookings/{ref}/link/cancel",
+    dependencies=[Depends(owner_razorpay_limit)],
+    operation_id="cancelPaymentLink",
+    response_model_by_alias=True,
 )
 async def link_cancel_route(
     ref: str, request: Request, response: Response, db: Db, owner: Owner
@@ -307,7 +328,10 @@ async def release_route(
 
 
 @router.post(
-    "/bookings/{ref}/refund", operation_id="sendBookingRefund", response_model_by_alias=True
+    "/bookings/{ref}/refund",
+    dependencies=[Depends(owner_razorpay_limit)],
+    operation_id="sendBookingRefund",
+    response_model_by_alias=True,
 )
 async def send_refund_route(
     ref: str, payload: RefundMadeInput, request: Request, response: Response, db: Db, owner: Owner
@@ -324,6 +348,7 @@ async def send_refund_route(
 
 @router.post(
     "/bookings/{ref}/addons/{addon_id}/remove",
+    dependencies=[Depends(owner_razorpay_limit)],
     operation_id="removeBookingAddon",
     response_model_by_alias=True,
 )
@@ -365,6 +390,7 @@ async def refund_route(
 
 @router.post(
     "/cancellations/{id}/resolve",
+    dependencies=[Depends(owner_razorpay_limit)],
     operation_id="resolveCancellation",
     response_model_by_alias=True,
 )

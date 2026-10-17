@@ -7,11 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.routers.site.guards import same_origin_write
 from app.schemas.admin_calendar import MONTH_PATTERN, CalendarMonth, CalendarPanel
 from app.services import admin_calendar as svc
 from app.services.auth.deps import require_owner
 
-router = APIRouter(prefix="/admin/calendar", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin/calendar",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 

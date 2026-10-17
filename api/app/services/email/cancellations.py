@@ -87,7 +87,16 @@ async def send_cancellation_emails(
         log.exception("Could not render cancellation emails for %s", facts.ref)
         sentry_sdk.capture_exception(exc)
         return
-    await deliver(sender, settings, labelled, ref=facts.ref, what="cancellation", db=db)
+    # The customer asked in this request: their acknowledgement may reach them (V2, `deliver`).
+    await deliver(
+        sender,
+        settings,
+        labelled,
+        ref=facts.ref,
+        what="cancellation",
+        db=db,
+        customer_triggered=True,
+    )
 
 
 def render_resolution_email(

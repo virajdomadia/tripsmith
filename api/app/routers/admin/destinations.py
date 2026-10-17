@@ -11,6 +11,7 @@ from app.errors import ApiError
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.models.base import new_id
+from app.routers.site.guards import same_origin_write
 from app.schemas.catalog import (
     AdminDestination,
     AdminDestinationList,
@@ -23,7 +24,9 @@ from app.services.catalog.cover_url import check_cover_url
 from app.services.images import MAX_BYTES, ImageError, prepare_image
 
 router = APIRouter(
-    prefix="/admin/destinations", tags=["admin"], dependencies=[Depends(require_owner)]
+    prefix="/admin/destinations",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
 )
 
 Db = Annotated[AsyncSession, Depends(get_session)]
