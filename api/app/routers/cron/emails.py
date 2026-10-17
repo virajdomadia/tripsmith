@@ -1,8 +1,8 @@
 """GET /cron/emails — the automatic trip emails (R53, P15; services/email/automatic.py).
 
 Scheduled `30 3 * * *` (api/vercel.json): 09:00 IST, within the hour on Hobby — a reminder at a
-civil hour, after the 01:00 tidy has cancelled what it cancels. cron-job.org calls it too every
-15 minutes between 09:00 and 21:00 IST (V4; before, a GitHub schedule), so a run that
+civil hour, after the 01:00 tidy has cancelled what it cancels. The 15-minute GitHub tick
+(.github/workflows/waitlist-tick.yml) calls it too between 09:00 and 21:00 IST, so a run that
 stopped at its limit, or a failed send, goes on within minutes. Each email is claimed in the
 ledger before it is sent: any number of runs sends nothing twice."""
 
