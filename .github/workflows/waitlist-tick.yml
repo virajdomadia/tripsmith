@@ -1,18 +1,23 @@
 name: Waitlist tick
 
-# R44 (P6) + P15 (R53): walk every departure with a waitlist, then send the automatic emails —
-# the same two calls cron-job.org makes on its schedule.
+# R44 (P6): every 15 minutes, walk every departure with a waitlist so a lapsed 10-minute hold or
+# a 24 h offer that ran out moves on even when nobody visits the site. Vercel Hobby crons run
+# once a day; a GitHub schedule is free on a public repo. GitHub may start a scheduled run late
+# (or skip one under load) — `/cron/daily` and every booking, join and claim read walk too.
 #
-# V4 (OP-2): the 15-minute schedule moved to cron-job.org. GitHub ran this one about five times a
-# day (gaps of 3–8 h) and disables a schedule after 60 days without a commit. cron-job.org calls
-# /cron/waitlist every 15 minutes and /cron/emails every 15 minutes from 09:00 to 21:00 IST, with
-# `Authorization: Bearer <CRON_SECRET>`, and emails the owner when a call fails. This workflow is
-# the manual button: run it from the Actions tab to push a tick through by hand.
+# P15 (R53): between 09:00 and 21:00 IST it also calls /cron/emails, so a run that stopped at its
+# limit or a failed send goes on within minutes (the ledger never sends twice). The Vercel cron
+# at 09:00 IST is the backstop. A manual run sends the emails at any hour.
 #
-# Needs the repo secret CRON_SECRET (the api's own CRON_SECRET). Without it the run fails — a
-# manual run that did nothing must not look green.
+# V4 (OP-2): GitHub runs this about five times a day, not 96, and disables a schedule after 60
+# days without a commit. Accepted for a portfolio project (Viraj, 2026-10-17); cron-job.org is
+# the fix if it ever matters. A run without CRON_SECRET fails rather than passing as a no-op.
+#
+# Needs the repo secret CRON_SECRET (the api's own CRON_SECRET).
 
 on:
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -38,7 +43,7 @@ jobs:
           curl --fail-with-body --silent --show-error --max-time 60 \
             -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/waitlist"
 
-      - name: Send the automatic emails
+      - name: Send the automatic emails (09:00–21:00 IST)
         if: ${{ !cancelled() }} # a failed waitlist walk must not stop the email retries
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -47,6 +52,11 @@ jobs:
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET is not set — no emails were sent"
             exit 1
+          fi
+          hour=$(TZ=Asia/Kolkata date +%H)
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && { [ "$hour" -lt 9 ] || [ "$hour" -ge 21 ]; }; then
+            echo "Outside 09:00–21:00 IST — no emails now"
+            exit 0
           fi
           curl --fail-with-body --silent --show-error --max-time 60 \
             -H "Authorization: Bearer $CRON_SECRET" "$API_URL/cron/emails"
