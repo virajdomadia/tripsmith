@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.routers.site.guards import same_origin_write
 from app.schemas.coupons import (
     AdminCoupon,
     AdminCouponList,
@@ -19,7 +20,11 @@ from app.schemas.coupons import (
 from app.services import admin_coupons as svc
 from app.services.auth.deps import require_owner
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 

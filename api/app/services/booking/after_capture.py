@@ -83,7 +83,11 @@ async def on_new_capture(
     package_id: str,
     after: str,
     notify: Notify | None,
+    customer_triggered: bool = False,
 ) -> None:
+    """`customer_triggered`: the customer paid this themselves through Checkout (their own
+    receipt may reach their real inbox on the public demo — V2, SA-1); False for the desk's
+    offline payments, counter bookings and the owner's payment links."""
     await refresh_quietly(db, {package_id}, after=after)
     if notify is None or capture.settled == Settled.PART_PAID:
         return
@@ -102,6 +106,7 @@ async def on_new_capture(
             ref,
             capture.payment_id,
             lapsed=capture.settled == Settled.CHANGE_LAPSED,
+            customer_triggered=customer_triggered,
         )
         await send_due(db, notify)  # the old date's freed seats may have made offers
         return
@@ -125,5 +130,12 @@ async def on_new_capture(
     elif capture.settled == Settled.EXTRAS:  # P8b: this payment's own tax invoice
         invoice = await extras_invoice_attachment(db, ref, capture.payment_id)
     await send_booking_emails(
-        notify.sender, notify.settings, facts, capture, voucher=voucher, invoice=invoice, db=db
+        notify.sender,
+        notify.settings,
+        facts,
+        capture,
+        voucher=voucher,
+        invoice=invoice,
+        db=db,
+        customer_triggered=customer_triggered,
     )

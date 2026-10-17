@@ -9,12 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.routers.site.guards import same_origin_write
 from app.schemas.reports import Reports, ReportSection
 from app.services import reports as svc
 from app.services.admin_enquiries import csv_lines
 from app.services.auth.deps import require_owner
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 From = Annotated[

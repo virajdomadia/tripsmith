@@ -11,13 +11,18 @@ from app.errors import ApiError
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.models.base import new_id
+from app.routers.site.guards import same_origin_write
 from app.schemas.catalog import UploadedImage
 from app.schemas.leaders import AdminLeader, AdminLeaderList, LeaderActiveInput, LeaderInput
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_leaders as svc
 from app.services.images import MAX_BYTES, ImageError, prepare_image
 
-router = APIRouter(prefix="/admin/leaders", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin/leaders",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 

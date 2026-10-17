@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.routers.site.guards import same_origin_write
 from app.schemas.admin_calendar import NewDeparture, NewDepartureInput
 from app.schemas.catalog import (
     AdminPackage,
@@ -24,7 +25,11 @@ from app.services.booking.after_capture import Notify
 from app.services.catalog import admin_packages as svc
 from app.services.email.waitlist import walk_and_send
 
-router = APIRouter(prefix="/admin/packages", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin/packages",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 

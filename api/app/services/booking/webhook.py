@@ -120,7 +120,14 @@ async def handle_razorpay_event(
     if capture is None:
         return "replayed"
     await on_new_capture(
-        db, ref, capture, package_id=package_id, after=f"webhook payment on {ref}", notify=notify
+        db,
+        ref,
+        capture,
+        package_id=package_id,
+        after=f"webhook payment on {ref}",
+        notify=notify,
+        # The customer's own Checkout order; a paid link is the owner's (V2, SA-1).
+        customer_triggered=link_row is None,
     )
     return "captured"
 

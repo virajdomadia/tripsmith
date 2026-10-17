@@ -398,7 +398,13 @@ async def confirm_payment(
         raise
     if capture:
         await on_new_capture(
-            db, ref, capture, package_id=package_id, after=f"payment on {ref}", notify=notify
+            db,
+            ref,
+            capture,
+            package_id=package_id,
+            after=f"payment on {ref}",
+            notify=notify,
+            customer_triggered=True,  # the customer's own Checkout payment
         )
     return result
 
@@ -492,6 +498,12 @@ async def sync_payment(
         raise
     if capture:
         await on_new_capture(
-            db, ref, capture, package_id=package_id, after=f"synced payment on {ref}", notify=notify
+            db,
+            ref,
+            capture,
+            package_id=package_id,
+            after=f"synced payment on {ref}",
+            notify=notify,
+            customer_triggered=True,  # the customer's own Checkout payment
         )
     return result

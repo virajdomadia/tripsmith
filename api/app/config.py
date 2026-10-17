@@ -5,9 +5,11 @@ all (CI has no secrets, 04 §10) and never reprs a secret. Non-secret keys carry
 dev defaults from api/.env.example.
 """
 
+import os
 from functools import lru_cache
+from typing import Any
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +29,10 @@ class Settings(BaseSettings):
     # P19: the owner login is printed on the site (it's a portfolio demo). True = what an owner
     # does can't reach a real inbox or a real customer's full ID number: customer emails on
     # counter bookings and inbox replies go to OWNER_NOTIFY_EMAIL, and the manifest masks the
-    # IDs of anyone but the seeded demo addresses. Set on production.
+    # IDs of anyone but the seeded demo addresses. V2 (SA-1): every customer email the owner
+    # (or the cron) sends goes there too — only the sign-in code and a customer's own receipt
+    # reach a real inbox. V2 (SA-3): unset on production (VERCEL_ENV=production) means on; only
+    # an explicit 'false' turns it off there, and while on, a live Razorpay key is refused.
     public_demo_owner: bool = False
 
     # --- Email: SMTP when host, user and password are all set (v2.5 P0: Gmail), else Resend ---
@@ -69,6 +74,15 @@ class Settings(BaseSettings):
     web_url: str = "http://localhost:3000"
     revalidate_secret: SecretStr | None = None
     site_url: str = "http://localhost:3000"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _demo_owner_on_in_production(cls, data: Any) -> Any:
+        """SA-3: a lost PUBLIC_DEMO_OWNER must fail safe, not open. VERCEL_ENV is Vercel's own
+        system variable (not one of ours), so it is read from the process env."""
+        if isinstance(data, dict) and data.get("public_demo_owner") in (None, ""):
+            data = {**data, "public_demo_owner": os.environ.get("VERCEL_ENV") == "production"}
+        return data
 
 
 @lru_cache

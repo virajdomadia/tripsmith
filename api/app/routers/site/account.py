@@ -189,7 +189,12 @@ async def post_change(
         await send_refunds(db, ref, rzp)
         await refresh_quietly(db, {started.package_id}, after=f"date change on {ref}")
         await send_change_emails(
-            db, notify, ref, started.change_id, refund_paise=started.result.refund_paise
+            db,
+            notify,
+            ref,
+            started.change_id,
+            refund_paise=started.result.refund_paise,
+            customer_triggered=True,
         )
         await send_due(db, notify)  # the old date's freed seats may have made offers
     return started.result

@@ -12,12 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import ApiError
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.routers.site.guards import same_origin_write
 from app.schemas.catalog import AdminImage, AdminPackage, ImageAltInput, ImageOrderInput
 from app.services.auth.deps import require_owner
 from app.services.catalog import admin_package_images as svc
 from app.services.images import MAX_BYTES
 
-router = APIRouter(prefix="/admin/packages", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin/packages",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 

@@ -20,6 +20,7 @@ from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.models import User
 from app.models.enums import EmailType
+from app.routers.site.guards import same_origin_write
 from app.schemas.admin_emails import (
     EmailPreview,
     EmailSamples,
@@ -33,7 +34,11 @@ from app.services.analytics import ist_today
 from app.services.auth.deps import require_owner
 from app.services.email import automatic, owner
 
-router = APIRouter(prefix="/admin/emails", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin/emails",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 Ref = Annotated[str, Query(pattern=r"^TB-[A-Z0-9]{6}$")]

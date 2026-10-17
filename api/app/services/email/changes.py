@@ -41,9 +41,11 @@ async def send_change_emails(
     refund_paise: int = 0,
     razorpay_payment_id: str | None = None,
     lapsed: bool = False,
+    customer_triggered: bool = False,
 ) -> None:
     """`razorpay_payment_id` = the payment these emails are about (after a capture); `lapsed` =
-    that payment did not move the booking and is going back."""
+    that payment did not move the booking and is going back; `customer_triggered` = the
+    customer changed the date themselves in this request (V2, `deliver`)."""
     if notify is None:
         return
     try:
@@ -131,7 +133,15 @@ async def send_change_emails(
             },
         )
         labelled.append(("owner", replace(owner, reply_to=facts.lead_email)))
-    await deliver(notify.sender, settings, labelled, ref=ref, what="date change", db=db)
+    await deliver(
+        notify.sender,
+        settings,
+        labelled,
+        ref=ref,
+        what="date change",
+        db=db,
+        customer_triggered=customer_triggered,
+    )
 
 
 async def send_change_emails_for_payment(
@@ -141,6 +151,7 @@ async def send_change_emails_for_payment(
     razorpay_payment_id: str,
     *,
     lapsed: bool = False,
+    customer_triggered: bool = False,
 ) -> None:
     """After a change's difference was captured (`on_new_capture`): the emails of the change
     that payment paid for."""
@@ -160,5 +171,11 @@ async def send_change_emails_for_payment(
         await db.rollback()
     if change_id is not None:
         await send_change_emails(
-            db, notify, ref, change_id, razorpay_payment_id=razorpay_payment_id, lapsed=lapsed
+            db,
+            notify,
+            ref,
+            change_id,
+            razorpay_payment_id=razorpay_payment_id,
+            lapsed=lapsed,
+            customer_triggered=customer_triggered,
         )

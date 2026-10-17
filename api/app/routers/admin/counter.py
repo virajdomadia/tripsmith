@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
 from app.models import User
+from app.routers.admin.limits import owner_razorpay_limit
+from app.routers.site.guards import same_origin_write
 from app.schemas.admin_bookings import AdminBooking
 from app.schemas.bookings import Quote
 from app.schemas.counter import (
@@ -25,7 +27,11 @@ from app.services.auth.deps import require_owner
 from app.services.booking import counter, desk
 from app.services.booking.after_capture import Notify
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+)
 
 Db = Annotated[AsyncSession, Depends(get_session)]
 Owner = Annotated[User, Depends(require_owner)]
@@ -50,6 +56,7 @@ async def quote_route(payload: CounterQuoteRequest, response: Response, db: Db) 
 
 @router.post(
     "/counter/bookings",
+    dependencies=[Depends(owner_razorpay_limit)],
     operation_id="createCounterBooking",
     status_code=status.HTTP_201_CREATED,
     response_model_by_alias=True,
