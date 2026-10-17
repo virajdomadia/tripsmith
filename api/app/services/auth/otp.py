@@ -1,8 +1,11 @@
 """Customer sign-in by email code (R18, 04 v2 "Own email code"). No passwords, no SMS.
 
 - `issue_code` writes a 6-digit code to `verification`, valid 10 minutes. Only the newest code
-  for an email works: issuing one retires the others, so the wrong-try cap is per email, not per
-  code the visitor managed to request.
+  for an email works: issuing one retires the others. The wrong-try cap is per code, and each new
+  code starts at 0 tries, so issuing is capped in the database too (v2.6 SA-2): 5 codes per
+  email in 15 minutes, 20 in a day, which holds when Upstash fails open. Codes that really get
+  emailed share a daily budget of 200 (SA-5), so rotating addresses can't spend the Gmail quota
+  booking mail needs.
 - `check_code` locks that row: a wrong code counts a try and the fifth kills it; the right one
   is consumed in the caller's transaction, so a code can only ever open one session.
 - `sign_in_customer` finds or creates the `users` row (`role = customer`), attaches the
@@ -16,10 +19,11 @@ code would fall to a million guesses.
 import datetime as dt
 import hashlib
 import hmac
+import math
 import secrets
 from dataclasses import dataclass
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, not_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,10 +31,23 @@ from app.models import Booking, Session, User, Verification
 from app.models.enums import BookingActor, UserRole
 from app.services.auth.sessions import open_session
 from app.services.booking import history
+from app.services.email.send import DEMO_DOMAINS
 
 CODE_TTL = dt.timedelta(minutes=10)
 MAX_ATTEMPTS = 5
 NAME_MAX = 80
+# v2.6 SA-2: codes per email, counted in the database so they hold when Upstash fails open.
+OTP_EMAIL_CAPS = ((dt.timedelta(minutes=15), 5), (dt.timedelta(days=1), 20))
+# v2.6 SA-5: code emails a day across everyone — leaves most of Gmail's ~500 for booking mail.
+DAILY_CODE_EMAILS = 200
+CODE_EMAIL_WINDOW = dt.timedelta(days=1)
+
+
+class TooManyCodes(Exception):
+    def __init__(self, retry_after: int, *, budget: bool = False) -> None:
+        super().__init__(retry_after)
+        self.retry_after = retry_after
+        self.budget = budget  # True: the day's code-email budget, not this email's cap
 
 
 def _now() -> dt.datetime:
@@ -57,10 +74,60 @@ class Issued:
     expires_at: dt.datetime
 
 
+def _wait(oldest: dt.datetime, window: dt.timedelta, now: dt.datetime) -> int:
+    return max(1, math.ceil((oldest + window - now).total_seconds()))
+
+
+async def _refuse_if_capped(
+    db: AsyncSession, email: str, *, emailed: bool, now: dt.datetime
+) -> None:
+    """Raise TooManyCodes when this email is at a cap, or (for a code that will really be
+    emailed) when the day's code-email budget is spent. Counts rows `prune_codes` keeps."""
+    for window, cap in OTP_EMAIL_CAPS:
+        recent = (
+            select(Verification.created_at)
+            .where(Verification.identifier == email, Verification.created_at > now - window)
+            .order_by(Verification.created_at.desc())
+            .limit(cap)
+            .subquery()
+        )
+        n, oldest = (await db.execute(select(func.count(), func.min(recent.c.created_at)))).one()
+        if n >= cap:
+            raise TooManyCodes(_wait(oldest, window, now))
+    if not emailed:
+        return
+    # Demo addresses are never emailed (`held_back`), so they don't spend the budget.
+    to_real = not_(or_(*(Verification.identifier.endswith(f"@{d}") for d in DEMO_DOMAINS)))
+    n, oldest = (
+        await db.execute(
+            select(func.count(), func.min(Verification.created_at)).where(
+                Verification.created_at > now - CODE_EMAIL_WINDOW, to_real
+            )
+        )
+    ).one()
+    if n >= DAILY_CODE_EMAILS:
+        raise TooManyCodes(_wait(oldest, CODE_EMAIL_WINDOW, now), budget=True)
+
+
 async def issue_code(
-    db: AsyncSession, email: str, *, secret: str | None, now: dt.datetime | None = None
+    db: AsyncSession,
+    email: str,
+    *,
+    secret: str | None,
+    emailed: bool = False,
+    now: dt.datetime | None = None,
 ) -> Issued:
+    """`emailed`: the code goes out by email, so it spends the day's code-email budget.
+    Raises TooManyCodes (nothing written) when a cap or the budget is reached."""
     now = now or _now()
+    # One issuer per email at a time, so two parallel asks can't both slip under the cap.
+    # The global budget can overshoot by the few asks in flight — fine for a soft budget.
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtext(f"otp:{email}"))))
+    try:
+        await _refuse_if_capped(db, email, emailed=emailed, now=now)
+    except TooManyCodes:
+        await db.rollback()
+        raise
     await db.execute(
         update(Verification)
         .where(Verification.identifier == email, Verification.consumed_at.is_(None))
