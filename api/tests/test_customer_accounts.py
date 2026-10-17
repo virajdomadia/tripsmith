@@ -5,17 +5,22 @@ voucher, and the daily pruning. The db tests need TEST_DATABASE_URL."""
 import datetime as dt
 from typing import Any
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infra.ratelimit import UpstashRateLimiter
 from app.models import Booking, Session, User, Verification
 from app.models.enums import UserRole
 from app.services.auth.otp import (
     CODE_TTL,
+    DAILY_CODE_EMAILS,
     MAX_ATTEMPTS,
+    OTP_EMAIL_CAPS,
+    TooManyCodes,
     check_code,
     hash_code,
     issue_code,
@@ -237,6 +242,95 @@ async def test_limits_five_codes_per_email_and_twenty_per_connection(
     for i in range(20):
         assert (await ask(db_client, f"p{i}@example.test")).status_code == 200
     assert (await ask(db_client, "p99@example.test")).status_code == 429
+
+
+def upstash_down() -> UpstashRateLimiter:
+    """The real limiter with Upstash unreachable — it fails open on every hit."""
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("upstash down", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(refuse))
+    return UpstashRateLimiter("https://upstash.test", "t", client=client)
+
+
+async def codes_at(db: AsyncSession, email: str, *ages: dt.timedelta) -> None:
+    """Verification rows for `email`, issued `ages` ago (as the router would have)."""
+    now = dt.datetime.now(dt.UTC)
+    for age in ages:
+        at = now - age
+        db.add(
+            Verification(
+                identifier=email,
+                code_hash="x",
+                created_at=at,
+                expires_at=at + CODE_TTL,
+                consumed_at=at,
+            )
+        )
+    await db.commit()
+
+
+@pytest.mark.db
+async def test_with_upstash_down_the_sixth_code_in_15_minutes_is_refused(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    # v2.6 SA-2: the database cap holds when the limiter fails open.
+    db_app.state.rate_limiter = upstash_down()
+    for _ in range(OTP_EMAIL_CAPS[0][1]):
+        assert (await ask(db_client)).status_code == 200
+    res = await ask(db_client)
+    assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+    assert 0 < int(res.headers["Retry-After"]) <= 15 * 60
+    assert await count(db, Verification) == 5  # the refused ask wrote nothing
+    # Another email is unaffected.
+    assert (await ask(db_client, "other@example.test")).status_code == 200
+
+
+@pytest.mark.db
+async def test_the_code_caps_slide_over_15_minutes_and_a_day(db: AsyncSession) -> None:
+    minute = dt.timedelta(minutes=1)
+    # Five codes, the oldest 16 minutes ago: only four are in the window — one more is fine.
+    await codes_at(db, EMAIL, 16 * minute, 10 * minute, 8 * minute, 6 * minute, 4 * minute)
+    await issue_code(db, EMAIL, secret="k")
+    with pytest.raises(TooManyCodes) as refused:
+        await issue_code(db, EMAIL, secret="k")
+    # The oldest code in the window (10 min ago) leaves it in about 5 minutes.
+    assert 4 * 60 < refused.value.retry_after <= 5 * 60
+
+    # 20 a day: spread out so no 15 minutes holds five, the 21st in 24 h is still refused.
+    other = "daily@example.test"
+    await codes_at(db, other, *(dt.timedelta(hours=1 + i) for i in range(20)))
+    with pytest.raises(TooManyCodes) as daily:
+        await issue_code(db, other, secret="k")
+    assert daily.value.retry_after > 3 * 3600  # the oldest (20 h ago) leaves in ~4 h
+    # Codes older than a day don't count.
+    old = "old@example.test"
+    await codes_at(db, old, *(dt.timedelta(hours=25 + i) for i in range(20)))
+    await issue_code(db, old, secret="k")
+
+
+@pytest.mark.db
+async def test_the_daily_code_email_budget_keeps_gmail_free_for_booking_mail(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
+) -> None:
+    # v2.6 SA-5: rotating IPs and emails can't burn the ~500/day Gmail cap.
+    sender = mailing(db_app)
+    day = dt.timedelta(hours=23)
+    for i in range(DAILY_CODE_EMAILS - 1):
+        await codes_at(db, f"r{i}@example.test", day)
+    await codes_at(db, "gone@example.test", dt.timedelta(hours=25))  # outside the day
+    await codes_at(db, "traveller.demo@example.com", day)  # never emailed — not counted
+    assert (await ask(db_client)).status_code == 200  # the 200th
+    assert len(sender.sent) == 1
+
+    res = await ask(db_client, "next@example.test")
+    assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+    assert 3000 < int(res.headers["Retry-After"]) <= 3600  # the oldest leaves in about an hour
+    assert len(sender.sent) == 1
+    # Demo addresses aren't emailed, so the budget doesn't stop them.
+    res = await ask(db_client, "traveller.demo@example.com")
+    assert res.status_code == 200 and len(res.json()["demoCode"]) == 6
 
 
 @pytest.mark.db

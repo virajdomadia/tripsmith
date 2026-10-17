@@ -25,7 +25,13 @@ from app.models.enums import UserRole
 from app.schemas.auth import LoginRequest, OtpRequest, OtpSent, OtpVerify, SessionInfo
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
 from app.services.auth.deps import current_session
-from app.services.auth.otp import check_code, issue_code, role_of, sign_in_customer
+from app.services.auth.otp import (
+    TooManyCodes,
+    check_code,
+    issue_code,
+    role_of,
+    sign_in_customer,
+)
 from app.services.auth.sessions import delete_session, login, session_info
 from app.services.booking.desk import count_needing_attention
 from app.services.email.send import held_back
@@ -42,6 +48,7 @@ OTP_EMAIL_LIMIT = 5
 OTP_IP_LIMIT = 20
 OWNER_USES_PASSWORD = "This email signs in with a password — use the owner sign-in"
 TOO_MANY_CODES = "Too many codes asked for — wait a few minutes and try again"
+CODES_PAUSED = "Sign-in codes are paused for now — try again later, or book without signing in"
 
 
 async def login_rate_limit(request: Request) -> None:
@@ -165,8 +172,16 @@ async def post_otp_request(
         raise RateLimited(limited.retry_after, TOO_MANY_CODES)
 
     settings = request.app.state.settings
-    issued = await issue_code(db, payload.email, secret=_secret(request))
-    if held_back(settings, payload.email):
+    shown = held_back(settings, payload.email)
+    try:
+        issued = await issue_code(db, payload.email, secret=_secret(request), emailed=not shown)
+    except TooManyCodes as capped:
+        if capped.budget:
+            log.warning("daily sign-in code email budget reached")
+        raise RateLimited(
+            capped.retry_after, CODES_PAUSED if capped.budget else TOO_MANY_CODES
+        ) from capped
+    if shown:
         return OtpSent(email=payload.email, expires_at=issued.expires_at, demo_code=issued.code)
     try:
         await request.app.state.email_sender.send(
