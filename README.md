@@ -54,7 +54,7 @@ Four decisions carry most of the design:
 
 **web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (+ charts, Recharts) · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
 **api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, Payment Links, refunds, signed webhook) · fpdf2 (itinerary PDFs, vouchers, GST documents, trip packs) · cryptography (Fernet, traveller ID numbers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
-**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract; a 15-minute tick for the waitlist and emails) · Vercel cron
+**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract) · Vercel cron · cron-job.org (the 15-minute waitlist and email tick) · UptimeRobot + healthchecks.io (uptime and cron heartbeats)
 
 After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 and v2.5 security passes and their PageSpeed Insights runs are in [docs/12](docs/12-security-performance.md#p19--v25-close-security--performance).
 

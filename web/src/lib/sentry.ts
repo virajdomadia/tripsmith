@@ -28,6 +28,8 @@ export type SentryOptions = {
   tracesSampleRate?: number;
   /** Browser only. */
   integrations?: typeof withoutTracing;
+  /** Browser only (V4): URLs without their query strings. */
+  beforeSend?: typeof stripQueryStrings;
   debug: boolean;
 };
 
@@ -54,7 +56,7 @@ export function sentryOptions(
     ...(release ? { release } : {}),
     sendDefaultPii: false,
     ...(runtime === 'browser'
-      ? { integrations: withoutTracing }
+      ? { integrations: withoutTracing, beforeSend: stripQueryStrings }
       : { tracesSampleRate: environment === 'development' ? 1 : 0.1 }),
     debug: env.SENTRY_DEBUG === '1', // SDK logs every envelope it sends — for verifying delivery
   };
@@ -63,4 +65,43 @@ export function sentryOptions(
 /** Sentry's `integrations` callback: the defaults minus BrowserTracing. */
 export function withoutTracing<T extends { name: string }>(defaults: T[]): T[] {
   return defaults.filter((integration) => integration.name !== 'BrowserTracing');
+}
+
+/** Everything from the first `?` or `#` on: a URL's query string and fragment. */
+const QUERY = /[?#].*$/s;
+const BREADCRUMB_URLS = ['url', 'from', 'to'] as const;
+
+type Strippable = {
+  request?: { url?: string; query_string?: unknown; headers?: Record<string, string> };
+  breadcrumbs?: { data?: Record<string, unknown> }[];
+};
+
+/**
+ * The browser's `beforeSend` (V4, OP-4). A page URL can carry an email, a booking ref or a
+ * signed token (`?email=…`, a voucher link's `?exp=…&sig=…`), and the SDK copies URLs into the
+ * request, the Referer and every navigation and fetch breadcrumb. Each loses its query string
+ * and fragment; the path stays, so the issue still says which page broke.
+ */
+export function stripQueryStrings<E extends Strippable>(event: E): E {
+  const request = event.request;
+  if (request) {
+    if (typeof request.url === 'string') request.url = request.url.replace(QUERY, '');
+    delete request.query_string;
+    const headers = request.headers;
+    if (headers) {
+      for (const name of Object.keys(headers)) {
+        if (name.toLowerCase() === 'referer')
+          headers[name] = String(headers[name]).replace(QUERY, '');
+      }
+    }
+  }
+  for (const crumb of event.breadcrumbs ?? []) {
+    const data = crumb.data;
+    if (!data) continue;
+    for (const key of BREADCRUMB_URLS) {
+      const value = data[key];
+      if (typeof value === 'string') data[key] = value.replace(QUERY, '');
+    }
+  }
+  return event;
 }

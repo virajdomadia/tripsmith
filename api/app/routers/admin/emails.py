@@ -66,7 +66,7 @@ async def set_switch(
     user: Annotated[User, Depends(require_owner)],
 ) -> EmailTypeSetting:
     if kind not in automatic.SWITCHABLE:
-        raise ApiError("conflict", "The refund email always goes", reason="no_switch")
+        raise ApiError("conflict", "This email always goes", reason="no_switch")
     await automatic.set_switch(db, kind, body.on, by=user.id)
     return owner.setting_of(await owner.settings_out(db, request.app.state.settings), kind)
 

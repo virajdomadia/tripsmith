@@ -13,7 +13,7 @@ they carried the raw ASGI header list (a middleware frame's `scope`) and visitor
 `EventScrubber` denylist still filters those header names (and any `headers` collection)
 wherever a dict can land — breadcrumbs, extra, spans. Last, every configured secret's *value*
 is masked wherever it appears in a string or a key, including a truncated copy ending in an
-ellipsis (the SDK trims long strings that way).
+ellipsis (the SDK trims long strings that way). Request bodies are never attached (V4).
 """
 
 import os
@@ -154,6 +154,9 @@ def init_sentry(settings: Settings, *, transport: Transport | None = None) -> bo
         environment=os.environ.get("VERCEL_ENV", "development"),
         release=os.environ.get("VERCEL_GIT_COMMIT_SHA"),
         send_default_pii=False,
+        # V4 (OP-4): a request body is a customer's name, email, phone, GSTIN or traveller
+        # details — never attached, whatever the size. The url, method and headers still go.
+        max_request_body_size="never",
         traces_sample_rate=0.1,
         integrations=[StarletteIntegration(), FastApiIntegration()],
         include_local_variables=False,

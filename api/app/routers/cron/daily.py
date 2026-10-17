@@ -27,14 +27,24 @@ IST midnight, so `ist_today()` is the new day:
    N days ago", the 30- and 14-day windows) move with the new IST day (R40).
 
 Blob errors surface as a 500 so Vercel's cron log shows the failure.
+
+V4 (OP-6): the run has a time budget under Vercel's 30 s limit. A balance cancellation can take a
+Razorpay refund (10 s) and an SMTP send (15 s); the waitlist walk sends email; the GC and the
+revalidations call out. So what only touches the database (prices, the details purge, the prunes,
+the bookings sweep) always runs, and each slower step starts only while time is left — the rest
+are reported in `deferred` and wait for tomorrow (the waitlist also has its 15-minute tick, the
+emails their own cron). At the end it pings its healthchecks.io check: `/fail` when cut short.
 """
 
 import datetime as dt
+import time
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infra import heartbeat
 from app.infra.db import get_session
 from app.routers.cron import require_cron
 from app.schemas.pdf import DailyReport
@@ -55,6 +65,8 @@ from app.services.catalog.admin_packages import (
 from app.services.email.waitlist import walk_and_send
 from app.services.pdf.service import PdfService
 
+BUDGET_SECONDS = 20.0
+
 router = APIRouter(tags=["cron"], dependencies=[Depends(require_cron)], include_in_schema=False)
 
 
@@ -63,30 +75,56 @@ async def daily(
     request: Request, response: Response, db: Annotated[AsyncSession, Depends(get_session)]
 ) -> DailyReport:
     response.headers["Cache-Control"] = "no-store"
+    deadline = time.monotonic() + BUDGET_SECONDS
+    state = request.app.state
     today = ist_today()
-    changed = await recompute_all_starting_prices(db, today=today)
+    report = DailyReport(prices_updated=await recompute_all_starting_prices(db, today=today))
     # P5 before the Blob GC, which can fail the run: a missed night would skip a reminder stage.
-    balances = await sweep_balances(db, Notify.of(request.app.state), today=today)
-    purged = await purge_details(db, today=today)
-    service: PdfService = request.app.state.pdf
-    gc = await service.gc(db)
+    balances = await sweep_balances(db, Notify.of(state), today=today, deadline=deadline)
+    report.balances_cancelled = balances.cancelled
+    if balances.more:
+        report.deferred.append("balances")
+    report.details_purged = await purge_details(db, today=today)
+    report.sessions_pruned = await prune_sessions(db)
+    report.codes_pruned = await prune_codes(db)
     swept = await sweep_bookings(db, today=today)
-    walked, _ = await walk_and_send(db, None, Notify.of(request.app.state))
-    ended = await revalidate_ended_deals(db, now=dt.datetime.now(dt.UTC))
-    return DailyReport(
-        prices_updated=changed,
-        pdf=gc,
-        sessions_pruned=await prune_sessions(db),
-        codes_pruned=await prune_codes(db),
-        holds_expired=swept.holds_expired,
-        bookings_completed=swept.completed,
-        links_expired=swept.links_expired,
-        deals_ended=ended,
-        refunds_resent=await resend_stale(db, request.app.state.razorpay, older_than_min=60),
-        early_birds_ended=await revalidate_ended_early_birds(db, today=today),
-        balances_cancelled=balances.cancelled,
-        waitlist_offers=walked.offered,
-        waitlist_lapsed=walked.lapsed,
-        details_purged=purged,
-        urgency_revalidated=await revalidate_urgency(db, today=today),
-    )
+    report.holds_expired = swept.holds_expired
+    report.bookings_completed = swept.completed
+    report.links_expired = swept.links_expired
+
+    async def gc() -> None:
+        service: PdfService = state.pdf
+        report.pdf = await service.gc(db)
+
+    async def walk() -> None:
+        walked, _ = await walk_and_send(db, None, Notify.of(state))
+        report.waitlist_offers, report.waitlist_lapsed = walked.offered, walked.lapsed
+
+    async def resend() -> None:
+        report.refunds_resent = await resend_stale(db, state.razorpay, older_than_min=60)
+
+    async def deals() -> None:
+        report.deals_ended = await revalidate_ended_deals(db, now=dt.datetime.now(dt.UTC))
+
+    async def early_birds() -> None:
+        report.early_birds_ended = await revalidate_ended_early_birds(db, today=today)
+
+    async def urgency() -> None:
+        report.urgency_revalidated = await revalidate_urgency(db, today=today)
+
+    slow: list[tuple[str, Callable[[], Awaitable[None]]]] = [
+        ("pdf_gc", gc),
+        ("waitlist", walk),
+        ("refunds_resent", resend),
+        ("deals_ended", deals),
+        ("early_birds_ended", early_birds),
+        ("urgency_revalidated", urgency),
+    ]
+    for name, step in slow:
+        if time.monotonic() >= deadline:
+            report.deferred.append(name)
+        else:
+            await step()
+    report.more = bool(report.deferred)
+    await heartbeat.ping(state.settings.healthcheck_daily_url, ok=not report.more)
+    return report

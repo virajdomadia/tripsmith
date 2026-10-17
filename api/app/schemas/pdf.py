@@ -13,7 +13,7 @@ class GcReport(ApiModel):
 
 class DailyReport(ApiModel):
     prices_updated: int = Field(description="Packages whose starting price moved today")
-    pdf: GcReport
+    pdf: GcReport | None = Field(default=None, description="None when the run was out of time")
     sessions_pruned: int = Field(default=0, description="Expired sessions deleted (B8)")
     codes_pruned: int = Field(default=0, description="Sign-in codes expired over a day (B8)")
     holds_expired: int = Field(
@@ -47,4 +47,11 @@ class DailyReport(ApiModel):
     urgency_revalidated: int = Field(
         default=0,
         description="P2: live packages whose day-counted booking labels were revalidated",
+    )
+    more: bool = Field(
+        default=False,
+        description="V4: the run stopped at its time budget; `deferred` waits for tomorrow's",
+    )
+    deferred: list[str] = Field(
+        default_factory=list, description="V4: the steps the time budget left undone, in order"
     )
