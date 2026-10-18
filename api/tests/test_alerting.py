@@ -206,14 +206,16 @@ def test_the_heartbeat_urls_are_secrets() -> None:
     assert isinstance(s.healthcheck_emails_url, SecretStr)
 
 
-# --- OP-2: the tick lives on cron-job.org ---------------------------------------------------------
+# --- OP-2: the 15-minute tick -------------------------------------------------------------------
 
 
-def test_the_tick_workflow_is_manual_only_and_a_skip_fails() -> None:
-    """GitHub ran the 15-minute schedule about five times a day and disables it after 60 quiet
-    days; cron-job.org calls /cron/waitlist and /cron/emails now. A manual run without the
-    secret must go red, not pass as a no-op."""
+def test_the_tick_runs_on_a_schedule_and_a_missing_secret_fails() -> None:
+    """V4 kept the GitHub schedule (a portfolio project: about five runs a day is enough, and
+    every booking, join and claim read walks the list too). What changed: a run without the
+    secret goes red instead of passing as a no-op. Outside 09:00-21:00 IST a scheduled run
+    skips the emails on purpose; a manual run always sends them."""
     text = (REPO / ".github/workflows/waitlist-tick.yml").read_text(encoding="utf-8")
-    assert "schedule:" not in text and "workflow_dispatch:" in text
-    assert "exit 0" not in text
-    assert text.count("exit 1") >= 2
+    assert "schedule:" in text and "*/15 * * * *" in text and "workflow_dispatch:" in text
+    secret_skips = text.count('if [ -z "$CRON_SECRET" ]; then')
+    assert secret_skips == 2 and text.count("exit 1") == 2
+    assert '"$GITHUB_EVENT_NAME" = "schedule"' in text  # the hour gate is the schedule's only

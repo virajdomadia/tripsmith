@@ -1,6 +1,5 @@
-"""GET /cron/waitlist — every 15 minutes from cron-job.org (V4, free; before, a GitHub schedule
-that ran about five times a day — .github/workflows/waitlist-tick.yml is now the manual button),
-with the same bearer secret as
+"""GET /cron/waitlist — every 15 minutes from a GitHub Actions schedule
+(.github/workflows/waitlist-tick.yml; the repo is public, so ₹0), with the same bearer secret as
 `/cron/daily`. Walks every departure with a waitlist (services/booking/waitlist.py) so a lapsed
 10-minute hold or a 24 h offer that ran out moves on even when nobody visits, then sends the
 emails that owes. `/cron/daily` does the same as the backstop."""
