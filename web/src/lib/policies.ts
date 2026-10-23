@@ -113,7 +113,7 @@ const terms: PolicyDoc = {
       p: [
         `Seats are held for ${T.holdMinutes} minutes while you pay. A booking is confirmed when the payment goes through, and we email a confirmation with a booking reference; if the time runs out first, the seats go back on sale.`,
         `You can pay in full, or — when the package offers it — a ${T.depositPercent}% deposit now (the total after any discounts, rounded up to the rupee) and the balance by ${T.balanceDays} days before departure. Departures ${T.balanceDays} days away or less are paid in full at booking.`,
-        `The balance can be paid in parts of at least ${rupees(T.minPartRupees)}. We remind you 7 and 3 days before it is due, and on the day. If it is still unpaid ${T.graceDays} days after that, the booking is cancelled and refunded under our cancellation & refunds policy, counted from that day.`,
+        `The balance can be paid in parts of at least ${rupees(T.minPartRupees)}. We remind you 7 and 3 days before it is due, and on the day. If it is still unpaid after ${T.graceDays} days’ grace, the booking is cancelled the next day and refunded under our cancellation & refunds policy, counted from that day.`,
       ],
     },
     {
@@ -189,7 +189,8 @@ const privacy: PolicyDoc = {
     {
       h: 'Cookies and analytics',
       p: [
-        `The site sets one cookie of its own, and only when you sign in: a session cookie that keeps you signed in for ${RETENTION.sessionDays} days. It sets no advertising cookies. Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice.`,
+        `The site sets no advertising cookies. It sets two of its own: when you sign in, a session cookie that keeps you signed in for ${RETENTION.sessionDays} days; and, only if an enquiry sent without JavaScript fails, a two-minute cookie holding what you typed so the form can be filled in again.`,
+        'Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice. Trips you save with the heart are kept in your browser’s local storage until you sign in (they then move to your account) or clear it.',
         'Vercel Web Analytics counts page visits without cookies and without identifying you. When something breaks, Sentry records the page, the browser and the error — with addresses, cookies and form contents stripped out. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
       ],
     },
