@@ -196,7 +196,7 @@ const privacy: PolicyDoc = {
     {
       h: 'How long we keep it',
       p: [
-        'Each of these is done by our nightly clean-up job, so it happens without anyone remembering to:',
+        'The deleting is done by our nightly clean-up job, so nobody has to remember it. What goes, and what stays:',
       ],
       list: [
         'Enquiries that did not lead to a booking are deleted 12 months after they arrive, with our notes and replies.',
