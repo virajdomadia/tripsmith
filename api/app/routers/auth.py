@@ -206,7 +206,8 @@ async def post_otp_verify(
     response.headers.update(NO_STORE)
     if await role_of(db, payload.email) == UserRole.OWNER:
         raise ApiError("forbidden", OWNER_USES_PASSWORD)
-    checked = await check_code(db, payload.email, payload.code, secret=_secret(request))
+    keys = request.app.state.settings.verify_secrets()
+    checked = await check_code(db, payload.email, payload.code, secret=keys)
     if not checked.ok:
         if checked.tries_left == 0:
             raise ApiError(

@@ -26,9 +26,9 @@ Token = Annotated[
 ]
 
 
-def secret_of(request: Request) -> str | None:
-    secret = request.app.state.settings.session_secret
-    return secret.get_secret_value() if secret else None
+def secret_of(request: Request) -> tuple[str, ...]:
+    """Only ever checks a claim link, so the previous SESSION_SECRET counts too (V6)."""
+    return request.app.state.settings.verify_secrets()
 
 
 @router.post(

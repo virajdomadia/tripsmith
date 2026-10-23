@@ -24,6 +24,9 @@ class Settings(BaseSettings):
 
     # --- Auth ---
     session_secret: SecretStr | None = None
+    # V6 (OP-8): the old SESSION_SECRET while one is being rotated. Accepted when a signed link
+    # or sign-in code is checked, never used to sign. Remove it once old links have expired.
+    session_secret_previous: SecretStr | None = None
     owner_email: str | None = None
     owner_password: SecretStr | None = None
     # P19: the owner login is printed on the site (it's a portfolio demo). True = what an owner
@@ -88,6 +91,14 @@ class Settings(BaseSettings):
         if isinstance(data, dict) and data.get("public_demo_owner") in (None, ""):
             data = {**data, "public_demo_owner": os.environ.get("VERCEL_ENV") == "production"}
         return data
+
+    def verify_secrets(self) -> tuple[str, ...]:
+        """What a signed link or sign-in code is checked against: SESSION_SECRET, then
+        SESSION_SECRET_PREVIOUS. Empty without a SESSION_SECRET (local dev)."""
+        if not self.session_secret or not self.session_secret.get_secret_value():
+            return ()
+        found = (self.session_secret, self.session_secret_previous)
+        return tuple(s.get_secret_value() for s in found if s and s.get_secret_value())
 
 
 @lru_cache

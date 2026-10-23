@@ -12,6 +12,7 @@ EXPECTED_ENV_KEYS = {
     "DATABASE_URL",
     "TEST_DATABASE_URL",
     "SESSION_SECRET",
+    "SESSION_SECRET_PREVIOUS",
     "OWNER_EMAIL",
     "OWNER_PASSWORD",
     "SMTP_HOST",
@@ -57,7 +58,7 @@ def test_python_is_3_12() -> None:
     assert sys.version_info[:2] == (3, 12)
 
 
-def test_env_example_has_the_28_documented_keys() -> None:
+def test_env_example_has_the_29_documented_keys() -> None:
     keys = parse_env_example(API_ROOT / ".env.example")
-    assert len(keys) == 28
+    assert len(keys) == 29
     assert set(keys) == EXPECTED_ENV_KEYS

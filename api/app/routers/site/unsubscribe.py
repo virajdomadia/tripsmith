@@ -34,8 +34,7 @@ router = APIRouter(tags=["public"])
 
 def _read(request: Request, token: str) -> tuple[str, EmailType]:
     settings: Settings = request.app.state.settings
-    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
-    found = unsubscribe.read_token(token, secret)
+    found = unsubscribe.read_token(token, settings.verify_secrets())
     if found is None:
         raise ApiError("not_found", BAD_LINK)
     return found

@@ -1,0 +1,118 @@
+name: Database backup
+
+# V6 (OP-3): every night, dump the production database with a read-only role, prove the dump
+# restores (into a throwaway Postgres on the runner, row counts compared with prod), encrypt it
+# with age and keep it as a 30-day artifact. The repo is public: anyone signed in to GitHub can
+# download an artifact, so only the encrypted files are uploaded and nothing about the data is
+# logged beyond "N tables match". The private key lives offline with Viraj (docs/18-runbook.md
+# § Restore). It is the copy we control: the Free plan's own backups are not ours to restore.
+#
+# Needs:
+#   secret   BACKUP_DATABASE_URL   postgresql://tripsmith_backup.<ref>:<pw>@<pooler>:5432/postgres?sslmode=require
+#                                  (session pooler; role is read-only, see docs/18 § Backups)
+#   variable BACKUP_AGE_RECIPIENT  the age public key (age1…) — public, so a variable
+
+on:
+  schedule:
+    - cron: '40 20 * * *' # 02:10 IST: the quietest hour, clear of the tick at :30
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The prod credential goes only to the steps that connect, never to a third-party action.
+    env:
+      AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+      SCRATCH_URL: postgresql://postgres@localhost:55432/restore
+      # Exact count(*) of every table in public, one "table<TAB>rows" line each.
+      COUNTS_SQL: >-
+        select table_name,
+        (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I',
+        table_name), false, true, '')))[1]::text
+        from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE' order by 1
+    steps:
+      - name: Check the configuration
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$AGE_RECIPIENT" ]; then
+            echo "::error::BACKUP_DATABASE_URL or BACKUP_AGE_RECIPIENT is not set — no backup taken"
+            exit 1
+          fi
+
+      - name: Install a pg_dump that matches the server, and age
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          major=$(psql "$DATABASE_URL" -XAtc "select current_setting('server_version_num')::int / 10000")
+          echo "PG_MAJOR=$major" >> "$GITHUB_ENV"
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq "postgresql-client-$major" age > /dev/null
+          echo "/usr/lib/postgresql/$major/bin" >> "$GITHUB_PATH"
+
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          stamp=$(date -u +%Y-%m-%dT%H%MZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          pg_dump --version
+          # One snapshot for the counts and the dump: a session exports it and stays open while
+          # both read through it, so a write during the run cannot make them disagree.
+          coproc HOLD { psql "$DATABASE_URL" -XAtq; }
+          echo "begin isolation level repeatable read read only; select pg_export_snapshot();" >&"${HOLD[1]}"
+          read -r -t 60 snapshot <&"${HOLD[0]}"
+          psql "$DATABASE_URL" -XAtq -F $'\t' -c "begin isolation level repeatable read read only" \
+            -c "set transaction snapshot '$snapshot'" -c "$COUNTS_SQL" -c "commit" > counts.tsv
+          pg_dump "$DATABASE_URL" --snapshot="$snapshot" --format=custom --schema=public \
+            --no-owner --no-privileges --file=tripsmith.dump
+          echo "commit;" >&"${HOLD[1]}"
+          eval "exec ${HOLD[1]}>&-"
+          wait "$HOLD_PID"
+          echo "$(wc -l < counts.tsv) tables, dump $(du -h tripsmith.dump | cut -f1)"
+
+      - name: Restore into a scratch database and compare the counts
+        run: |
+          set -euo pipefail
+          docker run -d --name scratch -p 55432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust \
+            -e POSTGRES_DB=restore "postgres:$PG_MAJOR" > /dev/null
+          # The image's first-boot server listens on no TCP port, so ready here means the real one.
+          for _ in $(seq 60); do pg_isready -q -h localhost -p 55432 && break; sleep 1; done
+          # The dump creates `public` itself; a fresh database already has one.
+          psql "$SCRATCH_URL" -Xqc "drop schema public"
+          start=$(date +%s)
+          pg_restore --dbname="$SCRATCH_URL" --no-owner --no-privileges --exit-on-error tripsmith.dump
+          echo "Restored in $(( $(date +%s) - start )) s"
+          psql "$SCRATCH_URL" -XAt -F $'\t' -c "$COUNTS_SQL" > restored.tsv
+          if ! diff -q counts.tsv restored.tsv > /dev/null; then
+            echo "::error::Restored row counts differ from the dump's snapshot — the dump is broken"
+            exit 1
+          fi
+          echo "$(wc -l < restored.tsv) tables match production"
+
+      - name: Encrypt
+        run: |
+          set -euo pipefail
+          age -r "$AGE_RECIPIENT" -o "out/tripsmith-$STAMP.dump.age" tripsmith.dump
+          age -r "$AGE_RECIPIENT" -o "out/tripsmith-$STAMP.counts.tsv.age" counts.tsv
+          rm -f tripsmith.dump counts.tsv restored.tsv
+
+      # Pinned to a commit: it runs on the runner that just held production data.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tripsmith-db-${{ env.STAMP }}
+          path: out/
+          retention-days: 30
+          if-no-files-found: error
+          compression-level: 0 # pg_dump -Fc is already compressed

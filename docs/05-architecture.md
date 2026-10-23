@@ -26,7 +26,7 @@ flowchart LR
     API[api - FastAPI<br/>REST + SSE + MCP]
     BLOB[(Vercel Blob)]
   end
-  NEON[(Neon Postgres)]
+  PG[(Postgres · Supabase Mumbai)]
   UP[(Upstash Redis)]
   RES[Resend]
   SEN[Sentry]
@@ -37,7 +37,7 @@ flowchart LR
   O --> WEB
   WEB -->|/api/* rewrite, same-origin| API
   MC -->|/api/mcp| API
-  API --> NEON & UP & BLOB & RES & SEN
+  API --> PG & UP & BLOB & RES & SEN
   API <--> RZ
   API --> AI
   API -->|POST /revalidate| WEB
@@ -140,7 +140,7 @@ sequenceDiagram
   participant B as Browser (web form)
   participant W as web (no-JS fallback: route handler proxy)
   participant A as api POST /enquiries
-  participant DB as Neon
+  participant DB as Postgres
   participant P as pdf service
   participant M as Resend
   B->>A: JSON (or W proxies a plain form POST)
@@ -172,17 +172,17 @@ web Concierge (useConcierge hook: fetch POST /api/chat, reads the SSE stream) �
 
 ### 5.7 v4 MCP
 ```
-MCP client → POST https://api.tripsmith.virajdomadia.com/mcp (direct, no rewrite) → FastMCP app mounted at /mcp (Streamable HTTP, stateless) → same tool functions as chat (services/ai/tools.py)
+MCP client → POST https://tripsmith-api.vercel.app/mcp (direct, no rewrite) → FastMCP app mounted at /mcp (Streamable HTTP, stateless) → same tool functions as chat (services/ai/tools.py)
 ```
 
 ## 6. Deployment topology
 | Environment | web | api | Data |
 |---|---|---|---|
-| Local | `localhost:3000` (rewrites → `localhost:8000`) | `localhost:8000` (`uv run uvicorn app.main:app --port 8000 --reload`; `pnpm dev` at the root starts both) | Neon dev branch (tests: local PostgreSQL 18 via `TEST_DATABASE_URL`) |
-| Preview (step 14 staging) | Vercel preview per PR; `API_URL` = the api preview URL | Vercel preview per PR | Neon branch per PR, seeded by CI |
-| Production | `tripsmith.virajdomadia.com` | `api.tripsmith.virajdomadia.com` | Neon `main` |
+| Local | `localhost:3000` (rewrites → `localhost:8000`) | `localhost:8000` (`uv run uvicorn app.main:app --port 8000 --reload`; `pnpm dev` at the root starts both) | local PostgreSQL 18 on port 5433, `tripsmith_dev` (tests: local PostgreSQL 18 via `TEST_DATABASE_URL`) |
+| Preview (step 14 staging) | Vercel preview per PR; `API_URL` = the api preview URL | Vercel preview per PR | the Preview env's `DATABASE_URL` (the per-PR Neon branches ended with the 2026-10-23 move to Supabase) |
+| Production | `tripsmith.virajdomadia.com` | `tripsmith-api.vercel.app` (no custom api domain) | Supabase `tripsmith`, Mumbai (since 2026-10-23); nightly encrypted dump, [18-runbook.md](18-runbook.md) |
 
-- Two Vercel projects from one repo (root directories `web/` and `api/`), both region `bom1`; Neon in Singapore. The api project uses Vercel's **FastAPI** preset: `api/app/main.py` exports `app`, one Vercel Function on Fluid compute, `api/vercel.json` sets `maxDuration 30` and the region.
+- Two Vercel projects from one repo (root directories `web/` and `api/`), both region `bom1`; the database in Mumbai (Supabase, `ap-south-1`). The api project uses Vercel's **FastAPI** preset: `api/app/main.py` exports `app`, one Vercel Function on Fluid compute, `api/vercel.json` sets `maxDuration 30` and the region.
 - Crons live in the **api** project's `vercel.json`. Webhooks (v2) and MCP (v4) hit the api domain directly.
 - Secrets split: `api/` holds all service keys; `web/` holds only `API_URL`, `REVALIDATE_SECRET`, `NEXT_PUBLIC_*`.
 

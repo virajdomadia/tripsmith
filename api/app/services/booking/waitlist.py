@@ -45,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.db import constraint_name
+from app.infra.signing import Keys, matches
 from app.models import Booking, BookingTraveller, Departure, Package, WaitlistEntry
 from app.models.catalog import departure_availability
 from app.models.enums import (
@@ -114,13 +115,13 @@ def claim_token(entry_id: str, offer_no: int, secret: str | None) -> str | None:
     return f"{entry_id}.{offer_no}.{_signature(entry_id, offer_no, secret)}"
 
 
-def read_token(token: str, secret: str | None) -> tuple[str, int] | None:
-    """(entry id, offer no) when the signature holds, else None."""
+def read_token(token: str, secret: Keys) -> tuple[str, int] | None:
+    """(entry id, offer no) when the signature holds under any key, else None."""
     parts = token.split(".")
-    if not secret or len(parts) != 3 or not parts[1].isdigit():
+    if len(parts) != 3 or not parts[1].isdigit():
         return None
     entry_id, offer_no, sig = parts[0], int(parts[1]), parts[2]
-    if not hmac.compare_digest(sig.encode(), _signature(entry_id, offer_no, secret).encode()):
+    if not matches(sig, secret, lambda k: _signature(entry_id, offer_no, k)):
         return None
     return entry_id, offer_no
 
@@ -498,7 +499,7 @@ async def join(
 
 
 async def entry_for_token(
-    db: AsyncSession, token: str, secret: str | None, *, lock: bool = False
+    db: AsyncSession, token: str, secret: Keys, *, lock: bool = False
 ) -> WaitlistEntry:
     """The entry a valid link names — only while the link's offer is its newest."""
     read = read_token(token, secret)
@@ -546,7 +547,7 @@ def claim_live(entry: WaitlistEntry, now: dt.datetime) -> bool:
 
 
 async def claim_for_order(
-    db: AsyncSession, token: str, secret: str | None, *, departure_id: str, email: str
+    db: AsyncSession, token: str, secret: Keys, *, departure_id: str, email: str
 ) -> WaitlistEntry:
     """The entry a booking order claims, locked — called under the departure lock after the
     walk, so a lapsed offer has already moved on. Refused when the link is stale, for another
@@ -637,7 +638,7 @@ async def walk_locked(db: AsyncSession, departure_id: str) -> Walked:
 # --- reads -------------------------------------------------------------------------------------
 
 
-async def claim_view(db: AsyncSession, token: str, secret: str | None) -> WaitlistClaim:
+async def claim_view(db: AsyncSession, token: str, secret: Keys) -> WaitlistClaim:
     """What a claim link holds — after walking its date, so a lapsed offer reads as lapsed."""
     departure_id = (await entry_for_token(db, token, secret)).departure_id
     await db.rollback()  # read the id first: a rollback expires the row

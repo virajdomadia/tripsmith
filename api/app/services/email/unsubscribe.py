@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infra.signing import Keys, matches
 from app.models import EmailSuppression
 from app.models.enums import EmailType
 
@@ -37,10 +38,10 @@ def token_for(email: str, kind: EmailType, secret: str | None) -> str | None:
     return f"{_b64(email)}.{kind.value}.{_signature(email, kind, secret)}"
 
 
-def read_token(token: str, secret: str | None) -> tuple[str, EmailType] | None:
-    """(email, type) when the signature holds, else None."""
+def read_token(token: str, secret: Keys) -> tuple[str, EmailType] | None:
+    """(email, type) when the signature holds under any key, else None."""
     parts = token.split(".")
-    if not secret or len(parts) != 3:
+    if len(parts) != 3:
         return None
     raw, kind_value, sig = parts
     try:
@@ -50,7 +51,7 @@ def read_token(token: str, secret: str | None) -> tuple[str, EmailType] | None:
         return None
     if kind not in UNSUBSCRIBABLE:
         return None
-    if not hmac.compare_digest(sig.encode(), _signature(email, kind, secret).encode()):
+    if not matches(sig, secret, lambda k: _signature(email, kind, k)):
         return None
     return email, kind
 
