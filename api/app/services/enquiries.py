@@ -14,7 +14,7 @@ import logging
 import secrets
 
 import sentry_sdk
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, exists, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,12 +22,12 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.email import EmailSender
-from app.models import Enquiry, Package
+from app.models import Booking, Enquiry, Package
 from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
 from app.schemas.catalog import PackageDetail
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
 from app.services.catalog.reads import get_package
-from app.services.email.render import PackageFacts, context_from
+from app.services.email.render import IST, PackageFacts, context_from
 from app.services.email.send import EmailOutcome, send_enquiry_emails
 from app.services.pdf.service import PdfService
 
@@ -41,6 +41,8 @@ REF_ATTEMPTS = 5
 # ≤ 13 s can otherwise approach Vercel's `maxDuration 30` on the api function; drop the PDF, not
 # the lead, past this.
 PDF_ATTACHMENT_TIMEOUT = 8.0
+# V5 (OP-5): /privacy promises enquiries that led to no booking go after 12 months.
+KEEP_DAYS = 365
 
 log = logging.getLogger(__name__)
 
@@ -246,3 +248,27 @@ async def package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
     finally:
         with contextlib.suppress(Exception):  # a dead connection is the pool's problem now
             await db.rollback()  # read-only; hands the connection back to the pool
+
+
+# --- the daily tidy -----------------------------------------------------------------------------
+
+
+async def purge(db: AsyncSession, *, today: dt.date) -> int:
+    """Delete every enquiry received on an IST day 12 months (`KEEP_DAYS`) or more before `today`
+    that no booking came from (V5, the /privacy promise). Its notes and inbox messages go with it
+    by cascade; one that became a booking stays with the booking's records. Returns the count."""
+    try:
+        cutoff = dt.datetime.combine(
+            today - dt.timedelta(days=KEEP_DAYS - 1), dt.time(), IST
+        ).astimezone(dt.UTC)
+        booked = exists().where(Booking.enquiry_id == Enquiry.id)
+        gone = (
+            await db.execute(
+                delete(Enquiry).where(Enquiry.created_at < cutoff, ~booked).returning(Enquiry.id)
+            )
+        ).all()
+        await db.commit()
+        return len(gone)
+    except BaseException:
+        await db.rollback()
+        raise

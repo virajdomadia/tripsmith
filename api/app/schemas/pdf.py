@@ -44,6 +44,9 @@ class DailyReport(ApiModel):
     details_purged: int = Field(
         default=0, description="P9: bookings whose traveller details were deleted (trip + 30 days)"
     )
+    enquiries_purged: int = Field(
+        default=0, description="V5: enquiries 12 months old that led to no booking, deleted"
+    )
     urgency_revalidated: int = Field(
         default=0,
         description="P2: live packages whose day-counted booking labels were revalidated",

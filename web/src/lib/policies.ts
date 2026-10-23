@@ -2,6 +2,9 @@
  * The three policy pages as data (S10–S12), rendered by `PolicyPage`. Plain language on
  * purpose: these are read by travellers, not lawyers. The cancellation schedule is exported
  * separately because the package price box quotes it.
+ *
+ * V5 (OP-5): every number a page promises comes from `PAYMENT_TERMS` or `RETENTION`, and every
+ * retention promise names the job that keeps it — the pages say what the code does.
  */
 import { BUSINESS } from './business';
 
@@ -29,7 +32,39 @@ export const POLICY_SLUGS = [
   'cancellation-policy',
 ] as const satisfies readonly PolicySlug[];
 
-const UPDATED = '2026-09-18';
+const V5 = '2026-10-23';
+
+/**
+ * The money rules the terms quote. Mirrors the api — `services/booking/deposit.py`
+ * (DEPOSIT_PERCENT, BALANCE_DAYS, GRACE_DAYS, MIN_PART_PAISE), `orders.py` (HOLD),
+ * `changes.py` (FREE_DAYS, ONLINE_DAYS, FEE_PER_TRAVELLER_PAISE) and `gst/tax.py`
+ * (RATE_PERCENT); tests/policies.test.ts reads those files and fails when they drift.
+ */
+export const PAYMENT_TERMS = {
+  depositPercent: 25,
+  balanceDays: 30,
+  graceDays: 2,
+  minPartRupees: 1_000,
+  holdMinutes: 10,
+  freeChangeDays: 30,
+  onlineChangeDays: 15,
+  changeFeeRupees: 1_000,
+  gstPercent: 5,
+} as const;
+
+/**
+ * How long the privacy page says things are kept, each with the job that deletes them. Mirrors
+ * `services/enquiries.py` KEEP_DAYS, `services/booking/details.py` PURGE_AFTER_DAYS and
+ * `services/auth/sessions.py` SESSION_TTL (all run by `/cron/daily`); tested like PAYMENT_TERMS.
+ */
+export const RETENTION = {
+  enquiryDays: 365,
+  detailsDays: 30,
+  sessionDays: 30,
+} as const;
+
+const T = PAYMENT_TERMS;
+const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 export const CANCELLATION_SCHEDULE = [
   {
@@ -43,12 +78,15 @@ export const CANCELLATION_SCHEDULE = [
   { window: '14 days or fewer before departure', refund: 'no refund' },
 ] as const;
 
+/** The date-change rule (`changes.py`), quoted on the terms and the cancellation page. */
+const changeRule = `One date change per booking, from your account, subject to seats on the new date: free ${T.freeChangeDays} days or more before departure, ${rupees(T.changeFeeRupees)} a traveller from ${T.onlineChangeDays} to ${T.freeChangeDays - 1} days before, and ${T.onlineChangeDays - 1} days or fewer before only by talking to us. Any difference in fare is paid or refunded.`;
+
 const terms: PolicyDoc = {
   slug: 'terms',
   title: 'Terms of service',
   short: 'Terms',
   summary: 'What you are buying when you book a Tripsmith trip, and what each of us promises.',
-  updated: UPDATED,
+  updated: V5,
   blocks: [
     {
       h: 'Who we are',
@@ -67,20 +105,21 @@ const terms: PolicyDoc = {
       h: 'Prices',
       p: [
         'Per person, in Indian rupees, for the sharing shown (double, triple, child, or a single supplement). Prices on the site are for the departure date shown next to them and hold for 7 days from a written quote.',
-        'GST at 5% applies to the package price and is shown on your quote and invoice.',
+        `GST at ${T.gstPercent}% applies to the package price and is shown on your quote and invoice.`,
       ],
     },
     {
       h: 'Booking and payment',
       p: [
-        'A booking is confirmed when we receive the advance — 30% of the package price — and send you a confirmation with a booking reference. Until then seats are not held, and dates that fill up on the site do fill up.',
-        'The balance is due 21 days before departure. For bookings made inside 21 days, the full amount is due at booking.',
+        `Seats are held for ${T.holdMinutes} minutes while you pay. A booking is confirmed when the payment goes through, and we email a confirmation with a booking reference; if the time runs out first, the seats go back on sale.`,
+        `You can pay in full, or — when the package offers it — a ${T.depositPercent}% deposit now (the total after any discounts, rounded up to the rupee) and the balance by ${T.balanceDays} days before departure. Departures less than ${T.balanceDays} days away are paid in full at booking.`,
+        `The balance can be paid in parts of at least ${rupees(T.minPartRupees)}. We remind you 7 and 3 days before it is due, and on the day. If it is still unpaid ${T.graceDays} days after that, the booking is cancelled and refunded under our cancellation & refunds policy, counted from that day.`,
       ],
     },
     {
       h: 'Changes and cancellations',
       p: [
-        'One free date change up to 30 days before departure, subject to seats on the new date. Name changes are free at any time. Cancellations follow our cancellation & refunds policy, linked from every package page.',
+        `${changeRule} Cancellations follow our cancellation & refunds policy, linked from every package page.`,
       ],
     },
     {
@@ -113,7 +152,7 @@ const privacy: PolicyDoc = {
   title: 'Privacy policy',
   short: 'Privacy',
   summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-  updated: '2026-10-12',
+  updated: V5,
   blocks: [
     {
       id: 'demo',
@@ -127,8 +166,10 @@ const privacy: PolicyDoc = {
     {
       h: 'What we collect',
       p: [
-        'When you enquire we store your name, phone number, email, the trip you asked about, your travel month, party size and anything you write to us, so that we can call you back and send you an itinerary.',
-        'When you book we also store the names, ages and ID numbers of everyone travelling, because hotels, ferries and permits need them.',
+        'When you enquire: your name, phone number and email, the trip you asked about, your travel month, party size and anything you write to us. We also keep a keyed hash of your internet address (it cannot be turned back into the address) and your browser’s name, to trace abuse of the form.',
+        'When you book: the lead traveller’s name, phone number and email; each traveller’s name, age and room sharing; any coupon used; and, if you ask for a GST invoice, your company name, GSTIN and billing State. The payment itself — card, UPI or bank details — is handled by Razorpay; we keep only Razorpay’s payment reference, the amount and the payment record it sends us.',
+        'After you book, for the trip itself: each traveller’s ID type and number (stored encrypted), date of birth, an emergency contact, food choice, allergies and medical notes.',
+        'When you sign in: your name and email for your account, the packages you save, any review you write, and — for each signed-in device — its internet address and browser name. When you join a waitlist: your name, email, party size and internet address.',
       ],
     },
     {
@@ -140,20 +181,28 @@ const privacy: PolicyDoc = {
     {
       h: 'Who sees it',
       p: [
-        'On this demo: anyone who signs in with the public demo login can see every enquiry, as described above. The confirmation email goes out through our email provider, and the database and hosting providers store it on our behalf under their own privacy terms.',
+        'On this demo: anyone who signs in with the public demo login can see every enquiry and booking, as described above.',
+        'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Sentry receives error reports.',
         'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
       ],
     },
     {
       h: 'Cookies and analytics',
       p: [
-        'The site sets no advertising cookies. We use privacy-respecting page analytics that count visits without identifying you, and an error-reporting service that records the page and browser when something breaks. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
+        `The site sets one cookie of its own, and only when you sign in: a session cookie that keeps you signed in for ${RETENTION.sessionDays} days. It sets no advertising cookies. Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice.`,
+        'Vercel Web Analytics counts page visits without cookies and without identifying you. When something breaks, Sentry records the page, the browser and the error — with addresses, cookies and form contents stripped out. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
       ],
     },
     {
       h: 'How long we keep it',
       p: [
-        'Enquiries that did not lead to a booking are deleted after 12 months. Booking records are kept for 8 years because tax law requires it.',
+        'Each of these is done by our nightly clean-up job, so it happens without anyone remembering to:',
+      ],
+      list: [
+        'Enquiries that did not lead to a booking are deleted 12 months after they arrive, with our notes and replies.',
+        `Traveller details — ID numbers, dates of birth, emergency contacts, food and medical notes — are deleted ${RETENTION.detailsDays} days after the trip comes back.`,
+        `A signed-in device’s session, with its internet address, is deleted when it expires, ${RETENTION.sessionDays} days after sign-in or at sign-out. Sign-in codes are deleted a day after they expire.`,
+        'Booking records, payments and GST invoices are kept for at least 8 years, because tax law requires it. Your account, saved packages, reviews and waitlist entries stay until you ask us to delete them.',
       ],
     },
     {
@@ -171,7 +220,7 @@ const cancellation: PolicyDoc = {
   short: 'Cancellation & refunds',
   summary:
     'One schedule for every trip on this site, counted from the departure date. No fine print.',
-  updated: UPDATED,
+  updated: V5,
   blocks: [
     {
       h: 'If you cancel',
@@ -186,9 +235,7 @@ const cancellation: PolicyDoc = {
     },
     {
       h: 'Changes',
-      p: [
-        'One free date change up to 30 days before departure, subject to seats on the new date. Name changes are free at any time. Changes inside 30 days are treated as a cancellation and a new booking.',
-      ],
+      p: [changeRule],
     },
     {
       h: 'Leaving a trip early',
