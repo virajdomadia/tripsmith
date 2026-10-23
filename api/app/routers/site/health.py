@@ -1,7 +1,7 @@
 """`GET /health` — the process answers (UptimeRobot every 5 min, the web's build); `GET
 /health/ready` (V4, OP-1) — and so does the database: `SELECT 1`, never cached, a 503 when
-Neon is down or the pool is exhausted. UptimeRobot checks it hourly (each check wakes a
-suspended Neon compute, so not every 5 minutes). Not in the contract: the web never calls it."""
+the database is down or the pool is exhausted. UptimeRobot checks it hourly. Not in the
+contract: the web never calls it."""
 
 import logging
 from typing import Annotated, Literal

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         env_file=".env.local", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # --- Database (Neon; asyncpg URL). TEST_DATABASE_URL is dev/CI only. ---
+    # --- Database (Supabase in production; asyncpg URL). TEST_DATABASE_URL is dev/CI only. ---
     database_url: SecretStr | None = None
     test_database_url: SecretStr | None = None
 
