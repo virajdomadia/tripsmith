@@ -45,7 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.infra.db import constraint_name
-from app.infra.signing import Keys, keys_of
+from app.infra.signing import Keys, matches
 from app.models import Booking, BookingTraveller, Departure, Package, WaitlistEntry
 from app.models.catalog import departure_availability
 from app.models.enums import (
@@ -121,10 +121,7 @@ def read_token(token: str, secret: Keys) -> tuple[str, int] | None:
     if len(parts) != 3 or not parts[1].isdigit():
         return None
     entry_id, offer_no, sig = parts[0], int(parts[1]), parts[2]
-    if not any(
-        hmac.compare_digest(sig.encode(), _signature(entry_id, offer_no, k).encode())
-        for k in keys_of(secret)
-    ):
+    if not matches(sig, secret, lambda k: _signature(entry_id, offer_no, k)):
         return None
     return entry_id, offer_no
 

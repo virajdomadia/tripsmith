@@ -113,11 +113,6 @@ def session_secret(request: Request) -> str | None:
     return secret.get_secret_value() if secret else None
 
 
-def claim_keys(request: Request) -> tuple[str, ...]:
-    """A booking only checks its waitlist claim link, so the previous key counts too (V6)."""
-    return request.app.state.settings.verify_secrets()
-
-
 def with_voucher(request: Request, result: PaymentResult) -> PaymentResult:
     if result.status not in HAS_VOUCHER:
         return result
@@ -143,7 +138,8 @@ async def post_quote(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Quote:
     response.headers["Cache-Control"] = "no-store"
-    return await quote_booking(db, payload, secret=claim_keys(request))
+    # Quote and booking only check a waitlist claim link: the previous key counts too (V6).
+    return await quote_booking(db, payload, secret=request.app.state.settings.verify_secrets())
 
 
 @router.post(
@@ -162,7 +158,8 @@ async def post_booking(
 ) -> BookingOrder:
     response.headers["Cache-Control"] = "no-store"
     try:
-        return await create_booking_order(db, payload, rzp, secret=claim_keys(request))
+        keys = request.app.state.settings.verify_secrets()
+        return await create_booking_order(db, payload, rzp, secret=keys)
     finally:
         # P6: the walk before the hold may have made offers — refused orders included.
         await send_due(db, notify(request))

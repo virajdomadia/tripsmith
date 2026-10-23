@@ -27,7 +27,7 @@ from sqlalchemy import delete, func, not_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infra.signing import Keys, keys_of
+from app.infra.signing import Keys, keys_of, matches
 from app.models import Booking, Session, User, Verification
 from app.models.enums import BookingActor, UserRole
 from app.services.auth.sessions import open_session
@@ -177,8 +177,12 @@ async def check_code(
         await db.rollback()
         return Checked(False, 0)
     # A code mailed just before a SESSION_SECRET rotation was hashed under the old key (V6).
-    keys = keys_of(secret) or ("",)
-    if any(hmac.compare_digest(row.code_hash, hash_code(email, code, k)) for k in keys):
+    # No key at all (local dev) is the unkeyed hash `hash_code` makes without one.
+    if keys_of(secret):
+        ok = matches(row.code_hash, secret, lambda k: hash_code(email, code, k))
+    else:
+        ok = hmac.compare_digest(row.code_hash, hash_code(email, code, None))
+    if ok:
         row.consumed_at = now
         return Checked(True, MAX_ATTEMPTS - row.attempts)
     row.attempts += 1

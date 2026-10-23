@@ -25,7 +25,7 @@ from urllib.parse import urlencode
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infra.signing import Keys, keys_of
+from app.infra.signing import Keys, matches
 from app.models import Booking, Departure, Destination, Package
 from app.models.enums import BookingActor
 from app.schemas.trip_pack import CalendarBlock, CalendarVia
@@ -70,9 +70,7 @@ def calendar_path(ref: str, via: CalendarVia, secret: str | None, *, exp: int) -
 def link_is_valid(ref: str, exp: int, sig: str, secret: Keys, *, now: float | None = None) -> bool:
     if exp < int(now if now is not None else time.time()):
         return False
-    return any(
-        hmac.compare_digest(sig.encode(), _signature(ref, exp, k).encode()) for k in keys_of(secret)
-    )
+    return matches(sig, secret, lambda k: _signature(ref, exp, k))
 
 
 # --- the event ---------------------------------------------------------------------------------

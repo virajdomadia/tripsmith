@@ -14,7 +14,7 @@ name: Database backup
 
 on:
   schedule:
-    - cron: '30 20 * * *' # 02:00 IST, the quietest hour
+    - cron: '40 20 * * *' # 02:10 IST: the quietest hour, clear of the tick at :30
   workflow_dispatch:
 
 permissions: {}
@@ -27,8 +27,8 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The prod credential goes only to the steps that connect, never to a third-party action.
     env:
-      DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
       AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
       SCRATCH_URL: postgresql://postgres@localhost:55432/restore
       # Exact count(*) of every table in public, one "table<TAB>rows" line each.
@@ -40,6 +40,8 @@ jobs:
         where table_schema = 'public' and table_type = 'BASE TABLE' order by 1
     steps:
       - name: Check the configuration
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: |
           if [ -z "$DATABASE_URL" ] || [ -z "$AGE_RECIPIENT" ]; then
             echo "::error::BACKUP_DATABASE_URL or BACKUP_AGE_RECIPIENT is not set — no backup taken"
@@ -47,6 +49,8 @@ jobs:
           fi
 
       - name: Install a pg_dump that matches the server, and age
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: |
           set -euo pipefail
           major=$(psql "$DATABASE_URL" -XAtc "select current_setting('server_version_num')::int / 10000")
@@ -56,16 +60,26 @@ jobs:
           echo "/usr/lib/postgresql/$major/bin" >> "$GITHUB_PATH"
 
       - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: |
           set -euo pipefail
           mkdir -p out
           stamp=$(date -u +%Y-%m-%dT%H%MZ)
           echo "STAMP=$stamp" >> "$GITHUB_ENV"
           pg_dump --version
-          # Counts first, then the dump: a write in between shows up as a mismatch below.
-          psql "$DATABASE_URL" -XAt -F $'\t' -c "$COUNTS_SQL" > counts.tsv
-          pg_dump "$DATABASE_URL" --format=custom --schema=public --no-owner --no-privileges \
-            --file=tripsmith.dump
+          # One snapshot for the counts and the dump: a session exports it and stays open while
+          # both read through it, so a write during the run cannot make them disagree.
+          coproc HOLD { psql "$DATABASE_URL" -XAtq; }
+          echo "begin isolation level repeatable read read only; select pg_export_snapshot();" >&"${HOLD[1]}"
+          read -r -t 60 snapshot <&"${HOLD[0]}"
+          psql "$DATABASE_URL" -XAtq -F $'\t' -c "begin isolation level repeatable read read only" \
+            -c "set transaction snapshot '$snapshot'" -c "$COUNTS_SQL" -c "commit" > counts.tsv
+          pg_dump "$DATABASE_URL" --snapshot="$snapshot" --format=custom --schema=public \
+            --no-owner --no-privileges --file=tripsmith.dump
+          echo "commit;" >&"${HOLD[1]}"
+          eval "exec ${HOLD[1]}>&-"
+          wait "$HOLD_PID"
           echo "$(wc -l < counts.tsv) tables, dump $(du -h tripsmith.dump | cut -f1)"
 
       - name: Restore into a scratch database and compare the counts
@@ -82,7 +96,7 @@ jobs:
           echo "Restored in $(( $(date +%s) - start )) s"
           psql "$SCRATCH_URL" -XAt -F $'\t' -c "$COUNTS_SQL" > restored.tsv
           if ! diff -q counts.tsv restored.tsv > /dev/null; then
-            echo "::error::Restored row counts differ from production (a write during the dump, or a broken dump) — re-run"
+            echo "::error::Restored row counts differ from the dump's snapshot — the dump is broken"
             exit 1
           fi
           echo "$(wc -l < restored.tsv) tables match production"
@@ -94,7 +108,8 @@ jobs:
           age -r "$AGE_RECIPIENT" -o "out/tripsmith-$STAMP.counts.tsv.age" counts.tsv
           rm -f tripsmith.dump counts.tsv restored.tsv
 
-      - uses: actions/upload-artifact@v4
+      # Pinned to a commit: it runs on the runner that just held production data.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tripsmith-db-${{ env.STAMP }}
           path: out/

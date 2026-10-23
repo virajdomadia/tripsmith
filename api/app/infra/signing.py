@@ -5,6 +5,9 @@ in `SESSION_SECRET_PREVIOUS`, so a link mailed yesterday still opens; verifiers 
 single key (tests, local dev) or the tuple `Settings.verify_secrets()` returns.
 """
 
+import hmac
+from collections.abc import Callable
+
 Keys = str | tuple[str, ...] | None
 
 
@@ -15,3 +18,8 @@ def keys_of(secret: Keys) -> tuple[str, ...]:
     if isinstance(secret, str):
         return (secret,) if secret else ()
     return tuple(k for k in secret if k)
+
+
+def matches(given: str, secret: Keys, expected: Callable[[str], str]) -> bool:
+    """`given` equals `expected(key)` for one of the keys, compared in constant time per key."""
+    return any(hmac.compare_digest(given.encode(), expected(k).encode()) for k in keys_of(secret))

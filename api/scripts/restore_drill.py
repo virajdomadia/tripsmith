@@ -1,6 +1,7 @@
 """The restore drill (V6, OP-3): take a nightly backup artifact, decrypt it, restore it into a
-scratch database, and compare its row counts with the ones captured at dump time — and, with
---prod-url, with production right now. Prints the timings for docs/18-runbook.md § Restore.
+scratch database, and compare its row counts with the ones captured in the dump's snapshot —
+and, with --prod-url, show how production has moved since (informational). Prints the timings
+for docs/18-runbook.md § Restore.
 
     uv run python -m scripts.restore_drill --key C:/Users/Viraj/.age/tripsmith-backup.txt
     uv run python -m scripts.restore_drill --key … --run 123456789      # a given workflow run
@@ -8,9 +9,10 @@ scratch database, and compare its row counts with the ones captured at dump time
     uv run python -m scripts.restore_drill --key … --prod-url "$env:BACKUP_DATABASE_URL"
 
 Needs gh (signed in), age and the Postgres client tools on PATH. The target defaults to a
-local scratch database, which is dropped and re-created; a non-local --target is refused, so
-the drill can never overwrite production. The decrypted dump is deleted on exit; the scratch
-database stays (for poking at) unless --drop.
+local scratch database, which is dropped and re-created; a --target that is not local, or that
+has any query parameters (libpq's host=, hostaddr= or service= would override the host), is
+refused, so the drill can never overwrite production. The decrypted dump is deleted on exit;
+the scratch database stays (for poking at) unless --drop.
 """
 
 import argparse
@@ -66,6 +68,28 @@ def download(run_id: str | None, into: Path) -> None:
     run("gh", "run", "download", run_id, "--dir", str(into))
 
 
+def local_target(url: str) -> str | None:
+    """Why the target is refused, or None when it is safe to drop and re-create."""
+    parts = urlsplit(url)
+    if parts.query:
+        return "the target URL may not carry query parameters"
+    if parts.hostname not in LOCAL_HOSTS:
+        return f"{parts.hostname} is not a local database"
+    return None
+
+
+def newest_backup(source: Path) -> tuple[Path, Path]:
+    """The newest `.dump.age` (stamps sort as text) and the counts file of the same night."""
+    dumps = sorted(source.rglob("*.dump.age"), key=lambda p: p.name)
+    if not dumps:
+        raise SystemExit(f"No *.dump.age under {source}")
+    dump = dumps[-1]
+    counts_file = dump.with_name(dump.name.removesuffix(".dump.age") + ".counts.tsv.age")
+    if not counts_file.exists():
+        raise SystemExit(f"{counts_file.name} is missing beside {dump.name}")
+    return dump, counts_file
+
+
 def compare(label: str, want: dict[str, int], got: dict[str, int]) -> bool:
     diff = {t for t in want.keys() | got.keys() if want.get(t) != got.get(t)}
     for table in sorted(diff):
@@ -75,11 +99,11 @@ def compare(label: str, want: dict[str, int], got: dict[str, int]) -> bool:
 
 
 def main(args: argparse.Namespace) -> int:
-    target = urlsplit(args.target)
-    if target.hostname not in LOCAL_HOSTS:
-        print(f"Refusing: {target.hostname} is not a local database", file=sys.stderr)
+    refused = local_target(args.target)
+    if refused:
+        print(f"Refusing: {refused}", file=sys.stderr)
         return 1
-    db_name = target.path.lstrip("/")
+    db_name = urlsplit(args.target).path.lstrip("/")
     admin_url = with_db(args.target, "postgres")
     started = time.monotonic()
 
@@ -88,8 +112,7 @@ def main(args: argparse.Namespace) -> int:
         source = Path(args.dir) if args.dir else work / "artifact"
         if not args.dir:
             download(args.run, source)
-        dump_age = next(source.rglob("*.dump.age"))
-        counts_age = next(source.rglob("*.counts.tsv.age"))
+        dump_age, counts_age = newest_backup(source)
         print(f"Backup: {dump_age.name}")
         fetched = time.monotonic()
 
@@ -99,7 +122,8 @@ def main(args: argparse.Namespace) -> int:
         at_dump = parse_counts(counts_file.read_text(encoding="utf-8"))
         decrypted = time.monotonic()
 
-        run("psql", admin_url, "-Xqc", f'drop database if exists "{db_name}"')
+        # `with (force)`: a psql left open on last time's scratch database must not block it.
+        run("psql", admin_url, "-Xqc", f'drop database if exists "{db_name}" with (force)')
         run("psql", admin_url, "-Xqc", f'create database "{db_name}"')
         run("psql", args.target, "-Xqc", "drop schema public")  # the dump creates it
         run("pg_restore", f"--dbname={args.target}", "--no-owner", "--no-privileges",
@@ -111,15 +135,15 @@ def main(args: argparse.Namespace) -> int:
         "psql", args.target, "-XAtc", "select version_num from alembic_version", capture=True
     ).strip()
     ok = compare("at dump time", at_dump, restored)
-    if args.prod_url:
-        ok = compare("production now", counts(args.prod_url), restored) and ok
+    if args.prod_url:  # informational: production has moved on since the dump
+        compare("production now", counts(args.prod_url), restored)
     print(f"alembic revision: {revision}")
     print(
         f"Timings: download {fetched - started:.0f} s, decrypt {decrypted - fetched:.0f} s, "
         f"restore {restored_at - decrypted:.0f} s, total {time.monotonic() - started:.0f} s"
     )
     if args.drop:
-        run("psql", admin_url, "-Xqc", f'drop database "{db_name}"')
+        run("psql", admin_url, "-Xqc", f'drop database "{db_name}" with (force)')
     return 0 if ok else 1
 
 
@@ -131,7 +155,8 @@ if __name__ == "__main__":
     parser.add_argument("--target", default=DEFAULT_TARGET, help="local scratch database URL")
     parser.add_argument("--prod-url", help="also compare with production (read-only URL)")
     parser.add_argument("--drop", action="store_true", help="drop the scratch database after")
-    for tool in ("age", "psql", "pg_restore") + (() if "--dir" in sys.argv else ("gh",)):
+    parsed = parser.parse_args()
+    for tool in ("age", "psql", "pg_restore") + (() if parsed.dir else ("gh",)):
         if shutil.which(tool) is None:
             raise SystemExit(f"{tool} is not on PATH")
-    sys.exit(main(parser.parse_args()))
+    sys.exit(main(parsed))

@@ -12,7 +12,7 @@ Each entry says how you notice, what to check first, and what to do.
 | Web | Vercel project `tripsmith` → https://tripsmith.virajdomadia.com (also `tripsmith.vercel.app`) |
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
 | Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations, seeds, dumps: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
-| Backups | GitHub Actions workflow `db-backup.yml`, nightly 02:00 IST, artifacts kept 30 days |
+| Backups | GitHub Actions workflow `db-backup.yml`, nightly 02:10 IST, artifacts kept 30 days |
 | Scheduled jobs | Vercel crons `/cron/daily` (01:00 IST) and `/cron/emails` (09:00 IST); GitHub `waitlist-tick.yml` every 15 min (runs ~5×/day in practice) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
 
@@ -150,9 +150,10 @@ generate once and set both from the same value.
 
 ## 6. Restore from a backup
 
-**Backups:** `.github/workflows/db-backup.yml` runs at 02:00 IST: `pg_dump -Fc` of the `public`
-schema as the read-only role `tripsmith_backup`, restored at once into a throwaway Postgres on the
-runner with every table's row count compared with production, then both the dump and the counts
+**Backups:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
+schema as the read-only role `tripsmith_backup`, with every table's row count read in the same
+exported snapshot; restored at once into a throwaway Postgres on the runner and the counts
+compared, then both the dump and the counts
 are `age`-encrypted and kept as a 30-day artifact `tripsmith-db-<UTC stamp>`. The repo is public,
 so only the encrypted files leave the runner. The private key is
 `C:\Users\Viraj\.age\tripsmith-backup.txt` and a copy in the password manager — without it every
@@ -166,7 +167,7 @@ GitHub disables scheduled workflows after 60 days without a commit: re-enable it
 # from api/ in any checkout
 uv run python -m scripts.restore_drill --key C:\Users\Viraj\.age\tripsmith-backup.txt
 #   --run <id>       a given workflow run instead of the newest successful one
-#   --prod-url <url> also compare with production now (the read-only BACKUP_DATABASE_URL)
+#   --prod-url <url> also show how production differs now (informational; read-only URL)
 #   --drop           drop the scratch database afterwards
 ```
 
