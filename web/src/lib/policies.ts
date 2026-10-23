@@ -7,6 +7,8 @@
  * retention promise names the job that keeps it — the pages say what the code does.
  */
 import { BUSINESS } from './business';
+import { DRAFT_COOKIE_OPTIONS } from './enquiry-form-state';
+import { inr } from './format';
 
 export type PolicySlug = 'terms' | 'privacy' | 'cancellation-policy';
 
@@ -36,7 +38,7 @@ const V5 = '2026-10-23';
 
 /**
  * The money rules the terms quote. Mirrors the api — `services/booking/deposit.py`
- * (DEPOSIT_PERCENT, BALANCE_DAYS, GRACE_DAYS, MIN_PART_PAISE), `orders.py` (HOLD),
+ * (DEPOSIT_PERCENT, BALANCE_DAYS, GRACE_DAYS, MIN_PART_PAISE, REMINDER_DAYS), `orders.py` (HOLD),
  * `changes.py` (FREE_DAYS, ONLINE_DAYS, FEE_PER_TRAVELLER_PAISE) and `gst/tax.py`
  * (RATE_PERCENT); tests/policies.test.ts reads those files and fails when they drift.
  */
@@ -44,11 +46,12 @@ export const PAYMENT_TERMS = {
   depositPercent: 25,
   balanceDays: 30,
   graceDays: 2,
-  minPartRupees: 1_000,
+  minPartPaise: 1_000_00,
+  reminderDays: [7, 3, 0],
   holdMinutes: 10,
   freeChangeDays: 30,
   onlineChangeDays: 15,
-  changeFeeRupees: 1_000,
+  changeFeePaise: 1_000_00,
   gstPercent: 5,
 } as const;
 
@@ -64,7 +67,6 @@ export const RETENTION = {
 } as const;
 
 const T = PAYMENT_TERMS;
-const rupees = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
 export const CANCELLATION_SCHEDULE = [
   {
@@ -79,7 +81,14 @@ export const CANCELLATION_SCHEDULE = [
 ] as const;
 
 /** The date-change rule (`changes.py`), quoted on the terms and the cancellation page. */
-const changeRule = `One date change per booking, from your account, subject to seats on the new date: free ${T.freeChangeDays} days or more before departure, ${rupees(T.changeFeeRupees)} a traveller from ${T.onlineChangeDays} to ${T.freeChangeDays - 1} days before, and ${T.onlineChangeDays - 1} days or fewer before only by talking to us. Any difference in fare is paid or refunded.`;
+/** `[7, 3, 0]` → "7 and 3 days before it is due, and on the day". */
+const reminders = (() => {
+  const before = T.reminderDays.filter((d) => d > 0);
+  const days = `${before.slice(0, -1).join(', ')}${before.length > 1 ? ' and ' : ''}${before.at(-1)} days before it is due`;
+  return T.reminderDays.includes(0) ? `${days}, and on the day` : days;
+})();
+
+const changeRule = `One date change per booking, from your account, subject to seats on the new date: free ${T.freeChangeDays} days or more before departure, ${inr(T.changeFeePaise)} a traveller from ${T.onlineChangeDays} to ${T.freeChangeDays - 1} days before, and ${T.onlineChangeDays - 1} days or fewer before only by talking to us. Any difference in fare is paid or refunded.`;
 
 const terms: PolicyDoc = {
   slug: 'terms',
@@ -112,8 +121,8 @@ const terms: PolicyDoc = {
       h: 'Booking and payment',
       p: [
         `Seats are held for ${T.holdMinutes} minutes while you pay. A booking is confirmed when the payment goes through, and we email a confirmation with a booking reference; if the time runs out first, the seats go back on sale.`,
-        `You can pay in full, or — when the package offers it — a ${T.depositPercent}% deposit now (the total after any discounts, rounded up to the rupee) and the balance by ${T.balanceDays} days before departure. Departures ${T.balanceDays} days away or less are paid in full at booking.`,
-        `The balance can be paid in parts of at least ${rupees(T.minPartRupees)}. We remind you 7 and 3 days before it is due, and on the day. If it is still unpaid after ${T.graceDays} days’ grace, the booking is cancelled the next day and refunded under our cancellation & refunds policy, counted from that day.`,
+        `You can pay in full, or — when the package offers it — a deposit now of ${T.depositPercent}% of the total after any discounts, rounded up to the rupee, and the balance by ${T.balanceDays} days before departure. Departures ${T.balanceDays} days away or less are paid in full at booking.`,
+        `The balance can be paid in parts of at least ${inr(T.minPartPaise)}. We remind you ${reminders}. If it is still unpaid after ${T.graceDays} days’ grace, the booking is cancelled the next day and refunded under our cancellation & refunds policy, counted from that day.`,
       ],
     },
     {
@@ -182,15 +191,15 @@ const privacy: PolicyDoc = {
       h: 'Who sees it',
       p: [
         'On this demo: anyone who signs in with the public demo login can see every enquiry and booking, as described above.',
-        'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Sentry receives error reports.',
+        'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Sentry receives error reports. Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
         'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
       ],
     },
     {
       h: 'Cookies and analytics',
       p: [
-        `The site sets no advertising cookies. It sets two of its own: when you sign in, a session cookie that keeps you signed in for ${RETENTION.sessionDays} days; and, only if an enquiry sent without JavaScript fails, a two-minute cookie holding what you typed so the form can be filled in again.`,
-        'Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice. Trips you save with the heart are kept in your browser’s local storage until you sign in (they then move to your account) or clear it.',
+        `The site sets no advertising cookies. It sets two of its own: when you sign in, a session cookie that keeps you signed in for ${RETENTION.sessionDays} days; and, only if an enquiry sent without JavaScript fails, a ${DRAFT_COOKIE_OPTIONS.maxAge / 60}-minute cookie holding what you typed so the form can be filled in again.`,
+        'Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice. Trips you save with the heart are kept in your browser’s local storage: as a guest until you sign in (they then move to your account), and while signed in as a copy of your list, so the hearts show at once (signing out removes that copy). Clearing your browser’s site data removes both.',
         'Vercel Web Analytics counts page visits without cookies and without identifying you. When something breaks, Sentry records the page, the browser and the error — with addresses, cookies and form contents stripped out. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
       ],
     },

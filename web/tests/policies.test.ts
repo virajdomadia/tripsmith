@@ -60,17 +60,21 @@ describe('policy documents', () => {
       depositPercent: Number(pyConst('booking/deposit.py', 'DEPOSIT_PERCENT')),
       balanceDays: Number(pyConst('booking/deposit.py', 'BALANCE_DAYS')),
       graceDays: Number(pyConst('booking/deposit.py', 'GRACE_DAYS')),
-      minPartRupees: Number(pyConst('booking/deposit.py', 'MIN_PART_PAISE')) / 100,
+      minPartPaise: Number(pyConst('booking/deposit.py', 'MIN_PART_PAISE')),
+      reminderDays: JSON.parse(
+        pyConst('booking/deposit.py', 'REMINDER_DAYS').replace('(', '[').replace(')', ']'),
+      ),
       holdMinutes: Number(pyConst('booking/orders.py', 'HOLD').match(/minutes=(\d+)/)?.[1]),
       freeChangeDays: Number(pyConst('booking/changes.py', 'FREE_DAYS')),
       onlineChangeDays: Number(pyConst('booking/changes.py', 'ONLINE_DAYS')),
-      changeFeeRupees: Number(pyConst('booking/changes.py', 'FEE_PER_TRAVELLER_PAISE')) / 100,
+      changeFeePaise: Number(pyConst('booking/changes.py', 'FEE_PER_TRAVELLER_PAISE')),
       gstPercent: Number(pyConst('gst/tax.py', 'RATE_PERCENT')),
     });
     const terms = text('terms');
-    expect(terms).toContain('a 25% deposit now');
     expect(terms).toContain('by 30 days before departure');
     expect(terms).toContain('held for 10 minutes');
+    expect(terms).toContain('We remind you 7 and 3 days before it is due, and on the day.');
+    expect(terms).toContain('a deposit now of 25% of the total');
     expect(terms).not.toMatch(/30% of the package|21 days|seats are not held/);
     expect(text('cancellation-policy')).toContain('₹1,000 a traveller from 15 to 29 days before');
   });
@@ -87,6 +91,8 @@ describe('policy documents', () => {
       'deleted 12 months after they arrive',
       'deleted 30 days after the trip comes back',
       'keeps you signed in for 30 days',
+      'a 2-minute cookie',
+      'stay in that Gmail mailbox',
     ])
       expect(privacy).toContain(said);
     for (const named of [
