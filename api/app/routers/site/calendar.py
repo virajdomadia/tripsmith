@@ -38,8 +38,7 @@ async def _clicked(
     db: AsyncSession, request: Request, ref: str, exp: int, sig: str, via: CalendarVia
 ) -> TripEvent:
     settings: Settings = request.app.state.settings
-    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
-    if not calendar.link_is_valid(ref, exp, sig, secret):
+    if not calendar.link_is_valid(ref, exp, sig, settings.verify_secrets()):
         raise ApiError("forbidden", BAD_LINK)
     event = await calendar.load_event(db, ref, settings.site_url)
     await db.rollback()

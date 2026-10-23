@@ -445,7 +445,7 @@ package = define_package(
 
 ### C8. v4 — MCP server
 
-**api `POST /mcp`** (Streamable HTTP via the official `mcp` Python SDK's `FastMCP`, mounted in the FastAPI app, stateless) at `https://api.tripsmith.virajdomadia.com/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
+**api `POST /mcp`** (Streamable HTTP via the official `mcp` Python SDK's `FastMCP`, mounted in the FastAPI app, stateless) at `https://tripsmith-api.vercel.app/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
 
 | MCP surface          | Name                              | Maps to                                                       |
 | -------------------- | --------------------------------- | ------------------------------------------------------------- |

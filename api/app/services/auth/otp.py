@@ -27,6 +27,7 @@ from sqlalchemy import delete, func, not_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infra.signing import Keys, keys_of
 from app.models import Booking, Session, User, Verification
 from app.models.enums import BookingActor, UserRole
 from app.services.auth.sessions import open_session
@@ -153,7 +154,7 @@ async def check_code(
     email: str,
     code: str,
     *,
-    secret: str | None,
+    secret: Keys,
     now: dt.datetime | None = None,
 ) -> Checked:
     """On success the code is marked used but NOT committed — `sign_in_customer` commits it
@@ -175,7 +176,9 @@ async def check_code(
     if row is None:
         await db.rollback()
         return Checked(False, 0)
-    if hmac.compare_digest(row.code_hash, hash_code(email, code, secret)):
+    # A code mailed just before a SESSION_SECRET rotation was hashed under the old key (V6).
+    keys = keys_of(secret) or ("",)
+    if any(hmac.compare_digest(row.code_hash, hash_code(email, code, k)) for k in keys):
         row.consumed_at = now
         return Checked(True, MAX_ATTEMPTS - row.attempts)
     row.attempts += 1

@@ -85,8 +85,7 @@ async def get_signed_voucher(
     sig: Annotated[str, Query(max_length=128)] = "",
 ) -> Response:
     settings: Settings = request.app.state.settings
-    secret = settings.session_secret.get_secret_value() if settings.session_secret else None
-    if not link_is_valid(ref, exp, sig, secret):
+    if not link_is_valid(ref, exp, sig, settings.verify_secrets()):
         raise ApiError("forbidden", BAD_LINK)
     return await _voucher(db, ref, settings)
 

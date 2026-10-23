@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.razorpay import Razorpay, RazorpayError
+from app.infra.signing import Keys
 from app.models import (
     Booking,
     BookingTraveller,
@@ -165,9 +166,7 @@ async def priced_addons(
     return price_addons(list(offered), choices, party=party)
 
 
-async def _claim_seats(
-    db: AsyncSession, claim: str | None, departure_id: str, secret: str | None
-) -> int:
+async def _claim_seats(db: AsyncSession, claim: str | None, departure_id: str, secret: Keys) -> int:
     """For a quote: the seats a claim link's offer holds on this date (0 for a stale or foreign
     link — the order is where a bad link is refused)."""
     if not claim:
@@ -184,7 +183,7 @@ async def quote_booking(
     req: QuoteRequest,
     *,
     now: dt.datetime | None = None,
-    secret: str | None = None,
+    secret: Keys = None,
 ) -> Quote:
     """The breakdown for a party on a departure; no side effects. 404 when the trip is gone,
     409 with the reason when it cannot be booked. With a waitlist claim (P6), the seats its
@@ -329,7 +328,7 @@ async def create_booking_order(
     razorpay: Razorpay,
     *,
     now: dt.datetime | None = None,
-    secret: str | None = None,
+    secret: Keys = None,
 ) -> BookingOrder:
     """Hold seats for the party, then open a Razorpay order for the held amount.
 
