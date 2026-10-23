@@ -14,7 +14,7 @@ import logging
 import secrets
 
 import sentry_sdk
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,13 +22,20 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.email import EmailSender
-from app.models import Enquiry, Package
-from app.models.enums import EmailStatus, EnquiryStatus, EnquiryType, PackageStatus
+from app.models import Booking, Enquiry, Package
+from app.models.enums import (
+    BookingStatus,
+    EmailStatus,
+    EnquiryStatus,
+    EnquiryType,
+    PackageStatus,
+)
 from app.schemas.catalog import PackageDetail
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
+from app.services.admin_enquiries import ist_day_start
 from app.services.catalog.reads import get_package
 from app.services.email.render import PackageFacts, context_from
-from app.services.email.send import EmailOutcome, send_enquiry_emails
+from app.services.email.send import HISTORY_LOCAL_PREFIX, EmailOutcome, send_enquiry_emails
 from app.services.pdf.service import PdfService
 
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
@@ -41,6 +48,8 @@ REF_ATTEMPTS = 5
 # ≤ 13 s can otherwise approach Vercel's `maxDuration 30` on the api function; drop the PDF, not
 # the lead, past this.
 PDF_ATTACHMENT_TIMEOUT = 8.0
+# V5 (OP-5): /privacy promises enquiries that led to no booking go after 12 months.
+KEEP_DAYS = 365
 
 log = logging.getLogger(__name__)
 
@@ -246,3 +255,35 @@ async def package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
     finally:
         with contextlib.suppress(Exception):  # a dead connection is the pool's problem now
             await db.rollback()  # read-only; hands the connection back to the pool
+
+
+# --- the daily tidy -----------------------------------------------------------------------------
+
+
+async def purge(db: AsyncSession, *, today: dt.date) -> int:
+    """Delete every enquiry received on an IST day 12 months (`KEEP_DAYS`) or more before `today`
+    that led to no booking (V5, the /privacy promise). Its notes and inbox messages go with it by
+    cascade. Kept: one a booking came from that was paid or is still open (a cancelled, never-paid
+    link is no booking — `counter._claim_enquiry`'s rule), one the owner marked Won by hand, and
+    the seeded demo history (`seed.py --history`, fake contacts the reports' funnel needs).
+    Returns the count."""
+    try:
+        cutoff = ist_day_start(today - dt.timedelta(days=KEEP_DAYS - 1))
+        booked = exists().where(
+            Booking.enquiry_id == Enquiry.id,
+            or_(Booking.status != BookingStatus.CANCELLED, Booking.paid_paise > 0),
+        )
+        result = await db.execute(
+            delete(Enquiry).where(
+                Enquiry.created_at < cutoff,
+                Enquiry.status != EnquiryStatus.CONVERTED,
+                ~booked,
+                # reports.demo_email's mark (importing reports here would be a cycle)
+                ~func.lower(Enquiry.email).like(f"{HISTORY_LOCAL_PREFIX}%@example.com"),
+            )
+        )
+        await db.commit()
+        return result.rowcount  # type: ignore[attr-defined]
+    except BaseException:
+        await db.rollback()
+        raise

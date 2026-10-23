@@ -176,6 +176,7 @@ async def test_daily_recomputes_prices_that_departures_left_behind(
         "waitlistOffers": 0,  # P6: tested in test_waitlist.py
         "waitlistLapsed": 0,
         "detailsPurged": 0,  # P9: tested in test_traveller_details.py
+        "enquiriesPurged": 0,  # V5: tested in test_enquiry_purge.py
         "urgencyRevalidated": 0,  # P2: tested in test_urgency.py
         "more": False,  # V4: tested in test_daily_budget.py
         "deferred": [],

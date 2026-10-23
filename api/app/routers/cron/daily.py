@@ -23,6 +23,7 @@ IST midnight, so `ist_today()` is the new day:
    send the emails that owes.
 10. (P9) delete the traveller details of trips that came back 30 or more days ago (R49) —
    early, beside the balances, so a failing Blob GC never keeps ID numbers another day.
+   (V5) Beside it, delete enquiries 12 months old that led to no booking (the /privacy promise).
 11. (P2) revalidate the pages of live packages whose day-counted urgency labels ("Last booked
    N days ago", the 30- and 14-day windows) move with the new IST day (R40).
 
@@ -63,6 +64,7 @@ from app.services.catalog.admin_packages import (
     revalidate_urgency,
 )
 from app.services.email.waitlist import walk_and_send
+from app.services.enquiries import purge as purge_enquiries
 from app.services.pdf.service import PdfService
 
 BUDGET_SECONDS = 20.0
@@ -85,6 +87,7 @@ async def daily(
     if balances.more:
         report.deferred.append("balances")
     report.details_purged = await purge_details(db, today=today)
+    report.enquiries_purged = await purge_enquiries(db, today=today)
     report.sessions_pruned = await prune_sessions(db)
     report.codes_pruned = await prune_codes(db)
     swept = await sweep_bookings(db, today=today)
