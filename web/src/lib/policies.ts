@@ -112,7 +112,7 @@ const terms: PolicyDoc = {
       h: 'Booking and payment',
       p: [
         `Seats are held for ${T.holdMinutes} minutes while you pay. A booking is confirmed when the payment goes through, and we email a confirmation with a booking reference; if the time runs out first, the seats go back on sale.`,
-        `You can pay in full, or — when the package offers it — a ${T.depositPercent}% deposit now (the total after any discounts, rounded up to the rupee) and the balance by ${T.balanceDays} days before departure. Departures less than ${T.balanceDays} days away are paid in full at booking.`,
+        `You can pay in full, or — when the package offers it — a ${T.depositPercent}% deposit now (the total after any discounts, rounded up to the rupee) and the balance by ${T.balanceDays} days before departure. Departures ${T.balanceDays} days away or less are paid in full at booking.`,
         `The balance can be paid in parts of at least ${rupees(T.minPartRupees)}. We remind you 7 and 3 days before it is due, and on the day. If it is still unpaid ${T.graceDays} days after that, the booking is cancelled and refunded under our cancellation & refunds policy, counted from that day.`,
       ],
     },
