@@ -34,7 +34,7 @@ A real product, not a CRUD demo. It has a public catalog that is fast and indexa
         └───┬─────────┬─────────┬─────────┘
             │         │         │
        PostgreSQL  Vercel    Gmail SMTP · Upstash · Sentry
-        (Neon)      Blob     email    limits    errors
+    (Supabase)      Blob     email    limits    errors
             │         │
        SQLAlchemy   photos + itinerary PDFs (vouchers, GST documents and trip packs are
        + Alembic    rendered on demand, never stored)
@@ -53,7 +53,7 @@ Four decisions carry most of the design:
 ## Stack
 
 **web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (+ charts, Recharts) · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
-**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Neon) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, Payment Links, refunds, signed webhook) · fpdf2 (itinerary PDFs, vouchers, GST documents, trip packs) · cryptography (Fernet, traveller ID numbers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
+**api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Supabase, Mumbai) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, Payment Links, refunds, signed webhook) · fpdf2 (itinerary PDFs, vouchers, GST documents, trip packs) · cryptography (Fernet, traveller ID numbers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
 **platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · Sentry (both halves) · GitHub Actions (web · api · contract; a 15-minute tick for the waitlist and emails) · Vercel cron
 
 After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 and v2.5 security passes and their PageSpeed Insights runs are in [docs/12](docs/12-security-performance.md#p19--v25-close-security--performance).
@@ -129,7 +129,7 @@ ALEMBIC_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith uv r
 uv run python scripts/seed.py --local --database-url postgresql+asyncpg://postgres:postgres@localhost:5432/tripsmith
 ```
 
-`--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. The seed is the same: `--database-url` (or `SEED_DATABASE_URL`) is required. Production is a deliberate, separate command with the Neon `production` branch URL pasted in: `ALEMBIC_URL='postgresql+asyncpg://…neon.tech/neondb?ssl=require' uv run alembic upgrade head`, and `uv run python scripts/seed.py --database-url '<same URL>'`.
+`--local` mirrors photos to `api/.seed-photos` (served at `/seed-photos`); without it they upload to Vercel Blob. The seed is the same: `--database-url` (or `SEED_DATABASE_URL`) is required. Production is a deliberate, separate command with Supabase's **session pooler** URL (port 5432) pasted in: `ALEMBIC_URL='postgresql+asyncpg://postgres.<ref>:…@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?ssl=require' uv run alembic upgrade head`, and `uv run python scripts/seed.py --database-url '<same URL>'`. The api's `DATABASE_URL` is the **transaction pooler** (port 6543), where `make_engine` turns the statement caches off.
 
 Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both languages. `pnpm gen:api` dumps `api/openapi.json` from the app and regenerates `web/src/lib/api-types.ts`; run it after any route or schema change (a pytest fails while `openapi.json` is stale, a vitest while `api-types.ts` is). DB tests need `TEST_DATABASE_URL` (any throwaway Postgres; CI runs a `postgres:17` service) and skip without it — unless `REQUIRE_DB_TESTS=1` (set in CI), which fails the run instead.
 

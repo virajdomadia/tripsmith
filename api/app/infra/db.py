@@ -8,8 +8,11 @@ developer's `.env.local` has one.
 """
 
 from collections.abc import AsyncIterator
+from typing import Any
+from uuid import uuid4
 
 from fastapi import Request
+from sqlalchemy import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -33,12 +36,31 @@ def constraint_name(exc: IntegrityError) -> str:
     return str(getattr(exc.orig, "constraint_name", "") or exc.orig or "")
 
 
+SUPABASE_TRANSACTION_POOLER_PORT = 6543
+
+
+def connect_args(url: str) -> dict[str, Any]:
+    """Supabase's transaction pooler (Supavisor, port 6543) hands each transaction to any server
+    connection, so a statement prepared on one is unknown on the next: asyncpg's and
+    SQLAlchemy's statement caches go off, and each statement gets a unique name. Any other
+    port (the session pooler that migrations use, local Postgres) keeps the caches."""
+    if make_url(url).port != SUPABASE_TRANSACTION_POOLER_PORT:
+        return {}
+    return {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    }
+
+
 def make_engine(url: str) -> AsyncEngine:
-    """One place for engine options. Neon's pooled endpoint closes idle connections, so
-    `pool_pre_ping` re-validates before use. The pool is sized for a burst on one instance (a
-    web build prerendering every page at once queued behind 2 + 3); Neon's pooled endpoint
-    multiplexes these onto few server connections."""
-    return create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
+    """One place for engine options. The pooler closes idle connections, so `pool_pre_ping`
+    re-validates before use. The pool is sized for a burst on one instance (a web build
+    prerendering every page at once queued behind 2 + 3); the pooler multiplexes these onto
+    few server connections."""
+    return create_async_engine(
+        url, pool_pre_ping=True, pool_size=5, max_overflow=5, connect_args=connect_args(url)
+    )
 
 
 def get_engine(settings: Settings) -> AsyncEngine:

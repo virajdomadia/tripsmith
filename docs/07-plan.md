@@ -100,7 +100,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 ## v2 — Booking engine (≈ 20.5 h) — requirements: [03-requirements-v2.md](03-requirements-v2.md)
 **Re-validated 2026-09-24** (lifecycle step 3, against v1.0.1 as shipped): 17 findings + 6 docs/17 carry-overs decided one by one with Viraj, recorded at the end of 03-requirements-v2. The old rows 2.0.1–2.3.3 are replaced by **B0–B14**, plus **B15** (coupon codes, added 2026-09-26) ("bN" in chat means one of these rows). Budget raised 15 → 17 h for the late-capture path, hold limits, demo mode, the role gate and the seeded demo trip.
 
-**Rules for every row:** own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`. New accounts/keys only in the row that first needs them. Prod migrations expand-first — Neon dev rehearsal, then Viraj runs `ALEMBIC_URL=… uv run alembic upgrade head` on prod, then the code merges. A merge touching web + api → check the web wasn't prerendered against the old api (redeploy web if so). Tests only where a failure would embarrass a demo.
+**Rules for every row:** own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`. New accounts/keys only in the row that first needs them. Prod migrations expand-first — local dev rehearsal, then Viraj runs `ALEMBIC_URL=… uv run alembic upgrade head` on prod, then the code merges. A merge touching web + api → check the web wasn't prerendered against the old api (redeploy web if so). Tests only where a failure would embarrass a demo.
 
 ### Milestone 2.0 — Checkout (≈ 8.25 h)
 | # | Task | Est. | Done when |
@@ -220,7 +220,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 ### Milestone 2.6.1 — Operate (≈ 7 h)
 | # | Task | Findings | Est. | Done when |
 |---|---|---|---|---|
-| V6 | **Backups, runbook, rollback:** nightly `pg_dump -Fc` with a read-only role, `age`-encrypted (the repo is public), 30-day artifact; one restore drill run and timed; `docs/18-runbook.md` (webhook failing, SMTP quota, Neon down, SESSION_SECRET and CRON_SECRET rotation, restore, rollback order, Razorpay go-live); `SESSION_SECRET_PREVIOUS` accepted for verification; fix the api host named in the docs | OP-3, OP-8, OP-9, DOC-1 | 3 h | a dump restores into a Neon branch and the counts match prod |
+| V6 | **Backups, runbook, rollback:** nightly `pg_dump -Fc` with a read-only role, `age`-encrypted (the repo is public), 30-day artifact; one restore drill run and timed; `docs/18-runbook.md` (webhook failing, SMTP quota, database down, SESSION_SECRET and CRON_SECRET rotation, restore, rollback order, Razorpay go-live); `SESSION_SECRET_PREVIOUS` accepted for verification; fix the api host named in the docs | OP-3, OP-8, OP-9, DOC-1 | 3 h | a dump restores into a scratch database and the counts match prod |
 | V9 | **CI hardening:** Dependabot (npm, pip, actions); `pip-audit` + `pnpm audit --prod` + gitleaks jobs; ruff `S`, `ASYNC`; `noUncheckedIndexedAccess`; api coverage with greenlet concurrency gated at 94 %; vitest for the Checkout loader and the refund-made action; Playwright P0 journeys (book → pay → voucher, sign in → My trips, owner refund) against local web + api; floors for the two dev advisories | Q-1, Q-7, SA-6 | 4 h | CI fails on a new advisory, a leaked secret, a coverage drop or a broken P0 journey |
 
 ### Milestone 2.6.2 — Tidy (≈ 4.5 h) — closes lifecycle 10–12, 17 for v2.6
