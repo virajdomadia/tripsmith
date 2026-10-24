@@ -12,7 +12,8 @@ import { defineConfig, devices } from '@playwright/test';
  * the web build — which prerenders the package pages from the api — sees the seeded catalog.
  * Playwright starts the servers in order, api first. Ports default to 8000 / 3000; set
  * E2E_API_PORT / E2E_WEB_PORT when those are taken. E2E_SKIP_BUILD=1 reuses the last build (it
- * must have been built against the same API_URL: the /api rewrite is fixed at build time).
+ * must have been built against the same API_URL: the /api rewrite is fixed at build time), and
+ * E2E_SEEDED=1 skips the reset when a step before already ran it (CI).
  */
 
 const apiPort = Number(process.env.E2E_API_PORT ?? 8000);
@@ -57,21 +58,24 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: `uv run --directory ../api python -m tests.e2e_seed && uv run --directory ../api uvicorn tests.e2e_app:app --no-access-log --port ${apiPort}`,
+      command: `${process.env.E2E_SEEDED === '1' ? '' : 'uv run --directory ../api python -m tests.e2e_seed && '}uv run --directory ../api uvicorn tests.e2e_app:app --no-access-log --port ${apiPort}`,
       url: `${apiUrl}/health`,
       env: apiEnv,
-      reuseExistingServer: !process.env.CI,
+      // Never reuse: a `pnpm dev` api on the same port would skip the e2e app, its database guard
+      // and the reseed, and the journeys would write into the dev database. A busy port fails.
+      reuseExistingServer: false,
       timeout: 180_000,
       stdout: 'pipe',
       stderr: 'pipe',
     },
     {
-      command: process.env.E2E_SKIP_BUILD
-        ? `pnpm exec next start -p ${webPort}`
-        : `pnpm exec next build --turbopack && pnpm exec next start -p ${webPort}`,
+      command:
+        process.env.E2E_SKIP_BUILD === '1'
+          ? `pnpm start -p ${webPort}`
+          : `pnpm build && pnpm start -p ${webPort}`,
       url: webUrl,
       env: webEnv,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 600_000,
       stdout: 'pipe',
       stderr: 'pipe',

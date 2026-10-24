@@ -20,36 +20,49 @@ test('the owner sends a refund that is owed from the money desk', async ({ page,
   // a full refund while Razorpay's refund endpoint is down — so the refund is left owed.
   const customer = await playwright.request.newContext();
   const owner = await playwright.request.newContext();
-  const email = uniqueEmail('canceller');
-  const { ref, paidPaise } = await paidBooking(customer, { name: 'Kabir Shah', email });
-  await signInCustomer(customer, email);
-  const asked = await customer.post(`${API_URL}/account/bookings/${ref}/cancellation`, {
-    data: { reason: 'Our plans changed and we can no longer travel.' },
-  });
-  expect(asked.status(), await asked.text()).toBe(201);
-
-  await signInOwner(owner);
-  const detail = (await (await owner.get(`${API_URL}/admin/bookings/${ref}`)).json()) as {
-    cancellation: { id: string };
+  const switchRefunds = async (down: boolean) => {
+    const res = await owner.post(`${API_URL}/__e2e/razorpay`, { data: { refunds_down: down } });
+    expect(res.ok(), await res.text()).toBe(true);
   };
-  await owner.post(`${API_URL}/__e2e/razorpay`, { data: { refunds_down: true } });
+  let ref: string, paidPaise: number;
   try {
-    const resolved = await owner.post(
-      `${API_URL}/admin/cancellations/${detail.cancellation.id}/resolve`,
-      {
-        data: {
-          decision: 'approve',
-          note: 'Approved — the full amount goes back to your card.',
-          refundPaise: paidPaise,
-        },
-      },
-    );
-    expect(resolved.status(), await resolved.text()).toBe(200);
+    ({ ref, paidPaise } = await leaveARefundOwed());
   } finally {
-    await owner.post(`${API_URL}/__e2e/razorpay`, { data: { refunds_down: false } });
+    await customer.dispose();
+    await owner.dispose();
   }
-  await customer.dispose();
-  await owner.dispose();
+
+  async function leaveARefundOwed() {
+    const email = uniqueEmail('canceller');
+    const { ref, paidPaise } = await paidBooking(customer, { name: 'Kabir Shah', email });
+    await signInCustomer(customer, email);
+    const asked = await customer.post(`${API_URL}/account/bookings/${ref}/cancellation`, {
+      data: { reason: 'Our plans changed and we can no longer travel.' },
+    });
+    expect(asked.status(), await asked.text()).toBe(201);
+
+    await signInOwner(owner);
+    const got = await owner.get(`${API_URL}/admin/bookings/${ref}`);
+    expect(got.ok(), await got.text()).toBe(true);
+    const detail = (await got.json()) as { cancellation: { id: string } };
+    await switchRefunds(true);
+    try {
+      const resolved = await owner.post(
+        `${API_URL}/admin/cancellations/${detail.cancellation.id}/resolve`,
+        {
+          data: {
+            decision: 'approve',
+            note: 'Approved — the full amount goes back to your card.',
+            refundPaise: paidPaise,
+          },
+        },
+      );
+      expect(resolved.status(), await resolved.text()).toBe(200);
+    } finally {
+      await switchRefunds(false);
+    }
+    return { ref, paidPaise };
+  }
 
   // The refund click itself is the owner's, in the browser.
   await page.goto('/admin/login');

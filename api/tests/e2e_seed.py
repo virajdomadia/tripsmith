@@ -6,7 +6,7 @@ pass with time.
     E2E_DATABASE_URL=postgresql+asyncpg://tripsmith@localhost:5432/tripsmith_e2e \\
         uv run --directory api python -m tests.e2e_seed
 
-Refuses any database whose name does not say e2e (tests.e2e_app.e2e_database_url).
+Refuses any database whose name does not say e2e (tests.e2e_config.e2e_database_url).
 """
 
 import asyncio
@@ -24,7 +24,7 @@ from app.models import Base, Departure, Package
 from app.services.analytics import ist_today
 from content import load_content
 from scripts.seed import seed
-from tests.e2e_app import OWNER_EMAIL, OWNER_PASSWORD, e2e_database_url
+from tests.e2e_config import OWNER_EMAIL, OWNER_PASSWORD, e2e_database_url
 from tests.settings import make_settings
 
 API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -179,13 +179,15 @@ jobs:
           cache-dependency-glob: api/uv.lock
       - run: pnpm install --frozen-lockfile
       - run: uv sync --locked --directory api
-      # Up front so a migration or seed failure is its own red step; the api webServer
-      # (web/playwright.config.ts) runs the same idempotent reset again before serving.
+      # Up front so a migration or seed failure is its own red step (the api webServer in
+      # web/playwright.config.ts skips its own reset under E2E_SEEDED).
       - name: Migrate and seed the e2e database
         run: uv run --directory api python -m tests.e2e_seed
       - run: pnpm --filter web exec playwright install --with-deps chromium
-      # CI=true: servers always start fresh, one retry, production build + start.
+      # CI=true: one retry. E2E_SEEDED: the step above already reset the database.
       - run: pnpm --filter web e2e
+        env:
+          E2E_SEEDED: '1'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:

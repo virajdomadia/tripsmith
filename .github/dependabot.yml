@@ -13,6 +13,11 @@ updates:
       timezone: Asia/Kolkata
     open-pull-requests-limit: 3
     groups:
+      # Exact pins that must move together, majors included, so no PR is red on a peer mismatch.
+      vitest:
+        patterns: [vitest, '@vitest/*', vite]
+      next:
+        patterns: [next, eslint-config-next, '@next/*']
       npm-minor-patch:
         update-types: [minor, patch]
 

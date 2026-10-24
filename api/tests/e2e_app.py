@@ -22,34 +22,23 @@ import httpx
 import sentry_sdk
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
-from sqlalchemy import make_url
 
 from app.infra.email import EmailMessage
 from app.infra.ratelimit import NullRateLimiter
 from app.main import create_app
 from app.services.pdf.service import PdfService
+from tests.e2e_config import (
+    EMAIL_FROM,
+    OWNER_EMAIL,
+    OWNER_PASSWORD,
+    SESSION_SECRET,
+    e2e_database_url,
+)
 from tests.razorpay_fake import KEY_ID, KEY_SECRET, FakeRazorpay
 from tests.settings import make_settings
 
 if os.environ.get("VERCEL"):
     raise SystemExit("tests.e2e_app is a local / CI test server and never runs on Vercel")
-
-OWNER_EMAIL = "owner@tripsmith-e2e.dev"
-OWNER_PASSWORD = "e2e-owner-password-not-secret"
-SESSION_SECRET = "e2e-session-secret-not-secret"
-# Not @resend.dev and not a demo domain: the sign-in code is "emailed" (to the outbox), not
-# shown on screen, so the journey exercises the real email path.
-EMAIL_FROM = "Tripsmith <bookings@tripsmith-e2e.dev>"
-
-
-def e2e_database_url() -> str:
-    url = os.environ.get("E2E_DATABASE_URL", "")
-    if not url:
-        raise SystemExit("E2E_DATABASE_URL is not set (a throwaway Postgres, e.g. …/tripsmith_e2e)")
-    name = make_url(url).database or ""
-    if "e2e" not in name:
-        raise SystemExit(f"E2E_DATABASE_URL must name an e2e database, not {name!r}")
-    return url
 
 
 class Outbox:

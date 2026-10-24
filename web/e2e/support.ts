@@ -14,7 +14,7 @@ export const RAZORPAY_SECRET = 'fake-secret-for-tests'; // api/tests/razorpay_fa
 export const OWNER = {
   email: 'owner@tripsmith-e2e.dev',
   password: 'e2e-owner-password-not-secret',
-}; // api/tests/e2e_app.py
+}; // api/tests/e2e_config.py
 export const E2E_PACKAGE = 'kasol-weekend-camp';
 const E2E_SEATS = 40;
 export const CHECKOUT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';

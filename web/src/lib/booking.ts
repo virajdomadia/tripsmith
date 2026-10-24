@@ -246,8 +246,9 @@ export function orderBody(
     pay,
     departureId,
     travellers: slots.map((s) => {
-      // validate() already refused a slot with no traveller; read it the same way it does.
-      const t = travellers[s.key] ?? { name: '', age: '' };
+      const t = travellers[s.key];
+      // validate() refuses a slot with no traveller first; an order without one is a bug here.
+      if (!t) throw new Error(`orderBody: no traveller for slot ${s.key}`);
       return { name: t.name.trim(), age: Number(t.age), occupancy: s.occupancy };
     }),
     contact: {
