@@ -535,7 +535,7 @@ export function useBooking(
   async function confirm(order: BookingOrder, payment: CheckoutSuccess) {
     setPhase({ kind: 'confirming', order, payment });
     try {
-      const res = await fetch(`/api/bookings/${encodeURIComponent(order.bookingRef)}/confirm`, {
+      const res = await fetch(`/api/bookings/${encodeURIComponent(order.bookingRef)}/confirm-broken`, {
         method: 'POST',
         headers: json,
         body: JSON.stringify({
