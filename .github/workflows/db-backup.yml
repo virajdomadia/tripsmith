@@ -7,6 +7,9 @@ name: Database backup
 # logged beyond "N tables match". The private key lives offline with Viraj (docs/18-runbook.md
 # § Restore). It is the copy we control: the Free plan's own backups are not ours to restore.
 #
+# DISABLED in GitHub Actions since 2026-10-24 (Viraj: no backups for a portfolio project). To
+# turn it on: docs/18 § Backups set-up, then `gh workflow enable db-backup.yml`.
+#
 # Needs:
 #   secret   BACKUP_DATABASE_URL   postgresql://tripsmith_backup.<ref>:<pw>@<pooler>:5432/postgres?sslmode=require
 #                                  (session pooler; role is read-only, see docs/18 § Backups)

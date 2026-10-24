@@ -12,7 +12,7 @@ Each entry says how you notice, what to check first, and what to do.
 | Web | Vercel project `tripsmith` → https://tripsmith.virajdomadia.com (also `tripsmith.vercel.app`) |
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
 | Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations, seeds, dumps: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
-| Backups | GitHub Actions workflow `db-backup.yml`, nightly 02:10 IST, artifacts kept 30 days |
+| Backups | **None.** The `db-backup.yml` workflow exists but is disabled by choice (Viraj, 2026-10-24: a portfolio project, losing the data is acceptable) — see §6 |
 | Scheduled jobs | Vercel crons `/cron/daily` (01:00 IST) and `/cron/emails` (09:00 IST); GitHub `waitlist-tick.yml` every 15 min (runs ~5×/day in practice) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
 
@@ -104,11 +104,11 @@ than the web.
    **transaction pooler** on port 6543 (`connect_args()` turns the statement caches off only on
    that port). A password reset in Supabase invalidates it.
 
-**If the project is gone or will not come back:** create a new Supabase project in Mumbai,
-restore the newest backup into it (§6, with the new project's session pooler URL as the
-target — the drill script refuses remote targets on purpose, so use the `pg_restore` lines from
-§6 by hand), point `DATABASE_URL` at its transaction pooler, redeploy the api, then the web
-(§7). This is what the Neon → Supabase move on 2026-10-23 was, minus the backup.
+**If the project is gone or will not come back:** there is no backup (§6), so start fresh, as
+the Neon → Supabase move did on 2026-10-23: create a new Supabase project in Mumbai, run
+`alembic upgrade head` and the seeds (catalogue, `--demo-traveller`, `--demo-coupon`,
+`--history`, `--urgency`) against its session pooler, point `DATABASE_URL` at its transaction
+pooler, redeploy the api, then the web (§7). Bookings, enquiries and accounts are lost.
 
 ## 4. Rotating SESSION_SECRET
 
@@ -150,7 +150,13 @@ generate once and set both from the same value.
 
 ## 6. Restore from a backup
 
-**Backups:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
+**Status: backups are off.** Viraj decided on 2026-10-24 that a portfolio project does not need
+them: the workflow is disabled in GitHub Actions, the `tripsmith_backup` role, the
+`BACKUP_DATABASE_URL` secret and the age key were never created, and no drill has run. Everything
+below is ready if that changes: do the **Backups set-up**, then `gh workflow enable
+db-backup.yml`, run it once by hand and run the drill.
+
+**What it does when on:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
 schema as the read-only role `tripsmith_backup`, with every table's row count read in the same
 exported snapshot; restored at once into a throwaway Postgres on the runner and the counts
 compared, then both the dump and the counts
@@ -192,9 +198,10 @@ Then delete `tripsmith.dump`, re-create the `tripsmith_backup` role on the new p
 
 | Date | Backup | Download | Decrypt | Restore | Total | Counts | Revision |
 |---|---|---|---|---|---|---|---|
-| _to fill from the first drill_ | | | | | | | |
+| _none — backups are off_ | | | | | | | |
 
-**Backups set-up** (done once, 2026-10, V6): in the Supabase SQL editor, as `postgres`:
+**Backups set-up** (not done; only if backups are turned on): in the Supabase SQL editor, as
+`postgres`:
 
 ```sql
 create role tripsmith_backup login password '<openssl rand -hex 24>'
