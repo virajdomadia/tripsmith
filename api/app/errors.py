@@ -109,7 +109,8 @@ def field_errors_from(exc: RequestValidationError) -> dict[str, str]:
 
 
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, ApiError)
+    if not isinstance(exc, ApiError):
+        raise RuntimeError("expected isinstance(exc, ApiError)")
     retry_after = getattr(exc, "retry_after", None)
     headers = {"Retry-After": str(retry_after)} if retry_after else None
     return envelope(
@@ -123,12 +124,14 @@ async def _api_error(_: Request, exc: Exception) -> JSONResponse:
 
 
 async def _validation_error(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, RequestValidationError)
+    if not isinstance(exc, RequestValidationError):
+        raise RuntimeError("expected isinstance(exc, RequestValidationError)")
     return envelope("validation", "Request validation failed", field_errors=field_errors_from(exc))
 
 
 async def _http_exception(_: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, StarletteHTTPException)
+    if not isinstance(exc, StarletteHTTPException):
+        raise RuntimeError("expected isinstance(exc, StarletteHTTPException)")
     status = exc.status_code
     if status == 405:
         # Not one of the seven codes: a route that does not exist for this method is not_found.

@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CheckoutOptions } from '../src/lib/razorpay-checkout';
+import { nth } from './nth';
 
 /**
  * P8b — My trips → Add extras against a faked api and Checkout: the server prices every pick,
@@ -122,7 +123,7 @@ describe('ExtrasPanel', { timeout: 30_000 }, () => {
 
     await user.click(screen.getByRole('button', { name: 'Pay for extras' }));
     await waitFor(() => expect(checkout).toBeDefined());
-    expect(JSON.parse(calls('/api/account/bookings/TB-7F3K2Q/extras')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/account/bookings/TB-7F3K2Q/extras'), 0)[1].body)).toEqual({
       addons: [{ addonId: 'raft', travellers: 2 }],
     });
     expect(checkout!.amount).toBe(1_800_00);

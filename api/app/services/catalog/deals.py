@@ -115,7 +115,8 @@ def deal_for(pkg: Package, base: int, now: dt.datetime) -> DealOut | None:
     off = deal_off(pkg, base=base, now=now)
     if not off or pkg.starting_price_paise <= 0:
         return None
-    assert pkg.deal_ends_at is not None  # deal_off is 0 without it
+    if pkg.deal_ends_at is None:  # deal_off is 0 without it
+        raise RuntimeError("pkg.deal_ends_at is None")
     return DealOut(
         label=pkg.deal_label,
         ends_on=ends_on(pkg.deal_ends_at),

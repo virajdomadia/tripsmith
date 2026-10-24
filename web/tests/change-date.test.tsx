@@ -12,6 +12,7 @@ import {
   moneyLine,
   seatsLabel,
 } from '../src/lib/change';
+import { nth } from './nth';
 
 /**
  * P7 — My trips → Change date against a faked api and Checkout: the card states the fee rule in
@@ -179,7 +180,7 @@ describe('ChangeDatePanel', { timeout: 30_000 }, () => {
       within(sheet).getByRole('button', { name: 'Move to Fri 20 Nov 2099 · Pay ₹5,000' }),
     );
     await waitFor(() => expect(checkout).toBeDefined());
-    expect(JSON.parse(calls(PATH, 'POST')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls(PATH, 'POST'), 0)[1].body)).toEqual({
       departureId: 'dep_up',
       expectedNetPaise: 5_000_00,
     });
@@ -221,7 +222,7 @@ describe('ChangeDatePanel', { timeout: 30_000 }, () => {
     await waitFor(() => expect(checkout).toBeDefined());
     checkout!.modal!.ondismiss!();
     expect(await screen.findByText('Moved to Fri 20 Nov 2099')).toBeTruthy();
-    expect(JSON.parse(calls('/api/bookings/TB-7F3K2Q/sync', 'POST')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/bookings/TB-7F3K2Q/sync', 'POST'), 0)[1].body)).toEqual({
       orderId: 'order_Change02',
     });
   });

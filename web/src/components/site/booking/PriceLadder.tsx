@@ -27,12 +27,13 @@ export function PriceLadder({ flow, pkg }: { flow: BookingFlow; pkg: BookingPack
   // does, so the steps below don't jump (it was most of the package page's mobile CLS).
   if (!q && quote.status !== 'error' && pkg.earlyBird?.tiers.length)
     return <LadderPlaceholder flow={flow} pkg={pkg} date={departure.date} />;
-  if (!q || rungs.length === 0) return null;
+  const first = rungs[0];
+  if (!q || !first) return null;
 
   const fares = rungs.map((r) => r.farePaise);
   const [min, max] = [Math.min(...fares), Math.max(...fares)];
   const height = (fare: number) => LOW + (max > min ? ((fare - min) / (max - min)) * RANGE : 0);
-  const today = rungs[0].farePaise;
+  const today = first.farePaise;
 
   return (
     <div

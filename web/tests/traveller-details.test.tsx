@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Readiness, TravellerDetailsBlock, TravellerDetailsOut } from '../src/lib/account';
+import { nth } from './nth';
 
 /**
  * P9 (R49) — My trips: a card per traveller (the ID masked, never in full), a form for the ones
@@ -90,7 +91,7 @@ describe('TravellerDetails', () => {
     await userEvent.type(within(mira).getByLabelText(/ID number/), '1234');
     await userEvent.click(within(mira).getByRole('button', { name: 'Save Mira’s details' }));
     await within(mira).findByText('An Aadhaar number has 12 digits');
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = nth(fetchMock.mock.calls, 0);
     expect(url).toBe('/api/account/bookings/TB-7K2M9Q/travellers/tmira/details');
     expect(init.method).toBe('PUT');
     const sent = JSON.parse(init.body);
@@ -120,7 +121,7 @@ describe('TravellerDetails', () => {
     expect(within(asha).getByText(/Saved as XXXX XXXX 4821/)).toBeTruthy();
     await userEvent.click(within(asha).getByRole('button', { name: 'Save Asha’s details' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const sent = JSON.parse(nth(fetchMock.mock.calls, 0)[1].body);
     expect(sent.idType).toBe('aadhaar');
     expect(sent.idNumber).toBeNull();
   });
@@ -206,7 +207,7 @@ describe('TripCoupons', () => {
     coupons();
     await userEvent.click(screen.getByLabelText('Done: A light rain jacket each'));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = nth(fetchMock.mock.calls, 0);
     expect(url).toBe('/api/account/bookings/TB-7K2M9Q/checklist/rain');
     expect(JSON.parse(init.body)).toEqual({ done: true });
     expect(screen.getByText('2 to tear off')).toBeTruthy();

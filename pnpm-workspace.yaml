@@ -15,7 +15,17 @@ onlyBuiltDependencies:
 # They are build-time only and our CSS is our own, but the fix is a one-line floor, so take it.
 # P19 (docs/12): the same floor for next's source-map-js (event-loop DoS on crafted maps, build
 # time) and its optional sharp (librsvg CVE; Vercel's optimizer doesn't use it, but it's free).
+# SA-6 (docs/12, V9): shell-quote <1.11.0 (critical, quote() command injection) comes in dev-only
+# via concurrently, which never quotes untrusted input; the floor keeps the full `pnpm audit` clean.
+# The audit's other SA-6 package, braces, needs no floor: 3.0.3 is its newest release and the
+# advisory database no longer flags it (checked 2026-10-24), so `braces >=3.0.4` can't resolve.
+# V9: fast-uri <3.1.9 (four URI parsing advisories, via ajv under @hookform/resolvers and webpack)
+# reaches the prod tree; undici <8.12.2 (three DoS / SRI advisories) comes in dev-only with jsdom.
+# Neither parent has shipped a release that lifts them yet; drop each floor once one does.
 overrides:
+  fast-uri@<3.1.9: '^3.1.9'
   postcss@<8.5.23: '>=8.5.23'
   sharp@<0.35.5: '>=0.35.5'
+  shell-quote@<1.11.0: '^1.11.0'
   source-map-js@<1.2.2: '>=1.2.2'
+  undici@<8.12.2: '^8.12.2'

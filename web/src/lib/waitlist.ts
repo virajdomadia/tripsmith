@@ -39,7 +39,8 @@ export function istMoment(iso: string): string {
 export const seatsWord = (n: number) => `${n} ${n === 1 ? 'seat' : 'seats'}`;
 
 /** Why a claim can't be booked any more, in the sheet's words. */
-export const CLAIM_ENDED: Record<string, string> = {
+// `invalid` is always there (the fallback); the other states read as `string | undefined`.
+export const CLAIM_ENDED: Partial<Record<WaitlistClaim['state'], string>> & { invalid: string } = {
   waiting:
     'Your offer ended before it was claimed, so the seats went to the next person. You’re back on the waitlist — we’ll email you if seats free up again.',
   booked: 'You’ve already booked this date — it’s in My trips.',

@@ -417,7 +417,8 @@ async def create_counter_booking(
         await db.rollback()
         raise
     if capture is None:
-        assert notify is not None and notify.razorpay is not None  # checked above
+        if not (notify is not None and notify.razorpay is not None):  # checked above
+            raise RuntimeError("notify.razorpay is None (checked above)")
         await issue_link(
             db,
             ref,
@@ -441,7 +442,8 @@ async def _settle_now(
 ) -> Capture:
     """Paid now or deposit now: the offline payment through `settle_capture`, in the caller's
     transaction (it commits)."""
-    assert req.method is not None  # the schema requires it unless settling by link
+    if req.method is None:  # the schema requires it unless settling by link
+        raise RuntimeError("req.method is None")
     reference = _reference(req.method, req.reference)
     db.add(
         Payment(

@@ -20,7 +20,6 @@ from tests.test_db import goa, package
 pytestmark = pytest.mark.db
 
 API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NOW = dt.datetime.now(dt.UTC)
 _refs = iter(range(100_000, 999_999))
 
 
@@ -48,7 +47,9 @@ def booking(
         package_id=dep.package_id,
         departure_id=dep.id,
         status=status,
-        hold_expires_at=NOW + hold,
+        # Read the clock per row: a module-level `now` made every "live" hold lapse once the
+        # run reached this file more than 10 minutes in (V9: coverage makes the run that slow).
+        hold_expires_at=dt.datetime.now(dt.UTC) + hold,
         contact_name="Asha",
         contact_phone="9876543210",
         contact_email="asha@example.test",
@@ -110,7 +111,7 @@ async def test_a_hold_frees_its_seats_the_moment_it_lapses(db: AsyncSession) -> 
     assert await seats_left(db, dep) == 0
 
     # No cron, no status change: only the clock moves past hold_expires_at.
-    hold.hold_expires_at = NOW - dt.timedelta(minutes=1)
+    hold.hold_expires_at = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
     await db.commit()
     assert await seats_left(db, dep) == 4
 

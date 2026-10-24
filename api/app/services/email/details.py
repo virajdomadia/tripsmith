@@ -116,7 +116,8 @@ async def _still_owed(db: AsyncSession, ref: str, today: dt.date) -> StillOwed:
     if not left:
         raise ApiError("conflict", "Every traveller's details are in", reason="complete")
     facts = await load_booking_facts(db, ref)
-    assert facts is not None
+    if facts is None:
+        raise RuntimeError("facts is None")
     owed = [
         Owed(name=name, fields=" · ".join(details.FIELD_WORDS[f] for f in fields))
         for name, fields in left

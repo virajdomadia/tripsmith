@@ -245,11 +245,12 @@ export function orderBody(
     ...(addons.length ? { addons } : {}),
     pay,
     departureId,
-    travellers: slots.map((s) => ({
-      name: travellers[s.key].name.trim(),
-      age: Number(travellers[s.key].age),
-      occupancy: s.occupancy,
-    })),
+    travellers: slots.map((s) => {
+      const t = travellers[s.key];
+      // validate() refuses a slot with no traveller first; an order without one is a bug here.
+      if (!t) throw new Error(`orderBody: no traveller for slot ${s.key}`);
+      return { name: t.name.trim(), age: Number(t.age), occupancy: s.occupancy };
+    }),
     contact: {
       name: contact.name.trim(),
       phone: normalisePhone(contact.phone),

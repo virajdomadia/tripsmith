@@ -18,6 +18,7 @@ import {
   type CouponResults,
 } from '@/lib/admin/coupon-board';
 import type { AdminCoupon } from '@/lib/admin/coupon-schema';
+import { nth } from './nth';
 
 const refresh = vi.fn();
 const adminRequest = vi.fn();
@@ -218,11 +219,11 @@ describe('CouponInsight', () => {
     );
     expect(s.textContent).toContain('+4 on other trips');
     const uses = within(s).getAllByRole('listitem').slice(-2);
-    expect(uses[0].textContent).toContain('Today');
-    expect(uses[0].textContent).toContain('In checkout');
-    expect(uses[0].textContent).toContain('holding one use until paid');
-    expect(uses[1].textContent).toContain('26 Sep');
-    expect(uses[1].textContent).toContain('1 traveller · −₹1,000');
+    expect(nth(uses, 0).textContent).toContain('Today');
+    expect(nth(uses, 0).textContent).toContain('In checkout');
+    expect(nth(uses, 0).textContent).toContain('holding one use until paid');
+    expect(nth(uses, 1).textContent).toContain('26 Sep');
+    expect(nth(uses, 1).textContent).toContain('1 traveller · −₹1,000');
     expect(s.textContent).toContain('Website vs counter: with counter booking, a later row.');
   });
 

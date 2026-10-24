@@ -19,6 +19,7 @@ import {
   slotsFor,
   unbookableReason,
 } from '../src/lib/booking';
+import { nth } from './nth';
 
 /** B5: the sheet's party rules must match the api's 400s, and its grey labels its 409s. */
 
@@ -66,7 +67,7 @@ describe('party', () => {
     const before = slotsFor(rooms({ double: 1 })).map((s) => s.key);
     const after = slotsFor(rooms({ double: 2 })).map((s) => s.key);
     expect(after.slice(0, 2)).toEqual(before);
-    expect(slotsFor(rooms({ double: 2 }))[2].room).toBe('Double room 2');
+    expect(nth(slotsFor(rooms({ double: 2 })), 2).room).toBe('Double room 2');
   });
 
   it('caps the party at 12 and never lets a child travel without an adult', () => {

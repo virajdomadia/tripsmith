@@ -396,9 +396,11 @@ async def get_panel(db: AsyncSession, departure_id: str) -> CalendarPanel:
     if not chips or dep is None:
         raise ApiError("not_found", NOT_FOUND)
     pkg = await db.get(Package, dep.package_id)
-    assert pkg is not None
+    if pkg is None:
+        raise RuntimeError("pkg is None")
     destination = await db.get(Destination, pkg.destination_id)
-    assert destination is not None
+    if destination is None:
+        raise RuntimeError("destination is None")
     paid_rows = (await details.open_booking_rows(db, [departure_id])).get(departure_id, [])
     return CalendarPanel(
         departure=chips[0],

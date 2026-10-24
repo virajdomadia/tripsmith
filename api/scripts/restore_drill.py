@@ -36,7 +36,8 @@ COUNTS_SQL = (
 
 
 def run(*args: str, capture: bool = False) -> str:
-    done = subprocess.run(args, check=True, text=True, capture_output=capture)
+    # S603: the drill's own fixed commands (pg tools, age, gh), never shell, never user input.
+    done = subprocess.run(args, check=True, text=True, capture_output=capture)  # noqa: S603
     return done.stdout if capture else ""
 
 

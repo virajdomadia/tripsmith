@@ -2,6 +2,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { nth } from './nth';
 
 /** P15b (R53) — Settings · Emails: switch a type, preview it with a booking, send a test; and the
  * booking's Emails panel. */
@@ -77,7 +78,7 @@ describe('EmailSettingsBoard', () => {
   it('previews with a real booking in a sandboxed frame and sends a test', async () => {
     const user = userEvent.setup();
     render(<EmailSettingsBoard settings={SETTINGS} />);
-    await user.click(screen.getAllByRole('button', { name: 'Preview' })[0]);
+    await user.click(nth(screen.getAllByRole('button', { name: 'Preview' }), 0));
     const sheet = await screen.findByRole('dialog');
     await within(sheet).findByText('Your trip pack for Kasol — Fri 13 Nov 2099');
     expect(adminGet).toHaveBeenCalledWith('/admin/emails/trip_pack/preview', { ref: 'TB-7K2M9Q' });

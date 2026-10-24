@@ -9,6 +9,7 @@ import { packageSchema, toInput } from '../src/lib/admin/package-schema';
 import type { components } from '../src/lib/api-types';
 import { afterDeal, dealEnds, dealLabel, shownPrice, type Deal } from '../src/lib/deal';
 import { packageJsonLd } from '../src/lib/seo/package-jsonld';
+import { nth } from './nth';
 
 afterEach(cleanup);
 
@@ -134,8 +135,8 @@ describe('JSON-LD Offer.price', () => {
     expect(ld.offers).toHaveLength(1);
     expect(ld.offers[0]).toMatchObject({ price: '11499', priceValidUntil: '2099-10-02' });
     const plain = packageJsonLd({ ...pkg, deal: null }, 'https://t/p') as typeof ld;
-    expect(plain.offers[0].price).toBe('14499');
-    expect(plain.offers[0]).not.toHaveProperty('priceValidUntil');
+    expect(nth(plain.offers, 0).price).toBe('14499');
+    expect(nth(plain.offers, 0)).not.toHaveProperty('priceValidUntil');
   });
 });
 

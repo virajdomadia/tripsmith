@@ -561,7 +561,8 @@ async def claim(db: AsyncSession, due: Due) -> str | None:
                 )
             ).scalar_one()
             when = "on the due day" if due.stage == 0 else f"{due.stage} days before the due day"
-            assert due.anchor is not None
+            if due.anchor is None:
+                raise RuntimeError("due.anchor is None")
             history.record(
                 db,
                 due.booking_id,

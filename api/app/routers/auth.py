@@ -46,7 +46,7 @@ LOGIN_WINDOW_SECONDS = 600
 OTP_WINDOW_SECONDS = 15 * 60
 OTP_EMAIL_LIMIT = 5
 OTP_IP_LIMIT = 20
-OWNER_USES_PASSWORD = "This email signs in with a password — use the owner sign-in"
+OWNER_USES_PASSWORD = "This email signs in with a password — use the owner sign-in"  # noqa: S105
 TOO_MANY_CODES = "Too many codes asked for — wait a few minutes and try again"
 CODES_PAUSED = "Sign-in codes are paused for now — try again later, or book without signing in"
 

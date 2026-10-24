@@ -28,7 +28,7 @@ export function proofLine(
   if (recent == null) return last == null ? null : lastBooked(last);
   if (mode === 'one' || last == null) return bookedRecently(recent);
   const tail = lastBooked(last);
-  return `${bookedRecently(recent)} · ${tail[0].toLowerCase()}${tail.slice(1)}`;
+  return `${bookedRecently(recent)} · ${tail.charAt(0).toLowerCase()}${tail.slice(1)}`;
 }
 
 /** P4 (R42): "with 3 others" from the booking's party; nothing for a solo traveller. */

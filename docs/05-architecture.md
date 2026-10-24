@@ -87,7 +87,7 @@ tripsmith/
 ├─ docs/ · mockups/ · brand/
 ├─ package.json                      root scripts fan out: lint / typecheck / test / dev (concurrently) / gen:api
 ├─ pnpm-workspace.yaml               web/ only
-└─ .github/workflows/                ci.yml (jobs web · api · contract), e2e.yml, lighthouse.yml
+└─ .github/workflows/                ci.yml (jobs web · api · contract · audit · secrets · e2e); dependabot.yml
 ```
 
 ## 3. Module boundaries inside `api/`

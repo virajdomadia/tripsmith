@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { claimFromSearch, claimLive, istMoment } from '../src/lib/waitlist';
+import { nth } from './nth';
 
 /**
  * R44 (P6) in the Book-now sheet: a sold-out date takes waitlist joins, and a waitlist offer's
@@ -105,8 +106,9 @@ const json = (status: number, body: unknown) =>
 
 function api(overrides: Record<string, () => Response> = {}) {
   fetchMock.mockImplementation(async (url: string) => {
-    const path = String(url).split('?')[0];
-    if (overrides[path]) return overrides[path]();
+    const path = nth(String(url).split('?'), 0);
+    const override = overrides[path];
+    if (override) return override();
     if (path.endsWith('/departures')) return json(200, { items: [SOLD, OPEN] });
     if (path === '/api/bookings/quote') return json(200, QUOTE);
     if (path === `/api/waitlist/claim/${TOKEN}`) return json(200, CLAIM);
@@ -156,7 +158,7 @@ describe('the waitlist in the Book-now sheet', { timeout: 30_000 }, () => {
 
     expect(await within(sheet).findByText(/in line for/)).toBeTruthy();
     expect(within(sheet).getByText('#4')).toBeTruthy();
-    expect(JSON.parse(calls('/api/waitlist')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/waitlist'), 0)[1].body)).toEqual({
       departureId: 'dep_nov',
       name: 'Asha Rao',
       email: 'Asha@Customer.in',

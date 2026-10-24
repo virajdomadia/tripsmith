@@ -16,6 +16,7 @@ import {
   toApiSearchParams,
   toSearchParams,
 } from '../src/lib/search';
+import { nth } from './nth';
 
 type Facets = components['schemas']['SearchFacets'];
 
@@ -172,10 +173,10 @@ describe('chips + labels', () => {
       'Beach',
       'December 2026',
     ]);
-    expect(chips[0].href).toBe(
+    expect(nth(chips, 0).href).toBe(
       '/packages?destination=kerala&maxBudget=20000&nightsMin=4&themes=beach&month=2026-12&sort=duration',
     );
-    expect(chips[5].href).toBe(
+    expect(nth(chips, 5).href).toBe(
       '/packages?destination=goa&destination=kerala&maxBudget=20000&nightsMin=4&themes=beach&sort=duration',
     );
   });

@@ -3,6 +3,7 @@
  * global-error) triggers one download and one init, and a capture never runs before that init.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { nth } from './nth';
 
 const calls: string[] = [];
 vi.mock('@/lib/sentry-sdk', () => ({
@@ -27,7 +28,7 @@ describe('loadSentry', () => {
     const sdk = await import('@/lib/sentry-sdk');
     const { loadSentry } = await import('../src/lib/sentry-browser');
     await loadSentry();
-    const options = vi.mocked(sdk.init).mock.calls[0][0] as Record<string, unknown>;
+    const options = nth(vi.mocked(sdk.init).mock.calls, 0)[0] as Record<string, unknown>;
     expect(options).not.toHaveProperty('tracesSampleRate');
     expect(options).toHaveProperty('integrations');
   });

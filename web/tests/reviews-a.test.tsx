@@ -11,6 +11,7 @@ import {
   reviewKpis,
   reviewsHref,
 } from '@/lib/admin/reviews';
+import { nth } from './nth';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -99,7 +100,7 @@ describe('Reviews A helpers', () => {
       '−2 on Dec',
       'Spam or personal details',
     ]);
-    expect(quiet[1].value).toBe('—');
+    expect(nth(quiet, 1).value).toBe('—');
     expect(quiet[2]).toMatchObject({ label: 'Published · Jan', tone: 'down' });
   });
 });
@@ -115,10 +116,10 @@ describe('ReviewQueue', () => {
       />,
     );
     const rows = screen.getAllByRole('link');
-    expect(rows[0].getAttribute('href')).toBe('/admin/reviews?sel=rev_1#review');
-    expect(rows[1].getAttribute('aria-current')).toBe('true');
-    expect(within(rows[0]).getByText('The houseboat night was the best part.')).toBeTruthy();
-    expect(within(rows[1]).getByRole('img', { name: '3 out of 5 stars' })).toBeTruthy();
+    expect(nth(rows, 0).getAttribute('href')).toBe('/admin/reviews?sel=rev_1#review');
+    expect(nth(rows, 1).getAttribute('aria-current')).toBe('true');
+    expect(within(nth(rows, 0)).getByText('The houseboat night was the best part.')).toBeTruthy();
+    expect(within(nth(rows, 1)).getByRole('img', { name: '3 out of 5 stars' })).toBeTruthy();
   });
 
   it('says so when a tab is empty', () => {

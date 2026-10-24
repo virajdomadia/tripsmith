@@ -147,7 +147,8 @@ def _one_line(subject: str) -> str:
 
 
 def render_owner(ctx: EnquiryEmailContext, *, settings: Settings) -> EmailMessage:
-    assert settings.owner_notify_email, "caller checks OWNER_NOTIFY_EMAIL"
+    if not settings.owner_notify_email:
+        raise RuntimeError("caller checks OWNER_NOTIFY_EMAIL")
     vars = _common(ctx, settings)
     return EmailMessage(
         to=settings.owner_notify_email,

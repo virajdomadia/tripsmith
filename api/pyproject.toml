@@ -13,7 +13,7 @@ dependencies = [
     "fpdf2>=2.8.8",
     "httpx>=0.28.1",
     "jinja2>=3.1",
-    "pillow>=12.3.0",
+    "pillow>=13.0.0",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "sentry-sdk[fastapi]>=2.69.1",
@@ -28,8 +28,9 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "httpx",
-    "pypdf>=6.19.0",
+    "pypdf>=6.21.2",
     "icalendar>=7.3.0",
+    "coverage>=7.17.0",
 ]
 
 [tool.ruff]
@@ -37,7 +38,12 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: pytest asserts are the tests. S105-S107: the tests' secrets are fixed throwaway strings
+# for fakes and test settings, never a real credential (gitleaks guards the real ones).
+"tests/**" = ["S101", "S105", "S106", "S107"]
 
 [tool.ruff.lint.isort]
 # The api/alembic/ folder is the migrations dir, not the `alembic` package.
@@ -55,3 +61,15 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+# Q-1 (docs/12): SQLAlchemy's async engine runs our code on greenlets; without greenlet
+# concurrency coverage misses every line after the first await and reports 88 % (money modules
+# 47–67 %) when the real number is ~96 %.
+concurrency = ["greenlet", "thread"]
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 94
+show_missing = false
+skip_covered = true

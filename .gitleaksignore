@@ -1,0 +1,4 @@
+# gitleaks allowlist (V9). One line per real false positive, each with its reason above it.
+
+# A GST document key in a component test fixture (`receipt-<id>`), not a credential.
+43ae6e3abf96d35990d86da48e16c025e5090a1b:web/tests/gst-documents.test.tsx:generic-api-key:34

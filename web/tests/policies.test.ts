@@ -9,6 +9,7 @@ import {
   POLICY_SLUGS,
   RETENTION,
 } from '../src/lib/policies';
+import { nth } from './nth';
 
 const API = resolve(__dirname, '../../api/app/services');
 
@@ -17,7 +18,7 @@ function pyConst(file: string, name: string): string {
   const src = readFileSync(resolve(API, file), 'utf8');
   const m = src.match(new RegExp(`^${name} = (.+?)(?:\\s+#.*)?$`, 'm'));
   if (!m) throw new Error(`${name} not found in ${file}`);
-  return m[1].replace(/_/g, '');
+  return nth(m, 1).replace(/_/g, '');
 }
 
 const text = (slug: (typeof POLICY_SLUGS)[number]) =>
@@ -51,7 +52,7 @@ describe('policy documents', () => {
       '15 to 29 days before departure',
       '14 days or fewer before departure',
     ]);
-    const cancel = POLICIES['cancellation-policy'].blocks[0];
+    const cancel = nth(POLICIES['cancellation-policy'].blocks, 0);
     expect(cancel.list).toEqual(CANCELLATION_SCHEDULE.map((r) => `${r.window}: ${r.refund}`));
   });
 

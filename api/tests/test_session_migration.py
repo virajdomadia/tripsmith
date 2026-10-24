@@ -47,7 +47,7 @@ def test_upgrade_backfills_hashes_and_keeps_the_old_column(migrated_database_url
                 "truncate table users cascade",
                 "insert into users (id, name, email, role) "
                 "values ('u-mig', 'Owner', 'mig@tripsmith.demo', 'owner')",
-                "insert into sessions (id, user_id, token, expires_at) "
+                "insert into sessions (id, user_id, token, expires_at) "  # noqa: S608 — constants
                 f"values ('s-old', 'u-mig', '{RAW}', '{expires}')",
             )
         )
@@ -60,9 +60,9 @@ def test_upgrade_backfills_hashes_and_keeps_the_old_column(migrated_database_url
         asyncio.run(
             _sql(
                 url,
-                "insert into sessions (id, user_id, token, expires_at) "
+                "insert into sessions (id, user_id, token, expires_at) "  # noqa: S608 — constants
                 f"values ('s-gap', 'u-mig', 'opened-by-old-code', '{expires}')",
-                "insert into sessions (id, user_id, token_hash, expires_at) "
+                "insert into sessions (id, user_id, token_hash, expires_at) "  # noqa: S608
                 f"values ('s-new', 'u-mig', '{hash_token('new')}', '{expires}')",
             )
         )

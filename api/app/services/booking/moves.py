@@ -386,7 +386,8 @@ async def move_booking(
                 .execution_options(synchronize_session=False)
             )
         if rise and req.settle == "offline":
-            assert req.method is not None
+            if req.method is None:
+                raise RuntimeError("req.method is None")
             label = METHOD_WORDS[req.method] + (f" · {req.reference}" if req.reference else "")
             db.add(
                 Payment(

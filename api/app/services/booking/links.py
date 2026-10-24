@@ -436,7 +436,8 @@ async def cancel_link(
     """Cancel the link at Razorpay, then release the seats. Paid meanwhile → sync it instead."""
     _booking, row = await _open_link(db, ref)
     link_id = row.razorpay_link_id
-    assert link_id is not None
+    if link_id is None:
+        raise RuntimeError("link_id is None")
     await db.rollback()
     try:
         await razorpay.cancel_payment_link(link_id)
@@ -495,7 +496,8 @@ async def email_link(db: AsyncSession, ref: str, notify: Notify) -> None:
         raise ApiError("conflict", NO_LINK, reason="no_link")
     expires, amount = booking.hold_expires_at, row.amount_paise
     facts = await load_booking_facts(db, ref)
-    assert facts is not None
+    if facts is None:
+        raise RuntimeError("facts is None")
     await send_payment_link(
         notify.sender, notify.settings, facts, url=url, amount_paise=amount, expires=expires, db=db
     )

@@ -111,8 +111,14 @@ async def _change_words(db: AsyncSession, change_id: str) -> str:
     )
 
 
+# ASYNC109: the caller can't wrap this in `asyncio.timeout` — the bound must cover the render
+# only, never cancel the issue and its commit halfway.
 async def document_pdf(
-    db: AsyncSession, ref: str, key: str, *, timeout: float | None = None
+    db: AsyncSession,
+    ref: str,
+    key: str,
+    *,
+    timeout: float | None = None,  # noqa: ASYNC109
 ) -> tuple[bytes, str]:
     """(PDF bytes, filename) for document `key` of booking `ref`, numbering it if the event
     missed it. `timeout` bounds the render only — never the issue and its commit."""

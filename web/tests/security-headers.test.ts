@@ -7,19 +7,22 @@
  */
 import { describe, expect, it } from 'vitest';
 import nextConfig from '../next.config';
+import { nth } from './nth';
 
 async function headers(): Promise<Record<string, string>> {
   const groups = await nextConfig.headers!();
   expect(groups).toHaveLength(1);
   // Every page and route handler except `/api/*`, which is rewritten to the api and carries the
   // api's own headers — two CSP headers on one response would be enforced as their intersection.
-  expect(groups[0].source).toBe('/((?!api/).*)');
-  return Object.fromEntries(groups[0].headers.map((h) => [h.key.toLowerCase(), h.value]));
+  expect(nth(groups, 0).source).toBe('/((?!api/).*)');
+  return Object.fromEntries(nth(groups, 0).headers.map((h) => [h.key.toLowerCase(), h.value]));
 }
 
 function csp(all: Record<string, string>): Record<string, string> {
+  const header = all['content-security-policy'];
+  if (header === undefined) throw new Error('no Content-Security-Policy header');
   return Object.fromEntries(
-    all['content-security-policy']
+    header
       .split(';')
       .map((part) => part.trim())
       .filter(Boolean)
