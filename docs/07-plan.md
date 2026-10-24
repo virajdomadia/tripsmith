@@ -206,7 +206,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 - Same as v2.5: own branch in a `.worktrees/` worktree, one PR, squash-merge, never push to `main`, and a **new chat per row**.
 - Migrations are expand-first. Viraj runs each on prod before the code merges.
 - Every finding a row closes gets a test that fails before the fix, where the finding is testable.
-- **This version lifts lean rule 6 for its own rows** (Viraj, 2026-10-14): monitoring, backups, runbooks and CI hardening are the point of v2.6, not setup to avoid.
+- **This version lifts lean rule 6 for its own rows** (Viraj, 2026-10-14): monitoring, backups, runbooks and CI hardening are the point of v2.6, not setup to avoid. Backups were later declined (2026-10-24, V6).
 
 ### Milestone 2.6.0 — Fix (≈ 11.5 h)
 | # | Task | Findings | Est. | Done when |
@@ -220,7 +220,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 ### Milestone 2.6.1 — Operate (≈ 7 h)
 | # | Task | Findings | Est. | Done when |
 |---|---|---|---|---|
-| V6 | **Backups, runbook, rollback:** nightly `pg_dump -Fc` with a read-only role, `age`-encrypted (the repo is public), 30-day artifact; one restore drill run and timed; `docs/18-runbook.md` (webhook failing, SMTP quota, database down, SESSION_SECRET and CRON_SECRET rotation, restore, rollback order, Razorpay go-live); `SESSION_SECRET_PREVIOUS` accepted for verification; fix the api host named in the docs | OP-3, OP-8, OP-9, DOC-1 | 3 h | a dump restores into a scratch database and the counts match prod |
+| V6 | **Backups, runbook, rollback:** nightly `pg_dump -Fc` with a read-only role, `age`-encrypted (the repo is public), 30-day artifact; one restore drill run and timed; `docs/18-runbook.md` (webhook failing, SMTP quota, database down, SESSION_SECRET and CRON_SECRET rotation, restore, rollback order, Razorpay go-live); `SESSION_SECRET_PREVIOUS` accepted for verification; fix the api host named in the docs | OP-3, OP-8, OP-9, DOC-1 | 3 h | a dump restores into a scratch database and the counts match prod — **changed 2026-10-24:** Viraj declined backups (portfolio project), so V6 closed with the runbook, `SESSION_SECRET_PREVIOUS` and the host fix; the backup workflow and drill script are built but disabled and the drill never ran (OP-3 accepted, docs/12) |
 | V9 | **CI hardening:** Dependabot (npm, pip, actions); `pip-audit` + `pnpm audit --prod` + gitleaks jobs; ruff `S`, `ASYNC`; `noUncheckedIndexedAccess`; api coverage with greenlet concurrency gated at 94 %; vitest for the Checkout loader and the refund-made action; Playwright P0 journeys (book → pay → voucher, sign in → My trips, owner refund) against local web + api; floors for the two dev advisories | Q-1, Q-7, SA-6 | 4 h | CI fails on a new advisory, a leaked secret, a coverage drop or a broken P0 journey |
 
 ### Milestone 2.6.2 — Tidy (≈ 4.5 h) — closes lifecycle 10–12, 17 for v2.6

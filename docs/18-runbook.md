@@ -1,7 +1,7 @@
 # 18 — Runbook
 
 What to do when something breaks in production, and how to do the few risky routine jobs
-(rotating a secret, restoring the database, rolling back, going live with Razorpay). Written in
+(rotating a secret, rebuilding the database, rolling back, going live with Razorpay). Written in
 v2.6 V6 (findings OP-3, OP-8, OP-9 in [12-security-performance.md](12-security-performance.md)).
 Each entry says how you notice, what to check first, and what to do.
 
@@ -11,7 +11,7 @@ Each entry says how you notice, what to check first, and what to do.
 |---|---|
 | Web | Vercel project `tripsmith` → https://tripsmith.virajdomadia.com (also `tripsmith.vercel.app`) |
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
-| Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations, seeds, dumps: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
+| Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations and seeds: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
 | Backups | **None.** The `db-backup.yml` workflow exists but is disabled by choice (Viraj, 2026-10-24: a portfolio project, losing the data is acceptable) — see §6 |
 | Scheduled jobs | Vercel crons `/cron/daily` (01:00 IST) and `/cron/emails` (09:00 IST); GitHub `waitlist-tick.yml` every 15 min (runs ~5×/day in practice) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
@@ -105,10 +105,24 @@ than the web.
    that port). A password reset in Supabase invalidates it.
 
 **If the project is gone or will not come back:** there is no backup (§6), so start fresh, as
-the Neon → Supabase move did on 2026-10-23: create a new Supabase project in Mumbai, run
-`alembic upgrade head` and the seeds (catalogue, `--demo-traveller`, `--demo-coupon`,
-`--history`, `--urgency`) against its session pooler, point `DATABASE_URL` at its transaction
-pooler, redeploy the api, then the web (§7). Bookings, enquiries and accounts are lost.
+the Neon → Supabase move did on 2026-10-23. Create a new Supabase project in Mumbai, then from
+`api/`, with its **session pooler** URL in the asyncpg form
+`postgresql+asyncpg://postgres.<ref>:<pw>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?ssl=require`
+(`ssl=require`, not `sslmode`; neither tool falls back to `DATABASE_URL`):
+
+```powershell
+$env:ALEMBIC_URL = "<that URL>"; uv run alembic upgrade head; uv run alembic current
+uv run python scripts/seed.py --database-url $env:ALEMBIC_URL                  # catalogue
+foreach ($f in "--demo-traveller", "--demo-coupon", "--history", "--urgency") {
+  uv run python scripts/seed.py $f --database-url $env:ALEMBIC_URL }
+```
+
+Point `DATABASE_URL` on `tripsmith-api` Production at the new **transaction pooler** (`:6543`),
+redeploy the api, then the web (§7). Everything written since the seed is lost: bookings,
+payments and refunds, enquiries, customer accounts and sessions, reviews, waitlist entries, the
+email and webhook ledgers, and every owner edit made in /admin (prices, departures, deals,
+coupons and their uses, early-bird tiers, leaders) — the catalogue comes back as `api/content/`
+has it.
 
 ## 4. Rotating SESSION_SECRET
 
@@ -156,15 +170,15 @@ them: the workflow is disabled in GitHub Actions, the `tripsmith_backup` role, t
 below is ready if that changes: do the **Backups set-up**, then `gh workflow enable
 db-backup.yml`, run it once by hand and run the drill.
 
-**What it does when on:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
+**What it would do when on:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
 schema as the read-only role `tripsmith_backup`, with every table's row count read in the same
 exported snapshot; restored at once into a throwaway Postgres on the runner and the counts
 compared, then both the dump and the counts
 are `age`-encrypted and kept as a 30-day artifact `tripsmith-db-<UTC stamp>`. The repo is public,
-so only the encrypted files leave the runner. The private key is
-`C:\Users\Viraj\.age\tripsmith-backup.txt` and a copy in the password manager — without it every
-backup is useless. A failed run emails the repo owner (GitHub's default for scheduled runs).
-GitHub disables scheduled workflows after 60 days without a commit: re-enable it in Actions.
+so only the encrypted files leave the runner. The private key would be kept at
+`C:\Users\Viraj\.age\tripsmith-backup.txt` with a copy in the password manager — without it every
+backup is useless. A failed run would email the repo owner (GitHub's default for scheduled
+runs), and GitHub disables a schedule after 60 days without a commit.
 
 **Drill / restore into a scratch database** (local Postgres on 5433; needs `gh`, `age`,
 `psql`, `pg_restore` on PATH):
