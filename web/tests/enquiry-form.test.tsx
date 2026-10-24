@@ -2,6 +2,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nth } from './nth';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
@@ -49,7 +50,7 @@ describe('EnquiryForm', () => {
     await user.click(screen.getByRole('button', { name: 'Send enquiry' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledOnce());
-    expect(push.mock.calls[0][0]).toMatch(/^\/enquiry\/thanks\?ref=TS-ABC234/);
+    expect(nth(push.mock.calls, 0)[0]).toMatch(/^\/enquiry\/thanks\?ref=TS-ABC234/);
     // The button must not come back to life for a second click while /enquiry/thanks loads.
     const button = screen.getByRole('button', { name: 'Sending…' });
     expect(disabled(button)).toBe(true);

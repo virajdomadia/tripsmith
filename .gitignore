@@ -9,6 +9,7 @@ out/
 .env*.local
 # testing / tooling
 coverage/
+.coverage
 playwright-report/
 test-results/
 .vercel

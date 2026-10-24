@@ -89,7 +89,7 @@ def test_committed_openapi_json_is_fresh() -> None:
 
 def test_module_entrypoint_writes_the_file(tmp_path: Path) -> None:
     target = tmp_path / "openapi.json"
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: S603 — our own module under this interpreter
         [sys.executable, "-m", "app.openapi", str(target)],
         cwd=API_DIR,
         capture_output=True,

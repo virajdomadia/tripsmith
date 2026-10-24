@@ -256,7 +256,8 @@ def build_quote(
     deal: QuoteDeal | None = None
     dealt = dict.fromkeys(ORDER, 0)  # the deal per traveller, by occupancy
     if off:
-        assert pkg.deal_ends_at is not None  # deal_off is 0 without it
+        if pkg.deal_ends_at is None:  # deal_off is 0 without it
+            raise RuntimeError("pkg.deal_ends_at is None")
         deal = QuoteDeal(label=pkg.deal_label, ends_at=pkg.deal_ends_at, per_traveller_paise=off)
         for occ in ORDER:
             if counts[occ]:

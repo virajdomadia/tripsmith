@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CheckoutOptions } from '../src/lib/razorpay-checkout';
+import { nth } from './nth';
 
 /**
  * P5 — My trips → Balance: what is left and by when, a part of at least ₹1,000 (or all of a
@@ -96,7 +97,7 @@ describe('BalancePanel', () => {
     await user.click(screen.getByRole('button', { name: 'Pay ₹15,000' }));
 
     await waitFor(() => expect(checkout).toBeDefined());
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ amountPaise: 15_000_00 });
+    expect(JSON.parse(nth(fetchMock.mock.calls, 0)[1].body)).toEqual({ amountPaise: 15_000_00 });
     expect(checkout).toMatchObject({ order_id: 'order_Part0001', amount: 15_000_00 });
     checkout!.handler({
       razorpay_order_id: 'order_Part0001',

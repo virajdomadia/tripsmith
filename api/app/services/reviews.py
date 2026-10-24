@@ -405,5 +405,6 @@ async def moderate(
     await revalidate(revalidate_tags(slug, destination_slug))
     out = await review_for_booking(db, review.booking_id)
     await db.rollback()
-    assert out is not None
+    if out is None:
+        raise RuntimeError("out is None")
     return out

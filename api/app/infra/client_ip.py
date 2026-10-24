@@ -7,7 +7,7 @@ from fastapi import Request
 from app.errors import ApiError
 
 TRUSTED_IP_HEADER = "x-client-ip"
-INTERNAL_SECRET_HEADER = "x-internal-secret"
+INTERNAL_SECRET_HEADER = "x-internal-secret"  # noqa: S105 — a header name, not its value
 
 
 def client_ip(request: Request) -> str:

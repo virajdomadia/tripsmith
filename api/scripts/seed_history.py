@@ -157,7 +157,7 @@ def departure_days(today: dt.date, n: int, offset: int) -> list[dt.date]:
 class _Writer:
     def __init__(self, db: AsyncSession, today: dt.date, owner_id: str | None) -> None:
         self.db, self.today, self.owner_id = db, today, owner_id
-        self.rng = random.Random(RNG_SEED)
+        self.rng = random.Random(RNG_SEED)  # noqa: S311 — seeded demo data, reproducible on purpose
         self.bookings = self.enquiries = self.departures = 0
         self.emails: list[str] = []
 

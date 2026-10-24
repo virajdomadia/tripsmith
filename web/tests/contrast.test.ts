@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { nth } from './nth';
 
 /*
  * H3: the token pairs the site paints text with, each held to WCAG AA (4.5:1 for body text).
@@ -21,20 +22,21 @@ const css = readFileSync(resolve(__dirname, '../src/app/globals.css'), 'utf8');
 function token(name: string): string {
   const hit = new RegExp(`--color-${name}\\s*:\\s*(#[0-9a-f]{6})\\s*;`, 'i').exec(css);
   if (!hit) throw new Error(`globals.css declares no --color-${name}`);
-  return hit[1].toLowerCase();
+  return nth(hit, 1).toLowerCase();
 }
 
 /** WCAG 2.x relative luminance. */
 function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5]
-    .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
-    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const channel = (i: number) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
 
 function ratio(fg: string, bg: string): number {
-  const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
-  return (hi + 0.05) / (lo + 0.05);
+  const [a, b] = [luminance(fg), luminance(bg)];
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 const WHITE = '#ffffff';

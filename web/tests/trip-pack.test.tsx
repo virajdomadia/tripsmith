@@ -2,6 +2,7 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nth } from './nth';
 import type { CalendarBlock, Readiness, TripPack } from '../src/lib/account';
 import { dayRange } from '../src/lib/account';
 
@@ -166,7 +167,7 @@ describe('TripCoupons with the pack and the calendar', () => {
     const pack = screen.getByText('Trip pack read').closest('li') as HTMLElement;
     await userEvent.click(within(pack).getByRole('button', { name: /Open/ }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = nth(fetchMock.mock.calls, 0);
     expect(url).toBe('/api/account/bookings/TB-7K2M9Q/pack/read');
     expect(init.method).toBe('PUT');
     // Closing and opening again doesn't ask twice.

@@ -9,5 +9,9 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   // Component tests opt into jsdom per-file (`// @vitest-environment jsdom` as their first
   // line); everything else keeps running in node, which is what the pure-module tests need.
-  test: { include: ['tests/**/*.test.{ts,tsx}'] },
+  test: {
+    include: ['tests/**/*.test.{ts,tsx}'],
+    // V9 (Q-7): `pnpm --filter web test:coverage` — measured, not gated (the api's gate is Q-1).
+    coverage: { provider: 'v8', include: ['src/**'], reporter: ['text-summary', 'html'] },
+  },
 });

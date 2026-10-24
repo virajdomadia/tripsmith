@@ -270,8 +270,7 @@ export const POLICIES: Record<PolicySlug, PolicyDoc> = {
 
 /** `2026-09-18` → `18 September 2026` (en-IN puts the day first). */
 export function formatUpdated(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

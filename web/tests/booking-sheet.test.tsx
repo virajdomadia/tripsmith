@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CheckoutOptions } from '../src/lib/razorpay-checkout';
+import { nth } from './nth';
 
 /**
  * B5 — the Book-now sheet against a faked api and a faked Razorpay Checkout: the order is made
@@ -116,8 +117,9 @@ const json = (status: number, body: unknown) =>
 /** Route the sheet's calls; `overrides` answer a path instead of the default. */
 function api(overrides: Record<string, () => Response> = {}) {
   fetchMock.mockImplementation(async (url: string) => {
-    const path = url.split('?')[0];
-    if (overrides[path]) return overrides[path]();
+    const path = nth(url.split('?'), 0);
+    const override = overrides[path];
+    if (override) return override();
     if (path.endsWith('/departures')) return json(200, { items: [DEP, DEC] });
     if (path === '/api/bookings/quote') return json(200, QUOTE);
     if (path === '/api/bookings') return json(201, ORDER);
@@ -163,14 +165,14 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     const user = userEvent.setup();
     await fillAndPay(user);
 
-    expect(calls('/api/packages/north-goa-beaches/departures')[0][0]).toContain('fresh=1');
-    expect(JSON.parse(calls('/api/bookings/quote')[0][1].body)).toEqual({
+    expect(nth(calls('/api/packages/north-goa-beaches/departures'), 0)[0]).toContain('fresh=1');
+    expect(JSON.parse(nth(calls('/api/bookings/quote'), 0)[1].body)).toEqual({
       departureId: 'dep_nov',
       travellers: [{ occupancy: 'double' }, { occupancy: 'double' }],
     });
     await waitFor(() => expect(checkout).toBeDefined());
     // The order carries people, never a price; the contact name came from traveller 1.
-    expect(JSON.parse(calls('/api/bookings')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/bookings'), 0)[1].body)).toEqual({
       departureId: 'dep_nov',
       pay: 'full',
       travellers: [
@@ -200,7 +202,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     });
     expect(await screen.findByText('You’re going to Goa.')).toBeTruthy();
     expect(screen.getAllByText('TB-7F3K2Q').length).toBeGreaterThan(0);
-    expect(JSON.parse(calls('/api/bookings/TB-7F3K2Q/confirm')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/bookings/TB-7F3K2Q/confirm'), 0)[1].body)).toEqual({
       razorpayOrderId: 'order_Test0001',
       razorpayPaymentId: 'pay_Test0001',
       razorpaySignature: 'a'.repeat(64),
@@ -243,7 +245,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     await user.click(pay);
 
     await waitFor(() => expect(checkout).toBeDefined());
-    expect(JSON.parse(calls('/api/bookings')[0][1].body).pay).toBe('deposit');
+    expect(JSON.parse(nth(calls('/api/bookings'), 0)[1].body).pay).toBe('deposit');
     expect(checkout!.amount).toBe(7_500_00);
     checkout!.handler({
       razorpay_order_id: 'order_Test0001',
@@ -342,7 +344,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
 
     await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(calls('/api/bookings')).toHaveLength(1));
-    expect(JSON.parse(calls('/api/bookings')[0][1].body).couponCode).toBe('WELCOME10');
+    expect(JSON.parse(nth(calls('/api/bookings'), 0)[1].body).couponCode).toBe('WELCOME10');
   });
 
   it('Make it yours: a pick re-asks the server quote, the receipt shows its line, and the order carries it', async () => {
@@ -435,7 +437,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
 
     await user.click(within(sheet).getByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(calls('/api/bookings')).toHaveLength(1));
-    expect(JSON.parse(calls('/api/bookings')[0][1].body).addons).toEqual([{ addonId: 'car' }]);
+    expect(JSON.parse(nth(calls('/api/bookings'), 0)[1].body).addons).toEqual([{ addonId: 'car' }]);
   });
 
   it('says so plainly when the payment landed after the seats had gone', async () => {
@@ -604,7 +606,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     checkout!.modal.ondismiss();
     expect(await screen.findByText('You’re going to Goa.')).toBeTruthy();
     // The order id proves this visitor started the booking — the api's condition for the link.
-    expect(JSON.parse(calls('/api/bookings/TB-7F3K2Q/sync')[0][1].body)).toEqual({
+    expect(JSON.parse(nth(calls('/api/bookings/TB-7F3K2Q/sync'), 0)[1].body)).toEqual({
       orderId: 'order_Test0001',
     });
     // No voucherUrl in the answer: no dead button, WhatsApp is still there.

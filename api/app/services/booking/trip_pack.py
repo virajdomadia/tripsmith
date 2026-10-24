@@ -182,7 +182,8 @@ async def load(db: AsyncSession, ref: str) -> tuple[Booking, Package, Departure]
             .options(selectinload(Package.itinerary), selectinload(Package.destination))
         )
     ).scalar_one()
-    assert dep is not None
+    if dep is None:
+        raise RuntimeError("dep is None")
     return booking, pkg, dep
 
 

@@ -13,7 +13,7 @@ import { ItineraryPdfLink } from '../ItineraryPdfLink';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
-const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Sticky price box (desktop): from-price, next departure, Book now (B5) when a date is on sale,

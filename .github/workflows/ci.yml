@@ -8,6 +8,8 @@ on:
 permissions:
   contents: read
 
+# V9: every action is pinned to a commit SHA with its `# vX.Y.Z`; Dependabot keeps both current.
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -23,9 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # version comes from package.json#packageManager
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # pnpm's version comes from package.json#packageManager.
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -36,7 +39,8 @@ jobs:
       - run: pnpm --filter web build
 
   # ---------------------------------------------------------------------------
-  # api/ — FastAPI: ruff → pyright → pytest against a throwaway Postgres (S10+)
+  # api/ — FastAPI: ruff → pyright → pytest under coverage against a throwaway Postgres (S10+);
+  # coverage below 94 % (api/pyproject.toml [tool.coverage.report]) fails the job (Q-1, V9)
   # ---------------------------------------------------------------------------
   api:
     runs-on: ubuntu-latest
@@ -61,8 +65,9 @@ jobs:
       # A missing TEST_DATABASE_URL fails the run instead of silently skipping the db tests.
       REQUIRE_DB_TESTS: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6 # python version comes from api/.python-version
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Python's version comes from api/.python-version.
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -70,7 +75,8 @@ jobs:
       - run: uv run --directory api ruff check .
       - run: uv run --directory api ruff format --check .
       - run: uv run --directory api pyright
-      - run: uv run --directory api pytest
+      - run: uv run --directory api coverage run -m pytest
+      - run: uv run --directory api coverage report
 
   # ---------------------------------------------------------------------------
   # contract — api/openapi.json and web/src/lib/api-types.ts must be committed fresh
@@ -79,13 +85,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -94,3 +100,96 @@ jobs:
       - run: pnpm gen:api
       - name: Fail if the committed contract is stale (run `pnpm gen:api` and commit)
         run: git diff --exit-code -- api/openapi.json web/src/lib/api-types.ts
+
+  # ---------------------------------------------------------------------------
+  # audit — a known advisory in the web's prod tree or anywhere in api's lock fails CI (V9)
+  # ---------------------------------------------------------------------------
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      # Reads pnpm-lock.yaml only; no install needed.
+      - run: pnpm audit --prod
+      # The whole lock, dev group included, exactly as pinned and hashed.
+      - run: uv export --locked --directory api --format requirements-txt --no-emit-project -o "$RUNNER_TEMP/requirements.txt"
+      - run: uvx pip-audit@2.10.1 -r "$RUNNER_TEMP/requirements.txt" --disable-pip --require-hashes
+
+  # ---------------------------------------------------------------------------
+  # secrets — gitleaks over the full history; allowlist with reasons in .gitleaksignore (V9)
+  # ---------------------------------------------------------------------------
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      # The release binary, checked against its published checksums (no licence key, no action).
+      - name: Install gitleaks
+        working-directory: ${{ runner.temp }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "v$GITLEAKS_VERSION" -R gitleaks/gitleaks             -p "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -p "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep "linux_x64.tar.gz" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+      - run: '"$RUNNER_TEMP/gitleaks" git . --redact --no-banner --exit-code 1'
+
+  # ---------------------------------------------------------------------------
+  # e2e — the P0 Playwright journeys (web/e2e, V9): next build + start against the api over a
+  # throwaway Postgres; Razorpay and email faked in-process (api/tests/e2e_app.py)
+  # ---------------------------------------------------------------------------
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tripsmith
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: tripsmith_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tripsmith"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      E2E_DATABASE_URL: postgresql+asyncpg://tripsmith@localhost:5432/tripsmith_e2e
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked --directory api
+      # Up front so a migration or seed failure is its own red step; the api webServer
+      # (web/playwright.config.ts) runs the same idempotent reset again before serving.
+      - name: Migrate and seed the e2e database
+        run: uv run --directory api python -m tests.e2e_seed
+      - run: pnpm --filter web exec playwright install --with-deps chromium
+      # CI=true: servers always start fresh, one retry, production build + start.
+      - run: pnpm --filter web e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7

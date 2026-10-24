@@ -74,7 +74,8 @@ def _money(paise: int) -> str:
 class _GstDoc:
     def __init__(self, facts: GstFacts) -> None:
         self.f = facts
-        assert facts.doc.number, "render an issued document"
+        if not facts.doc.number:
+            raise RuntimeError("render an issued document")
         self.doc = Document(
             title=f"{facts.doc.title} {facts.doc.number} · {facts.booking.ref}",
             running_title=facts.doc.number,

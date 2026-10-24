@@ -245,11 +245,11 @@ export function orderBody(
     ...(addons.length ? { addons } : {}),
     pay,
     departureId,
-    travellers: slots.map((s) => ({
-      name: travellers[s.key].name.trim(),
-      age: Number(travellers[s.key].age),
-      occupancy: s.occupancy,
-    })),
+    travellers: slots.map((s) => {
+      // validate() already refused a slot with no traveller; read it the same way it does.
+      const t = travellers[s.key] ?? { name: '', age: '' };
+      return { name: t.name.trim(), age: Number(t.age), occupancy: s.occupancy };
+    }),
     contact: {
       name: contact.name.trim(),
       phone: normalisePhone(contact.phone),

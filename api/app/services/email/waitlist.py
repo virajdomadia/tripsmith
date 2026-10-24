@@ -64,7 +64,8 @@ def _vars(f: WaitlistFacts, settings: Settings) -> dict[str, object]:
 
 
 def render_offer(f: WaitlistFacts, settings: Settings, *, url: str) -> EmailMessage:
-    assert f.offer_expires_at is not None
+    if f.offer_expires_at is None:
+        raise RuntimeError("f.offer_expires_at is None")
     vars = {**_vars(f, settings), "url": url, "expires": ist_moment(f.offer_expires_at)}
     subject = (
         f"Seats are free on {f.package_name}, {long_date(f.departs)} — "

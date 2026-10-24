@@ -499,7 +499,8 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
     b = await _load(db, ref)
     pkg = (await db.execute(select(Package).where(Package.id == b.package_id))).scalar_one()
     seats = await departure_seats(db, b.departure_id)
-    assert seats is not None  # bookings.departure_id is ON DELETE RESTRICT
+    if seats is None:  # bookings.departure_id is ON DELETE RESTRICT
+        raise RuntimeError("seats is None")
     live = bool((await db.execute(select(hold_live()).where(Booking.id == b.id))).scalar_one())
     link = link_out(b, live=live)  # P18b: read before later reads can expire `b.payments`
     payable = awaiting_payment(b)
@@ -733,7 +734,8 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         .all()
     )
     dep = await db.get(Departure, departure_id)
-    assert dep is not None
+    if dep is None:
+        raise RuntimeError("dep is None")
     required = details.required_of(pkg)
     returns = seats.date + dt.timedelta(days=pkg.nights)
     purged = ist_today() >= details.purge_on(returns)

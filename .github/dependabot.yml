@@ -1,0 +1,43 @@
+# V9 (docs/12): weekly version updates, minor + patch grouped into one PR per ecosystem, majors
+# one PR each. Low open-PR limits so a busy week never floods the repo. Security updates for a
+# known advisory are separate (GitHub repo setting) and are not held back by these limits.
+version: 2
+updates:
+  # pnpm workspace root: one lockfile for the root and web/.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # api/: pyproject.toml + uv.lock.
+  - package-ecosystem: uv
+    directory: /api
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 2
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]
+
+  # Workflow actions are pinned to a commit SHA with a `# vX.Y.Z` comment; Dependabot bumps both.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        update-types: [minor, patch]

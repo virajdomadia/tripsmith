@@ -785,7 +785,8 @@ async def _owner_entry(db: AsyncSession, entry_id: str) -> tuple[WaitlistEntry, 
     if departure_id is None:
         raise ApiError("not_found", "That waitlist place no longer exists")
     dep = await lock_departure(db, departure_id)
-    assert dep is not None  # the entry's foreign key cascades
+    if dep is None:  # the entry's foreign key cascades
+        raise RuntimeError("dep is None")
     await walk(db, dep)
     entry = (
         await db.execute(

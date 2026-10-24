@@ -84,7 +84,8 @@ async def resolve_cancellation(
                     f"This booking is {word} — the request can only be rejected",
                     reason="not_active",
                 )
-            assert refund is not None  # ResolveCancellationInput requires it on approve
+            if refund is None:  # ResolveCancellationInput requires it on approve
+                raise RuntimeError("refund is None")
             if refund > booking.paid_paise:
                 raise ApiError(
                     "validation",

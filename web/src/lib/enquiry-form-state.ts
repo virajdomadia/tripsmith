@@ -81,7 +81,7 @@ export function stripDraftCookie(header: string | null | undefined): string | un
   const kept = header
     .split(';')
     .map((c) => c.trim())
-    .filter((c) => c && c.split('=')[0].trim() !== DRAFT_COOKIE);
+    .filter((c) => c && (c.split('=')[0] ?? '').trim() !== DRAFT_COOKIE);
   return kept.length ? kept.join('; ') : undefined;
 }
 

@@ -191,7 +191,8 @@ async def get_booking(
         )
     ).scalar_one()
     dep = await db.get(Departure, booking.departure_id)
-    assert dep is not None  # bookings.departure_id is ON DELETE RESTRICT
+    if dep is None:  # bookings.departure_id is ON DELETE RESTRICT
+        raise RuntimeError("dep is None")
     departs = dep.date
     asked = booking.cancellation
     review = (

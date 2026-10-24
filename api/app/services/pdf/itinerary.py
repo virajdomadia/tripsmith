@@ -134,7 +134,8 @@ def prepare_cover(data: bytes) -> bytes | None:
     w, h = HERO_SIZE
     shade = Image.new("RGBA", (w, h), (10, 20, 30, 0))
     px = shade.load()
-    assert px is not None
+    if px is None:
+        raise RuntimeError("px is None")
     start = int(h * 0.45)
     for y in range(start, h):
         alpha = int(178 * (y - start) / (h - start))  # 0 → 0.7

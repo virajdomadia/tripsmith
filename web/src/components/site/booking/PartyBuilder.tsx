@@ -104,7 +104,7 @@ export function PartyBuilder({ flow }: { flow: BookingFlow }) {
           const t = travellers[s.key] ?? { name: '', age: '' };
           const nameErr = errors[`travellers.${i}.name`];
           const ageErr = errors[`travellers.${i}.age`];
-          const newRoom = i === 0 || slots[i - 1].room !== s.room;
+          const newRoom = slots[i - 1]?.room !== s.room; // the first slot always opens a room
           return (
             <div key={s.key} className="grid gap-1 animate-rise">
               {newRoom && <span className="mt-1 text-xs font-bold text-ink2">{s.room}</span>}
