@@ -85,38 +85,45 @@ async def refund_owed(db: AsyncSession, booking: Booking) -> int:
     held beyond it — a deposit refunded on approval and a balance captured later owe the whole
     balance. Captured-ever against the price would call that balance covered.
 
-    Reads only what `owed_from` needs; the money desk reads the same amounts for every flagged
+    Reads only what `owed_from` needs; the money desk reads the same columns for every flagged
     booking at once (V7, Q-3)."""
-    if _kept_decides(booking):
-        return owed_from(booking, agreed=None, ever=0)
-    agreed: int | None = None
-    if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED:
+    asked = NO_REQUEST
+    if _kept(booking) is None and booking.cancel_reason == CancelReason.CANCELLATION_APPROVED:
         row = (
             await db.execute(
-                select(BookingCancellation.refund_paise).where(
-                    BookingCancellation.booking_id == booking.id,
-                    BookingCancellation.status == CancellationStatus.APPROVED,
+                select(BookingCancellation.status, BookingCancellation.refund_paise).where(
+                    BookingCancellation.booking_id == booking.id
                 )
             )
         ).one_or_none()
-        agreed = None if row is None else row[0] or 0
+        if row is not None:
+            asked = (row[0], row[1])
     ever = 0
-    if _settled(booking, agreed) is not None:
+    if _kept(booking) is None and _settled(booking, asked) is not None:
         ever = (await captured_ever(db, [booking.id])).get(booking.id, 0)
-    return owed_from(booking, agreed=agreed, ever=ever)
+    return owed_from(booking, asked=asked, ever=ever)
 
 
-def _kept_decides(booking: Booking) -> bool:
-    return booking.kept_paise is not None and booking.cancel_reason in (
-        CancelReason.CANCELLATION_APPROVED,
-        CancelReason.BALANCE_UNPAID,
-    )
+# The booking's cancellation request as stored: (status, refund_paise); NO_REQUEST when none.
+Asked = tuple[CancellationStatus | None, int | None]
+NO_REQUEST: Asked = (None, None)
 
 
-def _settled(booking: Booking, agreed: int | None) -> int | None:
+def _kept(booking: Booking) -> int | None:
+    """What a decision since 0025 kept (V1, SB-1); None when the old amounts-only sum applies."""
+    if booking.cancel_reason in (CancelReason.CANCELLATION_APPROVED, CancelReason.BALANCE_UNPAID):
+        return booking.kept_paise
+    return None
+
+
+def _settled(booking: Booking, asked: Asked) -> int | None:
     """The refund a decision settled on: the owner's approval, or the tidy's unpaid balance."""
-    if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
-        return agreed
+    status, refund_paise = asked
+    if (
+        booking.cancel_reason == CancelReason.CANCELLATION_APPROVED
+        and status == CancellationStatus.APPROVED
+    ):
+        return refund_paise or 0
     if booking.cancel_reason == CancelReason.BALANCE_UNPAID:
         return booking.balance_refund_paise or 0
     return None
@@ -132,12 +139,13 @@ async def captured_ever(db: AsyncSession, booking_ids: Sequence[str]) -> dict[st
     return {bid: int(total) for bid, total in rows.all()}
 
 
-def owed_from(booking: Booking, *, agreed: int | None, ever: int) -> int:
-    """`refund_owed` over amounts already read: `agreed` = the approved cancellation's refund
-    (None when no request was approved), `ever` = the booking's `captured_ever`."""
-    if _kept_decides(booking) and booking.kept_paise is not None:
-        return max(0, booking.paid_paise - booking.kept_paise)
-    settled = _settled(booking, agreed)
+def owed_from(booking: Booking, *, asked: Asked, ever: int) -> int:
+    """`refund_owed` over columns already read: `asked` = the booking's cancellation request
+    as stored (`NO_REQUEST` when none), `ever` = the booking's `captured_ever`."""
+    kept = _kept(booking)
+    if kept is not None:
+        return max(0, booking.paid_paise - kept)
+    settled = _settled(booking, asked)
     if settled is not None:
         # Everything owed since the approval, less what was already given back: the refund
         # agreed, plus in full any money captured beyond the booking's price (a second

@@ -9,8 +9,9 @@
 - `coupon_packages.package_id`: the primary key leads with `coupon_id`, so deleting a package
   scanned the table for its cascade.
 - `email_sends.package_id`: the cascade when a package is deleted.
-- `date_changes.from_departure_id`: deleting a departure checks no change still points at it
-  (`to_departure_id` already leads `ix_date_changes_held`).
+- `date_changes.from_departure_id`: deleting a departure checks no change still points at it.
+  (`to_departure_id` gets the same check, and `ix_date_changes_held` can't serve it: that index
+  is partial, `WHERE state = 'held'`. Not in the audit's six; see docs/12 § Fixed in V7.)
 
 ADD-only: new indexes, nothing the current code reads changes, so it is safe to run against
 production BEFORE the V7 code merges. Plain `CREATE INDEX`: every table is a few hundred rows,

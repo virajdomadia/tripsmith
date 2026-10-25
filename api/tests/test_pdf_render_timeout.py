@@ -7,6 +7,8 @@ import time
 from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
+from pydantic_settings import SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -54,6 +56,39 @@ async def test_a_render_within_the_timeout_is_attached() -> None:
     assert got is not None and got.content == b"%PDF-slow"
 
 
+class _OnePayment:
+    """Just enough session for `extras_invoice_attachment`'s payment lookup."""
+
+    async def execute(self, _stmt: Any) -> Any:
+        return type("Result", (), {"scalar_one_or_none": lambda _self: "pmt_1"})()
+
+    async def rollback(self) -> None:
+        return None
+
+
+@pytest.mark.usefixtures("slow_render")
+async def test_the_extras_invoice_is_bounded_by_the_same_setting() -> None:
+    db = cast(AsyncSession, _OnePayment())
+    late = make_settings(pdf_render_timeout=0.05)
+    assert await files.extras_invoice_attachment(db, "TB-SLOW01", "pay_X", late) is None
+    got = await files.extras_invoice_attachment(db, "TB-SLOW01", "pay_X", make_settings())
+    assert got is not None and got.content == b"%PDF-slow"
+
+
+class _EnvOnlySettings(Settings):
+    model_config = SettingsConfigDict(env_file=None)
+
+
 def test_the_timeout_is_five_seconds_in_production_and_thirty_in_tests() -> None:
-    assert Settings.model_fields["pdf_render_timeout"].default == 5.0
+    assert _EnvOnlySettings().pdf_render_timeout == 5.0
     assert make_settings().pdf_render_timeout == TEST_PDF_RENDER_TIMEOUT == 30.0
+
+
+@pytest.mark.parametrize("bad", ["0", "-1"])
+def test_a_timeout_that_is_not_positive_is_refused(
+    monkeypatch: pytest.MonkeyPatch, bad: str
+) -> None:
+    """0 would read as "no bound" in `document_pdf`, and a negative one drops every invoice."""
+    monkeypatch.setenv("PDF_RENDER_TIMEOUT", bad)
+    with pytest.raises(ValidationError):
+        _EnvOnlySettings()

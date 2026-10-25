@@ -221,9 +221,8 @@ async def _owed(db: AsyncSession) -> list[MoneyOwed]:
         waiting[booking_id].append((amount, hand))
     ever = await captured_ever(db, ids)
     out = []
-    for b, resolved_at, asked, agreed in rows:
-        approved = asked == CancellationStatus.APPROVED
-        owed = owed_from(b, agreed=(agreed or 0) if approved else None, ever=ever.get(b.id, 0))
+    for b, resolved_at, status, refund_paise in rows:
+        owed = owed_from(b, asked=(status, refund_paise), ever=ever.get(b.id, 0))
         to_send = owed + sum(a for a, hand in waiting[b.id] if not hand)
         by_hand = sum(a for a, hand in waiting[b.id] if hand)
         if to_send + by_hand > 0:

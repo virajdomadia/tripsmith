@@ -9,7 +9,7 @@ import os
 from functools import lru_cache
 from typing import Any
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,7 +73,8 @@ class Settings(BaseSettings):
     # --- PDFs ---
     # V7 (Q-2): seconds an emailed tax invoice may take to render before the email goes without
     # it (logged). Tests use 30: a loaded runner rendered past 5 s and dropped the attachment.
-    pdf_render_timeout: float = 5.0
+    # Positive only: 0 would read as "no bound" and a negative value would drop every invoice.
+    pdf_render_timeout: float = Field(default=5.0, gt=0)
 
     # --- Cron ---
     cron_secret: SecretStr | None = None

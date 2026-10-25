@@ -807,7 +807,9 @@ CI (`.github/workflows/ci.yml`) now runs seven jobs: `web`, `api`, `contract`, a
   | `enquiry_notes.enquiry_id` | An enquiry's notes on its page (`selectinload`) and the cascade when the V5 purge deletes an enquiry | 0.09 ms | 5.5 ms |
   | `coupon_packages.package_id` | The primary key leads with `coupon_id`, so the cascade on a package delete scanned the table | 1.1 ms | 1.6 ms |
   | `email_sends.package_id` | The ledger's cascade on a package delete | 6.0 ms | 9.3 ms |
-  | `date_changes.from_departure_id` | The FK check when a departure is deleted (`to_departure_id` already leads `ix_date_changes_held`) | 0.5 ms | 1.5 ms |
+  | `date_changes.from_departure_id` | The FK check when a departure is deleted | 0.5 ms | 1.5 ms |
+
+  The review found a seventh of the same kind that the audit missed: `date_changes.to_departure_id` gets the same FK check on a departure delete, and `ix_date_changes_held` can't serve it because it is partial (`state = 'held'`).
 
   `bookings.package_id` does not speed up the desk's per-package count at this spread (each package is 2 % of the rows scattered over the heap: 14.5 ms against 13.6 ms); its win is the delete check. No `enquiries.created_at` index, which V5 left open: the purge's range is already served by `ix_enquiries_status_created_at`, which Postgres 18 skip-scans (see _Database: indexes and EXPLAIN_). The migration is a plain `CREATE INDEX` with a 5 s lock timeout: every production table is a few hundred rows, so the write lock lasts milliseconds.
 - **Q-6, dead code:** removed `changes.latest_change`, `counter.web_request` and `admin_leaders.leads_departure` (vulture flags each, and a repo-wide grep finds no caller in app, tests or scripts), `web/src/components/ui/tabs.tsx` and the `cn` npm package (knip: unused file, unused dependency). The lockfile change removes `cn` only. knip also lists `eslint-config-next` as unused; that is the flat-config compat layer and was left.
