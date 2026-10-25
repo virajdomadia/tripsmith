@@ -447,6 +447,9 @@ class DateChange(IdMixin, TimestampsMixin, Base):
         Index("ix_date_changes_booking_id", "booking_id"),
         Index("ix_date_changes_from_departure_id", "from_departure_id"),  # 0027: FK deletes
         Index(
+            "ix_date_changes_to_departure_id", "to_departure_id"
+        ),  # 0027: the held one is partial
+        Index(
             "ix_date_changes_held",
             "to_departure_id",
             "hold_expires_at",

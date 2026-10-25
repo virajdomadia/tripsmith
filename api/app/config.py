@@ -71,8 +71,9 @@ class Settings(BaseSettings):
     id_number_key: SecretStr | None = None
 
     # --- PDFs ---
-    # V7 (Q-2): seconds an emailed tax invoice may take to render before the email goes without
-    # it (logged). Tests use 30: a loaded runner rendered past 5 s and dropped the attachment.
+    # V7 (Q-2): seconds an emailed PDF (tax invoice, voucher; the itinerary gets this plus its
+    # upload margin) may take before the email goes without it (logged). Tests use 30: a loaded
+    # runner rendered past 5 s and dropped the attachment.
     # Positive only: 0 would read as "no bound" and a negative value would drop every invoice.
     pdf_render_timeout: float = Field(default=5.0, gt=0)
 

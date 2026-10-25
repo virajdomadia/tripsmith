@@ -36,8 +36,6 @@ from app.services.email.bookings import send_booking_emails
 from app.services.gst.files import extras_invoice_attachment, invoice_attachment
 from app.services.pdf.voucher import render_voucher, voucher_filename
 
-VOUCHER_TIMEOUT = 5.0  # R17 asks < 3 s; a render is ~0.2 s, so this only catches a stuck thread
-
 log = logging.getLogger(__name__)
 
 
@@ -57,7 +55,8 @@ class Notify:
 
 
 async def voucher_attachment(facts: BookingFacts, settings: Settings) -> EmailAttachment | None:
-    """The voucher PDF for the confirmation email, or None (logged) — never raises."""
+    """The voucher PDF for the confirmation email, or None (logged) — never raises. R17 asks
+    < 3 s and a render is ~0.2 s, so `PDF_RENDER_TIMEOUT` (V7) only catches a stuck thread."""
     try:
         pdf = await asyncio.wait_for(
             asyncio.to_thread(
@@ -66,7 +65,7 @@ async def voucher_attachment(facts: BookingFacts, settings: Settings) -> EmailAt
                 site_url=settings.site_url,
                 whatsapp_number=settings.whatsapp_number,
             ),
-            timeout=VOUCHER_TIMEOUT,
+            timeout=settings.pdf_render_timeout,
         )
     except Exception as exc:
         log.exception("Voucher for %s could not be rendered; emailing without it", facts.ref)

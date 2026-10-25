@@ -46,8 +46,15 @@ PACKAGE_FK = "fk_enquiries_package_id_packages"
 REF_ATTEMPTS = 5
 # Budget for the itinerary PDF on the enquiry path: photo fetch ≤ 5 s + Blob put ≤ 10 s + Resend
 # ≤ 13 s can otherwise approach Vercel's `maxDuration 30` on the api function; drop the PDF, not
-# the lead, past this.
-PDF_ATTACHMENT_TIMEOUT = 8.0
+# the lead, past this. V7: the render's `PDF_RENDER_TIMEOUT` (5 s) plus this margin for the photo
+# and the upload, so prod keeps its 8 s and tests get the setting's 30 s too.
+PDF_UPLOAD_MARGIN = 3.0
+
+
+def pdf_attachment_timeout(settings: Settings) -> float:
+    return settings.pdf_render_timeout + PDF_UPLOAD_MARGIN
+
+
 # V5 (OP-5): /privacy promises enquiries that led to no booking go after 12 months.
 KEEP_DAYS = 365
 
@@ -213,19 +220,18 @@ async def submit_enquiry(
         attachment = None
         detail = await package_for_pdf(db, facts.slug) if pdf and facts else None
         if pdf and facts and detail:
+            budget = pdf_attachment_timeout(settings)
             try:
-                attachment = await asyncio.wait_for(
-                    pdf.attachment_for(detail), timeout=PDF_ATTACHMENT_TIMEOUT
-                )
+                attachment = await asyncio.wait_for(pdf.attachment_for(detail), timeout=budget)
             except TimeoutError:
                 log.warning(
                     "Itinerary PDF for %s timed out after %ss for enquiry %s; sending without it",
                     facts.slug,
-                    PDF_ATTACHMENT_TIMEOUT,
+                    budget,
                     ctx.ref,
                 )
                 sentry_sdk.capture_message(
-                    f"Itinerary PDF timed out after {PDF_ATTACHMENT_TIMEOUT}s for enquiry {ctx.ref}"
+                    f"Itinerary PDF timed out after {budget}s for enquiry {ctx.ref}"
                 )
         outcome = await send_enquiry_emails(sender, settings, ctx, attachment=attachment)
         if outcome.status != EmailStatus.SKIPPED:

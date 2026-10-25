@@ -1,4 +1,4 @@
-"""V7 (Q-4) — six indexes for the desk, the reports and foreign-key deletes.
+"""V7 (Q-4) — seven indexes for the desk, the reports and foreign-key deletes.
 
 - `bookings.package_id`: the desk's package filter, the coupon report's join from packages, the
   urgency badges' `IN`, and the RESTRICT check when a package is deleted.
@@ -9,9 +9,10 @@
 - `coupon_packages.package_id`: the primary key leads with `coupon_id`, so deleting a package
   scanned the table for its cascade.
 - `email_sends.package_id`: the cascade when a package is deleted.
-- `date_changes.from_departure_id`: deleting a departure checks no change still points at it.
-  (`to_departure_id` gets the same check, and `ix_date_changes_held` can't serve it: that index
-  is partial, `WHERE state = 'held'`. Not in the audit's six; see docs/12 § Fixed in V7.)
+- `date_changes.from_departure_id` and `date_changes.to_departure_id`: deleting a departure
+  checks no change still points at it, from either side. `ix_date_changes_held` can't serve the
+  `to_departure_id` check: it is partial (`WHERE state = 'held'`). The audit listed six; the PR
+  review found the seventh.
 
 ADD-only: new indexes, nothing the current code reads changes, so it is safe to run against
 production BEFORE the V7 code merges. Plain `CREATE INDEX`: every table is a few hundred rows,
@@ -39,6 +40,7 @@ INDEXES = (
     ("ix_coupon_packages_package_id", "coupon_packages", "package_id"),
     ("ix_email_sends_package_id", "email_sends", "package_id"),
     ("ix_date_changes_from_departure_id", "date_changes", "from_departure_id"),
+    ("ix_date_changes_to_departure_id", "date_changes", "to_departure_id"),
 )
 
 
