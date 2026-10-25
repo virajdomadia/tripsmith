@@ -126,9 +126,9 @@ async def on_new_capture(
         # P5: the deposit's voucher says "Balance due"; the part that clears it sends a fresh one.
         voucher = await voucher_attachment(facts, notify.settings)
         if facts.paid_paise >= facts.total_paise:  # P13b: paid in full → the tax invoice
-            invoice = await invoice_attachment(db, ref)
+            invoice = await invoice_attachment(db, ref, notify.settings)
     elif capture.settled == Settled.EXTRAS:  # P8b: this payment's own tax invoice
-        invoice = await extras_invoice_attachment(db, ref, capture.payment_id)
+        invoice = await extras_invoice_attachment(db, ref, capture.payment_id, notify.settings)
     await send_booking_emails(
         notify.sender,
         notify.settings,

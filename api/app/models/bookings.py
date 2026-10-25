@@ -78,6 +78,8 @@ class Booking(IdMixin, TimestampsMixin, Base):
             "enquiry_id",
             postgresql_where=text("enquiry_id IS NOT NULL"),
         ),
+        Index("ix_bookings_package_id", "package_id"),  # 0027: desk filter, package deletes
+        Index("ix_bookings_created_at", "created_at"),  # 0027: the reports' date windows
     )
 
     ref: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # TB-XXXXXX
@@ -443,6 +445,7 @@ class DateChange(IdMixin, TimestampsMixin, Base):
     __tablename__ = "date_changes"
     __table_args__ = (
         Index("ix_date_changes_booking_id", "booking_id"),
+        Index("ix_date_changes_from_departure_id", "from_departure_id"),  # 0027: FK deletes
         Index(
             "ix_date_changes_held",
             "to_departure_id",

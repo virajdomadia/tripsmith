@@ -178,7 +178,7 @@ Indexes: `(status, created_at desc)`, `(package_id)`, `(phone, package_id, creat
 | split                                      | boolean default false            | add-on D                               |
 | created_at, updated_at                     | timestamptz                      |                                        |
 
-Indexes: `(departure_id, status)`, `(user_id, created_at desc)`, `(status, hold_expires_at)`.
+Indexes: `(departure_id, status)`, `(user_id, created_at desc)`, `(status, hold_expires_at)`; V7 (`0027`) adds `(package_id)` and `(created_at)`, and on other tables `enquiry_notes (enquiry_id)`, `coupon_packages (package_id)`, `email_sends (package_id)` and `date_changes (from_departure_id)` — the plans are in docs/12 § Fixed in V7.
 
 **`booking_travellers`** — id, booking_id FK (cascade), name, age smallint, occupancy, position smallint (0006: entry order, 0 = first; every reader orders by it).
 **`payments`** — id, booking_id FK, share_id FK null (add-on D), provider, razorpay_order_id text, razorpay_payment_id text **unique null**, amount_paise, status, raw jsonb (last webhook payload), created_at, updated_at. Index `(razorpay_order_id)`.

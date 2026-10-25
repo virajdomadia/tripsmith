@@ -886,14 +886,3 @@ async def settle_change(
     await plan_refund(db, booking, amount_paise, reason="surplus", actor=BookingActor.SYSTEM)
     await issue_due_safely(db, booking)  # the payment's receipt
     return Settled.CHANGE_LAPSED
-
-
-async def latest_change(db: AsyncSession, booking_id: str) -> DateChange | None:
-    return (
-        await db.execute(
-            select(DateChange)
-            .where(DateChange.booking_id == booking_id)
-            .order_by(DateChange.created_at.desc(), DateChange.id.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()

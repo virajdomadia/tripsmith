@@ -8,6 +8,7 @@ import sentry_sdk
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings
 from app.errors import ApiError
 from app.infra.email import EmailAttachment
 from app.models import Booking, BookingAddon, DateChange, GstDocument, Payment, Refund
@@ -18,8 +19,6 @@ from app.services.booking.voucher import load_booking_facts, offline_reference
 from app.services.format import inr, long_date
 from app.services.gst.documents import NO_DOCUMENT, DocRef, issue, off_the_bill
 from app.services.pdf.gst import GstFacts, gst_filename, render_gst_document
-
-RENDER_TIMEOUT = 5.0
 
 log = logging.getLogger(__name__)
 
@@ -130,9 +129,10 @@ async def document_pdf(
 
 
 async def extras_invoice_attachment(
-    db: AsyncSession, ref: str, razorpay_payment_id: str
+    db: AsyncSession, ref: str, razorpay_payment_id: str, settings: Settings
 ) -> EmailAttachment | None:
-    """P8b: the tax invoice for one Add extras payment, or None (logged) — never raises."""
+    """P8b: the tax invoice for one Add extras payment, or None (logged) — never raises. The
+    render is bounded by `PDF_RENDER_TIMEOUT` (V7, Q-2)."""
     try:
         payment_id = (
             await db.execute(
@@ -142,7 +142,9 @@ async def extras_invoice_attachment(
         await db.rollback()
         if payment_id is None:
             return None
-        pdf, name = await document_pdf(db, ref, f"invoice-{payment_id}", timeout=RENDER_TIMEOUT)
+        pdf, name = await document_pdf(
+            db, ref, f"invoice-{payment_id}", timeout=settings.pdf_render_timeout
+        )
     except ApiError:
         return None  # nothing it paid for joined the booking: no invoice
     except Exception as exc:
@@ -152,10 +154,12 @@ async def extras_invoice_attachment(
     return EmailAttachment(filename=name, content=pdf)
 
 
-async def invoice_attachment(db: AsyncSession, ref: str) -> EmailAttachment | None:
+async def invoice_attachment(
+    db: AsyncSession, ref: str, settings: Settings
+) -> EmailAttachment | None:
     """The tax invoice for the fully-paid email, or None (logged) — never raises."""
     try:
-        pdf, name = await document_pdf(db, ref, "invoice", timeout=RENDER_TIMEOUT)
+        pdf, name = await document_pdf(db, ref, "invoice", timeout=settings.pdf_render_timeout)
     except ApiError:
         return None  # not fully paid: no invoice yet
     except Exception as exc:

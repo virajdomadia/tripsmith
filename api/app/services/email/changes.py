@@ -79,9 +79,10 @@ async def send_change_emails(
     if moved:
         voucher = await voucher_attachment(facts, notify.settings)
         if payment is not None and invoiced and payment[0]:
-            invoice = await extras_invoice_attachment(db, ref, payment[0])
+            invoice = await extras_invoice_attachment(db, ref, payment[0], notify.settings)
         elif not invoiced and facts.paid_paise >= facts.total_paise:
-            invoice = await invoice_attachment(db, ref)  # the change cleared the balance
+            # the change cleared the balance
+            invoice = await invoice_attachment(db, ref, notify.settings)
     files = tuple(f for f in (voucher, invoice) if f is not None)
     vars = _vars(facts, notify.settings)
     paid_now = inr(payment[1] // 100) if payment else None

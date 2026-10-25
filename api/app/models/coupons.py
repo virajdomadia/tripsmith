@@ -14,6 +14,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     Table,
@@ -30,6 +31,7 @@ coupon_packages = Table(
     Base.metadata,
     Column("coupon_id", ForeignKey("coupons.id", ondelete="CASCADE"), primary_key=True),
     Column("package_id", ForeignKey("packages.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_coupon_packages_package_id", "package_id"),  # 0027: the key leads with coupon_id
 )
 
 

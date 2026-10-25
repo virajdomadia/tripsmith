@@ -1,14 +1,14 @@
 """Owner-side trip leaders (R41, P3): CRUD, switch on/off, and the photo check.
 
 A leader leads a departure when the departure names them, or names nobody and its package's
-default is them (`leads_departure`). That rule is read live everywhere — the voucher, the
+default is them (`effective_leader_id`). That rule is read live everywhere — the voucher, the
 desk, the public pages — so nothing is snapshotted and a change shows on the next read.
 """
 
 import datetime as dt
 from collections.abc import Iterable, Sequence
 
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select
+from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,13 +31,6 @@ INACTIVE_LEADER = "This trip leader is switched off — switch them on or pick a
 def effective_leader_id() -> ColumnElement[str | None]:
     """The departure's own leader, else its package's default (join `Package` first)."""
     return func.coalesce(Departure.leader_id, Package.leader_id)
-
-
-def leads_departure(leader_id: str) -> ColumnElement[bool]:
-    return or_(
-        Departure.leader_id == leader_id,
-        and_(Departure.leader_id.is_(None), Package.leader_id == leader_id),
-    )
 
 
 async def departure_leader(db: AsyncSession, departure_id: str) -> DeskLeader | None:

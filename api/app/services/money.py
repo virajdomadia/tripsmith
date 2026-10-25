@@ -38,7 +38,7 @@ from app.schemas.money import (
 from app.services.admin_enquiries import ist_day_start
 from app.services.analytics import ist_today
 from app.services.booking.desk import hold_live
-from app.services.booking.refunds import refund_owed
+from app.services.booking.refunds import captured_ever, owed_from
 from app.services.booking.voucher import offline_reference
 from app.services.email.render import IST
 from app.services.format import MONTHS, inr
@@ -192,25 +192,40 @@ async def money_desk(
 
 
 async def _owed(db: AsyncSession) -> list[MoneyOwed]:
-    rows = await db.execute(
-        select(Booking, BookingCancellation.resolved_at)
-        .outerjoin(BookingCancellation, BookingCancellation.booking_id == Booking.id)
-        .where(Booking.refund_needed.is_(True))
-        .order_by(Booking.updated_at)
-    )
-    out = []
-    for b, resolved_at in rows.all():
-        waiting = (
-            await db.execute(
-                select(Refund.amount_paise, Refund.by_hand).where(
-                    Refund.booking_id == b.id,
-                    Refund.status == RefundStatus.REQUESTED,
-                    or_(Refund.by_hand.is_(True), Refund.razorpay_refund_id.is_(None)),
-                )
+    """Three queries however many bookings are flagged (V7, Q-3): the bookings with their
+    cancellation, then every waiting refund and every captured total in one `IN` each."""
+    rows = (
+        await db.execute(
+            select(
+                Booking,
+                BookingCancellation.resolved_at,
+                BookingCancellation.status,
+                BookingCancellation.refund_paise,
             )
-        ).all()
-        to_send = await refund_owed(db, b) + sum(a for a, hand in waiting if not hand)
-        by_hand = sum(a for a, hand in waiting if hand)
+            .outerjoin(BookingCancellation, BookingCancellation.booking_id == Booking.id)
+            .where(Booking.refund_needed.is_(True))
+            .order_by(Booking.updated_at)
+        )
+    ).all()
+    if not rows:
+        return []
+    ids = [row[0].id for row in rows]
+    waiting: dict[str, list[tuple[int, bool]]] = defaultdict(list)
+    for booking_id, amount, hand in await db.execute(
+        select(Refund.booking_id, Refund.amount_paise, Refund.by_hand).where(
+            Refund.booking_id.in_(ids),
+            Refund.status == RefundStatus.REQUESTED,
+            or_(Refund.by_hand.is_(True), Refund.razorpay_refund_id.is_(None)),
+        )
+    ):
+        waiting[booking_id].append((amount, hand))
+    ever = await captured_ever(db, ids)
+    out = []
+    for b, resolved_at, asked, agreed in rows:
+        approved = asked == CancellationStatus.APPROVED
+        owed = owed_from(b, agreed=(agreed or 0) if approved else None, ever=ever.get(b.id, 0))
+        to_send = owed + sum(a for a, hand in waiting[b.id] if not hand)
+        by_hand = sum(a for a, hand in waiting[b.id] if hand)
         if to_send + by_hand > 0:
             out.append(
                 MoneyOwed(

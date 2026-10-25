@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # key can be rotated). Unset = ID numbers can't be saved (the rest of the details can).
     id_number_key: SecretStr | None = None
 
+    # --- PDFs ---
+    # V7 (Q-2): seconds an emailed tax invoice may take to render before the email goes without
+    # it (logged). Tests use 30: a loaded runner rendered past 5 s and dropped the attachment.
+    pdf_render_timeout: float = 5.0
+
     # --- Cron ---
     cron_secret: SecretStr | None = None
     # V4 (OP-1): healthchecks.io ping URLs, hit at the end of /cron/daily and /cron/emails, so a

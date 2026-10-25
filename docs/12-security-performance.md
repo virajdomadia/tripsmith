@@ -159,7 +159,7 @@ render-blocking third party (Sentry and Vercel Analytics both load after paint).
 | `/packages/[slug]` HTML                         | `public, max-age=0, must-revalidate`, `X-Vercel-Cache: PRERENDER` | **Production.** SSG, 1 h stale time.                                                                                                                                                             |
 | `/`, `/destinations`, `/about`, `/contact` HTML | `private, no-cache, no-store`                                     | **Production.** `force-dynamic` — see the ruling.                                                                                                                                                |
 | `/packages` HTML                                | `private, no-cache, no-store`                                     | **Production.** Dynamic because it awaits `searchParams`, _not_ via `force-dynamic`.                                                                                                             |
-| optimized images, remote (Blob) source          | `public, max-age=86400, must-revalidate`                          | **Production.** `minimumCacheTTL` raised the floor from Blob's `3600`.                                                                                                                           |
+| optimized images, remote (Blob) source          | `public, max-age=86400, must-revalidate` (V7: `2592000`)          | **Production.** `minimumCacheTTL` raised the floor from Blob's `3600`; V7 (OP-11) raised it to 30 days — re-check on the deployment.                                                             |
 | optimized images, bundled source                | `public, max-age=315360000, immutable`                            | Inherited from the content-hashed `/_next/static/media/` original. Local build; **re-check on the deployment** — Vercel and `next start` disagree about optimizer cache headers (see finding 1). |
 
 The public-GET row covers every public `GET` in 06 §C-REST — `/health`, `/meta`, `/packages`,
@@ -226,7 +226,7 @@ are cheap to add later and neither earns its keep now.
 
 ### Known risk: `seed.py` overwrites photos at a stable URL
 
-Owner-uploaded images are safe from the 24 h image TTL — every upload mints a fresh pathname
+Owner-uploaded images are safe from the image TTL (24 h, 30 days since V7) — every upload mints a fresh pathname
 (`packages/{slug}/uploads/{new_id()}.{ext}`), so an edited photo is a new URL and a new optimizer
 key. Two paths do reuse a URL for new bytes:
 
@@ -236,8 +236,8 @@ key. Two paths do reuse a URL for new bytes:
   `x-add-random-suffix: 0` and `x-allow-overwrite: 1`.
 
 So replacing a seeded photo in place and re-running `seed.py` against production leaves the old
-optimized image served for up to 24 hours (the `minimumCacheTTL` floor). Rename the file instead,
-or accept the delay.
+optimized image served for up to 30 days since V7 (the `minimumCacheTTL` floor). Rename the file
+instead.
 
 **v1.0.1 (2026-09-24).** The Sentry browser SDK no longer ships in the eagerly loaded chunks:
 `lib/sentry-browser.ts` imports it once the page is idle (errors only, a 51 kB chunk), taking `/`
@@ -794,3 +794,23 @@ CI (`.github/workflows/ci.yml`) now runs seven jobs: `web`, `api`, `contract`, a
 - **Lint and types:** ruff selects `S` and `ASYNC`. The 25 `assert`s in `app/` that narrowed types became explicit `raise RuntimeError(…)`, because `python -O` would strip an assert. Ignored in tests by rule: `S101`, plus `S105`–`S107` (fixed throwaway secrets). Inline noqas, each with a reason: two names that look like secrets (a header name, a message), `document_pdf`'s `timeout` (ASYNC109: it must bound the render only, never the issue and commit), the restore drill's and a test's fixed `subprocess` calls, the seeded demo-history RNG and three constant-built SQL strings in a migration test. The web tsconfig turns on `noUncheckedIndexedAccess`. The 11 source fixes are real guards (`charAt`, an empty-ladder check, a typed `CLAIM_ENDED` with a required `invalid`, the same missing-traveller read `validate()` uses); tests read indexes through `tests/nth.ts`, which throws naming the index. No `!` was added.
 - **`e2e` job (Playwright, `web/e2e/`):** three P0 journeys against `next build` + `next start` and the api over a throwaway `postgres:17`: (a) book, pay through Checkout, and download the voucher PDF; (b) sign in with the emailed code and see the booking in My trips; (c) the owner sends an owed refund from the money desk. `api/tests/e2e_app.py` is the real app with explicit settings only (never the env or `.env.local`), `FakeRazorpay`, an in-memory outbox (`GET /__e2e/outbox`), the null rate limiter and no Sentry or Blob. It refuses to start on Vercel or against a database whose name lacks `e2e`. `api/tests/e2e_seed.py` migrates, truncates, seeds, and adds a departure 75 days out, so the journeys never run out of dates. The browser gets a Checkout stub that signs `order|payment` under the fake's test secret, and every other third-party request is aborted. A failure uploads the Playwright report and traces as an artifact.
 - **Gates shown red** on a throwaway PR, closed unmerged; the V9 PR description links the runs. A prod advisory (zod 4.6.2) turned `audit` red, a planted key turned `secrets` red, an uncovered module took `api` below 94 %, and a broken confirm call turned `e2e` red.
+
+### Fixed in V7 — database and cleanup
+
+- **Q-3, the money desk's N+1:** `refund_owed` is now a thin reader over `owed_from`, a pure function of the booking, the approved cancellation's refund and the booking's captured total. Single-booking callers read only what their path needs, as before. `money._owed` reads the flagged bookings with their cancellation (one per booking, so the existing outer join brings the agreed refund), then every waiting refund in one `IN` and every captured total in one grouped `IN` (`captured_ever`). Three statements however many bookings are flagged; it was two more per booking. Test (the row's done-when): `test_money_desk.py::test_the_money_desk_query_count_is_constant_in_the_number_of_bookings` counts the engine's statements for 2 and then 4 flagged bookings (an approval decided before 0025, an unpaid balance, two plain surpluses) and checks each amount against `refund_owed`. Against the old desk it fails with 11 and 13.
+- **Q-4, six indexes (migration 0027, add-only):** measured with `EXPLAIN ANALYZE` on Postgres 18 at about 50× production volume (50,000 bookings over 50 packages, 60,000 enquiry notes, 25,000 coupon-package links, 50,000 ledger rows, 20,000 date changes), with each index and then with it dropped inside a rolled-back transaction. At production volume today every one of these tables is a seq scan in well under a millisecond, so these indexes are for growth and for the foreign-key work Postgres does on a delete.
+
+  | Index | Why it exists | With | Without |
+  | --- | --- | --- | --- |
+  | `bookings.package_id` | The `RESTRICT` check when a package is deleted; also the desk's package filter, the coupon report's join and the urgency `IN` | FK check 6.2 ms (bitmap) | 12.5 ms (seq) |
+  | `bookings.created_at` | The reports' date window (`holds_q`) and the coupon report's weeks; the desk's default list, newest first, `LIMIT 50` | window 2.9 ms; desk page 0.3 ms (index scan backward + incremental sort) | 26.6 ms; 10.9 ms (seq + sort of all rows) |
+  | `enquiry_notes.enquiry_id` | An enquiry's notes on its page (`selectinload`) and the cascade when the V5 purge deletes an enquiry | 0.09 ms | 5.5 ms |
+  | `coupon_packages.package_id` | The primary key leads with `coupon_id`, so the cascade on a package delete scanned the table | 1.1 ms | 1.6 ms |
+  | `email_sends.package_id` | The ledger's cascade on a package delete | 6.0 ms | 9.3 ms |
+  | `date_changes.from_departure_id` | The FK check when a departure is deleted (`to_departure_id` already leads `ix_date_changes_held`) | 0.5 ms | 1.5 ms |
+
+  `bookings.package_id` does not speed up the desk's per-package count at this spread (each package is 2 % of the rows scattered over the heap: 14.5 ms against 13.6 ms); its win is the delete check. No `enquiries.created_at` index, which V5 left open: the purge's range is already served by `ix_enquiries_status_created_at`, which Postgres 18 skip-scans (see _Database: indexes and EXPLAIN_). The migration is a plain `CREATE INDEX` with a 5 s lock timeout: every production table is a few hundred rows, so the write lock lasts milliseconds.
+- **Q-6, dead code:** removed `changes.latest_change`, `counter.web_request` and `admin_leaders.leads_departure` (vulture flags each, and a repo-wide grep finds no caller in app, tests or scripts), `web/src/components/ui/tabs.tsx` and the `cn` npm package (knip: unused file, unused dependency). The lockfile change removes `cn` only. knip also lists `eslint-config-next` as unused; that is the flat-config compat layer and was left.
+- **Q-8, the order body:** V9 already turned the unchecked index into a `throw` naming the slot, and V7 keeps it rather than the `??` fallback the finding proposed. `formErrors` reads a missing slot as empty and flags it, so the form never submits without every traveller; a fallback in `orderBody` would turn a bug into a blank traveller that the api refuses with a 400 the form can't place. Test: `booking.test.ts`, "refuses a slot the validator would have caught".
+- **Q-2, the PDF render timeout:** `PDF_RENDER_TIMEOUT` (setting, default 5 s) bounds the render of an emailed tax invoice (`invoice_attachment`, `extras_invoice_attachment`), and tests run at 30 s (`tests/settings.make_settings`). Past it the email goes without the PDF, logged; the customer can still download it from the booking. Tests: `test_pdf_render_timeout.py`, which stubs the issue and the facts read and times only the render: past the timeout → no attachment and the error log, within it → attached.
+- **OP-11, image cache:** `minimumCacheTTL` is 30 days. No image URL is reused for new bytes: bundled images are content-hashed imports, owner uploads mint a new path, and `seed.py`'s fixed paths are renamed, never overwritten (the _Known risk_ above, now a 30-day delay rather than 24 h).
