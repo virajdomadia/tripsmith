@@ -87,6 +87,7 @@ describe('card `sizes` match the grid the card sits in', () => {
 
 describe('optimized images outlive the response that produced them', () => {
   it('next.config sets a minimumCacheTTL, so `public/` sources do not inherit max-age=0', () => {
-    expect(nextConfig.images?.minimumCacheTTL).toBe(60 * 60 * 24);
+    // V7 (OP-11): 30 days — no image URL is reused for new bytes (see next.config.ts).
+    expect(nextConfig.images?.minimumCacheTTL).toBe(60 * 60 * 24 * 30);
   });
 });
