@@ -9,7 +9,7 @@ import os
 from functools import lru_cache
 from typing import Any
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -69,6 +69,13 @@ class Settings(BaseSettings):
     # Fernet keys, comma-separated, newest first: the first encrypts, any of them decrypts (so a
     # key can be rotated). Unset = ID numbers can't be saved (the rest of the details can).
     id_number_key: SecretStr | None = None
+
+    # --- PDFs ---
+    # V7 (Q-2): seconds an emailed PDF (tax invoice, voucher; the itinerary gets this plus its
+    # upload margin) may take before the email goes without it (logged). Tests use 30: a loaded
+    # runner rendered past 5 s and dropped the attachment.
+    # Positive only: 0 would read as "no bound" and a negative value would drop every invoice.
+    pdf_render_timeout: float = Field(default=5.0, gt=0)
 
     # --- Cron ---
     cron_secret: SecretStr | None = None

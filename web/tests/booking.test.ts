@@ -145,6 +145,19 @@ describe('formErrors', () => {
     });
   });
 
+  it('refuses a slot the validator would have caught, rather than sending a blank traveller', () => {
+    // V7 (Q-8): formErrors reads a missing slot as empty and flags it; orderBody never fills it.
+    const short: Record<string, { name: string; age: string }> = { ...ok };
+    delete short['child-0'];
+    expect(formErrors(slots, short, contact)).toMatchObject({
+      'travellers.2.name': expect.any(String),
+      'travellers.2.age': expect.any(String),
+    });
+    expect(() => orderBody('dep_1', slots, short, contact)).toThrow(
+      'orderBody: no traveller for slot child-0',
+    );
+  });
+
   it('sends a business GSTIN, normalised, with its company — and checks it matches the State', () => {
     const business = {
       ...contact,

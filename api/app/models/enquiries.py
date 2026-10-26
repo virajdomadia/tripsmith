@@ -62,6 +62,7 @@ class EnquiryNote(IdMixin, CreatedMixin, Base):
     """Append-only."""
 
     __tablename__ = "enquiry_notes"
+    __table_args__ = (Index("ix_enquiry_notes_enquiry_id", "enquiry_id"),)  # 0027
 
     enquiry_id: Mapped[str] = mapped_column(
         ForeignKey("enquiries.id", ondelete="CASCADE"), nullable=False

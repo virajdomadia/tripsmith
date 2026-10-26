@@ -45,6 +45,7 @@ class EmailSend(IdMixin, TimestampsMixin, Base):
         CheckConstraint("state IN ('sending', 'sent', 'held', 'failed', 'skipped')", name="state"),
         Index("uq_email_sends_key", "key", unique=True),
         Index("ix_email_sends_booking_id", "booking_id"),
+        Index("ix_email_sends_package_id", "package_id"),  # 0027: the package-delete cascade
         Index(
             "ix_email_sends_retry",
             "state",

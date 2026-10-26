@@ -13,11 +13,15 @@ SECRET_FIELDS = {
 }
 
 
+TEST_PDF_RENDER_TIMEOUT = 30.0  # V7 (Q-2): prod's 5 s flaked under a full run's load
+
+
 def make_settings(**overrides: Any) -> Settings:
     fields = {
         k: SecretStr(v) if k in SECRET_FIELDS and isinstance(v, str) else v
         for k, v in overrides.items()
     }
+    fields.setdefault("pdf_render_timeout", TEST_PDF_RENDER_TIMEOUT)
     return Settings.model_construct(None, **fields)
 
 

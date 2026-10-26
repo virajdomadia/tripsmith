@@ -32,7 +32,7 @@ from app.schemas.admin_enquiries import AdminEnquiry, EnquiryReplyInput
 from app.services.admin_enquiries import get_enquiry, load_enquiry, status_note
 from app.services.email.render import _env, _one_line
 from app.services.email.send import held_back
-from app.services.enquiries import PDF_ATTACHMENT_TIMEOUT, package_for_pdf
+from app.services.enquiries import package_for_pdf, pdf_attachment_timeout
 from app.services.pdf.service import PdfService
 
 log = logging.getLogger(__name__)
@@ -64,14 +64,16 @@ def render_reply(
 
 
 async def _attachment(
-    db: AsyncSession, pdf: PdfService | None, slug: str
+    db: AsyncSession, pdf: PdfService | None, slug: str, settings: Settings
 ) -> EmailAttachment | None:
     detail = await package_for_pdf(db, slug)
     await db.rollback()  # end the read before the render: it can take seconds
     if pdf is None or detail is None:
         return None
     try:
-        return await asyncio.wait_for(pdf.attachment_for(detail), timeout=PDF_ATTACHMENT_TIMEOUT)
+        return await asyncio.wait_for(
+            pdf.attachment_for(detail), timeout=pdf_attachment_timeout(settings)
+        )
     except TimeoutError:
         log.warning("Itinerary PDF for %s timed out on an inbox reply", slug)
         return None
@@ -92,7 +94,7 @@ async def _deliver(
     """`(resend_id, error)` — exactly one is set. Never raises."""
     attachment = None
     if package is not None:
-        attachment = await _attachment(db, pdf, package[0])
+        attachment = await _attachment(db, pdf, package[0], settings)
         if attachment is None:
             return None, ERR_PDF
     try:

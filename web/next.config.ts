@@ -78,10 +78,11 @@ const nextConfig: NextConfig = {
   images: {
     // Without this, Vercel's optimizer inherits the upstream `Cache-Control` of a file served
     // from `public/` — `max-age=0, must-revalidate` — so every visit revalidates the optimized
-    // hero before it can paint (a 605 ms round trip on Slow 4G, measured in H2). A day is long
-    // enough to cover a session and short enough that a redeployed photo at the same path
-    // (`/_next/image?url=/home/hero.jpg&…` is stable across deploys) settles within a day.
-    minimumCacheTTL: 60 * 60 * 24,
+    // hero before it can paint (a 605 ms round trip on Slow 4G, measured in H2). V7 (OP-11):
+    // 30 days, so a transformation is not redone daily. Safe because no image URL is reused for
+    // new bytes: bundled images are content-hashed imports, owner uploads mint a new path, and
+    // scripts/seed.py's fixed paths are renamed, never overwritten (docs/12, Known risk).
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
       // scripts/seed.py --local (any port: `--local-base-url` lets a worktree api run beside

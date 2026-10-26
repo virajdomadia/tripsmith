@@ -403,7 +403,8 @@ async def test_slow_pdf_is_dropped_and_the_enquiry_still_mails(
     await seeded(db)
     sender = mailing(db_app, FakeSender())
     with_pdf(db_app, FakeBlobStore())
-    monkeypatch.setattr("app.services.enquiries.PDF_ATTACHMENT_TIMEOUT", 0.05)
+    monkeypatch.setattr(db_app.state.settings, "pdf_render_timeout", 0.05)
+    monkeypatch.setattr("app.services.enquiries.PDF_UPLOAD_MARGIN", 0.0)
 
     async def slow(*a: object, **k: object) -> None:
         await asyncio.sleep(1)

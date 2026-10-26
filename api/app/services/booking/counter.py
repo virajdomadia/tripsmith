@@ -54,7 +54,6 @@ from app.schemas.bookings import (
     CHILD_MAX_AGE,
     CHILD_MIN_AGE,
     Quote,
-    QuoteRequest,
     UnbookableReason,
 )
 from app.schemas.catalog import AddonOut, ImageOut
@@ -181,17 +180,6 @@ async def counter_quote(
     _unbookable(dep, seats_left=seats, party=len(req.travellers), today=ist_today(now))
     quote, _code = await _price(db, dep, pkg, req, seats_left=seats, now=now, lock=False)
     return quote
-
-
-def web_request(req: CounterQuoteRequest) -> QuoteRequest:
-    """The website's quote request for the same party (tests compare the two quotes)."""
-    return QuoteRequest.model_construct(
-        departure_id=req.departure_id,
-        travellers=req.travellers,
-        coupon_code=req.coupon_code,
-        email=req.email,
-        addons=req.addons,
-    )
 
 
 async def _claim_enquiry(db: AsyncSession, enquiry_id: str) -> Enquiry:

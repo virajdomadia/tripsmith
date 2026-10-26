@@ -83,45 +83,81 @@ async def refund_owed(db: AsyncSession, booking: Booking) -> int:
 
     V1 (SB-1): a decision since 0025 fixed `kept_paise`, so the owed amount is simply what is
     held beyond it — a deposit refunded on approval and a balance captured later owe the whole
-    balance. Captured-ever against the price would call that balance covered."""
-    if booking.kept_paise is not None and booking.cancel_reason in (
-        CancelReason.CANCELLATION_APPROVED,
-        CancelReason.BALANCE_UNPAID,
-    ):
-        return max(0, booking.paid_paise - booking.kept_paise)
-    agreed = (
-        await db.execute(
-            select(BookingCancellation.refund_paise).where(
-                BookingCancellation.booking_id == booking.id,
-                BookingCancellation.status == CancellationStatus.APPROVED,
+    balance. Captured-ever against the price would call that balance covered.
+
+    Reads only what `owed_from` needs; the money desk reads the same columns for every flagged
+    booking at once (V7, Q-3)."""
+    asked = NO_REQUEST
+    if _kept(booking) is None and booking.cancel_reason == CancelReason.CANCELLATION_APPROVED:
+        row = (
+            await db.execute(
+                select(BookingCancellation.status, BookingCancellation.refund_paise).where(
+                    BookingCancellation.booking_id == booking.id
+                )
             )
-        )
-    ).one_or_none()
-    settled: int | None = None
-    if booking.cancel_reason == CancelReason.CANCELLATION_APPROVED and agreed is not None:
-        settled = agreed[0] or 0
-    elif booking.cancel_reason == CancelReason.BALANCE_UNPAID:
-        settled = booking.balance_refund_paise or 0
+        ).one_or_none()
+        if row is not None:
+            asked = (row[0], row[1])
+    ever = 0
+    if _kept(booking) is None and _settled(booking, asked) is not None:
+        ever = (await captured_ever(db, [booking.id])).get(booking.id, 0)
+    return owed_from(booking, asked=asked, ever=ever)
+
+
+# The booking's cancellation request as stored: (status, refund_paise); NO_REQUEST when none.
+Asked = tuple[CancellationStatus | None, int | None]
+NO_REQUEST: Asked = (None, None)
+
+
+def _kept(booking: Booking) -> int | None:
+    """What a decision since 0025 kept (V1, SB-1); None when the old amounts-only sum applies."""
+    if booking.cancel_reason in (CancelReason.CANCELLATION_APPROVED, CancelReason.BALANCE_UNPAID):
+        return booking.kept_paise
+    return None
+
+
+def _settled(booking: Booking, asked: Asked) -> int | None:
+    """The refund a decision settled on: the owner's approval, or the tidy's unpaid balance."""
+    status, refund_paise = asked
+    if (
+        booking.cancel_reason == CancelReason.CANCELLATION_APPROVED
+        and status == CancellationStatus.APPROVED
+    ):
+        return refund_paise or 0
+    if booking.cancel_reason == CancelReason.BALANCE_UNPAID:
+        return booking.balance_refund_paise or 0
+    return None
+
+
+async def captured_ever(db: AsyncSession, booking_ids: Sequence[str]) -> dict[str, int]:
+    """Booking id → every paisa its payments ever captured, refunded or not; absent = none."""
+    rows = await db.execute(
+        select(Payment.booking_id, func.sum(Payment.amount_paise))
+        .where(Payment.booking_id.in_(booking_ids), Payment.status.in_(HOLDS_MONEY))
+        .group_by(Payment.booking_id)
+    )
+    return {bid: int(total) for bid, total in rows.all()}
+
+
+def owed_from(booking: Booking, *, asked: Asked, ever: int) -> int:
+    """`refund_owed` over columns already read: `asked` = the booking's cancellation request
+    as stored (`NO_REQUEST` when none), `ever` = the booking's `captured_ever`."""
+    kept = _kept(booking)
+    if kept is not None:
+        return max(0, booking.paid_paise - kept)
+    settled = _settled(booking, asked)
     if settled is not None:
         # Everything owed since the approval, less what was already given back: the refund
         # agreed, plus in full any money captured beyond the booking's price (a second
         # payment has no seat behind it, whenever it landed). Amounts, not timestamps: a
         # capture racing the approval is stamped with its transaction's start, which can
         # fall on either side of the approval's.
-        ever = (
-            await db.execute(
-                select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
-                    Payment.booking_id == booking.id, Payment.status.in_(HOLDS_MONEY)
-                )
-            )
-        ).scalar_one()
         given_back = ever - booking.paid_paise
         surplus = max(0, ever - booking.total_paise)
         return min(booking.paid_paise, max(0, settled + surplus - given_back))
-    elif booking.status == BookingStatus.CANCELLED:
+    if booking.status == BookingStatus.CANCELLED:
         return booking.paid_paise
-    else:
-        return max(0, booking.paid_paise - booking.total_paise)
+    return max(0, booking.paid_paise - booking.total_paise)
 
 
 async def refunding(db: AsyncSession, booking: Booking) -> bool:
