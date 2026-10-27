@@ -6,7 +6,7 @@ import { BUSINESS, whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { formatDate, inr, priceOrOnRequest } from '@/lib/format';
-import { CANCELLATION_SCHEDULE } from '@/lib/policies';
+import { cancellationSchedule, type Rules } from '@/lib/rules';
 import { proofLine } from '@/lib/urgency';
 import { ProofLine } from '../ProofLine';
 import { ItineraryPdfLink } from '../ItineraryPdfLink';
@@ -23,11 +23,14 @@ export function PriceBox({
   pkg,
   url,
   bookable,
+  rules,
 }: {
   pkg: PackageDetail;
   url: string;
   bookable: boolean;
+  rules: Rules;
 }) {
+  const [top] = cancellationSchedule(rules.cancellationTiers);
   const next = pkg.departures.find((d) => d.seatsLeft > 0) ?? pkg.departures[0];
   const deal = pkg.deal;
   const proof = proofLine(pkg.proof, 'both');
@@ -111,8 +114,8 @@ export function PriceBox({
           : `A person calls you back within 2 hours, ${BUSINESS.hours}. Nothing to pay online.`}
       </p>
       <p className="text-[13px] leading-relaxed text-mute">
-        {CANCELLATION_SCHEDULE[0].window}: {cap(CANCELLATION_SCHEDULE[0].refund)}. One free date
-        change up to 30 days out.{' '}
+        {top && `${top.window}: ${cap(top.refund)}. `}One free date change up to{' '}
+        {rules.freeChangeDays} days out.{' '}
         <Link href="/cancellation-policy">Cancellation &amp; refunds</Link>
       </p>
     </div>

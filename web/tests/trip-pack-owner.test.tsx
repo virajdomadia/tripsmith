@@ -104,6 +104,7 @@ describe('PackStatusPanel', () => {
   it('a locked pack on a deposit, with the preview PDF; the calendar not added', () => {
     render(
       <PackStatusPanel
+        detailsDays={30}
         bookingRef="TB-7K2M9Q"
         status={{ pack, calendarAddedAt: null, calendarVia: null, calendarStale: false }}
       />,
@@ -118,6 +119,7 @@ describe('PackStatusPanel', () => {
   it('an open, read pack; a calendar un-ticked by a date change', () => {
     render(
       <PackStatusPanel
+        detailsDays={30}
         bookingRef="TB-7K2M9Q"
         status={{
           pack: { ...pack, state: 'open', needsPayment: false, readAt: '2099-11-07T05:00:00Z' },
@@ -135,6 +137,7 @@ describe('PackStatusPanel', () => {
   it('past the day on a deposit: waiting for the balance', () => {
     render(
       <PackStatusPanel
+        detailsDays={30}
         bookingRef="TB-7K2M9Q"
         status={{
           pack: { ...pack, dayReached: true },

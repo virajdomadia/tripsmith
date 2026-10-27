@@ -3,24 +3,22 @@
 import Link from 'next/link';
 import { daysBetween } from '@/lib/account';
 import { formatDate, inr } from '@/lib/format';
+import { remindersBefore } from '@/lib/rules';
 import type { BookingFlow } from './use-booking';
 
-/** The balance falls due this many days before departure (api services/booking/deposit.py). */
-export const BALANCE_DAYS = 30;
-
 /**
- * R43 (P5), Book now B's "How you pay": pay in full, or reserve with 25 % now and pay the
- * balance by 30 days before departure. Both amounts are the server's (`quote.deposit`); a date
+ * R43 (P5), Book now B's "How you pay": pay in full, or reserve with the deposit now and pay the
+ * balance by `balanceDays` before departure (`/meta`'s rules, Q-5). Both amounts are the server's (`quote.deposit`); a date
  * whose balance would already be due shows the deposit struck through with the reason, and a
  * trip that has deposits switched off shows no choice at all. Native radios, so arrow keys and
  * screen readers work as for any radio group.
  */
 export function PayChoice({ flow }: { flow: BookingFlow }) {
-  const { depositOffer, pay, setPay, departure, today, quote } = flow;
+  const { depositOffer, pay, setPay, departure, today, quote, rules } = flow;
   const q = quote.status === 'ok' ? quote.quote : quote.status === 'loading' ? quote.last : null;
   if (!departure || !q) return null;
   const daysOut = daysBetween(today, departure.date);
-  if (!depositOffer && daysOut > BALANCE_DAYS) return null; // switched off for this trip
+  if (!depositOffer && daysOut > rules.balanceDays) return null; // switched off for this trip
   return (
     <fieldset className="grid gap-2" aria-busy={quote.status === 'loading'}>
       <legend className="label-caps mb-2 text-mute">How you pay</legend>
@@ -42,8 +40,8 @@ export function PayChoice({ flow }: { flow: BookingFlow }) {
           note={
             <>
               Balance <span className="num">{inr(depositOffer.balancePaise)}</span> due by{' '}
-              {formatDate(depositOffer.dueOn)} — 30 days before departure. Pay it in parts from My
-              trips.
+              {formatDate(depositOffer.dueOn)} — {rules.balanceDays} days before departure. Pay it
+              in parts from My trips.
             </>
           }
           split={depositOffer.percent}
@@ -54,18 +52,19 @@ export function PayChoice({ flow }: { flow: BookingFlow }) {
           className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 rounded-btn border-[1.5px] border-dashed border-line bg-bg2 p-3 text-mute"
         >
           <span aria-hidden className="size-[18px] rounded-full border-2 border-line bg-bg" />
-          <b className="text-[15px]">Reserve with 25% now</b>
+          <b className="text-[15px]">Reserve with {rules.depositPercent}% now</b>
           <span className="text-[12.5px] font-bold">Not for this date</span>
           <small className="col-start-2 col-end-4 text-[12.5px] leading-snug font-medium text-ink2">
-            {formatDate(departure.date)} is {daysOut} days away. A balance is due 30 days before
-            departure, so this date is paid in full.
+            {formatDate(departure.date)} is {daysOut} days away. A balance is due{' '}
+            {rules.balanceDays} days before departure, so this date is paid in full.
           </small>
         </div>
       )}
       {pay === 'deposit' && depositOffer && (
         <p className="text-[12.5px] leading-snug text-mute">
-          We remind you 7 and 3 days before {formatDate(depositOffer.dueOn)}. Unpaid 2 days after
-          that, the booking is cancelled under the{' '}
+          We remind you {remindersBefore(rules.reminderDays)} days before{' '}
+          {formatDate(depositOffer.dueOn)}. Unpaid {rules.graceDays} days after that, the booking is
+          cancelled under the{' '}
           <Link href="/cancellation-policy" className="text-primary">
             cancellation policy
           </Link>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RULES } from './rules';
 import {
   blockers,
   bookingBody,
@@ -49,9 +50,9 @@ describe('counter party', () => {
       { occupancy: 'double' },
       { occupancy: 'child', age: 8 },
     ]);
-    expect(childAgeError('')).toMatch(/Age needed/);
-    expect(childAgeError('12')).toMatch(/5–11/);
-    expect(childAgeError('7')).toBeNull();
+    expect(childAgeError('', RULES.ages)).toMatch(/Age needed/);
+    expect(childAgeError('12', RULES.ages)).toMatch(/5–11/);
+    expect(childAgeError('7', RULES.ages)).toBeNull();
   });
 });
 
@@ -69,7 +70,7 @@ describe('manual discount', () => {
 
 describe('what still stops the booking', () => {
   it('is nothing on a complete draft', () => {
-    expect(blockers(draft(), { deposit: true })).toEqual([]);
+    expect(blockers(draft(), { deposit: true }, RULES)).toEqual([]);
   });
 
   it('names each missing piece in step order', () => {
@@ -83,6 +84,7 @@ describe('what still stops the booking', () => {
           reference: '',
         }),
         { deposit: false },
+        RULES,
       ),
     ).toEqual([
       'Pick a departure',
@@ -91,7 +93,9 @@ describe('what still stops the booking', () => {
       'Deposit closes 30 days before departure: take the full amount',
       'Add the UPI reference (UTR)',
     ]);
-    expect(blockers(draft({ method: 'cash', reference: '' }), { deposit: true })).toEqual([]);
+    expect(blockers(draft({ method: 'cash', reference: '' }), { deposit: true }, RULES)).toEqual(
+      [],
+    );
     expect(newCustomerErrors({ name: 'P', phone: '12345', email: 'nope', state: '' })).toEqual({
       name: 'Enter their name',
       phone: 'Enter a 10-digit Indian mobile',
@@ -153,27 +157,31 @@ describe('payment links (P18b)', () => {
   it('asks for the total or the deposit, and says why a link can’t go', () => {
     expect(linkAmount({ linkPay: 'deposit' }, offer)).toBe(10_000_00);
     expect(linkAmount({ linkPay: 'full' }, offer)).toBe(40_000_00);
-    expect(linkProblem({ linkPay: 'deposit' }, offer)).toBeNull();
-    expect(linkProblem({ linkPay: 'full' }, offer)).toMatch(/caps a link at ₹15,000/);
-    expect(linkProblem({ linkPay: 'deposit' }, { ...offer, deposit: false })).toMatch(
-      /Deposit closes/,
+    expect(linkProblem({ linkPay: 'deposit' }, offer, RULES.balanceDays)).toBeNull();
+    expect(linkProblem({ linkPay: 'full' }, offer, RULES.balanceDays)).toMatch(
+      /caps a link at ₹15,000/,
     );
-    expect(linkProblem({ linkPay: 'deposit' }, { ...offer, linkUntil: null })).toMatch(
-      /Too close to departure/,
-    );
-    expect(linkProblem({ linkPay: 'full' }, { ...offer, linkMaxPaise: null })).toBeNull();
+    expect(
+      linkProblem({ linkPay: 'deposit' }, { ...offer, deposit: false }, RULES.balanceDays),
+    ).toMatch(/Deposit closes/);
+    expect(
+      linkProblem({ linkPay: 'deposit' }, { ...offer, linkUntil: null }, RULES.balanceDays),
+    ).toMatch(/Too close to departure/);
+    expect(
+      linkProblem({ linkPay: 'full' }, { ...offer, linkMaxPaise: null }, RULES.balanceDays),
+    ).toBeNull();
   });
 
   it('needs no method or reference, and sends none', () => {
     const d = draft({ settle: 'link', linkPay: 'deposit', method: 'upi', reference: '' });
-    expect(blockers(d, offer)).toEqual([]);
+    expect(blockers(d, offer, RULES)).toEqual([]);
     expect(bookingBody(d, null)).toMatchObject({
       settle: 'link',
       linkPay: 'deposit',
       method: null,
       reference: null,
     });
-    expect(blockers({ ...d, linkPay: 'full' }, offer)).toEqual([
+    expect(blockers({ ...d, linkPay: 'full' }, offer, RULES)).toEqual([
       "Razorpay's test mode caps a link at ₹15,000: send the deposit link, or take the payment now",
     ]);
   });

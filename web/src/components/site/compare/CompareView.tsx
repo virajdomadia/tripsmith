@@ -23,7 +23,8 @@ import { replaceTray } from '@/lib/compare-tray';
 import { dealEnds, dealLabel } from '@/lib/deal';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { inr, MONTHS, priceOrOnRequest } from '@/lib/format';
-import { CANCELLATION_SCHEDULE } from '@/lib/policies';
+import { cancellationSchedule } from '@/lib/rules';
+import { useRules } from '@/components/rules/RulesProvider';
 import { reviewsCount } from '@/lib/reviews';
 import { proofLine } from '@/lib/urgency';
 
@@ -42,6 +43,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * row names pinned on the left, the next trip peeking in, and dots to jump between trips.
  */
 export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing: string[] }) {
+  const { holdMinutes } = useRules();
   const router = useRouter();
   const rows = useMemo(() => compareRows(trips), [trips]);
   const wins = useMemo(() => winners(trips), [trips]);
@@ -237,7 +239,9 @@ export function CompareView({ trips, missing }: { trips: CompareTrip[]; missing:
                 className="sticky left-0 z-10 border-t border-line bg-bg py-4 pr-2 pl-2.5 text-left align-top"
               >
                 <b className="block text-[13.5px] text-ink">Ready?</b>
-                <small className="block text-[11.5px] text-mute">Holds your seats for 10 min</small>
+                <small className="block text-[11.5px] text-mute">
+                  Holds your seats for {holdMinutes} min
+                </small>
               </th>
               {trips.map((t) => (
                 <td key={t.slug} className="border-t border-line px-3 py-4 align-top">
@@ -332,6 +336,7 @@ function List({ items, empty }: { items: readonly ReactNode[]; empty: string }) 
 }
 
 function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
+  const rules = useRules();
   const key: RowKey = row.key;
   switch (key) {
     case 'price': {
@@ -477,15 +482,18 @@ function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
       return (
         <p>
           {t.deposit
-            ? 'Reserve with 25 % now, the rest 30 days before departure'
+            ? `Reserve with ${rules.depositPercent} % now, the rest ${rules.balanceDays} days before departure`
             : 'Pay in full when you book'}
         </p>
       );
     case 'cancellation':
-      // One policy for every trip; the wording lives in lib/policies.ts.
+      // One policy for every trip; the tiers come from /meta (Q-5).
       return (
         <p className="leading-snug">
-          {CANCELLATION_SCHEDULE.map((r) => `${r.window}: ${r.refund}`)[0]}.{' '}
+          {cancellationSchedule(rules.cancellationTiers)
+            .map((r) => `${r.window}: ${r.refund}`)
+            .at(0)}
+          .{' '}
           <Link href="/cancellation-policy" className="whitespace-nowrap">
             Full policy
           </Link>

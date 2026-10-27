@@ -1,3 +1,4 @@
+import { RULES } from './rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -112,7 +113,7 @@ describe('package page tables with a deal', () => {
   });
 
   it('occupancy prices come off, capped per traveller; the supplement does not', () => {
-    render(<OccupancyPricing departures={[departure()]} deal={deal} />);
+    render(<OccupancyPricing departures={[departure()]} deal={deal} ages={RULES.ages} />);
     expect(screen.getByText('₹11,499')).toBeTruthy();
     expect(screen.getByText('₹10,499')).toBeTruthy();
     expect(screen.getByText('₹1')).toBeTruthy(); // ₹1 stays (V1 / SB-2)

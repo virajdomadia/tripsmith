@@ -46,7 +46,7 @@ MESSAGE = {
 
 
 def refused(reason: CouponReason, message: str | None = None) -> ApiError:
-    return ApiError("conflict", message or MESSAGE[reason], reason=reason.value)
+    return ApiError("conflict", message or MESSAGE[reason], reason=reason)
 
 
 def captured_uses_clause(code: str) -> ColumnElement[bool]:

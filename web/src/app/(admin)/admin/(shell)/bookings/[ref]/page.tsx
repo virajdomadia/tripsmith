@@ -26,6 +26,7 @@ import { PackStatusPanel } from '@/components/admin/bookings/PackStatusPanel';
 import { EmailsPanel } from '@/components/admin/bookings/EmailsPanel';
 import { api, ApiRequestError } from '@/lib/api';
 import { formatDate, inr } from '@/lib/format';
+import { getRules } from '@/lib/meta';
 
 export const metadata = { title: 'Booking' };
 
@@ -143,7 +144,11 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               <h2 id="pack" className={heading}>
                 Trip pack & calendar
               </h2>
-              <PackStatusPanel bookingRef={b.ref} status={b.packStatus} />
+              <PackStatusPanel
+                bookingRef={b.ref}
+                status={b.packStatus}
+                detailsDays={(await getRules()).retention.detailsDays}
+              />
             </section>
           )}
 

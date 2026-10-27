@@ -50,6 +50,7 @@ from app.schemas.admin_enquiries import (
     StatusCounts,
 )
 from app.schemas.enquiries import PackageRef, normalise_phone
+from app.schemas.errors import ErrorReason
 from app.schemas.meta import AdminEnquiryType
 from app.services.analytics import ist_today
 from app.services.email.render import IST
@@ -597,7 +598,7 @@ async def set_follow_up(db: AsyncSession, id: str, day: dt.date | None) -> Admin
     noted in the timeline like a status move; setting the same day again is a no-op."""
     row = await load_enquiry(db, id)
     if row.status not in OPEN:
-        raise ApiError("conflict", CLOSED_FOLLOW_UP, reason="not_open")
+        raise ApiError("conflict", CLOSED_FOLLOW_UP, reason=ErrorReason.NOT_OPEN)
     if day is not None and day < ist_today():
         raise ApiError("validation", PAST_FOLLOW_UP, field_errors={"followUpOn": PAST_FOLLOW_UP})
     if row.follow_up_on != day:

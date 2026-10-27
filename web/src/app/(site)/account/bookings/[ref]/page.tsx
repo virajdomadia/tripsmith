@@ -24,6 +24,7 @@ import { TripPackPanel } from '@/components/site/account/TripPackPanel';
 import { CalendarPanel } from '@/components/site/account/CalendarPanel';
 import { isDiscountLine, lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
+import { getRules } from '@/lib/meta';
 import { duration, formatDate, inr } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
     if (e instanceof ApiRequestError && e.status === 404) notFound();
     throw e;
   }
+  // After the booking: a redirect or 404 never waits on it (the layout has usually read it).
+  const rules = await getRules();
   const state = bookingState({ ...b, cancellation: b.cancellation?.status ?? null });
   const daysOut = daysBetween(b.today, b.departs);
   const upcoming = daysOut >= 0 && b.status !== 'cancelled' && b.status !== 'pending';
@@ -315,9 +318,9 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
               <h2 className="text-[15px]">GST documents</h2>
               <Documents bookingRef={b.ref} documents={b.documents} />
               <p className="text-[12px] text-mute">
-                Prices include GST at 5%. Each document is numbered when it’s issued: the receipt
-                when you pay, the tax invoice once the trip is paid in full, a credit note when a
-                refund goes out.
+                Prices include GST at {rules.gstPercent}%. Each document is numbered when it’s
+                issued: the receipt when you pay, the tax invoice once the trip is paid in full, a
+                credit note when a refund goes out.
               </p>
             </section>
           )}
@@ -335,6 +338,7 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
             cancellation={b.cancellation ?? null}
             canRequest={b.canRequestCancellation}
             daysOut={daysOut}
+            tiers={rules.cancellationTiers}
           />
         </aside>
       </div>

@@ -30,6 +30,7 @@ from app.schemas.admin_emails import (
     EmailTestSent,
     EmailTypeSetting,
 )
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.auth.deps import require_owner
 from app.services.email import automatic, owner
@@ -66,7 +67,7 @@ async def set_switch(
     user: Annotated[User, Depends(require_owner)],
 ) -> EmailTypeSetting:
     if kind not in automatic.SWITCHABLE:
-        raise ApiError("conflict", "This email always goes", reason="no_switch")
+        raise ApiError("conflict", "This email always goes", reason=ErrorReason.NO_SWITCH)
     await automatic.set_switch(db, kind, body.on, by=user.id)
     return owner.setting_of(await owner.settings_out(db, request.app.state.settings), kind)
 

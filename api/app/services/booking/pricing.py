@@ -52,6 +52,7 @@ from app.schemas.bookings import (
     QuoteTraveller,
     UnbookableReason,
 )
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.email.render import IST
 
@@ -115,9 +116,6 @@ def coupon_off(coupon: Coupon, amount_paise: int) -> int:
     return max(0, min(off, amount_paise - MIN_TOTAL_PAISE)) // RUPEE * RUPEE
 
 
-ADDON_GONE_REASON = "addon_unavailable"
-
-
 def addon_gone(index: int, name: str | None = None) -> ApiError:
     """A picked add-on the package no longer offers (switched off or deleted since the page
     loaded): 409, with the choice's place in the request (`addons.<index>`) so the sheet drops
@@ -125,7 +123,10 @@ def addon_gone(index: int, name: str | None = None) -> ApiError:
     what = f"“{name}”" if name else "One of your add-ons"
     message = f"{what} is no longer offered — we took it off your booking"
     return ApiError(
-        "conflict", message, reason=ADDON_GONE_REASON, field_errors={f"addons.{index}": message}
+        "conflict",
+        message,
+        reason=ErrorReason.ADDON_UNAVAILABLE,
+        field_errors={f"addons.{index}": message},
     )
 
 
@@ -196,7 +197,7 @@ def apply_manual(quote: Quote, *, mode: str, value: int, reason: str) -> Quote:
     if off <= 0:
         message = "The fare is already at ₹1 — there is nothing left to take off"
         raise ApiError(
-            "conflict", message, reason="manual_no_room", field_errors={"manual": message}
+            "conflict", message, reason=ErrorReason.MANUAL_NO_ROOM, field_errors={"manual": message}
         )
     return quote.model_copy(
         update={

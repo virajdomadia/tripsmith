@@ -11,6 +11,7 @@ export {
   parseErrorEnvelope,
   type ApiErrorResponse,
   type ErrorCode,
+  type ErrorReason,
 } from './api-errors';
 
 /**

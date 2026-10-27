@@ -20,6 +20,7 @@ import {
   unbookableReason,
 } from '../src/lib/booking';
 import { nth } from './nth';
+import { RULES } from './rules';
 
 /** B5: the sheet's party rules must match the api's 400s, and its grey labels its 409s. */
 
@@ -71,11 +72,11 @@ describe('party', () => {
   });
 
   it('caps the party at 12 and never lets a child travel without an adult', () => {
-    expect(canAdd(rooms({ triple: 3, single: 2 }), 'single')).toBe(true); // 11 → 12
-    expect(canAdd(rooms({ triple: 3, single: 2 }), 'double')).toBe(false); // 11 → 13
-    expect(canAdd(rooms({ triple: 3, single: 1 }), 'double')).toBe(true); // 10 → 12
-    expect(canAdd(rooms({ triple: 4 }), 'children')).toBe(false); // 12
-    expect(canAdd(rooms({}), 'children')).toBe(false);
+    expect(canAdd(rooms({ triple: 3, single: 2 }), 'single', RULES.maxTravellers)).toBe(true); // 11 → 12
+    expect(canAdd(rooms({ triple: 3, single: 2 }), 'double', RULES.maxTravellers)).toBe(false); // 11 → 13
+    expect(canAdd(rooms({ triple: 3, single: 1 }), 'double', RULES.maxTravellers)).toBe(true); // 10 → 12
+    expect(canAdd(rooms({ triple: 4 }), 'children', RULES.maxTravellers)).toBe(false); // 12
+    expect(canAdd(rooms({}), 'children', RULES.maxTravellers)).toBe(false);
     expect(canRemove(rooms({ double: 1, children: 1 }), 'double')).toBe(false);
     expect(canRemove(rooms({ double: 1, single: 1, children: 1 }), 'double')).toBe(true);
     expect(canRemove(rooms({ double: 1 }), 'triple')).toBe(false);
@@ -85,21 +86,25 @@ describe('party', () => {
 describe('unbookableReason — the api order: on request, too soon, seats', () => {
   const today = '2026-12-10';
   it('greys an unpriced departure as on request, even when it is also too soon', () => {
-    expect(unbookableReason(dep({ priceChildPaise: 0, date: '2026-12-10' }), 2, today)).toBe(
-      'on_request',
-    );
+    expect(
+      unbookableReason(dep({ priceChildPaise: 0, date: '2026-12-10' }), 2, today, RULES.leadDays),
+    ).toBe('on_request');
   });
   it('refuses anything before IST today + 2', () => {
-    expect(unbookableReason(dep({ date: '2026-12-11' }), 2, today)).toBe('too_soon');
-    expect(unbookableReason(dep({ date: '2026-12-12' }), 2, today)).toBeNull();
+    expect(unbookableReason(dep({ date: '2026-12-11' }), 2, today, RULES.leadDays)).toBe(
+      'too_soon',
+    );
+    expect(unbookableReason(dep({ date: '2026-12-12' }), 2, today, RULES.leadDays)).toBeNull();
   });
   it('tells sold out apart from too few seats for this party', () => {
-    expect(unbookableReason(dep({ seatsLeft: 0 }), 2, today)).toBe('sold_out');
-    expect(unbookableReason(dep({ seatsLeft: 3 }), 4, today)).toBe('short');
-    expect(unbookableReason(dep({ seatsLeft: 4 }), 4, today)).toBeNull();
+    expect(unbookableReason(dep({ seatsLeft: 0 }), 2, today, RULES.leadDays)).toBe('sold_out');
+    expect(unbookableReason(dep({ seatsLeft: 3 }), 4, today, RULES.leadDays)).toBe('short');
+    expect(unbookableReason(dep({ seatsLeft: 4 }), 4, today, RULES.leadDays)).toBeNull();
   });
   it('allows a ₹0 single supplement', () => {
-    expect(unbookableReason(dep({ singleSupplementPaise: 0 }), 1, today)).toBeNull();
+    expect(
+      unbookableReason(dep({ singleSupplementPaise: 0 }), 1, today, RULES.leadDays),
+    ).toBeNull();
   });
 });
 
@@ -127,7 +132,7 @@ describe('formErrors', () => {
   };
 
   it('passes a complete party and sends the api its own shapes', () => {
-    expect(formErrors(slots, ok, contact)).toEqual({});
+    expect(formErrors(slots, ok, contact, RULES.ages)).toEqual({});
     expect(orderBody('dep_1', slots, ok, contact)).toEqual({
       departureId: 'dep_1',
       pay: 'full',
@@ -149,7 +154,7 @@ describe('formErrors', () => {
     // V7 (Q-8): formErrors reads a missing slot as empty and flags it; orderBody never fills it.
     const short: Record<string, { name: string; age: string }> = { ...ok };
     delete short['child-0'];
-    expect(formErrors(slots, short, contact)).toMatchObject({
+    expect(formErrors(slots, short, contact, RULES.ages)).toMatchObject({
       'travellers.2.name': expect.any(String),
       'travellers.2.age': expect.any(String),
     });
@@ -165,13 +170,15 @@ describe('formErrors', () => {
       gstin: ' 07abcde1234f1z5',
       companyName: ' Acme ',
     };
-    expect(formErrors(slots, ok, business)).toEqual({});
+    expect(formErrors(slots, ok, business, RULES.ages)).toEqual({});
     expect(orderBody('dep_1', slots, ok, business).contact).toMatchObject({
       state: 'Delhi',
       gstin: '07ABCDE1234F1Z5',
       companyName: 'Acme',
     });
-    expect(formErrors(slots, ok, { ...business, state: 'Karnataka', companyName: '' })).toEqual({
+    expect(
+      formErrors(slots, ok, { ...business, state: 'Karnataka', companyName: '' }, RULES.ages),
+    ).toEqual({
       'contact.gstin':
         'This GSTIN is registered in another State (code 07) — pick that State, or check the number',
       'contact.companyName': 'Enter the company name registered to this GSTIN',
@@ -183,6 +190,7 @@ describe('formErrors', () => {
       slots,
       { ...ok, 'double-0-1': { name: 'V', age: '9' }, 'child-0': { name: 'Mira', age: '3' } },
       { name: '', phone: '12345', email: 'nope', state: '', gstin: 'X', companyName: 'Y' },
+      RULES.ages,
     );
     expect(errors).toEqual({
       'travellers.1.name': 'Enter a name',
@@ -200,9 +208,12 @@ describe('formErrors', () => {
 describe('holdSecondsLeft', () => {
   it('clamps to Checkout’s 600 s and to zero once the hold lapses', () => {
     const now = Date.parse('2026-12-10T10:00:00Z');
-    expect(holdSecondsLeft('2026-12-10T10:09:30Z', now)).toBe(570);
-    expect(holdSecondsLeft('2026-12-10T10:20:00Z', now)).toBe(600);
-    expect(holdSecondsLeft('2026-12-10T09:59:00Z', now)).toBe(0);
+    expect(holdSecondsLeft('2026-12-10T10:09:30Z', RULES.holdMinutes, now)).toBe(570);
+    expect(holdSecondsLeft('2026-12-10T10:20:00Z', RULES.holdMinutes, now)).toBe(600);
+    expect(holdSecondsLeft('2026-12-10T09:59:00Z', RULES.holdMinutes, now)).toBe(0);
+    // A waitlist claim's order holds until the offer expires: no seat-hold cap, hours show.
+    expect(holdSecondsLeft('2026-12-10T16:00:00Z', null, now)).toBe(6 * 3600);
+    expect(holdSecondsLeft('2026-12-10T09:59:00Z', null, now)).toBe(0);
   });
 });
 
@@ -279,23 +290,28 @@ describe('add-ons (P8)', () => {
 
 describe('prefillFromSearch (R53, P15 still-thinking link)', () => {
   it('reads the party and the date', () => {
-    expect(prefillFromSearch('?date=2099-11-13&double=1&triple=0&single=0&children=1')).toEqual({
+    expect(
+      prefillFromSearch(
+        '?date=2099-11-13&double=1&triple=0&single=0&children=1',
+        RULES.maxTravellers,
+      ),
+    ).toEqual({
       date: '2099-11-13',
       rooms: { double: 1, triple: 0, single: 0, children: 1 },
     });
   });
   it('keeps the party when the date is missing or malformed', () => {
-    expect(prefillFromSearch('?single=2&date=13-11-2099')).toEqual({
+    expect(prefillFromSearch('?single=2&date=13-11-2099', RULES.maxTravellers)).toEqual({
       date: null,
       rooms: { double: 0, triple: 0, single: 2, children: 0 },
     });
   });
   it('ignores a page with no party, a party with no adult, or one over 12', () => {
-    expect(prefillFromSearch('')).toBeNull();
-    expect(prefillFromSearch('?claim=abc')).toBeNull();
-    expect(prefillFromSearch('?children=2')).toBeNull();
-    expect(prefillFromSearch('?triple=4&single=1')).toBeNull();
-    expect(prefillFromSearch('?double=-1')).toBeNull();
-    expect(prefillFromSearch('?double=1.5')).toBeNull();
+    expect(prefillFromSearch('', RULES.maxTravellers)).toBeNull();
+    expect(prefillFromSearch('?claim=abc', RULES.maxTravellers)).toBeNull();
+    expect(prefillFromSearch('?children=2', RULES.maxTravellers)).toBeNull();
+    expect(prefillFromSearch('?triple=4&single=1', RULES.maxTravellers)).toBeNull();
+    expect(prefillFromSearch('?double=-1', RULES.maxTravellers)).toBeNull();
+    expect(prefillFromSearch('?double=1.5', RULES.maxTravellers)).toBeNull();
   });
 });

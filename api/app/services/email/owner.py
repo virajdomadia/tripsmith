@@ -22,6 +22,7 @@ from app.schemas.admin_emails import (
     EmailTypeSetting,
     UpcomingEmail,
 )
+from app.schemas.errors import ErrorReason
 from app.services.booking import deposit, details
 from app.services.booking.balance import _open_request
 from app.services.email import automatic, unsubscribe
@@ -170,7 +171,7 @@ async def _due_for(
     if kind == EmailType.BALANCE_REMINDER:
         due_on = b.balance_due_on
         if due_on is None:
-            raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+            raise ApiError("conflict", NOT_FITTING, reason=ErrorReason.NOT_FITTING)
         day = _first_from([due_on - dt.timedelta(days=s) for s in deposit.REMINDER_DAYS], today)
         stage = deposit.reminder_stage(due_on, day) or 0
         anchor = due_on
@@ -192,7 +193,7 @@ async def _due_for(
                    b.package_id), today  # fmt: skip
     elif kind == EmailType.BALANCE_CANCELLED:
         if b.cancel_reason != CancelReason.BALANCE_UNPAID:
-            raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+            raise ApiError("conflict", NOT_FITTING, reason=ErrorReason.NOT_FITTING)
         on = b.updated_at.astimezone(automatic.IST).date()
         return Due(kind, balance_cancelled_key(b.id), email, b.id, b.ref, b.package_id,
                    max((departs - on).days, 0), on), today  # fmt: skip
@@ -210,7 +211,7 @@ async def _due_for(
             )
         ).scalar_one_or_none()
         if refund_id is None:
-            raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+            raise ApiError("conflict", NOT_FITTING, reason=ErrorReason.NOT_FITTING)
         due = Due(kind, refund_key(refund_id), email, b.id, b.ref, b.package_id,
                   refund_id=refund_id)  # fmt: skip
         return due, today
@@ -230,7 +231,7 @@ async def render_for(
         await db.rollback()
     message = next((m for role, m in labelled or [] if role == "customer"), None)
     if message is None:
-        raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+        raise ApiError("conflict", NOT_FITTING, reason=ErrorReason.NOT_FITTING)
     if sheet is not None:
         message = replace(message, attachments=(EmailAttachment(trip_pack_filename(ref), b""),))
     return message, day
@@ -264,14 +265,16 @@ async def send_test(
     """The same email to the owner's inbox, `[Test]` in the subject: not logged in the booking's
     history, not in the ledger, so the real one still goes on its day."""
     if not settings.owner_notify_email:
-        raise ApiError("conflict", "Set OWNER_NOTIFY_EMAIL to send tests", reason="no_owner_email")
+        raise ApiError(
+            "conflict", "Set OWNER_NOTIFY_EMAIL to send tests", reason=ErrorReason.NO_OWNER_EMAIL
+        )
     if kind == EmailType.TRIP_PACK:
         due, day = await _due_for(db, kind, ref, today)
         await db.rollback()
         labelled = await automatic.render(db, due, settings, today=day)
         message = next((m for role, m in labelled or [] if role == "customer"), None)
         if message is None:
-            raise ApiError("conflict", NOT_FITTING, reason="not_fitting")
+            raise ApiError("conflict", NOT_FITTING, reason=ErrorReason.NOT_FITTING)
     else:
         message, _ = await render_for(db, kind, ref, settings, today=today)
     secret = settings.session_secret.get_secret_value() if settings.session_secret else None
@@ -292,7 +295,9 @@ async def send_test(
         await sender.send(test)
     except EmailSendError as exc:
         raise ApiError(
-            "conflict", "The test email couldn't be sent — try again", reason="send_failed"
+            "conflict",
+            "The test email couldn't be sent — try again",
+            reason=ErrorReason.SEND_FAILED,
         ) from exc
     return test
 

@@ -1,26 +1,20 @@
 'use client';
 
 import { Minus, Plus } from 'lucide-react';
-import {
-  adultsIn,
-  canAdd,
-  canRemove,
-  CHILD_MAX_AGE,
-  CHILD_MIN_AGE,
-  MAX_TRAVELLERS,
-  type RoomKind,
-} from '@/lib/booking';
+import { adultsIn, canAdd, canRemove, type RoomKind } from '@/lib/booking';
+import type { Rules } from '@/lib/rules';
+import { useRules } from '@/components/rules/RulesProvider';
 import { formatDate, inr } from '@/lib/format';
 import { control } from '../enquiry/Field';
 import type { BookingFlow } from './use-booking';
 
-const ROWS: { kind: RoomKind; title: string; hint: string }[] = [
+const rowsFor = (ages: Rules['ages']): { kind: RoomKind; title: string; hint: string }[] => [
   { kind: 'double', title: 'Double room', hint: '2 adults, twin sharing' },
   { kind: 'triple', title: 'Triple room', hint: '3 adults, with an extra bed' },
   { kind: 'single', title: 'Single room', hint: '1 adult, with a supplement' },
   {
     kind: 'children',
-    title: `Children ${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`,
+    title: `Children ${ages.childMin}–${ages.childMax}`,
     hint: 'Share a parent’s room, child rate',
   },
 ];
@@ -32,6 +26,7 @@ const ROWS: { kind: RoomKind; title: string; hint: string }[] = [
  */
 export function PartyBuilder({ flow }: { flow: BookingFlow }) {
   const { rooms, party, departure, reason, slots, travellers, errors } = flow;
+  const { ages, maxTravellers } = useRules();
   const adults = adultsIn(rooms);
   const step = (kind: RoomKind, by: 1 | -1) =>
     flow.setRooms((r) => ({ ...r, [kind]: Math.max(0, r[kind] + by) }));
@@ -39,7 +34,7 @@ export function PartyBuilder({ flow }: { flow: BookingFlow }) {
   return (
     <div className="grid gap-3">
       <div className="grid">
-        {ROWS.map(({ kind, title, hint }) => (
+        {rowsFor(ages).map(({ kind, title, hint }) => (
           <div
             key={kind}
             className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line py-2 last:border-b-0"
@@ -72,7 +67,7 @@ export function PartyBuilder({ flow }: { flow: BookingFlow }) {
               <button
                 type="button"
                 aria-label={`More: ${title}`}
-                disabled={!canAdd(rooms, kind)}
+                disabled={!canAdd(rooms, kind, maxTravellers)}
                 onClick={() => step(kind, 1)}
                 className="grid size-10 place-items-center transition-colors hover:bg-bg2 disabled:cursor-default disabled:text-[#c3c9cf] disabled:hover:bg-transparent"
               >
@@ -95,7 +90,7 @@ export function PartyBuilder({ flow }: { flow: BookingFlow }) {
       )}
       <p className="text-[12.5px] text-mute">
         {adults} {adults === 1 ? 'adult' : 'adults'}, {rooms.children}{' '}
-        {rooms.children === 1 ? 'child' : 'children'} · up to {MAX_TRAVELLERS} per booking.
+        {rooms.children === 1 ? 'child' : 'children'} · up to {maxTravellers} per booking.
       </p>
 
       <fieldset className="grid gap-2.5">

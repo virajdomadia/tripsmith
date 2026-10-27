@@ -64,6 +64,7 @@ from app.schemas.bookings import (
     QuoteRequest,
     UnbookableReason,
 )
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.booking import coupons, deposit, history, waitlist
 from app.services.booking.addons import addon_rows
@@ -106,7 +107,7 @@ def make_ref() -> str:
 
 
 def unbookable(reason: UnbookableReason) -> ApiError:
-    return ApiError("conflict", UNBOOKABLE_MESSAGE[reason], reason=reason.value)
+    return ApiError("conflict", UNBOOKABLE_MESSAGE[reason], reason=reason)
 
 
 async def _load(db: AsyncSession, departure_id: str, *, lock: bool) -> tuple[Departure, Package]:
@@ -367,7 +368,7 @@ async def create_booking_order(
                 raise ApiError(
                     "conflict",
                     f"Only {history.travellers(seats)} can be held for you on this date",
-                    reason="claim_short",
+                    reason=ErrorReason.CLAIM_SHORT,
                 )
             raise unbookable(reason)
         hold_until = entry.offer_expires_at if entry and entry.offer_expires_at else now + HOLD
@@ -390,7 +391,7 @@ async def create_booking_order(
         offer = deposit.with_deposit(quote, dep.date, ist_today(now), on=pkg.deposit_on)
         chosen = offer.deposit if req.pay == "deposit" else None
         if req.pay == "deposit" and chosen is None:
-            raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
+            raise ApiError("conflict", NO_DEPOSIT, reason=ErrorReason.DEPOSIT_UNAVAILABLE)
         # The snapshot keeps the deposit it was made on (none when paid in full); the order's
         # answer keeps the offer, so the sheet can still show both choices while the hold lasts.
         quote = offer.model_copy(update={"deposit": chosen})

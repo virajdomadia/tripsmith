@@ -34,6 +34,7 @@ import type { EarlyBird } from '@/lib/early-bird';
 import { formatDate } from '@/lib/format';
 import { type CheckoutSuccess, loadCheckout, openCheckout } from '@/lib/razorpay-checkout';
 import { CLAIM_ENDED, claimLive, type WaitlistClaim } from '@/lib/waitlist';
+import { useRules } from '@/components/rules/RulesProvider';
 
 export type BookingPackage = {
   slug: string;
@@ -119,6 +120,7 @@ export function useBooking(
   claimToken: string | null = null,
   prefill: Prefill | null = null,
 ) {
+  const rules = useRules();
   const [liveDepartures, setDepartures] = useState<Departure[]>(pkg.departures);
   const [availability, setAvailability] = useState<Availability>({ status: 'stale' });
   // R53 (P15): the still-thinking link's party, and its date while this party can still book it,
@@ -129,7 +131,9 @@ export function useBooking(
     if (!start?.date) return null;
     const today = istToday();
     const match = pkg.departures.find(
-      (d) => d.date === start.date && !unbookableReason(d, partySize(start.rooms), today),
+      (d) =>
+        d.date === start.date &&
+        !unbookableReason(d, partySize(start.rooms), today, rules.leadDays),
     );
     return match?.id ?? null;
   });
@@ -160,6 +164,8 @@ export function useBooking(
   const [claimEnded, setClaimEnded] = useState<string | null>(null);
   const live = claim !== null && claimLive(claim);
   const claimKey = live ? claimToken : null;
+  // A claim's order holds until the offer expires; a normal one for the seat hold (holdSecondsLeft).
+  const holdCap = claimKey ? null : rules.holdMinutes;
 
   /**
    * The visitor's own live hold. The api's `seatsLeft` already subtracts it, so without adding
@@ -181,12 +187,14 @@ export function useBooking(
         ? liveDepartures.map((d) =>
             d.id === claim.departureId ? { ...d, seatsLeft: d.seatsLeft + claim.heldSeats } : d,
           )
-        : held && holdSecondsLeft(held.expiresAt) > 0 && (availability.at ?? 0) > held.since
+        : held &&
+            holdSecondsLeft(held.expiresAt, holdCap) > 0 &&
+            (availability.at ?? 0) > held.since
           ? liveDepartures.map((d) =>
               d.id === held.departureId ? { ...d, seatsLeft: d.seatsLeft + held.seats } : d,
             )
           : liveDepartures,
-    [liveDepartures, held, availability.at, live, claim],
+    [liveDepartures, held, availability.at, live, claim, holdCap],
   );
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
@@ -198,7 +206,7 @@ export function useBooking(
   const choices = useMemo(() => addonChoices(offered, picks, party), [offered, picks, party]);
   const choicesKey = JSON.stringify(choices);
   const departure = departures.find((d) => d.id === departureId) ?? null;
-  const reason = departure ? unbookableReason(departure, party, today) : null;
+  const reason = departure ? unbookableReason(departure, party, today, rules.leadDays) : null;
   /** The last order and the exact body it was made from: reused only for the same booking. */
   const lastOrder = useRef<{ key: string; order: BookingOrder } | null>(null);
 
@@ -272,9 +280,9 @@ export function useBooking(
   // (`gone`), nothing is picked for them: R14 sends them back to choosing.
   useEffect(() => {
     if (departureId || gone) return;
-    const first = departures.find((d) => !unbookableReason(d, party, today));
+    const first = departures.find((d) => !unbookableReason(d, party, today, rules.leadDays));
     if (first) setDepartureId(first.id);
-  }, [departures, departureId, gone, party, today]);
+  }, [departures, departureId, gone, party, today, rules.leadDays]);
 
   // A chosen date that is no longer on sale at all (a fresh read said so) is unchosen; one that
   // is merely `short` stays, with the warning — the visitor may rather travel fewer.
@@ -318,7 +326,7 @@ export function useBooking(
       addons,
       ...(claimKey ? { claim: claimKey } : {}),
     });
-    if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt) > 0) {
+    if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt, holdCap) > 0) {
       // Asking again would count the visitor's own hold against them: use the order's quote.
       setQuote({ status: 'ok', quote: held.quote });
       return;
@@ -385,6 +393,7 @@ export function useBooking(
     choicesKey,
     dropGoneAddon,
     claimKey,
+    holdCap,
   ]);
 
   /* ---- the form ---- */
@@ -453,7 +462,7 @@ export function useBooking(
     };
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
-    if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt) > REUSE_MIN_SECONDS)
+    if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt, holdCap) > REUSE_MIN_SECONDS)
       return prev.order;
 
     setPhase({ kind: 'starting' });
@@ -606,7 +615,7 @@ export function useBooking(
   }, [phase.kind]);
 
   async function startPayment() {
-    const found = formErrors(slots, travellers, contact);
+    const found = formErrors(slots, travellers, contact, rules.ages);
     if (Object.keys(found).length) {
       setErrors(found);
       setFocusRequest((n) => n + 1);
@@ -637,7 +646,7 @@ export function useBooking(
           currency: 'INR',
           name: 'Tripsmith',
           description: `${pkg.name} · ${formatDate(order.quote.date)}`,
-          timeout: Math.min(holdSecondsLeft(order.holdExpiresAt), CHECKOUT_MAX_SECONDS),
+          timeout: Math.min(holdSecondsLeft(order.holdExpiresAt, holdCap), CHECKOUT_MAX_SECONDS),
           prefill: {
             name: contact.name.trim(),
             email: contact.email.trim(),
@@ -686,6 +695,8 @@ export function useBooking(
   };
 
   return {
+    rules,
+    holdCap,
     claim: live ? claim : null,
     claimEnded,
     departures,

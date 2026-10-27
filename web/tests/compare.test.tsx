@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -193,6 +194,7 @@ describe('the compare page', () => {
         trips={[trip('a'), trip('b', { nights: 5, days: 6, startingPricePaise: 15_000_00 })]}
         missing={['gone-trip']}
       />,
+      withRules,
     );
     expect(screen.getByRole('heading', { name: 'Compare 2 trips' })).toBeTruthy();
     expect(screen.getByText('1 trip in this link is no longer listed')).toBeTruthy();
@@ -217,11 +219,11 @@ describe('the compare page', () => {
   });
 
   it('removing a trip rewrites the URL; the last one cannot be removed', () => {
-    render(<CompareView trips={[trip('a'), trip('b')]} missing={[]} />);
+    render(<CompareView trips={[trip('a'), trip('b')]} missing={[]} />, withRules);
     fireEvent.click(screen.getByRole('button', { name: 'Remove Trip a from compare' }));
     expect(replace).toHaveBeenCalledWith('/compare?p=b', { scroll: false });
     cleanup();
-    render(<CompareView trips={[trip('a')]} missing={[]} />);
+    render(<CompareView trips={[trip('a')]} missing={[]} />, withRules);
     expect(
       (screen.getByRole('button', { name: 'Remove Trip a from compare' }) as HTMLButtonElement)
         .disabled,

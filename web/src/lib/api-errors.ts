@@ -10,6 +10,8 @@ import type { components } from './api-types';
 
 export type ErrorCode = components['schemas']['ErrorCode'];
 export type ApiErrorResponse = components['schemas']['ApiErrorResponse'];
+/** OP-10: every machine-readable cause the api sends (`ErrorReason` in api/app/schemas/errors.py). */
+export type ErrorReason = components['schemas']['ErrorReason'];
 
 /** Every code the contract defines (`tests/api.test.ts` fails if one is added or dropped). */
 export const ERROR_CODES = [
@@ -33,7 +35,7 @@ const isStringRecord = (v: unknown): v is Record<string, string> =>
 
 /**
  * Every non-2xx response from the api: `{ error: { code, message, fieldErrors?, reason? } }`
- * (`fieldErrors` only for `validation`; `reason` on some 409s, e.g. a booking's `sold_out`).
+ * (`fieldErrors` only for `validation`; `reason`, an `ErrorReason`, mostly on 409s).
  * Returns a fresh object with only those keys (a null optional reads as absent), or null when
  * `raw` isn't one.
  */
@@ -50,7 +52,8 @@ export function parseErrorEnvelope(raw: unknown): ApiErrorResponse | null {
       code,
       message,
       ...(fieldErrors != null && { fieldErrors }),
-      ...(reason != null && { reason }),
+      // The contract types the value; a string the api adds later only fails the web's checks.
+      ...(reason != null && { reason: reason as ErrorReason }),
     },
   };
 }

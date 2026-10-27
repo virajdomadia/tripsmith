@@ -3322,6 +3322,29 @@
         "title": "AdminWaitlistEntry",
         "type": "object"
       },
+      "AgeLimits": {
+        "properties": {
+          "adultMin": {
+            "title": "Adultmin",
+            "type": "integer"
+          },
+          "childMax": {
+            "title": "Childmax",
+            "type": "integer"
+          },
+          "childMin": {
+            "title": "Childmin",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "childMin",
+          "childMax",
+          "adultMin"
+        ],
+        "title": "AgeLimits",
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {
@@ -3340,9 +3363,9 @@
             "type": "string"
           },
           "reason": {
-            "description": "A machine-readable cause on some 409s — booking: `on_request`, `too_soon`, `sold_out` (`UnbookableReason`).",
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/ErrorReason",
+            "description": "A machine-readable cause, mostly on 409s; the web branches on it.",
+            "title": "Reason"
           }
         },
         "required": [
@@ -4155,6 +4178,96 @@
         "title": "BookingRow",
         "type": "object"
       },
+      "BookingRules": {
+        "description": "The money and party rules the api enforces, served so the web quotes them, never copies\nthem (Q-5). Each comes from the module that applies it — see `services/meta.py`.",
+        "properties": {
+          "ages": {
+            "$ref": "#/components/schemas/AgeLimits"
+          },
+          "balanceDays": {
+            "description": "The balance falls due this many days before departure",
+            "title": "Balancedays",
+            "type": "integer"
+          },
+          "cancellationTiers": {
+            "description": "From the earliest tier",
+            "items": {
+              "$ref": "#/components/schemas/CancellationTierOut"
+            },
+            "title": "Cancellationtiers",
+            "type": "array"
+          },
+          "changeFeePaise": {
+            "description": "Per traveller, for a change inside the free days",
+            "title": "Changefeepaise",
+            "type": "integer"
+          },
+          "changeHoldMinutes": {
+            "description": "How long a date change holds the new seats",
+            "title": "Changeholdminutes",
+            "type": "integer"
+          },
+          "depositPercent": {
+            "title": "Depositpercent",
+            "type": "integer"
+          },
+          "freeChangeDays": {
+            "title": "Freechangedays",
+            "type": "integer"
+          },
+          "graceDays": {
+            "title": "Gracedays",
+            "type": "integer"
+          },
+          "gstPercent": {
+            "title": "Gstpercent",
+            "type": "integer"
+          },
+          "holdMinutes": {
+            "title": "Holdminutes",
+            "type": "integer"
+          },
+          "leadDays": {
+            "description": "A date is bookable from IST today + this many days",
+            "title": "Leaddays",
+            "type": "integer"
+          },
+          "minPartPaise": {
+            "title": "Minpartpaise",
+            "type": "integer"
+          },
+          "onlineChangeDays": {
+            "title": "Onlinechangedays",
+            "type": "integer"
+          },
+          "reminderDays": {
+            "description": "Days before the due day a reminder goes",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Reminderdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "depositPercent",
+          "balanceDays",
+          "graceDays",
+          "minPartPaise",
+          "reminderDays",
+          "holdMinutes",
+          "leadDays",
+          "freeChangeDays",
+          "changeHoldMinutes",
+          "onlineChangeDays",
+          "changeFeePaise",
+          "gstPercent",
+          "cancellationTiers",
+          "ages"
+        ],
+        "title": "BookingRules",
+        "type": "object"
+      },
       "BookingStatus": {
         "enum": [
           "pending",
@@ -4798,6 +4911,32 @@
         ],
         "title": "CancellationStatus",
         "type": "string"
+      },
+      "CancellationTierOut": {
+        "properties": {
+          "fromDays": {
+            "description": "Fewest days before departure this tier starts at",
+            "title": "Fromdays",
+            "type": "integer"
+          },
+          "keptPercent": {
+            "description": "Share of the package price the policy keeps",
+            "title": "Keptpercent",
+            "type": "integer"
+          },
+          "refund": {
+            "description": "What the tier refunds, as the policy page says it",
+            "title": "Refund",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fromDays",
+          "keptPercent",
+          "refund"
+        ],
+        "title": "CancellationTierOut",
+        "type": "object"
       },
       "ChangeOffer": {
         "description": "The \"Change date\" card on a booking: open or not, and the fee rule in dates.",
@@ -8088,6 +8227,76 @@
         "title": "ErrorCode",
         "type": "string"
       },
+      "ErrorReason": {
+        "description": "Every machine-readable cause an error can carry; the web branches on these (OP-10).\n\n`ApiError(reason=...)` takes this enum (or the two below, whose values are a subset — a test\nkeeps them so), so a new reason cannot reach the wire without reaching `api-types.ts`.",
+        "enum": [
+          "on_request",
+          "too_soon",
+          "sold_out",
+          "price_changed",
+          "deposit_unavailable",
+          "addon_unavailable",
+          "manual_no_room",
+          "coupon_unknown",
+          "coupon_not_started",
+          "coupon_expired",
+          "coupon_used_up",
+          "coupon_not_for_trip",
+          "coupon_below_minimum",
+          "coupon_used_by_email",
+          "waitlist_closed",
+          "seats_available",
+          "already_waiting",
+          "not_waiting",
+          "not_live",
+          "offers_closed",
+          "claim_short",
+          "claim_other",
+          "claim_email",
+          "claim_expired",
+          "already_requested",
+          "not_paid",
+          "not_active",
+          "departed",
+          "balance_closed",
+          "not_on_deposit",
+          "change_closed",
+          "same_date",
+          "extras_closed",
+          "closed",
+          "locked",
+          "not_open",
+          "complete",
+          "pack_locked",
+          "not_completed",
+          "already_reviewed",
+          "saved_full",
+          "code_dead",
+          "code_wrong",
+          "already_converted",
+          "link_unavailable",
+          "link_over_cap",
+          "link_paid",
+          "no_link",
+          "not_editable",
+          "not_payable",
+          "not_pending",
+          "seats_short",
+          "not_movable",
+          "nothing_to_move",
+          "no_refund",
+          "refund_exceeds_payments",
+          "resolved",
+          "no_switch",
+          "not_fitting",
+          "no_owner_email",
+          "send_failed",
+          "sent",
+          "id_key_missing"
+        ],
+        "title": "ErrorReason",
+        "type": "string"
+      },
       "ExtendDueInput": {
         "description": "Move the balance's due day later (P5): after the current one, by the departure day.",
         "properties": {
@@ -10059,6 +10268,12 @@
           "limits": {
             "$ref": "#/components/schemas/Limits"
           },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/BookingRules"
+          },
           "themes": {
             "items": {
               "$ref": "#/components/schemas/ThemeOption"
@@ -10071,7 +10286,9 @@
           "themes",
           "badges",
           "enquiryTypes",
-          "limits"
+          "limits",
+          "rules",
+          "retention"
         ],
         "title": "Meta",
         "type": "object"
@@ -13933,6 +14150,30 @@
           "note"
         ],
         "title": "ResolveCancellationInput",
+        "type": "object"
+      },
+      "Retention": {
+        "description": "How long the nightly job keeps things — the privacy page quotes these.",
+        "properties": {
+          "detailsDays": {
+            "title": "Detailsdays",
+            "type": "integer"
+          },
+          "enquiryDays": {
+            "title": "Enquirydays",
+            "type": "integer"
+          },
+          "sessionDays": {
+            "title": "Sessiondays",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enquiryDays",
+          "detailsDays",
+          "sessionDays"
+        ],
+        "title": "Retention",
         "type": "object"
       },
       "ReviewCounts": {

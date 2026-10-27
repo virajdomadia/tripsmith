@@ -1,3 +1,5 @@
+import { refundTierIndex } from '../src/lib/rules';
+import { RULES } from './rules';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as voucher } from '../src/app/(site)/account/bookings/[ref]/voucher.pdf/route';
 import { POST as cancel } from '../src/app/api/account/bookings/[ref]/cancellation/route';
@@ -11,7 +13,6 @@ import {
   daysBetween,
   groupTrips,
   istDay,
-  refundTierIndex,
   travellersLabel,
   voucherHref,
 } from '../src/lib/account';
@@ -267,7 +268,10 @@ describe('My trips tabs, countdown and tier', () => {
   });
 
   it('picks the policy tier the api picks', () => {
-    expect([45, 30, 29, 15, 14, 0].map(refundTierIndex)).toEqual([0, 0, 1, 1, 2, 2]);
+    const tiers = RULES.cancellationTiers;
+    expect([45, 30, 29, 15, 14, 0, -3].map((d) => refundTierIndex(tiers, d))).toEqual([
+      0, 0, 1, 1, 2, 2, 2,
+    ]);
   });
 });
 

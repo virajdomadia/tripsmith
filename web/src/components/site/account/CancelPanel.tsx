@@ -9,10 +9,9 @@ import {
   type AccountCancellation,
   askToCancel,
   istDay,
-  refundTierIndex,
 } from '@/lib/account';
 import { formatDate, inr } from '@/lib/format';
-import { CANCELLATION_SCHEDULE } from '@/lib/policies';
+import { cancellationSchedule, refundTierIndex, type Rules } from '@/lib/rules';
 
 const MIN = 10;
 const MAX = 500;
@@ -23,6 +22,8 @@ type Props = {
   cancellation: AccountCancellation | null;
   canRequest: boolean;
   daysOut: number;
+  /** `/meta`'s cancellation tiers (Q-5). */
+  tiers: Rules['cancellationTiers'];
 };
 
 /**
@@ -31,10 +32,17 @@ type Props = {
  * form, the request's state, or a line saying why there is nothing to ask. Asking cancels
  * nothing by itself: the owner decides (B11) and the booking keeps its seats meanwhile.
  */
-export function CancelPanel({ bookingRef, status, cancellation, canRequest, daysOut }: Props) {
+export function CancelPanel({
+  bookingRef,
+  status,
+  cancellation,
+  canRequest,
+  daysOut,
+  tiers,
+}: Props) {
   const paid = status === 'confirmed' || status === 'partially_paid';
   const showTiers = paid && daysOut >= 0 && cancellation?.status !== 'approved';
-  const today = refundTierIndex(daysOut);
+  const today = refundTierIndex(tiers, daysOut);
 
   return (
     <section className="grid gap-4 rounded-card border border-line p-5" aria-labelledby="cancel">
@@ -44,7 +52,7 @@ export function CancelPanel({ bookingRef, status, cancellation, canRequest, days
 
       {showTiers && (
         <ol className="grid gap-1.5" aria-label="What a cancellation refunds">
-          {CANCELLATION_SCHEDULE.map((tier, i) => {
+          {cancellationSchedule(tiers).map((tier, i) => {
             const now = i === today;
             return (
               <li

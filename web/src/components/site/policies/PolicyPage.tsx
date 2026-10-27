@@ -1,12 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { formatUpdated, POLICIES, POLICY_SLUGS, type PolicySlug } from '@/lib/policies';
+import { getRules } from '@/lib/meta';
+import {
+  formatUpdated,
+  POLICY_HEADS,
+  POLICY_SLUGS,
+  type PolicySlug,
+  policies,
+} from '@/lib/policies';
 import { absolute } from '@/lib/seo/site-url';
 import { Container } from '../Container';
 import { PageHead } from '../PageHead';
 
 export function policyMetadata(slug: PolicySlug): Metadata {
-  const doc = POLICIES[slug];
+  const doc = POLICY_HEADS[slug];
   return {
     title: doc.title,
     description: doc.summary,
@@ -14,9 +21,10 @@ export function policyMetadata(slug: PolicySlug): Metadata {
   };
 }
 
-/** S10–S12: one layout, a switcher between the three, plain-language blocks. Static. */
-export function PolicyPage({ slug }: { slug: PolicySlug }) {
-  const doc = POLICIES[slug];
+/** S10–S12: one layout, a switcher between the three, plain-language blocks. Built per request
+ * from `/meta` (cached an hour), so the numbers are the api's own (Q-5). */
+export async function PolicyPage({ slug }: { slug: PolicySlug }) {
+  const doc = policies(await getRules())[slug];
   return (
     <Container className="pb-20">
       <PageHead
@@ -36,7 +44,7 @@ export function PolicyPage({ slug }: { slug: PolicySlug }) {
                 : 'border-line text-ink2 hover:border-ink hover:text-ink'
             }`}
           >
-            {POLICIES[s].short}
+            {POLICY_HEADS[s].short}
           </Link>
         ))}
       </nav>

@@ -1,6 +1,8 @@
 import type { components } from './api-types';
+import type { ErrorReason } from './api-errors';
 import { inr } from '@/lib/format';
 import { billingErrors, normaliseGstin } from '@/lib/gst';
+import type { Rules } from './rules';
 import { CONTROL_RE, EMAIL_RE, normalisePhone, PHONE_MESSAGE, PHONE_RE } from './contact-rules';
 
 /**
@@ -26,16 +28,9 @@ export type QuoteDeposit = components['schemas']['QuoteDeposit'];
 /** R43 (P5): pay in full, or the deposit now and the balance by its due day. */
 export type PayChoice = 'full' | 'deposit';
 
-export const MAX_TRAVELLERS = 12; // api schemas/meta.py MAX_TRAVELLERS
-export const CHILD_MIN_AGE = 5;
-export const CHILD_MAX_AGE = 11;
-export const ADULT_MIN_AGE = CHILD_MAX_AGE + 1;
+// Q-5: the party cap, the age limits, the lead days and the hold come from `/meta` (`Rules`).
 export const NAME_MIN = 2;
 export const NAME_MAX = 80;
-/** Bookable from IST today + 2 days (03-requirements-v2 R14). */
-export const LEAD_DAYS = 2;
-/** Razorpay Checkout closes itself after this many seconds — the length of the seat hold. */
-export const HOLD_SECONDS = 600;
 /**
  * Razorpay's test mode refuses a single payment above ₹15,000 ("Amount exceeds maximum amount
  * allowed"). Tripsmith stays in test mode for good and its trips cost more than that, so the
@@ -58,10 +53,10 @@ export const ROOM_SIZE: Record<RoomKind, number> = { double: 2, triple: 3, singl
 export const adultsIn = (r: Rooms) => r.double * 2 + r.triple * 3 + r.single;
 export const partySize = (r: Rooms) => adultsIn(r) + r.children;
 
-/** Can one more of `kind` be added without breaking the 12-traveller cap (or a child with no adult)? */
-export function canAdd(r: Rooms, kind: RoomKind): boolean {
+/** Can one more of `kind` be added without breaking the traveller cap (or a child with no adult)? */
+export function canAdd(r: Rooms, kind: RoomKind, max: number): boolean {
   if (kind === 'children' && adultsIn(r) === 0) return false;
-  return partySize(r) + ROOM_SIZE[kind] <= MAX_TRAVELLERS;
+  return partySize(r) + ROOM_SIZE[kind] <= max;
 }
 
 /** Removing the last adult room while children remain would leave a child travelling alone. */
@@ -89,7 +84,7 @@ export function slotsFor(r: Rooms): Slot[] {
     }
   }
   for (let i = 0; i < r.children; i++)
-    slots.push({ key: `child-${i}`, occupancy: 'child', room: 'Child 5–11' });
+    slots.push({ key: `child-${i}`, occupancy: 'child', room: 'Child' });
   return slots;
 }
 
@@ -101,9 +96,9 @@ const ROOM_KINDS = ['double', 'triple', 'single', 'children'] as const;
 /**
  * `?date=YYYY-MM-DD&double=1&triple=0&single=0&children=1` → the sheet's starting party and
  * date. Plain numbers, no personal data, so nothing is signed; a party the sheet couldn't build
- * (no adult, over 12) is ignored whole, and a malformed date is dropped.
+ * (no adult, over the cap) is ignored whole, and a malformed date is dropped.
  */
-export function prefillFromSearch(search: string): Prefill | null {
+export function prefillFromSearch(search: string, max: number): Prefill | null {
   const q = new URLSearchParams(search);
   if (!ROOM_KINDS.some((k) => q.has(k))) return null;
   const rooms: Rooms = { double: 0, triple: 0, single: 0, children: 0 };
@@ -113,7 +108,7 @@ export function prefillFromSearch(search: string): Prefill | null {
     if (!/^\d{1,2}$/.test(raw)) return null;
     rooms[k] = Number(raw);
   }
-  if (adultsIn(rooms) === 0 || partySize(rooms) > MAX_TRAVELLERS) return null;
+  if (adultsIn(rooms) === 0 || partySize(rooms) > max) return null;
   const date = q.get('date');
   return { date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null, rooms };
 }
@@ -150,9 +145,14 @@ export function addDays(iso: string, days: number): string {
 export type Unbookable = 'on_request' | 'too_soon' | 'sold_out' | 'short';
 
 /** Mirrors `unbookable_reason` in api/app/services/booking/pricing.py, in the same order. */
-export function unbookableReason(d: Departure, party: number, today: string): Unbookable | null {
+export function unbookableReason(
+  d: Departure,
+  party: number,
+  today: string,
+  leadDays: number,
+): Unbookable | null {
   if (Math.min(d.priceDoublePaise, d.priceTriplePaise, d.priceChildPaise) <= 0) return 'on_request';
-  if (d.date < addDays(today, LEAD_DAYS)) return 'too_soon';
+  if (d.date < addDays(today, leadDays)) return 'too_soon';
   if (d.seatsLeft <= 0) return 'sold_out';
   if (d.seatsLeft < party) return 'short';
   return null;
@@ -194,13 +194,13 @@ function nameError(raw: string, whose: 'your' | 'the'): string | undefined {
   return undefined;
 }
 
-function ageError(raw: string, occupancy: Occupancy): string | undefined {
+function ageError(raw: string, occupancy: Occupancy, ages: Rules['ages']): string | undefined {
   if (!/^[0-9]{1,3}$/.test(raw.trim())) return 'Enter an age';
   const age = Number(raw);
   if (occupancy === 'child') {
-    if (age < CHILD_MIN_AGE || age > CHILD_MAX_AGE)
-      return `The child rate is for ages ${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`;
-  } else if (age < ADULT_MIN_AGE) return `Under ${ADULT_MIN_AGE}? Add them as a child`;
+    if (age < ages.childMin || age > ages.childMax)
+      return `The child rate is for ages ${ages.childMin}–${ages.childMax}`;
+  } else if (age < ages.adultMin) return `Under ${ages.adultMin}? Add them as a child`;
   else if (age > 120) return 'Enter an age';
   return undefined;
 }
@@ -213,13 +213,14 @@ export function formErrors(
   slots: Slot[],
   travellers: Record<string, TravellerInput>,
   contact: Contact,
+  ages: Rules['ages'],
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   slots.forEach((s, i) => {
     const t = travellers[s.key] ?? { name: '', age: '' };
     const n = nameError(t.name, 'the');
     if (n) errors[`travellers.${i}.name`] = n;
-    const a = ageError(t.age, s.occupancy);
+    const a = ageError(t.age, s.occupancy, ages);
     if (a) errors[`travellers.${i}.age`] = a;
   });
   const n = nameError(contact.name, 'your');
@@ -269,7 +270,8 @@ export const OCCUPANCY_LABEL: Record<Occupancy, string> = {
   double: 'Double sharing',
   triple: 'Triple sharing',
   single: 'Single room',
-  child: 'Child 5–11',
+  // The age range comes from /meta where an age is entered (Q-5); the label names the rate.
+  child: 'Child',
 };
 
 /** The words for one server line; the numbers beside it are the server's. */
@@ -335,10 +337,12 @@ export function addonChoices(offered: Addon[], picks: AddonPicks, party: number)
 }
 
 /** An add-on refused because the owner switched it off since the page loaded (409). */
-export const isAddonGone = (reason: string | undefined) => reason === 'addon_unavailable';
+export const isAddonGone = (reason: ErrorReason | undefined) => reason === 'addon_unavailable';
 
 /** A coupon refusal (B15, R26): shown under the code field, never as an unbookable date. */
-export const isCouponRefusal = (reason: string | undefined) => !!reason?.startsWith('coupon_');
+export const isCouponRefusal = (
+  reason: ErrorReason | undefined,
+): reason is Extract<ErrorReason, `coupon_${string}`> => !!reason?.startsWith('coupon_');
 
 /** The email a coupon quote carries, so the visitor's own live hold is not counted against the
  * code's use limit: a valid address only. "Already used by this email" is answered at Pay. */
@@ -347,10 +351,18 @@ export function quoteEmail(email: string): string | null {
   return EMAIL_RE.test(e) ? e : null;
 }
 
-/** Whole seconds left on a hold, clamped to Checkout's 600 s ceiling; 0 once it has lapsed. */
-export function holdSecondsLeft(holdExpiresAt: string, now: number = Date.now()): number {
+/**
+ * Whole seconds left on a hold; 0 once it has lapsed. `capMinutes` is the seat hold for a normal
+ * order, so a browser clock running behind can't show more than the api holds. A waitlist claim's
+ * order holds until the offer expires (hours), so its caller passes null and the real time shows.
+ */
+export function holdSecondsLeft(
+  holdExpiresAt: string,
+  capMinutes: number | null,
+  now: number = Date.now(),
+): number {
   const left = Math.floor((new Date(holdExpiresAt).getTime() - now) / 1000);
-  return Math.max(0, Math.min(HOLD_SECONDS, left));
+  return Math.max(0, capMinutes === null ? left : Math.min(capMinutes * 60, left));
 }
 
 /**

@@ -81,7 +81,7 @@ function money(r: Reports): Section {
       ['Collected', inr(m.collectedPaise)],
       ['Refunded', inr(m.refundedPaise)],
       ['Net', inr(m.netPaise)],
-      ['GST in net (5%)', inr(m.gstPaise)],
+      ['GST in net', inr(m.gstPaise)],
       ['Balances due', inr(m.balancePaise)],
     ],
     chart: (

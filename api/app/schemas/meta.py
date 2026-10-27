@@ -109,24 +109,50 @@ class Limits(ApiModel):
     image_max_bytes: int = Field(examples=[IMAGE_MAX_BYTES])
 
 
+class CancellationTierOut(ApiModel):
+    from_days: int = Field(description="Fewest days before departure this tier starts at")
+    kept_percent: int = Field(description="Share of the package price the policy keeps")
+    refund: str = Field(description="What the tier refunds, as the policy page says it")
+
+
+class AgeLimits(ApiModel):
+    child_min: int
+    child_max: int
+    adult_min: int
+
+
+class BookingRules(ApiModel):
+    """The money and party rules the api enforces, served so the web quotes them, never copies
+    them (Q-5). Each comes from the module that applies it — see `services/meta.py`."""
+
+    deposit_percent: int
+    balance_days: int = Field(description="The balance falls due this many days before departure")
+    grace_days: int
+    min_part_paise: int
+    reminder_days: list[int] = Field(description="Days before the due day a reminder goes")
+    hold_minutes: int
+    lead_days: int = Field(description="A date is bookable from IST today + this many days")
+    free_change_days: int
+    change_hold_minutes: int = Field(description="How long a date change holds the new seats")
+    online_change_days: int
+    change_fee_paise: int = Field(description="Per traveller, for a change inside the free days")
+    gst_percent: int
+    cancellation_tiers: list[CancellationTierOut] = Field(description="From the earliest tier")
+    ages: AgeLimits
+
+
+class Retention(ApiModel):
+    """How long the nightly job keeps things — the privacy page quotes these."""
+
+    enquiry_days: int
+    details_days: int
+    session_days: int
+
+
 class Meta(ApiModel):
     themes: list[ThemeOption]
     badges: list[BadgeOption]
     enquiry_types: list[EnquiryTypeOption]
     limits: Limits
-
-
-def build_meta() -> Meta:
-    return Meta(
-        themes=[ThemeOption(value=t, label=THEME_LABELS[t]) for t in Theme],
-        badges=[BadgeOption(value=b, label=BADGE_LABELS[b]) for b in Badge],
-        enquiry_types=[
-            EnquiryTypeOption(value=e, label=ENQUIRY_TYPE_LABELS[e]) for e in EnquiryType
-        ],
-        limits=Limits(
-            max_travellers=MAX_TRAVELLERS,
-            max_themes_per_package=MAX_THEMES_PER_PACKAGE,
-            enquiry_message_max=ENQUIRY_MESSAGE_MAX,
-            image_max_bytes=IMAGE_MAX_BYTES,
-        ),
-    )
+    rules: BookingRules
+    retention: Retention

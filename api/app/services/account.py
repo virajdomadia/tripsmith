@@ -41,6 +41,7 @@ from app.schemas.account import (
     AccountTraveller,
 )
 from app.schemas.bookings import Quote
+from app.schemas.errors import ErrorReason
 from app.schemas.reviews import AccountReview, ReviewState
 from app.services.booking import calendar, changes, details, extras, history, trip_pack
 from app.services.booking.balance import balance_out
@@ -316,18 +317,18 @@ async def request_cancellation(
         await db.commit()
     except IntegrityError:  # a request from another session got in first
         await db.rollback()
-        raise ApiError("conflict", ALREADY_ASKED, reason="already_requested") from None
+        raise ApiError("conflict", ALREADY_ASKED, reason=ErrorReason.ALREADY_REQUESTED) from None
     await db.refresh(row)
     return _cancellation_out(row)
 
 
-def _refusal(booking: Booking, departs: dt.date, today: dt.date) -> tuple[str, str] | None:
+def _refusal(booking: Booking, departs: dt.date, today: dt.date) -> tuple[ErrorReason, str] | None:
     if booking.cancellation is not None:
-        return "already_requested", ALREADY_ASKED
+        return ErrorReason.ALREADY_REQUESTED, ALREADY_ASKED
     if booking.status == BookingStatus.PENDING:
-        return "not_paid", NOT_PAID
+        return ErrorReason.NOT_PAID, NOT_PAID
     if booking.status not in CANCELLABLE:
-        return "not_active", NOT_ACTIVE
+        return ErrorReason.NOT_ACTIVE, NOT_ACTIVE
     if departs < today:
-        return "departed", DEPARTED
+        return ErrorReason.DEPARTED, DEPARTED
     return None

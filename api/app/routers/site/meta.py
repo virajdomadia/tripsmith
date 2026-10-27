@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Response
 
 from app.infra.cache import PUBLIC_CACHE_CONTROL
-from app.schemas.meta import Meta, build_meta
+from app.schemas.meta import Meta
+from app.services.meta import build_meta
 
 router = APIRouter(tags=["public"])
 

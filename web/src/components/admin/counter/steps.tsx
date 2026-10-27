@@ -28,9 +28,8 @@ import {
   type NewCustomer,
   type Traveller,
 } from '@/lib/admin/counter';
+import { useRules } from '@/components/rules/RulesProvider';
 import {
-  CHILD_MAX_AGE,
-  CHILD_MIN_AGE,
   canRemove,
   partySize,
   slotsFor,
@@ -41,6 +40,7 @@ import {
 } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { STATE_NAMES } from '@/lib/gst';
+import type { Rules } from '@/lib/rules';
 import { cn } from '@/lib/utils';
 import { heldUntil } from './LinkPanel';
 
@@ -159,6 +159,7 @@ export function TripStep({
   departureId: string | null;
   onDeparture: (id: string) => void;
 }) {
+  const { leadDays } = useRules();
   const pkg = packages.find((p) => p.id === packageId) ?? null;
   return (
     <div className="grid gap-3.5">
@@ -244,7 +245,8 @@ export function TripStep({
         })}
       </div>
       <Hint>
-        The counter can book until the morning of departure; the website closes 2 days before.
+        The counter can book until the morning of departure; the website closes {leadDays} days
+        before.
       </Hint>
     </div>
   );
@@ -252,13 +254,13 @@ export function TripStep({
 
 /* ----------------------------------------------------------------- 2 party */
 
-const ROOMS: { kind: RoomKind; title: string; hint: string }[] = [
+const roomsFor = (ages: Rules['ages']): { kind: RoomKind; title: string; hint: string }[] => [
   { kind: 'double', title: 'Double rooms', hint: '2 adults, twin sharing' },
   { kind: 'triple', title: 'Triple rooms', hint: '3 adults, with an extra bed' },
   { kind: 'single', title: 'Single rooms', hint: '1 adult, with a supplement' },
   {
     kind: 'children',
-    title: `Children ${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`,
+    title: `Children ${ages.childMin}–${ages.childMax}`,
     hint: 'Share a room, child rate',
   },
 ];
@@ -278,13 +280,14 @@ export function PartyStep({
   onRooms: (r: Rooms) => void;
   onNames: (n: Record<string, Traveller>) => void;
 }) {
+  const { ages } = useRules();
   const n = partySize(rooms);
   const cap = seatsLeft ?? 0;
   const kids = slotsFor(rooms).filter((s) => s.occupancy === 'child');
   return (
     <div className="grid gap-3">
       <div className="grid">
-        {ROOMS.map(({ kind, title, hint }) => (
+        {roomsFor(ages).map(({ kind, title, hint }) => (
           <div
             key={kind}
             className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line py-2 last:border-b-0"
@@ -307,7 +310,7 @@ export function PartyStep({
         <div className="grid gap-2 rounded-[12px] bg-bg2 p-3 sm:grid-cols-3">
           {kids.map((s, i) => {
             const age = names[s.key]?.age ?? '';
-            const err = age ? childAgeError(age) : null;
+            const err = age ? childAgeError(age, ages) : null;
             return (
               <label key={s.key} className={field}>
                 <span className={labelCls}>Child {i + 1} · age</span>
@@ -315,7 +318,7 @@ export function PartyStep({
                   inputMode="numeric"
                   value={age}
                   aria-invalid={!!err}
-                  placeholder={`${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`}
+                  placeholder={`${ages.childMin}–${ages.childMax}`}
                   onChange={(e) =>
                     onNames({
                       ...names,
@@ -902,6 +905,7 @@ export function SettleStep({
   enquiryRef: string | null;
   onChange: (p: Partial<Draft>) => void;
 }) {
+  const rules = useRules();
   const id = useId();
   const dep = quote?.deposit ?? null;
   const opt = (v: Draft['settle'], title: string, detail: string, disabled = false) => (
@@ -921,7 +925,7 @@ export function SettleStep({
     </button>
   );
   const amount = draft.settle === 'deposit' ? dep?.amountPaise : quote?.totalPaise;
-  const problem = draft.settle === 'link' ? linkProblem(draft, offer) : null;
+  const problem = draft.settle === 'link' ? linkProblem(draft, offer, rules.balanceDays) : null;
   const linkNow = linkAmount(draft, offer);
   return (
     <div className="grid gap-4">
@@ -931,7 +935,7 @@ export function SettleStep({
           'Send payment link',
           offer.linkUntil === null
             ? 'Closed: too close to departure'
-            : 'Full or 25% deposit · holds seats 24 h',
+            : `Full or ${rules.depositPercent}% deposit · holds seats 24 h`,
           offer.linkUntil === null,
         )}
         {opt('paid', 'Paid now', 'Cash, UPI or bank · confirms at once')}
@@ -940,7 +944,7 @@ export function SettleStep({
           'Deposit now',
           dep
             ? `${dep.percent}% today · balance by ${formatDate(dep.dueOn)}`
-            : 'Closed: under 30 days to departure',
+            : `Closed: under ${rules.balanceDays} days to departure`,
           !dep,
         )}
       </div>

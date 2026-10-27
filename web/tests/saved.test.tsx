@@ -43,7 +43,12 @@ describe('the guest list in the browser', () => {
     const many = Array.from({ length: MAX_GUEST + 5 }, (_, i) => ({ slug: `trip-${i}`, at: 'x' }));
     localStorage.setItem(
       'ts:saved:v1',
-      JSON.stringify([{ slug: 'Bad Slug' }, { slug: 'trip-0', at: '2026-10-01T10:00:00.000Z' }, 42, ...many]),
+      JSON.stringify([
+        { slug: 'Bad Slug' },
+        { slug: 'trip-0', at: '2026-10-01T10:00:00.000Z' },
+        42,
+        ...many,
+      ]),
     );
     const list = readGuest();
     expect(list).toHaveLength(MAX_GUEST);

@@ -10,12 +10,21 @@ type Status = components['schemas']['DeskPackStatus'];
  * and paid in full; read or not) with the owner's preview PDF, and whether the trip is on their
  * calendar — un-ticked by a date change until they add it again.
  */
-export function PackStatusPanel({ bookingRef, status: s }: { bookingRef: string; status: Status }) {
+export function PackStatusPanel({
+  bookingRef,
+  status: s,
+  detailsDays,
+}: {
+  bookingRef: string;
+  status: Status;
+  /** `/meta` retention: the pack closes the day the traveller details are deleted. */
+  detailsDays: number;
+}) {
   const pack = s.pack;
   const packLine = !pack
     ? null
     : pack.state === 'closed'
-      ? 'Closed — 30 days after the trip'
+      ? `Closed — ${detailsDays} days after the trip`
       : pack.state === 'open'
         ? pack.readAt
           ? `Open · read ${formatDate(istDay(pack.readAt))}`

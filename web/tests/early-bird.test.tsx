@@ -74,7 +74,7 @@ it('names the early-bird quote line', () => {
       unitPaise: -750_00,
       amountPaise: -750_00,
     }),
-  ).toBe('Early bird · child 5–11');
+  ).toBe('Early bird · child');
 });
 
 describe('the price ladder', () => {

@@ -180,3 +180,33 @@ def test_contract_error_codes_match_the_handler_codes() -> None:
     from app.schemas.errors import ErrorCode as ContractCodes
 
     assert [c.value for c in ContractCodes] == list(get_args(HandlerCodes))
+
+
+def test_every_reason_enum_sits_inside_the_contract_reasons() -> None:
+    # OP-10: ApiError takes these two directly, so their values must be in ErrorReason or the
+    # wire would carry a reason api-types.ts does not know.
+    from app.schemas.bookings import CouponReason, UnbookableReason
+    from app.schemas.errors import ErrorReason
+
+    contract = {r.value for r in ErrorReason}
+    assert {r.value for r in UnbookableReason} <= contract
+    assert {r.value for r in CouponReason} <= contract
+
+
+def test_every_raised_reason_is_a_contract_reason() -> None:
+    # Belt to pyright's braces: no string literal reaches `reason=` on an ApiError (AST, so a call
+    # inside the message can't hide one).
+    import ast
+    from pathlib import Path
+
+    app = Path(__file__).resolve().parents[1] / "app"
+    raw = [
+        f"{p.relative_to(app)}:{node.lineno}"
+        for p in app.rglob("*.py")
+        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", getattr(node.func, "attr", None)) == "ApiError"
+        for kw in node.keywords
+        if kw.arg == "reason" and isinstance(kw.value, ast.Constant)
+    ]
+    assert raw == []

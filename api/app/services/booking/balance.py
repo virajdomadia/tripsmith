@@ -49,6 +49,7 @@ from app.models.enums import (
 )
 from app.schemas.account import AccountBalance, BalanceOrder
 from app.schemas.admin_bookings import AdminBalance
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.booking import deposit, history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
@@ -102,9 +103,9 @@ def balance_out(booking: Booking, *, asked: bool) -> AccountBalance | None:
 def _refusal(booking: Booking, amount: int, *, asked: bool) -> ApiError | None:
     left = booking.total_paise - booking.paid_paise
     if booking.status != BookingStatus.PARTIALLY_PAID or left <= 0:
-        return ApiError("conflict", NO_BALANCE, reason="balance_closed")
+        return ApiError("conflict", NO_BALANCE, reason=ErrorReason.BALANCE_CLOSED)
     if asked:
-        return ApiError("conflict", ASKED, reason="balance_closed")
+        return ApiError("conflict", ASKED, reason=ErrorReason.BALANCE_CLOSED)
     least = deposit.min_part(left)
     if amount > left:
         message = f"That's more than the {money(left)} left to pay"
@@ -238,7 +239,7 @@ async def mark_balance_paid(
         booking, live = await lock_booking(db, ref)
         left = booking.total_paise - booking.paid_paise
         if booking.status != BookingStatus.PARTIALLY_PAID or left <= 0:
-            raise ApiError("conflict", NOT_ON_DEPOSIT, reason="not_on_deposit")
+            raise ApiError("conflict", NOT_ON_DEPOSIT, reason=ErrorReason.NOT_ON_DEPOSIT)
         payment = Payment(
             booking_id=booking.id,
             provider=PaymentProvider.OFFLINE,
@@ -272,7 +273,7 @@ async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | N
     try:
         booking, _ = await lock_booking(db, ref)
         if booking.status != BookingStatus.PARTIALLY_PAID or booking.balance_due_on is None:
-            raise ApiError("conflict", NOT_ON_DEPOSIT, reason="not_on_deposit")
+            raise ApiError("conflict", NOT_ON_DEPOSIT, reason=ErrorReason.NOT_ON_DEPOSIT)
         departs = (
             await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
         ).scalar_one()

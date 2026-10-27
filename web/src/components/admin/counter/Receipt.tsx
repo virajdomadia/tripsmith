@@ -3,6 +3,7 @@ import type { CounterPackage } from '@/lib/admin/counter';
 import { addonDetail, isDiscountLine, lineLabel, type Quote } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useRules } from '@/components/rules/RulesProvider';
 
 type Row = { label: string; sub?: string; paise: number; tone?: 'neg' | 'sub' | 'bad' };
 
@@ -70,6 +71,7 @@ export function Receipt({
   /** What the quote still waits for, when nothing can be priced yet. */
   waiting: string;
 }) {
+  const rules = useRules(); // rendered inside CounterBooking's client tree
   const quote = done ? done.quote : live;
   const stamp = !done
     ? null
@@ -160,8 +162,8 @@ export function Receipt({
             </b>
           </div>
           <p className="mt-1.5 text-[11.5px] text-mute">
-            Includes 5% GST · {karnataka ? 'CGST + SGST (Karnataka)' : `IGST (${state})`} · SAC
-            998555
+            Includes {rules.gstPercent}% GST ·{' '}
+            {karnataka ? 'CGST + SGST (Karnataka)' : `IGST (${state})`} · SAC 998555
           </p>
           <div className="mt-3 grid gap-1 text-[13px]">
             {done?.paymentLink && done.status === 'pending' ? (
@@ -198,7 +200,9 @@ export function Receipt({
                 </div>
               </>
             ) : (
-              <p className="text-mute">Pay in full: the deposit closes 30 days before departure.</p>
+              <p className="text-mute">
+                Pay in full: the deposit closes {rules.balanceDays} days before departure.
+              </p>
             )}
           </div>
         </div>

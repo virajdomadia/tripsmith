@@ -36,6 +36,7 @@ import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 import { proofLine } from '@/lib/urgency';
+import { getRules, hasRules } from '@/lib/meta';
 
 type Params = { slug: string };
 
@@ -45,6 +46,12 @@ type Params = { slug: string };
  */
 export async function generateStaticParams(): Promise<Params[]> {
   try {
+    // V8 deploy race: a build against an api from before V8 has no booking rules to render the
+    // price box with; prerender nothing and let each page render once the new api is live.
+    if (!(await hasRules())) {
+      console.warn('generateStaticParams: /meta has no rules yet, prerendering no packages');
+      return [];
+    }
     const { items } = await api('/packages', {
       tags: ['packages'],
       revalidate: REVALIDATE_SECONDS,
@@ -80,7 +87,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function PackagePage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const pkg = await loadPackage(slug);
+  const [pkg, rules] = await Promise.all([loadPackage(slug), getRules()]);
   const url = absolute(`/packages/${pkg.slug}`);
   const faq = faqJsonLd(pkg);
   const bookable = offersBooking(pkg.departures);
@@ -169,7 +176,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
                 earlyBird={pkg.earlyBird}
                 builtOn={istToday()}
               />
-              <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
+              <OccupancyPricing departures={pkg.departures} deal={pkg.deal} ages={rules.ages} />
             </Section>
             {pkg.rating && (
               <Section id="reviews" title="What travellers say">
@@ -183,7 +190,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             )}
           </div>
           <aside className="hidden lg:block">
-            <PriceBox pkg={pkg} url={url} bookable={bookable} />
+            <PriceBox pkg={pkg} url={url} bookable={bookable} rules={rules} />
           </aside>
         </div>
 

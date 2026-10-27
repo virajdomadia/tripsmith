@@ -19,10 +19,10 @@ from app.models import BookingAddon, Package, PackageAddon, PackageImage
 from app.models.enums import AddonBasis, CouponKind, Occupancy
 from app.schemas.bookings import AddonChoice, BookingRequest, QuoteRequest, QuoteTraveller
 from app.schemas.catalog import AddonInput
+from app.schemas.errors import ErrorReason
 from app.services.booking import desk
 from app.services.booking.addons import AddonFact, detail
 from app.services.booking.pricing import (
-    ADDON_GONE_REASON,
     apply_coupon,
     build_quote,
     price_addons,
@@ -135,7 +135,7 @@ def test_a_switched_off_or_unknown_add_on_is_a_409_the_sheet_can_act_on() -> Non
     for choice in ("off", "nope"):
         with pytest.raises(ApiError) as exc:
             price_addons([*OFFERED, off], [AddonChoice(addon_id=choice)], party=2)
-        assert (exc.value.status, exc.value.reason) == (409, ADDON_GONE_REASON)
+        assert (exc.value.status, exc.value.reason) == (409, ErrorReason.ADDON_UNAVAILABLE)
     with pytest.raises(ApiError) as exc:
         price_addons(
             [*OFFERED, off],
@@ -382,10 +382,13 @@ async def test_a_switched_off_add_on_is_refused_at_quote_and_hold(
         json={"departureId": dep_id, "travellers": [{"occupancy": "single"}], "addons": choice},
     )
     assert quoted.status_code == 409
-    assert quoted.json()["error"]["reason"] == ADDON_GONE_REASON
+    assert quoted.json()["error"]["reason"] == ErrorReason.ADDON_UNAVAILABLE
     body = booking_body(dep_id, 1, email="off@example.test", phone="9100000078")
     held = await db_client.post("/bookings", json={**body, "addons": choice})
-    assert (held.status_code, held.json()["error"]["reason"]) == (409, ADDON_GONE_REASON)
+    assert (held.status_code, held.json()["error"]["reason"]) == (
+        409,
+        ErrorReason.ADDON_UNAVAILABLE,
+    )
     too_many = await db_client.post(
         "/bookings/quote",
         json={

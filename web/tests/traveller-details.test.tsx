@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -66,7 +67,7 @@ const BLOCK: TravellerDetailsBlock = {
 
 describe('TravellerDetails', () => {
   it('shows a complete card masked and opens the missing one as a form', () => {
-    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />);
+    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />, withRules);
     const asha = screen.getByRole('article', { name: 'Asha Rao’s details' });
     expect(within(asha).getByText('XXXX XXXX 4821')).toBeTruthy();
     expect(within(asha).getByText('Complete')).toBeTruthy();
@@ -86,7 +87,7 @@ describe('TravellerDetails', () => {
         },
       }),
     );
-    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />);
+    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />, withRules);
     const mira = screen.getByRole('article', { name: 'Mira Rao’s details' });
     await userEvent.type(within(mira).getByLabelText(/ID number/), '1234');
     await userEvent.click(within(mira).getByRole('button', { name: 'Save Mira’s details' }));
@@ -115,7 +116,7 @@ describe('TravellerDetails', () => {
 
   it('keeps a saved ID when the number is left blank', async () => {
     fetchMock.mockResolvedValueOnce(json(200, ASHA));
-    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />);
+    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={BLOCK} />, withRules);
     const asha = screen.getByRole('article', { name: 'Asha Rao’s details' });
     await userEvent.click(within(asha).getByRole('button', { name: 'Edit my details' }));
     expect(within(asha).getByText(/Saved as XXXX XXXX 4821/)).toBeTruthy();
@@ -127,7 +128,10 @@ describe('TravellerDetails', () => {
   });
 
   it('is read-only once locked', () => {
-    render(<TravellerDetails bookingRef="TB-7K2M9Q" block={{ ...BLOCK, state: 'locked' }} />);
+    render(
+      <TravellerDetails bookingRef="TB-7K2M9Q" block={{ ...BLOCK, state: 'locked' }} />,
+      withRules,
+    );
     expect(screen.getByText(/Locked since/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Save|Edit/ })).toBeNull();
     expect(screen.getByText('Needed')).toBeTruthy();
@@ -187,6 +191,7 @@ describe('TripCoupons', () => {
         departs="2099-11-13"
         balanceDueOn="2099-10-14"
       />,
+      withRules,
     );
   }
 

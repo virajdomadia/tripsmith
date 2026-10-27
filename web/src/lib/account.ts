@@ -1,5 +1,5 @@
 import type { components } from './api-types';
-import { CANCELLATION_SCHEDULE } from './policies';
+import type { ErrorReason } from './api-errors';
 import { shortDate } from './format';
 
 /** My trips (R18, R19): row states, the three tabs, the countdown, the refund tier that applies
@@ -93,14 +93,6 @@ export function groupTrips(
   return out;
 }
 
-/** The schedule row that applies to a cancellation asked `daysOut` days before departure
- * (mirrors `refund_tier` in api/app/business.py). */
-export function refundTierIndex(daysOut: number): number {
-  if (daysOut >= 30) return 0;
-  if (daysOut >= 15) return 1;
-  return CANCELLATION_SCHEDULE.length - 1;
-}
-
 export const travellersLabel = (n: number) => (n === 1 ? '1 traveller' : `${n} travellers`);
 
 export const voucherHref = (ref: string) =>
@@ -109,7 +101,7 @@ export const voucherHref = (ref: string) =>
 /** The api's error envelope as the sign-in screen and the cancel form need it. */
 export type SignInError = {
   message: string;
-  reason?: string | null;
+  reason?: ErrorReason | null;
   retryAfter?: number;
   fieldErrors?: Record<string, string>;
 };
@@ -131,7 +123,13 @@ async function postJson<T>(path: string, body: unknown, method = 'POST'): Promis
     return { ok: false, error: { message: 'Could not reach the server — check your connection' } };
   }
   const json = (await res.json().catch(() => undefined)) as
-    | { error?: { message?: string; reason?: string | null; fieldErrors?: Record<string, string> } }
+    | {
+        error?: {
+          message?: string;
+          reason?: ErrorReason | null;
+          fieldErrors?: Record<string, string>;
+        };
+      }
     | undefined;
   if (res.ok) return { ok: true, data: json as T };
   const retry = Number(res.headers.get('retry-after'));
@@ -202,10 +200,10 @@ export async function loadChangeOptions(
     });
     const json = (await res.json().catch(() => undefined)) as
       | components['schemas']['ChangeOptions']
-      | { error?: { message?: string; reason?: string | null } }
+      | { error?: { message?: string; reason?: ErrorReason | null } }
       | undefined;
     if (res.ok) return { ok: true, data: json as components['schemas']['ChangeOptions'] };
-    const error = (json as { error?: { message?: string; reason?: string | null } })?.error;
+    const error = (json as { error?: { message?: string; reason?: ErrorReason | null } })?.error;
     return {
       ok: false,
       error: {
