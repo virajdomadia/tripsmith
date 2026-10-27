@@ -36,7 +36,7 @@ import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 import { proofLine } from '@/lib/urgency';
-import { getMeta } from '@/lib/meta';
+import { getMeta, hasRules } from '@/lib/meta';
 import { rulesOf } from '@/lib/rules';
 
 type Params = { slug: string };
@@ -47,6 +47,12 @@ type Params = { slug: string };
  */
 export async function generateStaticParams(): Promise<Params[]> {
   try {
+    // V8 deploy race: a build against an api from before V8 has no booking rules to render the
+    // price box with; prerender nothing and let each page render once the new api is live.
+    if (!(await hasRules())) {
+      console.warn('generateStaticParams: /meta has no rules yet, prerendering no packages');
+      return [];
+    }
     const { items } = await api('/packages', {
       tags: ['packages'],
       revalidate: REVALIDATE_SECONDS,

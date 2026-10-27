@@ -824,7 +824,7 @@ CI (`.github/workflows/ci.yml`) now runs seven jobs: `web`, `api`, `contract`, a
   - **Reconciled with V5:** `policies.test.ts` no longer regex-reads the api's `.py` files. Nothing is copied, so nothing can drift. It checks that the pages say what a rules fixture says, and that they change when the rules change. `api/tests/test_meta.py::test_meta_serves_the_rules_the_api_enforces` pins the served values.
   - **GST:** the GSTIN rule and the State codes stay mirrored on purpose (checked in the browser before the api re-checks). `web/tests/gst-parity.test.ts` reads `schemas/bookings.py` `GSTIN_RE` and `services/gst/tax.py` `STATES` and fails on any difference.
   - **Left as they are, not rules the web quotes:** `NAME_MIN`/`NAME_MAX` and the contact regexes (form validation, mirrored by `contact-rules`), `COUNTER_MAX_TRAVELLERS`, the trip-pack lock, the sign-in code's 10-minute life, the date-change hold and the early-bird minimum in the package form. The eight IST date helpers the audit counted stay too (code, not constants).
-- **Deploy note:** the web now reads `rules` from `/meta`, so a web build against an api from before V8 fails or renders without them. After the merge, redeploy the web once the api is live (docs/18 §7).
+- **Deploy note:** the web now reads `rules` from `/meta`. A build against an api from before V8 (the preview on this PR, or the merge's prod build if it finishes first) prerenders no package pages (`generateStaticParams` checks `hasRules()`), and `loadRules` gives null instead of a half-built object, so the build passes and pages render on request once the api is live. After the merge, redeploy the web once the api is live anyway (docs/18 §7).
 
 ## v2.6 — close (V8, 2026-10-27)
 
@@ -841,4 +841,4 @@ The scorecard was re-run against main after V1–V9 (artifact [7EeDkXJvcg8WKuj1q
 - **Accepted, shown as Risk with the decision, not Pass:** OP-3 backups (Viraj, 2026-10-24); OP-1 external monitors and the healthchecks.io pings (deferred to before Razorpay goes live, 2026-10-17); OP-2 the GitHub-scheduled tick (2026-10-17). That moves four former FAILs (uptime, tick, backups, restore drill) to Risk.
 - **Still Risk:** web coverage (measured, not gated; Playwright covers the payment journeys), failure alerting (the pings have no receiver yet) and free-tier headroom (Vercel Hobby CPU went over on 2026-10-23 during the outage).
 - **Unverified:** Sentry alert rules live only in the Sentry dashboard.
-- **Gates at close:** api coverage API_COV % (floor 94), API_TESTS pytest, WEB_TESTS vitest, ruff `S`/`ASYNC`, pyright, tsc with `noUncheckedIndexedAccess`, `pnpm audit --prod`, `pip-audit`, gitleaks and the three Playwright journeys.
+- **Gates at close:** api coverage 96 % (floor 94), 1,148 pytest, 728 vitest, ruff `S`/`ASYNC`, pyright, tsc with `noUncheckedIndexedAccess`, `pnpm audit --prod`, `pip-audit`, gitleaks and the three Playwright journeys.

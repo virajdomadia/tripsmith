@@ -9,8 +9,13 @@ export const getMeta = () => api('/meta', { revalidate: 3600 });
  * page that needs none still renders, and one that does fails in its own error boundary. */
 export async function loadRules(): Promise<Rules | null> {
   try {
-    return rulesOf(await getMeta());
+    const meta = await getMeta();
+    // `?.`: an api from before V8 (the web/api deploy race) sends no `rules`.
+    return meta.rules?.cancellationTiers ? rulesOf(meta) : null;
   } catch {
     return null;
   }
 }
+
+/** Whether the live api already serves the booking rules (false before V8, or unreachable). */
+export const hasRules = async () => (await loadRules()) !== null;

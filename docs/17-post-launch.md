@@ -339,7 +339,7 @@ accepted every finding. The re-run at this close has **no FAIL**.
 | --- | --- |
 | Scorecard | 46 Pass · 7 Risk · 1 Unverified (Sentry alert rules, dashboard only) · **0 Fail**, from 29 · 16 · 1 · 8 at the audit ([scorecard](https://claude.ai/artifact/7EeDkXJvcg8WKuj1qeXZmx)) |
 | Findings | 30 audited: 27 fixed, 3 accepted (OP-1, OP-2, OP-3) |
-| Tests | API_TESTS pytest (coverage API_COV %) · WEB_TESTS vitest · 3 Playwright journeys, green in CI |
+| Tests | 1,148 pytest (coverage 96 %) · 728 vitest · 3 Playwright journeys, green in CI |
 
 ## What v3 inherits
 
