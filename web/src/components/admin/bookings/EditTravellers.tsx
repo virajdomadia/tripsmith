@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useRules } from '@/components/rules/RulesProvider';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ type Row = { name: string; age: string };
  * re-checks and says which row). Logged in the booking's history.
  */
 export function EditTravellers({ booking: b }: { booking: AdminBooking }) {
+  const { ages } = useRules();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -79,8 +81,8 @@ export function EditTravellers({ booking: b }: { booking: AdminBooking }) {
         <DialogHeader>
           <DialogTitle>Travellers on {b.ref}</DialogTitle>
           <DialogDescription>
-            Names as on ID. Adults’ ages are optional; a child’s age must stay 5–11. Rooms stay as
-            booked.
+            Names as on ID. Adults’ ages are optional; a child’s age must stay {ages.childMin}–
+            {ages.childMax}. Rooms stay as booked.
           </DialogDescription>
         </DialogHeader>
         <ol className="grid gap-2.5">

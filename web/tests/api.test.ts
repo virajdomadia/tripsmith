@@ -1,3 +1,4 @@
+import { RETENTION, RULES } from './rules';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   api,
@@ -40,6 +41,8 @@ describe('api() — typed server-side fetch', () => {
         enquiryMessageMax: 1000,
         imageMaxBytes: 1,
       },
+      rules: { ...RULES },
+      retention: RETENTION,
     };
     const fetchMock = vi.fn(async () => jsonResponse(meta));
     vi.stubGlobal('fetch', fetchMock);

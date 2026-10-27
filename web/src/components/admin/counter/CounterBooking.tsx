@@ -25,6 +25,7 @@ import { reportAdminError } from '@/lib/admin/errors';
 import { partySize, slotsFor, type Rooms } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useRules } from '@/components/rules/RulesProvider';
 import { Done } from './Done';
 import { Receipt } from './Receipt';
 import {
@@ -136,6 +137,7 @@ export function CounterBooking({
   /** P11: `?departure=` from the calendar's panel. */
   departureId?: string | null;
 }) {
+  const rules = useRules();
   const router = useRouter();
   const pathname = usePathname();
   const [draft, setDraft] = useState<Draft>(() => initialDraft(packages, enquiry, departureId));
@@ -191,7 +193,7 @@ export function CounterBooking({
     linkUntil: departure ? (departure.linkUntil ?? null) : undefined,
     linkMaxPaise,
   };
-  const pending = blockers(draft, offer);
+  const pending = blockers(draft, offer, rules);
   if (request && error && !error.coupon) pending.unshift(error.message);
 
   const summaries = [

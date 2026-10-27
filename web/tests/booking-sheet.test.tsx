@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -140,7 +141,7 @@ const calls = (path: string) =>
   fetchMock.mock.calls.filter(([url]) => String(url).split('?')[0] === path);
 
 async function fillAndPay(user: ReturnType<typeof userEvent.setup>) {
-  render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+  render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
   await fillIn(user);
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Pay' }));
 }
@@ -233,7 +234,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
         }),
     });
     const user = userEvent.setup();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     const sheet = screen.getByRole('dialog');
     const full = await within(sheet).findByRole('radio', { name: /Pay in full/ });
@@ -280,7 +281,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
       },
     });
     const user = userEvent.setup();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     const sheet = screen.getByRole('dialog');
     await user.click(await within(sheet).findByRole('radio', { name: /Reserve with 25% now/ }));
@@ -316,7 +317,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
       return json(200, QUOTE);
     });
     const user = userEvent.setup();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     const sheet = screen.getByRole('dialog');
 
@@ -404,7 +405,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
       return json(200, QUOTE);
     });
     const user = userEvent.setup();
-    render(<BookingSheet pkg={{ ...PKG, addons }} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={{ ...PKG, addons }} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     const sheet = screen.getByRole('dialog');
     expect(within(sheet).getByRole('heading', { name: 'Make it yours' })).toBeTruthy();
@@ -504,7 +505,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
       date: '2099-12-18',
       rooms: { double: 0, triple: 0, single: 2, children: 0 },
     };
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} prefill={prefill} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} prefill={prefill} />, withRules);
     const sheet = await screen.findByRole('dialog');
     await within(sheet).findByText('Live availability · checked just now');
     await waitFor(() => expect(calls('/api/bookings/quote').length).toBeGreaterThan(0));
@@ -519,7 +520,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
 
   it('warns before Pay that test mode stops at ₹15,000', async () => {
     api();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     // ₹29,998 for two: over the cap.
     expect(await screen.findByText(/this payment will stop at Razorpay/)).toBeTruthy();
     // …and where a full test payment can finish.
@@ -530,7 +531,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
   it('counts the visitor’s own hold as theirs when the seats are re-read', async () => {
     api();
     const user = userEvent.setup();
-    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     await user.click(screen.getByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(checkout).toBeDefined());
@@ -571,7 +572,7 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
         json(200, { items: [{ ...DEP, seatsLeft: 2 }, DEC] }),
     });
     const user = userEvent.setup();
-    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    const { rerender } = render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     await fillIn(user);
     await user.click(screen.getByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(checkout).toBeDefined());

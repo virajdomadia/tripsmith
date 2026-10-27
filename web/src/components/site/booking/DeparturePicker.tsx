@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { type Departure, UNBOOKABLE_LABEL, unbookableReason } from '@/lib/booking';
+import { useRules } from '@/components/rules/RulesProvider';
 import { afterDiscounts, type Tier, tierFor, tierLabel } from '@/lib/early-bird';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { formatDate, inr } from '@/lib/format';
@@ -70,7 +71,7 @@ export function DeparturePicker({ flow, pkg }: { flow: BookingFlow; pkg: Booking
       <div role="group" aria-label="Departure dates" className="grid gap-2">
         {departures.map((d) => {
           const tier = tierFor(pkg.earlyBird, d.date, today);
-          const reason = unbookableReason(d, party, today);
+          const reason = unbookableReason(d, party, today, flow.rules.leadDays);
           return (
             <div key={d.id} className="grid gap-2">
               <DepartureRow
@@ -137,6 +138,7 @@ function DepartureRow({
   onChoose: () => void;
   slug: string;
 }) {
+  const { leadDays } = useRules();
   // One badge per date (P2, R40), the api's priority: Filling fast › Likely to sell out ›
   // Guaranteed. The exact count is always printed.
   const meta =
@@ -211,7 +213,7 @@ function DepartureRow({
         {reason === 'on_request'
           ? 'Date set, price not yet — we’ll quote you'
           : reason === 'too_soon'
-            ? 'Online booking closes 2 days before departure — WhatsApp us'
+            ? `Online booking closes ${leadDays} days before departure — WhatsApp us`
             : d.waiting
               ? `Fully booked · ${d.waiting} waiting`
               : 'Fully booked'}

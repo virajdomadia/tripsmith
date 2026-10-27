@@ -24,6 +24,7 @@ import {
 } from '@/lib/change';
 import { formatDate, inr } from '@/lib/format';
 import { type CheckoutSuccess, loadCheckout, openCheckout } from '@/lib/razorpay-checkout';
+import { useRules } from '@/components/rules/RulesProvider';
 
 type Phase =
   | { kind: 'closed' }
@@ -56,6 +57,7 @@ export function ChangeDatePanel({
   contact: { name: string; email: string; phone: string };
   packageName: string;
 }) {
+  const { changeFeePaise } = useRules();
   const router = useRouter();
   const id = useId();
   const [phase, setPhase] = useState<Phase>({ kind: 'closed' });
@@ -214,7 +216,7 @@ export function ChangeDatePanel({
             Change date
           </h2>
           <p className="mt-0.5 text-[13px] leading-snug text-ink2">
-            {offer.open ? feeRule(offer) : offer.reason}
+            {offer.open ? feeRule(offer, changeFeePaise) : offer.reason}
           </p>
           {offer.open && (
             <p className="mt-1 text-[12px] text-mute">

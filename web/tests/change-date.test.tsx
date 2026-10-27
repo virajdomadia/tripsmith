@@ -1,3 +1,5 @@
+import { withRules } from './with-rules';
+import { RULES } from './rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -121,17 +123,21 @@ function panel(offer: ChangeOffer = OPEN) {
       contact={{ name: 'Asha Rao', email: 'asha@customer.in', phone: '9876543210' }}
       packageName="Kasol Riverside Weekend"
     />,
+    withRules,
   );
 }
 
 describe('change-date words', () => {
   it('states the fee rule in dates, and every price as the server gave it', () => {
-    expect(feeRule(OPEN)).toBe(
+    expect(feeRule(OPEN, RULES.changeFeePaise)).toBe(
       'Free until Wed 14 Oct 2099. Then ₹1,000 per traveller until Thu 29 Oct 2099; after that, WhatsApp us.',
     );
-    expect(feeRule({ ...OPEN, feePerTravellerPaise: 1_000_00, feePaise: 1_000_00 })).toBe(
-      '₹1,000 per traveller until Thu 29 Oct 2099 — after that, WhatsApp us.',
-    );
+    expect(
+      feeRule(
+        { ...OPEN, feePerTravellerPaise: 1_000_00, feePaise: 1_000_00 },
+        RULES.changeFeePaise,
+      ),
+    ).toBe('₹1,000 per traveller until Thu 29 Oct 2099 — after that, WhatsApp us.');
     expect(differenceLabel(UP)).toBe('+₹5,000');
     expect(differenceLabel(DOWN)).toBe('−₹5,000');
     expect(differenceLabel(option({ differencePaise: 0 }))).toBe('Same fare');

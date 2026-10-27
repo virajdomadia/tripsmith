@@ -36,6 +36,7 @@ import { PayChoice } from './PayChoice';
 import { PriceBreakdown } from './PriceBreakdown';
 import { PriceLadder } from './PriceLadder';
 import { type BookingFlow, type BookingPackage, useBooking } from './use-booking';
+import { useRules } from '@/components/rules/RulesProvider';
 
 gsap.registerPlugin(useGSAP);
 
@@ -100,7 +101,7 @@ export function BookingSheet({
       scope.current?.querySelector('[data-scroll]')?.scrollTo?.({ top: 0, behavior: 'smooth' });
   }, [flow.gone]);
 
-  const errs = formErrors(slots, travellers, contact);
+  const errs = formErrors(slots, travellers, contact, flow.rules.ages);
   const extras = flow.offered.length > 0;
   const picked = quote.status === 'ok' ? (quote.quote.addons ?? []).length : 0;
   const done = {
@@ -380,7 +381,8 @@ function Receipt({
           </span>
         ) : (
           <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
-            <Lock className="size-3.5" aria-hidden /> Seats held for 10 minutes once you press Pay
+            <Lock className="size-3.5" aria-hidden /> Seats held for {flow.rules.holdMinutes}{' '}
+            minutes once you press Pay
           </span>
         )}
       </div>
@@ -443,11 +445,12 @@ function Spinner({ label }: { label: string }) {
 
 /** After Checkout was closed unpaid: how long the seats stay held, and why it closed. */
 function HoldNote({ expiresAt, failure }: { expiresAt: string; failure?: string }) {
-  const [left, setLeft] = useState(() => holdSecondsLeft(expiresAt));
+  const { holdMinutes } = useRules();
+  const [left, setLeft] = useState(() => holdSecondsLeft(expiresAt, holdMinutes));
   useEffect(() => {
-    const t = setInterval(() => setLeft(holdSecondsLeft(expiresAt)), 1000);
+    const t = setInterval(() => setLeft(holdSecondsLeft(expiresAt, holdMinutes)), 1000);
     return () => clearInterval(t);
-  }, [expiresAt]);
+  }, [expiresAt, holdMinutes]);
   const mm = `${Math.floor((left % 3600) / 60)}:${String(left % 60).padStart(2, '0')}`;
   // A waitlist claim holds its seats for hours, not minutes.
   const mmss = left >= 3600 ? `${Math.floor(left / 3600)}:${mm.padStart(5, '0')}` : mm;

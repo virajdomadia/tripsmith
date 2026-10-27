@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -144,7 +145,7 @@ describe('the waitlist in the Book-now sheet', { timeout: 30_000 }, () => {
   it('joins a sold-out date: name, email and party, and says where the party stands', async () => {
     api();
     const user = userEvent.setup();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     const sheet = await screen.findByRole('dialog');
     await within(sheet).findByText('Live availability · checked just now');
     expect(within(sheet).getByText('Fully booked · 3 waiting')).toBeTruthy();
@@ -168,7 +169,7 @@ describe('the waitlist in the Book-now sheet', { timeout: 30_000 }, () => {
 
   it('opens a claim link on its date with the held seats free and the email fixed', async () => {
     api();
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} claim={TOKEN} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} claim={TOKEN} />, withRules);
     const sheet = await screen.findByRole('dialog');
     expect(await within(sheet).findByText(/2 seats held for you until/)).toBeTruthy();
     // Only the offer's date, bookable: its 0 seats plus the 2 held.
@@ -188,7 +189,7 @@ describe('the waitlist in the Book-now sheet', { timeout: 30_000 }, () => {
       [`/api/waitlist/claim/${TOKEN}`]: () =>
         json(200, { ...CLAIM, state: 'waiting', heldSeats: 0, expiresAt: null, position: 2 }),
     });
-    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} claim={TOKEN} />);
+    render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} claim={TOKEN} />, withRules);
     const sheet = await screen.findByRole('dialog');
     expect(await within(sheet).findByText(/Your offer ended before it was claimed/)).toBeTruthy();
     expect(within(sheet).getByRole('button', { name: /Join waitlist/ })).toBeTruthy();

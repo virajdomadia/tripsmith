@@ -52,6 +52,7 @@ from app.models.enums import (
     PaymentStatus,
     RefundStatus,
 )
+from app.schemas.errors import ErrorReason
 from app.services.booking.history import money, record
 from app.services.booking.locking import lock_booking
 from app.services.gst.documents import issue_due_safely
@@ -287,7 +288,7 @@ async def plan_refund(
         raise ApiError(
             "conflict",
             f"Only {money(amount_paise - left)} of {money(amount_paise)} can be refunded",
-            reason="refund_exceeds_payments",
+            reason=ErrorReason.REFUND_EXCEEDS_PAYMENTS,
         )
     db.add_all(rows)
     await db.flush()
@@ -694,7 +695,7 @@ async def send_owed(
                 await db.commit()
                 if not booking.refund_needed:
                     return
-            raise ApiError("conflict", NOTHING_TO_SEND, reason="no_refund")
+            raise ApiError("conflict", NOTHING_TO_SEND, reason=ErrorReason.NO_REFUND)
         await plan_refund(
             db,
             booking,
@@ -732,7 +733,7 @@ async def record_by_hand(db: AsyncSession, ref: str, note: str | None, *, by: st
             .all()
         )
         if not rows:
-            raise ApiError("conflict", NOTHING_BY_HAND, reason="no_refund")
+            raise ApiError("conflict", NOTHING_BY_HAND, reason=ErrorReason.NO_REFUND)
         now = dt.datetime.now(dt.UTC)
         total = 0
         for row in rows:

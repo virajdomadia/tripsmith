@@ -1,8 +1,8 @@
-# Tripsmith — Post-launch review (v1, v2, v2.5)
+# Tripsmith — Post-launch review (v1, v2, v2.5, v2.6)
 
-**Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2), 2.5.5 (v2.5) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2), 2026-10-14 (v2.5) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine; v2.5, Strengthen
+**Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2), 2.5.5 (v2.5), 2.6.2 (v2.6) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2), 2026-10-14 (v2.5), 2026-10-27 (v2.6) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine; v2.5, Strengthen; v2.6, Hardening
 
-v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the honest version of what it took, what held up, what did not, and what v2 inherits. **v2 (the booking engine) and v2.5 (Strengthen) have their own sections at the end: [v2 — Booking engine](#v2--booking-engine), [v2.5 — Strengthen](#v25--strengthen).**
+v1 is live on [tripsmith.vercel.app](https://tripsmith.vercel.app). This is the honest version of what it took, what held up, what did not, and what v2 inherits. **v2 (the booking engine) and v2.5 (Strengthen) have their own sections at the end: [v2 — Booking engine](#v2--booking-engine), [v2.5 — Strengthen](#v25--strengthen), [v2.6 — Hardening](#v26--hardening).**
 
 ---
 
@@ -285,3 +285,69 @@ v2's four open items, as they end v2.5:
 3. **The demo had to grow up.** Real email and real traveller IDs turned a harmless public login
    into a risk. The close caught it; the fix keeps the demo open and keeps owner actions out of
    strangers' inboxes.
+
+---
+
+# v2.6 — Hardening
+
+**Milestones:** 2.6.0 Fix · 2.6.1 Operate · 2.6.2 Tidy · **Written:** 2026-10-27 (V8)
+
+v2.6 added no features. Before v3, main `d567c60` was audited in four independent tracks
+(security, money, quality and database, operations): no P0, 8 P1, 22 P2, and a 54-area scorecard
+with 8 FAIL ([docs/12](12-security-performance.md#v26--hardening-audit)). Nine rows closed or
+accepted every finding. The re-run at this close has **no FAIL**.
+
+## What shipped
+
+| Row | What changed |
+| --- | --- |
+| V1 | Money kept at the cancellation decision (`kept_paise`), so a late capture is refunded; a deal leaves at least ₹1 a traveller; hold liveness judged at lock time |
+| V2 | The public demo owner can no longer email strangers; the switch defaults on in production and refuses live Razorpay keys; owner routes that call Razorpay are rate-limited; every admin write checks its origin |
+| V3 | A database cap on sign-in codes that holds when Upstash fails open, and a daily budget so Gmail stays free for booking mail |
+| V4 | No request bodies reach Sentry; one Sentry issue for a bad webhook signature; `/health/ready`; heartbeat pings; a 20 s budget on `/cron/daily` |
+| V5 | Enquiries purged after 12 months; the privacy and terms pages rewritten from the code |
+| V6 | `docs/18-runbook.md`, secret rotation without downtime (`SESSION_SECRET_PREVIOUS`), the rollback order; backups built, then switched off by choice |
+| V9 | CI gates: dependency audits, gitleaks, ruff `S`/`ASYNC`, `noUncheckedIndexedAccess`, api coverage ≥ 94 %, Playwright P0 journeys, Dependabot |
+| V7 | The money desk in three queries, seven indexes (0027), dead code gone, the PDF render timeout as a setting |
+| V8 | Every error `reason` is a contract enum the web checks by type; `/meta` serves the booking rules and the web keeps no copy; GST parity test |
+
+## What worked
+
+- **Independent tracks, then rows.** Four reviewers who did not see each other's notes found
+  overlapping problems from different sides (the demo owner from security and from email). Each
+  finding got a row and, where it could, a test that failed first.
+- **Making the fix structural.** OP-10 could have been a longer docstring; instead `ApiError` only
+  accepts the enum, so pyright refuses a new reason that is not in the contract. Q-5 could have been
+  another drift test; instead the numbers come from `/meta`, and nothing is left to drift.
+- **Gates shown red.** V9 proved each CI gate on a throwaway PR before relying on it.
+
+## What did not
+
+- **Three findings are accepted, not fixed** (Viraj's decisions, written down in docs/12): no
+  backups (OP-3), no external monitors until Razorpay goes live (OP-1), and the GitHub-scheduled
+  tick (OP-2). The scorecard shows them as Risk, not Pass.
+- **Prod went down for five days** (2026-10-18 to 23) when Neon's free compute ran out, in the
+  middle of the hardening. The move to Supabase Mumbai was unplanned, and the uncached error
+  renders pushed Vercel Hobby's CPU over its limit. The runbook now has a "database down" entry;
+  the external monitor that would have paged is one of the accepted risks above.
+- **Web coverage is measured, not gated** (about 66 % of lines). The payment journeys are covered
+  end to end by Playwright instead.
+
+## Metrics at close
+
+|  |  |
+| --- | --- |
+| Scorecard | 46 Pass · 7 Risk · 1 Unverified (Sentry alert rules, dashboard only) · **0 Fail**, from 29 · 16 · 1 · 8 at the audit ([scorecard](https://claude.ai/artifact/7EeDkXJvcg8WKuj1qeXZmx)) |
+| Findings | 30 audited: 27 fixed, 3 accepted (OP-1, OP-2, OP-3) |
+| Tests | API_TESTS pytest (coverage API_COV %) · WEB_TESTS vitest · 3 Playwright journeys, green in CI |
+
+## What v3 inherits
+
+- **Before Razorpay goes live:** the accepted risks become work: UptimeRobot plus healthchecks.io
+  (the code is in place), cron-job.org for the tick, and a decision on backups.
+- **Vercel Hobby CPU:** find the 1-a-minute pinger on `tripsmith.vercel.app` and point it at the
+  api's `/health`.
+- **From v2.5, still open:** the Apple Calendar import on a real device, the ignore-build step after
+  a force-push, Blob orphans when a leader photo goes.
+- **The contract now carries every error reason** (`ErrorReason`): v3's chat and MCP endpoints add
+  theirs to the enum, and the web gets them typed.

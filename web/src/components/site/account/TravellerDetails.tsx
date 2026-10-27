@@ -17,6 +17,7 @@ import {
   type TravellerDetailsOut,
 } from '@/lib/account';
 import { OCCUPANCY_LABEL } from '@/lib/booking';
+import { useRules } from '@/components/rules/RulesProvider';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -43,6 +44,7 @@ export function TravellerDetails({
   /** P9b: the owner's edit — its save, and whether the booking still takes edits. */
   owner?: { save: SaveDetails; canEdit: boolean };
 }) {
+  const kept = useRules().retention.detailsDays;
   const open = owner ? owner.canEdit : block.state === 'open';
   const save: SaveDetails =
     owner?.save ?? ((id, body) => saveTravellerDetails(bookingRef, id, body));
@@ -54,7 +56,7 @@ export function TravellerDetails({
             <>
               The customer can fill these in until{' '}
               <b className="text-ink">{formatDate(block.locksOn)}</b>; you can edit them any time
-              until they’re deleted, 30 days after the trip.
+              until they’re deleted, {kept} days after the trip.
             </>
           ) : (
             <>
@@ -93,7 +95,7 @@ export function TravellerDetails({
           <span>
             <b className="text-ink">Demo site: use made-up details only.</b> Anyone using the public
             demo login can read what you enter here — dates of birth, emergency contacts, food and
-            medical notes — with ID numbers masked. We delete every detail 30 days after you’re
+            medical notes — with ID numbers masked. We delete every detail {kept} days after you’re
             back.
           </span>
         </p>

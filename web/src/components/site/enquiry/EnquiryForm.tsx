@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useOptionalRules } from '@/components/rules/RulesProvider';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { DemoNotice } from '@/components/site/DemoNotice';
@@ -53,6 +54,8 @@ export function EnquiryForm({
   fieldErrors = {},
   error,
 }: EnquiryFormProps) {
+  // Optional: the form must take an enquiry even when the api's /meta can't be read.
+  const ages = useOptionalRules()?.ages;
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(defaultValues.type === 'custom' ? 'custom' : 'standard');
   const [errors, setErrors] = useState<Record<string, string>>(fieldErrors);
@@ -270,7 +273,11 @@ export function EnquiryForm({
             ))}
           </select>
         </Field>
-        <Field label="Children (5–11)" name="children" error={errors.children}>
+        <Field
+          label={ages ? `Children (${ages.childMin}–${ages.childMax})` : 'Children'}
+          name="children"
+          error={errors.children}
+        >
           <select
             id="children"
             name="children"

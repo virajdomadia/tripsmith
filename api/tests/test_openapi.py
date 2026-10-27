@@ -122,6 +122,9 @@ def test_error_envelope_schema_is_in_components() -> None:
     # Optional, never null: the handlers omit the key, so the TS type must not say `| null`.
     assert error["properties"]["fieldErrors"]["type"] == "object"
     assert "anyOf" not in error["properties"]["fieldErrors"]
+    # OP-10: the reason is an enum too, so the web's checks are typed.
+    assert error["properties"]["reason"]["$ref"] == "#/components/schemas/ErrorReason"
+    assert "sold_out" in schemas["ErrorReason"]["enum"]
 
 
 def test_every_operation_declares_the_envelope_as_its_default_response() -> None:

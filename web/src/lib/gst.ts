@@ -1,6 +1,7 @@
 /**
  * GST at checkout and on the booking pages (R51, P13b). The State list and the GSTIN rule mirror
- * `api/app/services/gst/tax.py` STATES and `schemas/bookings.py` GSTIN_RE — change both. The api
+ * `api/app/services/gst/tax.py` STATES and `schemas/bookings.py` GSTIN_RE (tests/gst-parity.test.ts
+ * reads both and fails when they drift). The api
  * re-checks everything.
  */
 

@@ -46,6 +46,7 @@ from app.models.enums import (
 )
 from app.schemas.bookings import CHILD_MAX_AGE, CHILD_MIN_AGE, Quote, QuoteAddon
 from app.schemas.counter import CounterTraveller
+from app.schemas.errors import ErrorReason
 from app.schemas.moves import MoveDate, MoveOptions, MoveQuote, MoveQuoteRequest, MoveRequest
 from app.services.analytics import ist_today
 from app.services.booking import deposit, details, history, waitlist
@@ -107,7 +108,7 @@ async def move_options(db: AsyncSession, ref: str, *, today: dt.date | None = No
     try:
         booking = await _booking(db, ref)
         if booking.status not in CHANGES:
-            raise ApiError("conflict", NOT_MOVABLE, reason="not_movable")
+            raise ApiError("conflict", NOT_MOVABLE, reason=ErrorReason.NOT_MOVABLE)
         rows = await _rows(db, booking.id)
         departs = (await departure_dates(db, [booking.departure_id]))[booking.departure_id]
         from app.models.catalog import departure_availability
@@ -295,7 +296,7 @@ async def move_quote(
     try:
         booking = await _booking(db, ref)
         if booking.status not in CHANGES:
-            raise ApiError("conflict", NOT_MOVABLE, reason="not_movable")
+            raise ApiError("conflict", NOT_MOVABLE, reason=ErrorReason.NOT_MOVABLE)
         plan = await _plan(db, booking, req, now=now)
         out = _quote_out(booking, plan, Quote.model_validate(booking.quote))
     finally:
@@ -328,21 +329,21 @@ async def move_booking(
     try:
         booking, _ = await lock_change(db, ref, req.departure_id)
         if booking.status not in CHANGES:
-            raise ApiError("conflict", NOT_MOVABLE, reason="not_movable")
+            raise ApiError("conflict", NOT_MOVABLE, reason=ErrorReason.NOT_MOVABLE)
         # The customer's change still waiting for its payment is overtaken: a payment that lands
         # on it later is refunded in full, never applied over this move.
         await end_holds(db, booking.id)
         plan = await _plan(db, booking, req, now=now)
         if not plan.fits:
-            raise ApiError("conflict", NO_SEATS, reason="sold_out")
+            raise ApiError("conflict", NO_SEATS, reason=ErrorReason.SOLD_OUT)
         if (
             req.departure_id == booking.departure_id
             and not plan.party_changed
             and not (plan.fee_paise)
         ):
-            raise ApiError("conflict", NOTHING, reason="nothing_to_move")
+            raise ApiError("conflict", NOTHING, reason=ErrorReason.NOTHING_TO_MOVE)
         if plan.net_paise != req.expected_net_paise:
-            raise ApiError("conflict", PRICE_CHANGED, reason="price_changed")
+            raise ApiError("conflict", PRICE_CHANGED, reason=ErrorReason.PRICE_CHANGED)
         if plan.fee_paise != plan.suggested_fee_paise and not req.fee_reason:
             raise ApiError("validation", NEED_REASON, field_errors={"feeReason": NEED_REASON})
         total = booking.total_paise + plan.net_paise

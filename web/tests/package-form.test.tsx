@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -136,7 +137,10 @@ const fixture = (over: Partial<AdminPackage> = {}): AdminPackage => ({
 });
 
 const renderForm = (pkg = fixture()) =>
-  render(<PackageForm mode="edit" pkg={pkg} destinations={[destination]} leaders={[]} />);
+  render(
+    <PackageForm mode="edit" pkg={pkg} destinations={[destination]} leaders={[]} />,
+    withRules,
+  );
 
 describe('PackageForm — errors that belong to a whole list', { timeout: 30_000 }, () => {
   it('shows the itinerary-length error when nights drop below the written days', async () => {
@@ -447,7 +451,7 @@ describe('PackageForm — slug', () => {
         expectedVersion: null,
       }),
     );
-    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />);
+    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />, withRules);
     const slug = screen.getByLabelText('Slug') as HTMLInputElement;
     await waitFor(() => expect(slug.value).toBe('my-own-slug'));
     await user.type(screen.getByLabelText('Name'), ' beaches');
@@ -456,7 +460,7 @@ describe('PackageForm — slug', () => {
 
   it('follows the name on a create form while the slug is still the derived one', async () => {
     const user = userEvent.setup();
-    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />);
+    render(<PackageForm mode="create" destinations={[destination]} leaders={[]} />, withRules);
     await user.type(screen.getByLabelText('Name'), 'Goa Beaches');
     expect((screen.getByLabelText('Slug') as HTMLInputElement).value).toBe('goa-beaches');
   });

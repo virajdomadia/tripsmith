@@ -54,6 +54,7 @@ from app.models.enums import (
     WaitlistMail,
     WaitlistState,
 )
+from app.schemas.errors import ErrorReason
 from app.schemas.waitlist import (
     AccountWaitlistEntry,
     AdminWaitlistEntry,
@@ -463,9 +464,9 @@ async def join(
             raise ApiError("not_found", GONE)
         dep: Departure = row[0]
         if not join_open(dep.date, ist_today(now)):
-            raise ApiError("conflict", CLOSED, reason="waitlist_closed")
+            raise ApiError("conflict", CLOSED, reason=ErrorReason.WAITLIST_CLOSED)
         if await seats_left(db, dep.id) >= party:
-            raise ApiError("conflict", SEATS_FREE, reason="seats_available")
+            raise ApiError("conflict", SEATS_FREE, reason=ErrorReason.SEATS_AVAILABLE)
         entry = WaitlistEntry(
             departure_id=dep.id,
             name=name.strip(),
@@ -481,7 +482,7 @@ async def join(
                 db.add(entry)
         except IntegrityError as exc:
             if UNIQUE_INDEX in constraint_name(exc):
-                raise ApiError("conflict", ALREADY, reason="already_waiting") from None
+                raise ApiError("conflict", ALREADY, reason=ErrorReason.ALREADY_WAITING) from None
             raise
         joined = Joined(
             entry_id=entry.id,
@@ -555,12 +556,14 @@ async def claim_for_order(
     entry = await entry_for_token(db, token, secret, lock=True)
     now = await _db_now(db)
     if entry.departure_id != departure_id:
-        raise ApiError("conflict", "This claim link is for another date", reason="claim_other")
+        raise ApiError(
+            "conflict", "This claim link is for another date", reason=ErrorReason.CLAIM_OTHER
+        )
     if entry.email != email.strip().lower():
         raise ApiError(
             "conflict",
             "Book with the email the offer was sent to",
-            reason="claim_email",
+            reason=ErrorReason.CLAIM_EMAIL,
             field_errors={"contact.email": "Use the email the offer was sent to"},
         )
     if not claim_live(entry, now):
@@ -568,7 +571,7 @@ async def claim_for_order(
             "conflict",
             "This offer has ended — you're back on the waitlist, and we'll email you if seats "
             "free up again",
-            reason="claim_expired",
+            reason=ErrorReason.CLAIM_EXPIRED,
         )
     return entry
 
@@ -809,7 +812,9 @@ async def owner_remove(db: AsyncSession, entry_id: str, *, by_name: str) -> str:
         entry, dep = await _owner_entry(db, entry_id)
         if entry.state not in LIVE:
             raise ApiError(
-                "conflict", f"This place is already {entry.state.value}", reason="not_live"
+                "conflict",
+                f"This place is already {entry.state.value}",
+                reason=ErrorReason.NOT_LIVE,
             )
         await remove(db, entry, f"Removed by {by_name}")
         await db.flush()
@@ -837,18 +842,18 @@ async def owner_offer(db: AsyncSession, entry_id: str, *, by: str, by_name: str)
             await db.commit()
             return departure_id
         if entry.state != WaitlistState.WAITING:
-            raise ApiError("conflict", NOT_WAITING, reason="not_waiting")
+            raise ApiError("conflict", NOT_WAITING, reason=ErrorReason.NOT_WAITING)
         now = await _db_now(db)
         ends = offer_ends(dep.date, now) if await _bookable(db, dep) else None
         if ends is None:
-            raise ApiError("conflict", NO_OFFERS, reason="offers_closed")
+            raise ApiError("conflict", NO_OFFERS, reason=ErrorReason.OFFERS_CLOSED)
         free = await seats_left(db, dep.id)
         if entry.party > free:
             raise ApiError(
                 "conflict",
                 f"Only {free} seat{'s' if free != 1 else ''} free — this party needs "
                 f"{entry.party}. Add seats in the package's departures first.",
-                reason="seats_short",
+                reason=ErrorReason.SEATS_SHORT,
             )
         make_offer(entry, ends, by=by, name=by_name)
         departure_id = dep.id

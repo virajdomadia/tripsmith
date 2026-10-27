@@ -1,7 +1,6 @@
 import type { components } from '@/lib/api-types';
+import type { Rules } from '@/lib/rules';
 import {
-  CHILD_MAX_AGE,
-  CHILD_MIN_AGE,
   ROOM_SIZE,
   adultsIn,
   partySize,
@@ -138,11 +137,11 @@ export function newCustomerErrors(d: NewCustomer): Partial<Record<keyof NewCusto
 }
 
 /** A child slot's age problem, or null; adults may leave the age empty. */
-export function childAgeError(age: string): string | null {
+export function childAgeError(age: string, ages: Rules['ages']): string | null {
   const n = Number(age);
   if (!age.trim()) return 'Age needed for the child rate';
-  if (!Number.isInteger(n) || n < CHILD_MIN_AGE || n > CHILD_MAX_AGE)
-    return `Child rate is ${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`;
+  if (!Number.isInteger(n) || n < ages.childMin || n > ages.childMax)
+    return `Child rate is ${ages.childMin}–${ages.childMax}`;
   return null;
 }
 
@@ -178,11 +177,15 @@ export const linkAmount = (d: Pick<Draft, 'linkPay'>, o: Offer) =>
   (d.linkPay === 'deposit' ? o.depositPaise : o.totalPaise) ?? null;
 
 /** Why a link can't be sent now, or null. */
-export function linkProblem(d: Pick<Draft, 'linkPay'>, o: Offer): string | null {
+export function linkProblem(
+  d: Pick<Draft, 'linkPay'>,
+  o: Offer,
+  balanceDays: number,
+): string | null {
   if (o.linkUntil === null)
     return 'Too close to departure for a 24-hour link: take the payment now';
   if (d.linkPay === 'deposit' && !o.deposit)
-    return 'Deposit closes 30 days before departure: send a link for the full amount';
+    return `Deposit closes ${balanceDays} days before departure: send a link for the full amount`;
   const amount = linkAmount(d, o);
   if (amount != null && o.linkMaxPaise != null && amount > o.linkMaxPaise)
     return `Razorpay's test mode caps a link at ${inr(o.linkMaxPaise)}: send the deposit link, or take the payment now`;
@@ -190,13 +193,13 @@ export function linkProblem(d: Pick<Draft, 'linkPay'>, o: Offer): string | null 
 }
 
 /** What still stops the booking, in the order the steps come (the api re-checks all of it). */
-export function blockers(d: Draft, offer: Offer): string[] {
+export function blockers(d: Draft, offer: Offer, rules: Rules): string[] {
   const depositOffered = offer.deposit;
   const out: string[] = [];
   if (!d.departureId) out.push('Pick a departure');
   if (partySize(d.rooms) === 0 || adultsIn(d.rooms) === 0) out.push('Add at least one adult');
   const kids = slotsFor(d.rooms).filter((s) => s.occupancy === 'child');
-  if (kids.some((s) => childAgeError(d.names[s.key]?.age ?? '')))
+  if (kids.some((s) => childAgeError(d.names[s.key]?.age ?? '', rules.ages)))
     out.push("Enter each child's age");
   const m = manualInput(d.manual);
   if (m && m.reason.length < REASON_MIN) out.push('Give a reason for the manual discount');
@@ -209,9 +212,9 @@ export function blockers(d: Draft, offer: Offer): string[] {
       out.push('Names need at least 2 letters');
   }
   if (d.settle === 'deposit' && !depositOffered)
-    out.push('Deposit closes 30 days before departure: take the full amount');
+    out.push(`Deposit closes ${rules.balanceDays} days before departure: take the full amount`);
   if (d.settle === 'link') {
-    const problem = linkProblem(d, offer);
+    const problem = linkProblem(d, offer, rules.balanceDays);
     if (problem) out.push(problem);
   } else if (d.method !== 'cash' && !d.reference.trim())
     out.push(`Add the ${d.method === 'upi' ? 'UPI reference (UTR)' : 'bank reference'}`);

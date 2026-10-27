@@ -23,6 +23,7 @@ from app.infra.db import get_session
 from app.models import Session
 from app.models.enums import UserRole
 from app.routers.site.bookings import BookingRef
+from app.schemas.errors import ErrorReason
 from app.services.account import owns_booking
 from app.services.analytics import ist_today
 from app.services.auth.deps import current_session
@@ -140,7 +141,7 @@ async def get_trip_pack_pdf(
             raise ApiError("not_found", "This booking has no trip pack")
         sheet, state = found
         if not owner and state != "open":
-            raise ApiError("conflict", trip_pack.LOCKED, reason="pack_locked")
+            raise ApiError("conflict", trip_pack.LOCKED, reason=ErrorReason.PACK_LOCKED)
     finally:
         await db.rollback()  # the render below holds no connection
     if not owner:

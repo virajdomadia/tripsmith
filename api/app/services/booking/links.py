@@ -39,6 +39,7 @@ from app.models.enums import (
 )
 from app.schemas.admin_bookings import AdminPaymentLink
 from app.schemas.bookings import PaymentResult
+from app.schemas.errors import ErrorReason
 from app.services.booking import history, waitlist
 from app.services.booking.after_capture import Notify, on_new_capture
 from app.services.booking.freshness import refresh_quietly
@@ -426,7 +427,7 @@ async def _open_link(db: AsyncSession, ref: str) -> tuple[Booking, Payment]:
     ).scalar_one_or_none()
     lapsed = booking.hold_expires_at <= dt.datetime.now(dt.UTC)
     if row is None or booking.status != BookingStatus.PENDING or lapsed:
-        raise ApiError("conflict", NO_LINK, reason="no_link")
+        raise ApiError("conflict", NO_LINK, reason=ErrorReason.NO_LINK)
     return booking, row
 
 
@@ -446,7 +447,7 @@ async def cancel_link(
         raise ApiError(
             "conflict",
             "The customer has just paid this link — the booking is confirmed instead",
-            reason="link_paid",
+            reason=ErrorReason.LINK_PAID,
         ) from None
     except RazorpayError as exc:
         raise ApiError(
@@ -493,7 +494,7 @@ async def email_link(db: AsyncSession, ref: str, notify: Notify) -> None:
     booking, row = await _open_link(db, ref)
     url = _link_raw(row).get("shortUrl")
     if not isinstance(url, str):
-        raise ApiError("conflict", NO_LINK, reason="no_link")
+        raise ApiError("conflict", NO_LINK, reason=ErrorReason.NO_LINK)
     expires, amount = booking.hold_expires_at, row.amount_paise
     facts = await load_booking_facts(db, ref)
     if facts is None:

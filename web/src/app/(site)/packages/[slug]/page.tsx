@@ -36,6 +36,8 @@ import { faqJsonLd, packageJsonLd } from '@/lib/seo/package-jsonld';
 import { pageOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 import { proofLine } from '@/lib/urgency';
+import { getMeta } from '@/lib/meta';
+import { rulesOf } from '@/lib/rules';
 
 type Params = { slug: string };
 
@@ -80,7 +82,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function PackagePage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const pkg = await loadPackage(slug);
+  const [pkg, meta] = await Promise.all([loadPackage(slug), getMeta()]);
+  const rules = rulesOf(meta);
   const url = absolute(`/packages/${pkg.slug}`);
   const faq = faqJsonLd(pkg);
   const bookable = offersBooking(pkg.departures);
@@ -169,7 +172,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
                 earlyBird={pkg.earlyBird}
                 builtOn={istToday()}
               />
-              <OccupancyPricing departures={pkg.departures} deal={pkg.deal} />
+              <OccupancyPricing departures={pkg.departures} deal={pkg.deal} ages={rules.ages} />
             </Section>
             {pkg.rating && (
               <Section id="reviews" title="What travellers say">
@@ -183,7 +186,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
             )}
           </div>
           <aside className="hidden lg:block">
-            <PriceBox pkg={pkg} url={url} bookable={bookable} />
+            <PriceBox pkg={pkg} url={url} bookable={bookable} rules={rules} />
           </aside>
         </div>
 

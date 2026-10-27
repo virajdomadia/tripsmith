@@ -70,6 +70,7 @@ from app.schemas.counter import (
     EditTravellersInput,
 )
 from app.schemas.enquiries import normalise_phone
+from app.schemas.errors import ErrorReason
 from app.services.admin_enquiries import PHONE_QUERY_RE, like_escape
 from app.services.analytics import ist_today
 from app.services.booking import coupons, deposit, history, waitlist
@@ -120,17 +121,17 @@ def _unbookable(dep: Departure, *, seats_left: int, party: int, today: dt.date) 
         raise ApiError(
             "conflict",
             "This date is priced on request — set its prices on the package first",
-            reason=UnbookableReason.ON_REQUEST.value,
+            reason=UnbookableReason.ON_REQUEST,
         )
     if dep.date < today:
-        raise ApiError("conflict", DEPARTED, reason=UnbookableReason.TOO_SOON.value)
+        raise ApiError("conflict", DEPARTED, reason=UnbookableReason.TOO_SOON)
     if seats_left < party:
         left = max(0, seats_left)
         raise ApiError(
             "conflict",
             f"Only {left} seat{'s' if left != 1 else ''} left on this date — the party of "
             f"{party} doesn't fit",
-            reason=UnbookableReason.SOLD_OUT.value,
+            reason=UnbookableReason.SOLD_OUT,
         )
 
 
@@ -201,7 +202,7 @@ async def _claim_enquiry(db: AsyncSession, enquiry_id: str) -> Enquiry:
         raise ApiError(
             "conflict",
             f"Enquiry {enquiry.ref} was already converted to booking {linked}",
-            reason="already_converted",
+            reason=ErrorReason.ALREADY_CONVERTED,
         )
     return enquiry
 
@@ -254,13 +255,13 @@ async def create_counter_booking(
         )
         chosen = offer.deposit if wants_deposit else None
         if wants_deposit and chosen is None:
-            raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
+            raise ApiError("conflict", NO_DEPOSIT, reason=ErrorReason.DEPOSIT_UNAVAILABLE)
         if offer.total_paise != req.expected_total_paise:
             raise ApiError(
                 "conflict",
                 f"The price is now {history.money(offer.total_paise)}, not "
                 f"{history.money(req.expected_total_paise)} — check the receipt and confirm again",
-                reason="price_changed",
+                reason=ErrorReason.PRICE_CHANGED,
             )
         amount = chosen.amount_paise if chosen else offer.total_paise
         hold_until = now + HOLD
@@ -270,14 +271,14 @@ async def create_counter_booking(
                 raise ApiError("internal", PAYMENTS_OFF, status=503)
             until = link_until(dep.date, now)
             if until is None:
-                raise ApiError("conflict", LINK_TOO_LATE, reason="link_unavailable")
+                raise ApiError("conflict", LINK_TOO_LATE, reason=ErrorReason.LINK_UNAVAILABLE)
             if rzp.link_max_paise is not None and amount > rzp.link_max_paise:
                 raise ApiError(
                     "conflict",
                     "Razorpay's test mode can't create a link over "
                     f"{history.money(rzp.link_max_paise)} — send the deposit link, or take the "
                     "payment now",
-                    reason="link_over_cap",
+                    reason=ErrorReason.LINK_OVER_CAP,
                 )
             hold_until = until
         quote = offer.model_copy(update={"deposit": chosen})
@@ -653,7 +654,9 @@ async def edit_travellers(
         booking, _live = await lock_booking(db, ref)
         if booking.status not in EDITABLE:
             raise ApiError(
-                "conflict", "Travellers can't be changed on this booking", reason="not_editable"
+                "conflict",
+                "Travellers can't be changed on this booking",
+                reason=ErrorReason.NOT_EDITABLE,
             )
         rows = (
             (

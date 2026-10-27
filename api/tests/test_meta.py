@@ -55,4 +55,42 @@ async def test_meta_is_publicly_cacheable(client: AsyncClient) -> None:
 
 async def test_meta_has_no_extra_top_level_keys(client: AsyncClient) -> None:
     res = await client.get("/meta")
-    assert set(res.json()) == {"themes", "badges", "enquiryTypes", "limits"}
+    assert set(res.json()) == {"themes", "badges", "enquiryTypes", "limits", "rules", "retention"}
+
+
+async def test_meta_serves_the_rules_the_api_enforces(client: AsyncClient) -> None:
+    # Q-5: the web reads these instead of copying them; pinned here so a change is deliberate.
+    body = (await client.get("/meta")).json()
+    rules = body["rules"]
+    assert {k: v for k, v in rules.items() if k not in {"cancellationTiers", "ages"}} == {
+        "depositPercent": 25,
+        "balanceDays": 30,
+        "graceDays": 2,
+        "minPartPaise": 1_000_00,
+        "reminderDays": [7, 3, 0],
+        "holdMinutes": 10,
+        "leadDays": 2,
+        "freeChangeDays": 30,
+        "onlineChangeDays": 15,
+        "changeFeePaise": 1_000_00,
+        "gstPercent": 5,
+    }
+    assert [(t["fromDays"], t["keptPercent"]) for t in rules["cancellationTiers"]] == [
+        (30, 0),
+        (15, 50),
+        (0, 100),
+    ]
+    assert rules["cancellationTiers"][2]["refund"] == "no refund"
+    assert rules["ages"] == {"childMin": 5, "childMax": 11, "adultMin": 12}
+    assert body["retention"] == {"enquiryDays": 365, "detailsDays": 30, "sessionDays": 30}
+
+
+def test_the_suggested_refund_follows_each_tier() -> None:
+    # Q-5: derived from CANCELLATION_TIERS, so a tier's numbers change in one place.
+    from app.business import CANCELLATION_TIERS, suggested_refund_paise
+
+    total = 20_000_00
+    for tier in CANCELLATION_TIERS:
+        kept = total * tier.kept_percent // 100
+        got = suggested_refund_paise(tier.from_days, paid_paise=total, total_paise=total)
+        assert got == total - kept

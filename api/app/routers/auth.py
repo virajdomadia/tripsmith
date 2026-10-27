@@ -23,6 +23,7 @@ from app.infra.ratelimit import RateLimiter
 from app.models import Session
 from app.models.enums import UserRole
 from app.schemas.auth import LoginRequest, OtpRequest, OtpSent, OtpVerify, SessionInfo
+from app.schemas.errors import ErrorReason
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
 from app.services.auth.deps import current_session
 from app.services.auth.otp import (
@@ -214,14 +215,14 @@ async def post_otp_verify(
                 "validation",
                 "This code has expired or been used up — ask for a new one",
                 field_errors={"code": "Ask for a new code"},
-                reason="code_dead",
+                reason=ErrorReason.CODE_DEAD,
             )
         tries = "1 try" if checked.tries_left == 1 else f"{checked.tries_left} tries"
         raise ApiError(
             "validation",
             f"That code isn't right — {tries} left",
             field_errors={"code": "That code isn't right"},
-            reason="code_wrong",
+            reason=ErrorReason.CODE_WRONG,
         )
     session, token = await sign_in_customer(
         db, payload.email, ip=client_ip(request), user_agent=request.headers.get("user-agent")

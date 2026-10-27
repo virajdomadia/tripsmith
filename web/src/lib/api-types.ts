@@ -3679,6 +3679,15 @@ export interface components {
              */
             state: "waiting" | "offered" | "claimed" | "booked" | "removed" | "closed";
         };
+        /** AgeLimits */
+        AgeLimits: {
+            /** Adultmin */
+            adultMin: number;
+            /** Childmax */
+            childMax: number;
+            /** Childmin */
+            childMin: number;
+        };
         /** ApiErrorBody */
         ApiErrorBody: {
             code: components["schemas"]["ErrorCode"];
@@ -3693,9 +3702,9 @@ export interface components {
             message: string;
             /**
              * Reason
-             * @description A machine-readable cause on some 409s — booking: `on_request`, `too_soon`, `sold_out` (`UnbookableReason`).
+             * @description A machine-readable cause, mostly on 409s; the web branches on it.
              */
-            reason?: string;
+            reason?: components["schemas"]["ErrorReason"];
         };
         /** ApiErrorResponse */
         ApiErrorResponse: {
@@ -4075,6 +4084,53 @@ export interface components {
             travellers: number;
         };
         /**
+         * BookingRules
+         * @description The money and party rules the api enforces, served so the web quotes them, never copies
+         *     them (Q-5). Each comes from the module that applies it — see `services/meta.py`.
+         */
+        BookingRules: {
+            ages: components["schemas"]["AgeLimits"];
+            /**
+             * Balancedays
+             * @description The balance falls due this many days before departure
+             */
+            balanceDays: number;
+            /**
+             * Cancellationtiers
+             * @description From the earliest tier
+             */
+            cancellationTiers: components["schemas"]["CancellationTierOut"][];
+            /**
+             * Changefeepaise
+             * @description Per traveller, for a change inside the free days
+             */
+            changeFeePaise: number;
+            /** Depositpercent */
+            depositPercent: number;
+            /** Freechangedays */
+            freeChangeDays: number;
+            /** Gracedays */
+            graceDays: number;
+            /** Gstpercent */
+            gstPercent: number;
+            /** Holdminutes */
+            holdMinutes: number;
+            /**
+             * Leaddays
+             * @description A date is bookable from IST today + this many days
+             */
+            leadDays: number;
+            /** Minpartpaise */
+            minPartPaise: number;
+            /** Onlinechangedays */
+            onlineChangeDays: number;
+            /**
+             * Reminderdays
+             * @description Days before the due day a reminder goes
+             */
+            reminderDays: number[];
+        };
+        /**
          * BookingStatus
          * @enum {string}
          */
@@ -4363,6 +4419,24 @@ export interface components {
          * @enum {string}
          */
         CancellationStatus: "requested" | "approved" | "rejected";
+        /** CancellationTierOut */
+        CancellationTierOut: {
+            /**
+             * Fromdays
+             * @description Fewest days before departure this tier starts at
+             */
+            fromDays: number;
+            /**
+             * Keptpercent
+             * @description Share of the package price the policy keeps
+             */
+            keptPercent: number;
+            /**
+             * Refund
+             * @description What the tier refunds, as the policy page says it
+             */
+            refund: string;
+        };
         /**
          * ChangeOffer
          * @description The "Change date" card on a booking: open or not, and the fee rule in dates.
@@ -5881,6 +5955,15 @@ export interface components {
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
         /**
+         * ErrorReason
+         * @description Every machine-readable cause an error can carry; the web branches on these (OP-10).
+         *
+         *     `ApiError(reason=...)` takes this enum (or the two below, whose values are a subset — a test
+         *     keeps them so), so a new reason cannot reach the wire without reaching `api-types.ts`.
+         * @enum {string}
+         */
+        ErrorReason: "on_request" | "too_soon" | "sold_out" | "price_changed" | "deposit_unavailable" | "addon_unavailable" | "manual_no_room" | "coupon_unknown" | "coupon_not_started" | "coupon_expired" | "coupon_used_up" | "coupon_not_for_trip" | "coupon_below_minimum" | "coupon_used_by_email" | "waitlist_closed" | "seats_available" | "already_waiting" | "not_waiting" | "not_live" | "offers_closed" | "claim_short" | "claim_other" | "claim_email" | "claim_expired" | "already_requested" | "not_paid" | "not_active" | "departed" | "balance_closed" | "not_on_deposit" | "change_closed" | "same_date" | "extras_closed" | "closed" | "locked" | "not_open" | "complete" | "pack_locked" | "not_completed" | "already_reviewed" | "saved_full" | "code_dead" | "code_wrong" | "already_converted" | "link_unavailable" | "link_over_cap" | "link_paid" | "no_link" | "not_editable" | "not_payable" | "not_pending" | "seats_short" | "not_movable" | "nothing_to_move" | "no_refund" | "refund_exceeds_payments" | "resolved" | "no_switch" | "not_fitting" | "no_owner_email" | "send_failed" | "sent" | "id_key_missing";
+        /**
          * ExtendDueInput
          * @description Move the balance's due day later (P5): after the current one, by the departure day.
          */
@@ -6756,6 +6839,8 @@ export interface components {
             /** Enquirytypes */
             enquiryTypes: components["schemas"]["EnquiryTypeOption"][];
             limits: components["schemas"]["Limits"];
+            retention: components["schemas"]["Retention"];
+            rules: components["schemas"]["BookingRules"];
             /** Themes */
             themes: components["schemas"]["ThemeOption"][];
         };
@@ -8532,6 +8617,18 @@ export interface components {
              * @description Approve only; at most what was paid
              */
             refundPaise?: number | null;
+        };
+        /**
+         * Retention
+         * @description How long the nightly job keeps things — the privacy page quotes these.
+         */
+        Retention: {
+            /** Detailsdays */
+            detailsDays: number;
+            /** Enquirydays */
+            enquiryDays: number;
+            /** Sessiondays */
+            sessionDays: number;
         };
         /** ReviewCounts */
         ReviewCounts: {

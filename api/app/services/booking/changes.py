@@ -66,6 +66,7 @@ from app.schemas.bookings import (
     UnbookableReason,
 )
 from app.schemas.changes import ChangeOffer, ChangeOption, ChangeOptions, ChangeResult
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.booking import deposit, history, waitlist
 from app.services.booking.history import PaymentLog, money
@@ -436,7 +437,7 @@ async def change_options(
         ).scalar_one()
         asked = await _open_request(db, booking.id)
         if why := refusal(booking, departs, today, asked=asked, used=await _used(db, booking.id)):
-            raise ApiError("conflict", why, reason="change_closed")
+            raise ApiError("conflict", why, reason=ErrorReason.CHANGE_CLOSED)
         current = Quote.model_validate(booking.quote)
         party = await _party(db, booking.id)
         fee = (fee_per_traveller(departs, today) or 0) * party
@@ -546,16 +547,18 @@ async def start_change(
         if target is None or target[0].package_id != package_id:
             raise ApiError("not_found", NOT_THIS_TRIP)
         if target[1] != PackageStatus.LIVE:
-            raise ApiError("conflict", UNBOOKABLE[UnbookableReason.ON_REQUEST], reason="on_request")
+            raise ApiError(
+                "conflict", UNBOOKABLE[UnbookableReason.ON_REQUEST], reason=ErrorReason.ON_REQUEST
+            )
         booking, _ = await lock_change(db, ref, departure_id)
         if booking.departure_id == departure_id:
-            raise ApiError("conflict", SAME_DATE, reason="same_date")
+            raise ApiError("conflict", SAME_DATE, reason=ErrorReason.SAME_DATE)
         departs = (
             await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
         ).scalar_one()
         asked = await _open_request(db, booking.id)
         if why := refusal(booking, departs, today, asked=asked, used=await _used(db, booking.id)):
-            raise ApiError("conflict", why, reason="change_closed")
+            raise ApiError("conflict", why, reason=ErrorReason.CHANGE_CLOSED)
         await end_holds(db, booking.id)  # a newer pick replaces a hold not yet paid for
         dep = (await db.execute(select(Departure).where(Departure.id == departure_id))).scalar_one()
         party = await _party(db, booking.id)
@@ -571,9 +574,9 @@ async def start_change(
             now=now,
         )
         if p.unbookable is not None:
-            raise ApiError("conflict", UNBOOKABLE[p.unbookable], reason=p.unbookable.value)
+            raise ApiError("conflict", UNBOOKABLE[p.unbookable], reason=p.unbookable)
         if p.net_paise != expected_net_paise:
-            raise ApiError("conflict", PRICE_CHANGED, reason="price_changed")
+            raise ApiError("conflict", PRICE_CHANGED, reason=ErrorReason.PRICE_CHANGED)
         invoiced = booking.status == BookingStatus.CONFIRMED
         change = DateChange(
             booking_id=booking.id,

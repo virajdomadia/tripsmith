@@ -32,6 +32,7 @@ from app.models import (
     User,
 )
 from app.models.enums import BookingActor, BookingStatus, PackageStatus
+from app.schemas.errors import ErrorReason
 from app.schemas.public_leaders import ReviewLeader
 from app.schemas.reviews import (
     ADMIN_PAGE_SIZE,
@@ -97,11 +98,11 @@ async def submit_review(
         raise ApiError("not_found", NOT_FOUND)
     if booking.status != BookingStatus.COMPLETED:
         await db.rollback()
-        raise ApiError("conflict", NOT_COMPLETED, reason="not_completed")
+        raise ApiError("conflict", NOT_COMPLETED, reason=ErrorReason.NOT_COMPLETED)
     exists = await db.execute(select(Review.id).where(Review.booking_id == booking.id))
     if exists.first() is not None:
         await db.rollback()
-        raise ApiError("conflict", ALREADY_REVIEWED, reason="already_reviewed")
+        raise ApiError("conflict", ALREADY_REVIEWED, reason=ErrorReason.ALREADY_REVIEWED)
     row = Review(
         booking_id=booking.id,
         package_id=booking.package_id,
@@ -123,7 +124,7 @@ async def submit_review(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise ApiError("conflict", ALREADY_REVIEWED, reason="already_reviewed") from None
+        raise ApiError("conflict", ALREADY_REVIEWED, reason=ErrorReason.ALREADY_REVIEWED) from None
     await db.refresh(row)
     return account_review(row)
 

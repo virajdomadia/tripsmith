@@ -1,3 +1,4 @@
+import { withRules } from './with-rules';
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -64,7 +65,7 @@ function booking(over: Partial<AdminBooking> = {}): AdminBooking {
 
 describe('DetailsPanel (owner)', () => {
   it('shows readiness, the ticks, and lets the owner edit past the lock', async () => {
-    render(<DetailsPanel booking={booking()} />);
+    render(<DetailsPanel booking={booking()} />, withRules);
     expect(screen.getByText('33%')).toBeTruthy();
     expect(screen.getByText('1 of 1 travellers missing details')).toBeTruthy();
     const list = screen.getByRole('list', { name: 'Pre-trip checklist' });
@@ -83,7 +84,7 @@ describe('DetailsPanel (owner)', () => {
   });
 
   it('sends the details link', async () => {
-    render(<DetailsPanel booking={booking()} />);
+    render(<DetailsPanel booking={booking()} />, withRules);
     await userEvent.click(screen.getByRole('button', { name: 'Send details link' }));
     await waitFor(() =>
       expect(adminRequest).toHaveBeenCalledWith('/admin/bookings/TB-7K2M9Q/details-link', {
@@ -97,6 +98,7 @@ describe('DetailsPanel (owner)', () => {
       <DetailsPanel
         booking={booking({ details: { ...booking().details!, purged: true, travellers: [] } })}
       />,
+      withRules,
     );
     expect(screen.getByText(/Deleted 30 days after the trip/)).toBeTruthy();
   });

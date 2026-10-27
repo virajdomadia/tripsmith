@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from app.config import Settings
 from app.errors import ApiError
 from app.models.enums import IdType
+from app.schemas.errors import ErrorReason
 
 SHAPES: dict[IdType, tuple[re.Pattern[str], str]] = {
     IdType.AADHAAR: (re.compile(r"\d{12}"), "An Aadhaar number has 12 digits"),
@@ -73,7 +74,7 @@ def seal(settings: Settings, number: str) -> SealedId:
     """Encrypt an already-checked number; refused (503) when no key is set."""
     fernet = _fernet(settings)
     if fernet is None:
-        raise ApiError("internal", NO_KEY, reason="id_key_missing", status=503)
+        raise ApiError("internal", NO_KEY, reason=ErrorReason.ID_KEY_MISSING, status=503)
     return SealedId(enc=fernet.encrypt(number.encode()).decode(), last4=number[-4:])
 
 

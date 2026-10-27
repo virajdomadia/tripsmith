@@ -29,6 +29,7 @@ from app.infra.email import EmailAttachment, EmailMessage, EmailSender, EmailSen
 from app.models import EnquiryMessage, EnquiryNote, Package
 from app.models.enums import EnquiryStatus, MessageDirection, PackageStatus
 from app.schemas.admin_enquiries import AdminEnquiry, EnquiryReplyInput
+from app.schemas.errors import ErrorReason
 from app.services.admin_enquiries import get_enquiry, load_enquiry, status_note
 from app.services.email.render import _env, _one_line
 from app.services.email.send import held_back
@@ -221,7 +222,7 @@ async def resend_reply(
     msg, slug, name, package_status = found
     if msg.resend_id is not None:
         await db.rollback()
-        raise ApiError("conflict", "This reply was already sent", reason="sent")
+        raise ApiError("conflict", "This reply was already sent", reason=ErrorReason.SENT)
     enquiry = await load_enquiry(db, id)
     to, enquiry_ref, subject, body = enquiry.email, enquiry.ref, msg.subject, msg.body
     # The package was deleted or taken off sale since: send without it rather than never (its

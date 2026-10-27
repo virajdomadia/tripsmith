@@ -27,6 +27,7 @@ from app.errors import ApiError
 from app.models import Booking, Departure, Package, TripLeader
 from app.models.enums import BookingActor, BookingStatus
 from app.schemas.catalog import HotelInput
+from app.schemas.errors import ErrorReason
 from app.schemas.trip_pack import (
     KNOW_BEFORE,
     KnowBefore,
@@ -229,7 +230,7 @@ async def mark_read(db: AsyncSession, ref: str, *, today: dt.date) -> None:
         booking, pkg, dep = found
         returns = dep.date + dt.timedelta(days=pkg.nights)
         if state_of(booking.status, dep.date, returns, today) != "open":
-            raise ApiError("conflict", LOCKED, reason="pack_locked")
+            raise ApiError("conflict", LOCKED, reason=ErrorReason.PACK_LOCKED)
         claimed = (
             await db.execute(
                 update(Booking)

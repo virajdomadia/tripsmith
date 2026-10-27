@@ -46,6 +46,7 @@ from app.schemas.details import (
     TravellerDetailsSettings,
     TravellerDetailsSettingsInput,
 )
+from app.schemas.errors import ErrorReason
 from app.schemas.trip_pack import TripPack
 from app.services.booking import history, id_numbers
 from app.services.email.render import IST
@@ -494,15 +495,17 @@ async def save_details(
         state = state_of(booking.status, departs, returns, today)
         owner = actor == BookingActor.OWNER
         if state == "not_yet":
-            raise ApiError("conflict", NOT_OPEN, reason="not_paid")
+            raise ApiError("conflict", NOT_OPEN, reason=ErrorReason.NOT_PAID)
         if state == "closed" and not (
             owner and booking.status in OWNER_STATUSES and today < purge_on(returns)
         ):
             raise ApiError(
-                "conflict", "Traveller details can't be changed on this booking", reason="closed"
+                "conflict",
+                "Traveller details can't be changed on this booking",
+                reason=ErrorReason.CLOSED,
             )
         if state == "locked" and not owner:
-            raise ApiError("conflict", LOCKED, reason="locked")
+            raise ApiError("conflict", LOCKED, reason=ErrorReason.LOCKED)
 
         t = (
             await db.execute(
@@ -619,7 +622,7 @@ async def tick_item(db: AsyncSession, ref: str, key: str, *, done: bool, today: 
         if not any(i.get("key") == key for i in checklist):
             raise ApiError("not_found", "That item isn't on this trip's checklist")
         if booking.status not in OPEN_STATUSES or today > departs:
-            raise ApiError("conflict", "This checklist is closed", reason="closed")
+            raise ApiError("conflict", "This checklist is closed", reason=ErrorReason.CLOSED)
         have = [k for k in booking.checklist_done if k != key]
         booking.checklist_done = [*have, key] if done else have
         await db.commit()

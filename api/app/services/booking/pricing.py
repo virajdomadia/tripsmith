@@ -52,6 +52,7 @@ from app.schemas.bookings import (
     QuoteTraveller,
     UnbookableReason,
 )
+from app.schemas.errors import ErrorReason
 from app.services.analytics import ist_today
 from app.services.email.render import IST
 
@@ -115,7 +116,7 @@ def coupon_off(coupon: Coupon, amount_paise: int) -> int:
     return max(0, min(off, amount_paise - MIN_TOTAL_PAISE)) // RUPEE * RUPEE
 
 
-ADDON_GONE_REASON = "addon_unavailable"
+ADDON_GONE_REASON = ErrorReason.ADDON_UNAVAILABLE
 
 
 def addon_gone(index: int, name: str | None = None) -> ApiError:
@@ -196,7 +197,7 @@ def apply_manual(quote: Quote, *, mode: str, value: int, reason: str) -> Quote:
     if off <= 0:
         message = "The fare is already at ₹1 — there is nothing left to take off"
         raise ApiError(
-            "conflict", message, reason="manual_no_room", field_errors={"manual": message}
+            "conflict", message, reason=ErrorReason.MANUAL_NO_ROOM, field_errors={"manual": message}
         )
     return quote.model_copy(
         update={

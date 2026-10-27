@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { type Prefill, prefillFromSearch } from '@/lib/booking';
 import { claimFromSearch } from '@/lib/waitlist';
+import { useRules } from '@/components/rules/RulesProvider';
 import type { BookingPackage } from './use-booking';
 
 /*
@@ -47,6 +48,7 @@ const BookNowContext = createContext<Ctx | null>(null);
  * (`?date=…&double=…#book`, R53) with the party and date the visitor held.
  */
 export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; children: ReactNode }) {
+  const { maxTravellers } = useRules();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -59,14 +61,14 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
     setHydrated(true);
     const token = claimFromSearch(window.location.search);
     setClaim(token);
-    if (!token) setPrefill(prefillFromSearch(window.location.search));
+    if (!token) setPrefill(prefillFromSearch(window.location.search, maxTravellers));
     if (window.location.hash !== '#book' && !token) return;
     return afterLoad(() => {
       if (touched.current) return;
       setMounted(true);
       setOpen(true);
     });
-  }, []);
+  }, [maxTravellers]);
 
   const value: Ctx = {
     hydrated,

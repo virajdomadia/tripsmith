@@ -12,9 +12,9 @@ export type ChangeResult = components['schemas']['ChangeResult'];
  */
 
 /** "Free until Wed 14 Oct · ₹1,000 per traveller to Thu 29 Oct · after that, WhatsApp us". */
-export function feeRule(offer: ChangeOffer): string {
+export function feeRule(offer: ChangeOffer, changeFeePaise: number): string {
   const free = `Free until ${formatDate(offer.freeUntil)}`;
-  const paid = `₹1,000 per traveller until ${formatDate(offer.lastDay)}`;
+  const paid = `${inr(offer.feePerTravellerPaise || changeFeePaise)} per traveller until ${formatDate(offer.lastDay)}`;
   if (offer.feePerTravellerPaise === 0) return `${free}. Then ${paid}; after that, WhatsApp us.`;
   if (offer.feePerTravellerPaise) return `${paid} — after that, WhatsApp us.`;
   return 'Online changes have closed — WhatsApp us and we’ll see what we can do.';
