@@ -133,6 +133,7 @@ class BookingRules(ApiModel):
     hold_minutes: int
     lead_days: int = Field(description="A date is bookable from IST today + this many days")
     free_change_days: int
+    change_hold_minutes: int = Field(description="How long a date change holds the new seats")
     online_change_days: int
     change_fee_paise: int = Field(description="Per traveller, for a change inside the free days")
     gst_percent: int

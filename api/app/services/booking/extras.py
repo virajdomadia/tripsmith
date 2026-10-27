@@ -54,7 +54,7 @@ from app.services.booking import history
 from app.services.booking.addons import addon_rows, detail, from_quote, summary
 from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import lock_booking
-from app.services.booking.pricing import ADDON_GONE_REASON, price_addons
+from app.services.booking.pricing import price_addons
 from app.services.booking.refunds import plan_refund, send_refunds
 from app.services.booking.settled import Settled
 from app.services.gst.documents import issue_due_safely
@@ -214,7 +214,10 @@ async def _price(
         if c.addon_id in held:
             message = "That add-on is already on your booking"
             raise ApiError(
-                "conflict", message, reason=ADDON_GONE_REASON, field_errors={f"addons.{i}": message}
+                "conflict",
+                message,
+                reason=ErrorReason.ADDON_UNAVAILABLE,
+                field_errors={f"addons.{i}": message},
             )
     party = (
         await db.execute(

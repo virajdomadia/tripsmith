@@ -33,6 +33,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
     auth: true,
     params: { id },
   }).catch(() => null);
+  const rulesRead = loadRules(); // never rejects; read beside the manifest
   let m;
   try {
     m = await api('/admin/departures/{id}/manifest', { auth: true, params: { id } });
@@ -42,7 +43,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
   }
   const { seats } = m;
   // Best effort like the waitlist: the printed manifest still says the rule, without the number.
-  const rules = await loadRules();
+  const rules = await rulesRead;
   const days = rules ? `${rules.retention.detailsDays} days ` : '';
   const counts = [
     ['Seats', seats.seatsTotal],

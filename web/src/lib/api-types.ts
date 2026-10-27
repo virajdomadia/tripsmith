@@ -4105,6 +4105,11 @@ export interface components {
              * @description Per traveller, for a change inside the free days
              */
             changeFeePaise: number;
+            /**
+             * Changeholdminutes
+             * @description How long a date change holds the new seats
+             */
+            changeHoldMinutes: number;
             /** Depositpercent */
             depositPercent: number;
             /** Freechangedays */

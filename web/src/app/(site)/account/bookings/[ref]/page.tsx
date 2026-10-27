@@ -24,7 +24,7 @@ import { TripPackPanel } from '@/components/site/account/TripPackPanel';
 import { CalendarPanel } from '@/components/site/account/CalendarPanel';
 import { isDiscountLine, lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { whatsappHref } from '@/lib/business';
-import { getMeta } from '@/lib/meta';
+import { getRules } from '@/lib/meta';
 import { duration, formatDate, inr } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +51,6 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
   const { ref } = await params;
   if (!REF.test(ref)) notFound();
   let b;
-  const meta = getMeta();
   try {
     b = await api('/account/bookings/{ref}', { auth: true, params: { ref } });
   } catch (e) {
@@ -59,7 +58,8 @@ export default async function BookingPage({ params }: { params: Promise<{ ref: s
     if (e instanceof ApiRequestError && e.status === 404) notFound();
     throw e;
   }
-  const { rules } = await meta;
+  // After the booking: a redirect or 404 never waits on it (the layout has usually read it).
+  const rules = await getRules();
   const state = bookingState({ ...b, cancellation: b.cancellation?.status ?? null });
   const daysOut = daysBetween(b.today, b.departs);
   const upcoming = daysOut >= 0 && b.status !== 'cancelled' && b.status !== 'pending';

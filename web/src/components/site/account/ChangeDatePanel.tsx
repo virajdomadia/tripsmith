@@ -57,7 +57,7 @@ export function ChangeDatePanel({
   contact: { name: string; email: string; phone: string };
   packageName: string;
 }) {
-  const { changeFeePaise } = useRules();
+  const { changeFeePaise, changeHoldMinutes } = useRules();
   const router = useRouter();
   const id = useId();
   const [phase, setPhase] = useState<Phase>({ kind: 'closed' });
@@ -133,7 +133,9 @@ export function ChangeDatePanel({
         'We couldn’t confirm that payment yet. If money left your account, the move shows here within a few minutes — or WhatsApp us.',
       );
     } else {
-      setProblem('Payment not finished — the new date’s seats stay held for 10 minutes.');
+      setProblem(
+        `Payment not finished — the new date’s seats stay held for ${changeHoldMinutes} minutes.`,
+      );
     }
     setPhase({ kind: 'picking', options: opts });
   }
@@ -348,7 +350,7 @@ export function ChangeDatePanel({
                 </button>
                 <p className="text-center text-[12px] text-mute">
                   {choice && choice.payNowPaise > 0
-                    ? 'The new date’s seats are held for 10 minutes while you pay. Your trip moves once the payment lands.'
+                    ? `The new date’s seats are held for ${changeHoldMinutes} minutes while you pay. Your trip moves once the payment lands.`
                     : 'Your trip moves straight away — a new voucher follows by email.'}
                 </p>
               </footer>

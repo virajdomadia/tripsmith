@@ -71,6 +71,7 @@ async def test_meta_serves_the_rules_the_api_enforces(client: AsyncClient) -> No
         "holdMinutes": 10,
         "leadDays": 2,
         "freeChangeDays": 30,
+        "changeHoldMinutes": 10,
         "onlineChangeDays": 15,
         "changeFeePaise": 1_000_00,
         "gstPercent": 5,

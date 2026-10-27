@@ -351,8 +351,8 @@ export function quoteEmail(email: string): string | null {
   return EMAIL_RE.test(e) ? e : null;
 }
 
-/** Whole seconds left on a hold, clamped to the hold's length (Checkout closes itself then);
- * 0 once it has lapsed. */
+/** Whole seconds left on a hold, clamped to Checkout's own limit, the seat hold (`holdMinutes`);
+ * 0 once it has lapsed. A waitlist claim's longer hold reads as that limit (as before V8). */
 export function holdSecondsLeft(
   holdExpiresAt: string,
   holdMinutes: number,

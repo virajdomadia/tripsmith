@@ -43,6 +43,7 @@ def booking_rules() -> BookingRules:
         hold_minutes=int(orders.HOLD.total_seconds() // 60),
         lead_days=pricing.MIN_DAYS_AHEAD,
         free_change_days=changes.FREE_DAYS,
+        change_hold_minutes=int(changes.HOLD.total_seconds() // 60),
         online_change_days=changes.ONLINE_DAYS,
         change_fee_paise=changes.FEE_PER_TRAVELLER_PAISE,
         gst_percent=tax.RATE_PERCENT,

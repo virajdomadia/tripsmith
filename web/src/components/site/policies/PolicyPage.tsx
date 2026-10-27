@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getMeta } from '@/lib/meta';
+import { getRules } from '@/lib/meta';
 import {
   formatUpdated,
   POLICY_HEADS,
@@ -8,7 +8,6 @@ import {
   type PolicySlug,
   policies,
 } from '@/lib/policies';
-import { rulesOf } from '@/lib/rules';
 import { absolute } from '@/lib/seo/site-url';
 import { Container } from '../Container';
 import { PageHead } from '../PageHead';
@@ -25,8 +24,7 @@ export function policyMetadata(slug: PolicySlug): Metadata {
 /** S10–S12: one layout, a switcher between the three, plain-language blocks. Built per request
  * from `/meta` (cached an hour), so the numbers are the api's own (Q-5). */
 export async function PolicyPage({ slug }: { slug: PolicySlug }) {
-  const meta = await getMeta();
-  const doc = policies(rulesOf(meta))[slug];
+  const doc = policies(await getRules())[slug];
   return (
     <Container className="pb-20">
       <PageHead

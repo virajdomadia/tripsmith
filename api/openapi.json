@@ -4202,6 +4202,11 @@
             "title": "Changefeepaise",
             "type": "integer"
           },
+          "changeHoldMinutes": {
+            "description": "How long a date change holds the new seats",
+            "title": "Changeholdminutes",
+            "type": "integer"
+          },
           "depositPercent": {
             "title": "Depositpercent",
             "type": "integer"
@@ -4253,6 +4258,7 @@
           "holdMinutes",
           "leadDays",
           "freeChangeDays",
+          "changeHoldMinutes",
           "onlineChangeDays",
           "changeFeePaise",
           "gstPercent",
