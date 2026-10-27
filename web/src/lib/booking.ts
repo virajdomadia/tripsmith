@@ -351,15 +351,18 @@ export function quoteEmail(email: string): string | null {
   return EMAIL_RE.test(e) ? e : null;
 }
 
-/** Whole seconds left on a hold, clamped to Checkout's own limit, the seat hold (`holdMinutes`);
- * 0 once it has lapsed. A waitlist claim's longer hold reads as that limit (as before V8). */
+/**
+ * Whole seconds left on a hold; 0 once it has lapsed. `capMinutes` is the seat hold for a normal
+ * order, so a browser clock running behind can't show more than the api holds. A waitlist claim's
+ * order holds until the offer expires (hours), so its caller passes null and the real time shows.
+ */
 export function holdSecondsLeft(
   holdExpiresAt: string,
-  holdMinutes: number,
+  capMinutes: number | null,
   now: number = Date.now(),
 ): number {
   const left = Math.floor((new Date(holdExpiresAt).getTime() - now) / 1000);
-  return Math.max(0, Math.min(holdMinutes * 60, left));
+  return Math.max(0, capMinutes === null ? left : Math.min(capMinutes * 60, left));
 }
 
 /**

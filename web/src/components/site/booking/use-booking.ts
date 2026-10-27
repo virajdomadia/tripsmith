@@ -164,6 +164,8 @@ export function useBooking(
   const [claimEnded, setClaimEnded] = useState<string | null>(null);
   const live = claim !== null && claimLive(claim);
   const claimKey = live ? claimToken : null;
+  // A claim's order holds until the offer expires; a normal one for the seat hold (holdSecondsLeft).
+  const holdCap = claimKey ? null : rules.holdMinutes;
 
   /**
    * The visitor's own live hold. The api's `seatsLeft` already subtracts it, so without adding
@@ -186,13 +188,13 @@ export function useBooking(
             d.id === claim.departureId ? { ...d, seatsLeft: d.seatsLeft + claim.heldSeats } : d,
           )
         : held &&
-            holdSecondsLeft(held.expiresAt, rules.holdMinutes) > 0 &&
+            holdSecondsLeft(held.expiresAt, holdCap) > 0 &&
             (availability.at ?? 0) > held.since
           ? liveDepartures.map((d) =>
               d.id === held.departureId ? { ...d, seatsLeft: d.seatsLeft + held.seats } : d,
             )
           : liveDepartures,
-    [liveDepartures, held, availability.at, live, claim, rules.holdMinutes],
+    [liveDepartures, held, availability.at, live, claim, holdCap],
   );
   const slots = useMemo(() => slotsFor(rooms), [rooms]);
   const party = partySize(rooms);
@@ -324,7 +326,7 @@ export function useBooking(
       addons,
       ...(claimKey ? { claim: claimKey } : {}),
     });
-    if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt, rules.holdMinutes) > 0) {
+    if (held?.quoteKey === quoteKey && holdSecondsLeft(held.expiresAt, holdCap) > 0) {
       // Asking again would count the visitor's own hold against them: use the order's quote.
       setQuote({ status: 'ok', quote: held.quote });
       return;
@@ -391,7 +393,7 @@ export function useBooking(
     choicesKey,
     dropGoneAddon,
     claimKey,
-    rules.holdMinutes,
+    holdCap,
   ]);
 
   /* ---- the form ---- */
@@ -460,10 +462,7 @@ export function useBooking(
     };
     const key = JSON.stringify(body);
     const prev = lastOrder.current;
-    if (
-      prev?.key === key &&
-      holdSecondsLeft(prev.order.holdExpiresAt, rules.holdMinutes) > REUSE_MIN_SECONDS
-    )
+    if (prev?.key === key && holdSecondsLeft(prev.order.holdExpiresAt, holdCap) > REUSE_MIN_SECONDS)
       return prev.order;
 
     setPhase({ kind: 'starting' });
@@ -647,10 +646,7 @@ export function useBooking(
           currency: 'INR',
           name: 'Tripsmith',
           description: `${pkg.name} · ${formatDate(order.quote.date)}`,
-          timeout: Math.min(
-            holdSecondsLeft(order.holdExpiresAt, rules.holdMinutes),
-            CHECKOUT_MAX_SECONDS,
-          ),
+          timeout: Math.min(holdSecondsLeft(order.holdExpiresAt, holdCap), CHECKOUT_MAX_SECONDS),
           prefill: {
             name: contact.name.trim(),
             email: contact.email.trim(),
@@ -700,6 +696,7 @@ export function useBooking(
 
   return {
     rules,
+    holdCap,
     claim: live ? claim : null,
     claimEnded,
     departures,

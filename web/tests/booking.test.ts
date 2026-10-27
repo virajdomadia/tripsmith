@@ -211,6 +211,9 @@ describe('holdSecondsLeft', () => {
     expect(holdSecondsLeft('2026-12-10T10:09:30Z', RULES.holdMinutes, now)).toBe(570);
     expect(holdSecondsLeft('2026-12-10T10:20:00Z', RULES.holdMinutes, now)).toBe(600);
     expect(holdSecondsLeft('2026-12-10T09:59:00Z', RULES.holdMinutes, now)).toBe(0);
+    // A waitlist claim's order holds until the offer expires: no seat-hold cap, hours show.
+    expect(holdSecondsLeft('2026-12-10T16:00:00Z', null, now)).toBe(6 * 3600);
+    expect(holdSecondsLeft('2026-12-10T09:59:00Z', null, now)).toBe(0);
   });
 });
 

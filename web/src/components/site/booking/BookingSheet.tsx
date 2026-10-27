@@ -36,7 +36,6 @@ import { PayChoice } from './PayChoice';
 import { PriceBreakdown } from './PriceBreakdown';
 import { PriceLadder } from './PriceLadder';
 import { type BookingFlow, type BookingPackage, useBooking } from './use-booking';
-import { useRules } from '@/components/rules/RulesProvider';
 
 gsap.registerPlugin(useGSAP);
 
@@ -368,7 +367,11 @@ function Receipt({
           )}
         </button>
         {phase.kind === 'dismissed' ? (
-          <HoldNote expiresAt={phase.order.holdExpiresAt} failure={phase.failure} />
+          <HoldNote
+            expiresAt={phase.order.holdExpiresAt}
+            failure={phase.failure}
+            cap={flow.holdCap}
+          />
         ) : deposit ? (
           <span className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-mute">
             <CalendarClock className="size-3.5" aria-hidden /> Then{' '}
@@ -444,13 +447,21 @@ function Spinner({ label }: { label: string }) {
 }
 
 /** After Checkout was closed unpaid: how long the seats stay held, and why it closed. */
-function HoldNote({ expiresAt, failure }: { expiresAt: string; failure?: string }) {
-  const { holdMinutes } = useRules();
-  const [left, setLeft] = useState(() => holdSecondsLeft(expiresAt, holdMinutes));
+function HoldNote({
+  expiresAt,
+  failure,
+  cap,
+}: {
+  expiresAt: string;
+  failure?: string;
+  /** The seat hold in minutes, or null for a waitlist claim's order (held until the offer ends). */
+  cap: number | null;
+}) {
+  const [left, setLeft] = useState(() => holdSecondsLeft(expiresAt, cap));
   useEffect(() => {
-    const t = setInterval(() => setLeft(holdSecondsLeft(expiresAt, holdMinutes)), 1000);
+    const t = setInterval(() => setLeft(holdSecondsLeft(expiresAt, cap)), 1000);
     return () => clearInterval(t);
-  }, [expiresAt, holdMinutes]);
+  }, [expiresAt, cap]);
   const mm = `${Math.floor((left % 3600) / 60)}:${String(left % 60).padStart(2, '0')}`;
   // A waitlist claim holds its seats for hours, not minutes.
   const mmss = left >= 3600 ? `${Math.floor(left / 3600)}:${mm.padStart(5, '0')}` : mm;
