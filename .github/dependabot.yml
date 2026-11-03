@@ -1,4 +1,4 @@
-# Portfolio project, frozen after v2.6: no routine version-update PRs (limit 0). Security
+# Portfolio project, kept lean: no routine version-update PRs (limit 0). Security
 # updates for a known advisory still arrive via the GitHub repo setting, which ignores this limit.
 version: 2
 updates:
