@@ -2,7 +2,7 @@
 
 Called by admin services after every mutation with the affected cache tags (`packages`,
 `package:<slug>`, `destination:<slug>`). Never raises — a stale page is better than a failed
-save — but every failure is logged (S8 forwards errors to Sentry).
+save — but every failure is logged.
 """
 
 import logging

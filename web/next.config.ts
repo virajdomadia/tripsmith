@@ -1,4 +1,3 @@
-import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
 // Trailing slash stripped: `${API_URL}/:path*` would otherwise proxy to `//health`, which the api 404s.
@@ -48,10 +47,10 @@ const csp = [
   // in the app creates object URLs today, and the uploader posts its File straight through.
   "img-src 'self' data: https://*.public.blob.vercel-storage.com",
   "font-src 'self'", // next/font self-hosts DM Sans
-  // Sentry's ingest and Razorpay (Checkout.js talks to its api from this page) are the only
-  // cross-origin calls from the browser; Vercel Analytics posts to /_vercel/insights on this
+  // Razorpay (Checkout.js talks to its api from this page) is the only cross-origin call from
+  // the browser; Vercel Analytics posts to /_vercel/insights on this
   // origin. `ws:` is the dev server's HMR socket.
-  `connect-src 'self' https://*.sentry.io ${RAZORPAY_CONNECT}${isDev ? ' ws:' : ''}`,
+  `connect-src 'self' ${RAZORPAY_CONNECT}${isDev ? ' ws:' : ''}`,
   ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 
@@ -115,12 +114,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-// Runtime error capture only: no source-map upload (no SENTRY_AUTH_TOKEN in CI yet), no telemetry.
-// The browser SDK is errors-only and lazy (src/instrumentation-client.ts), so there are no
-// navigation spans for an `onRouterTransitionStart` export to start; its build warning is noise.
-export default withSentryConfig(nextConfig, {
-  silent: true,
-  telemetry: false,
-  sourcemaps: { disable: true },
-  suppressOnRouterTransitionStartWarning: true,
-});
+export default nextConfig;

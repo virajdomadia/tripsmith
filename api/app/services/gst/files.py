@@ -4,7 +4,6 @@ transaction, then render with no connection held — the voucher's pattern (B7).
 import asyncio
 import logging
 
-import sentry_sdk
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -147,9 +146,8 @@ async def extras_invoice_attachment(
         )
     except ApiError:
         return None  # nothing it paid for joined the booking: no invoice
-    except Exception as exc:
+    except Exception:
         log.exception("Extras invoice for %s could not be issued; emailing without it", ref)
-        sentry_sdk.capture_exception(exc)
         return None
     return EmailAttachment(filename=name, content=pdf)
 
@@ -162,8 +160,7 @@ async def invoice_attachment(
         pdf, name = await document_pdf(db, ref, "invoice", timeout=settings.pdf_render_timeout)
     except ApiError:
         return None  # not fully paid: no invoice yet
-    except Exception as exc:
+    except Exception:
         log.exception("Invoice for %s could not be issued; emailing without it", ref)
-        sentry_sdk.capture_exception(exc)
         return None
     return EmailAttachment(filename=name, content=pdf)

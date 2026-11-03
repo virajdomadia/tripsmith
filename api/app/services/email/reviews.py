@@ -7,7 +7,6 @@ Same never-raise contract as the other booking emails (`deliver`); no owner addr
 import logging
 from dataclasses import replace
 
-import sentry_sdk
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -52,8 +51,7 @@ async def send_review_email(
 ) -> None:
     try:
         labelled = render_review_email(facts, rating=rating, text=text, settings=settings)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render the review email for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
         return
     await deliver(sender, settings, labelled, ref=facts.ref, what="review", db=db)

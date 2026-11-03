@@ -13,7 +13,6 @@ from app.config import Settings, get_settings
 from app.errors import install_error_handlers
 from app.infra.db import dispose_engine
 from app.infra.email import build_email_sender
-from app.infra.observability import init_sentry
 from app.infra.ratelimit import build_rate_limiter
 from app.infra.razorpay import build_razorpay
 from app.infra.storage import LOCAL_STORE_DIR, build_store
@@ -69,7 +68,7 @@ def _check_keyed_hashing(settings: Settings) -> None:
     Nothing else reads that variable — it is reserved for v2's OTP — so a deployment that never
     set it would look healthy while storing an unkeyed digest of every visitor's address, which
     is enumerable over IPv4. Say so loudly on a deployment; locally there is nothing to protect.
-    ERROR rather than WARNING so Sentry's logging integration carries it to the dashboard.
+    ERROR rather than WARNING so it stands out in the logs.
     """
     if os.environ.get("VERCEL") and not settings.session_secret:
         log.error(
@@ -98,7 +97,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """`settings` lets tests build an app with Sentry off regardless of the local .env."""
+    """`settings` lets tests build an app regardless of the local .env."""
     settings = settings or get_settings()
     app = TripsmithApi(
         title="Tripsmith API",
@@ -108,10 +107,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings  # read by infra.db.get_session
-    # First: sentry-sdk's ASGI integration must wrap the middleware stack built below, and the
-    # startup checks that follow (rate limiter, email sender, Razorpay, keyed hashing) log at
-    # ERROR so Sentry's logging integration carries them — which it can only do once initialised.
-    init_sentry(settings)
     app.state.rate_limiter = build_rate_limiter(settings)  # swapped by tests; read by routers
     app.state.email_sender = build_email_sender(settings)  # swapped by tests; read by routers
     app.state.razorpay = build_razorpay(settings)  # None when unset; swapped by tests

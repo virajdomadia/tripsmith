@@ -14,7 +14,6 @@ import datetime as dt
 import logging
 from dataclasses import dataclass
 
-import sentry_sdk
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,10 +150,9 @@ async def _log(db: AsyncSession, entry_id: str, text: str) -> None:
         if entry is not None:
             waitlist.event(entry, "email", text)
         await db.commit()
-    except Exception as exc:
+    except Exception:
         await db.rollback()
         log.exception("Couldn't log a waitlist email on %s", entry_id)
-        sentry_sdk.capture_exception(exc)
 
 
 async def send_due(db: AsyncSession, notify: Notify | None, *, limit: int = BATCH) -> int:
@@ -194,10 +192,9 @@ async def send_due(db: AsyncSession, notify: Notify | None, *, limit: int = BATC
             )
             await _log(db, facts.entry_id, f"{what} — “{message.subject}”")
             sent += 1
-    except Exception as exc:
+    except Exception:
         await db.rollback()
         log.exception("Waitlist emails stopped early")
-        sentry_sdk.capture_exception(exc)
     return sent
 
 

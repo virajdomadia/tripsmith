@@ -18,7 +18,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -198,11 +197,10 @@ async def record_emails(db: AsyncSession, ref: str, lines: list[EmailLine]) -> N
             kind, text, customer = _email_entry(line)
             record(db, booking_id, kind, actor=BookingActor.SYSTEM, text=text, customer=customer)
         await db.commit()
-    except Exception as exc:
+    except Exception:
         with contextlib.suppress(Exception):
             await db.rollback()
         log.exception("Could not log the emails for booking %s", ref)
-        sentry_sdk.capture_exception(exc)
 
 
 # --- reads --------------------------------------------------------------------------------------

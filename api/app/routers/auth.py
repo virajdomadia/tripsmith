@@ -11,7 +11,6 @@ address the code is printed on screen and would otherwise hand anyone the admin.
 import logging
 from typing import Annotated
 
-import sentry_sdk
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -189,7 +188,6 @@ async def post_otp_request(
         )
     except Exception as exc:  # noqa: BLE001 — any send failure is the same answer to the visitor
         log.error("sign-in code email failed: %s", type(exc).__name__)
-        sentry_sdk.capture_exception(exc)
         raise ApiError(
             "internal", "We couldn't send the code just now — try again", status=502
         ) from exc

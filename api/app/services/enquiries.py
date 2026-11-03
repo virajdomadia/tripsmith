@@ -13,7 +13,6 @@ import hashlib
 import logging
 import secrets
 
-import sentry_sdk
 from sqlalchemy import delete, exists, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -230,9 +229,6 @@ async def submit_enquiry(
                     budget,
                     ctx.ref,
                 )
-                sentry_sdk.capture_message(
-                    f"Itinerary PDF timed out after {budget}s for enquiry {ctx.ref}"
-                )
         outcome = await send_enquiry_emails(sender, settings, ctx, attachment=attachment)
         if outcome.status != EmailStatus.SKIPPED:
             try:
@@ -240,9 +236,8 @@ async def submit_enquiry(
                     update(Enquiry).where(Enquiry.id == ctx.id).values(email_status=outcome.status)
                 )
                 await db.commit()
-            except Exception as exc:
+            except Exception:
                 log.exception("Could not record email_status for enquiry %s", ctx.ref)
-                sentry_sdk.capture_exception(exc)
     return EnquiryCreated(
         ref=ctx.ref, first_name=payload.first_name, package=ref_of, emailed=outcome.visitor_emailed
     )
@@ -254,9 +249,8 @@ async def package_for_pdf(db: AsyncSession, slug: str) -> PackageDetail | None:
     and a failed read only costs the attachment."""
     try:
         return await get_package(db, slug, with_related=False)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not load %s for the itinerary PDF", slug)
-        sentry_sdk.capture_exception(exc)
         return None
     finally:
         with contextlib.suppress(Exception):  # a dead connection is the pool's problem now

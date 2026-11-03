@@ -1,6 +1,6 @@
 """`PdfService`: everything around `render_itinerary` that touches the network — the cover
 photo, the Blob cache (find / put), the email attachment and the daily GC. Lives on
-`app.state.pdf`. Every method degrades (logs + Sentry) instead of raising, except `gc()`, which
+`app.state.pdf`. Every method degrades (logs) instead of raising, except `gc()`, which
 raises so the cron log shows failures: a package download falls back to streaming, an enquiry
 goes out without the attachment.
 
@@ -12,7 +12,6 @@ import asyncio
 import logging
 
 import httpx
-import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,4 +161,3 @@ class PdfService:
 
     def _degrade(self, msg: str, slug: str, exc: Exception) -> None:
         log.error(msg + ": %s", slug, exc)
-        sentry_sdk.capture_exception(exc)

@@ -29,7 +29,6 @@ flowchart LR
   PG[(Postgres · Supabase Mumbai)]
   UP[(Upstash Redis)]
   RES[Resend]
-  SEN[Sentry]
   RZ[Razorpay - v2]
   AI[AI provider - v3]
 
@@ -37,7 +36,7 @@ flowchart LR
   O --> WEB
   WEB -->|/api/* rewrite, same-origin| API
   MC -->|/api/mcp| API
-  API --> PG & UP & BLOB & RES & SEN
+  API --> PG & UP & BLOB & RES
   API <--> RZ
   API --> AI
   API -->|POST /revalidate| WEB
@@ -60,7 +59,7 @@ tripsmith/
 │  └─ next.config.ts                 rewrites: /api/:path* → API_URL/:path*
 ├─ api/                              FastAPI (uv; Python 3.12)
 │  ├─ app/
-│  │  ├─ main.py                     `app = FastAPI(...)`: app factory, middleware (sentry, request id), routers, error handlers, lifespan (lazy engine)
+│  │  ├─ main.py                     `app = FastAPI(...)`: app factory, middleware (request id), routers, error handlers, lifespan (lazy engine)
 │  │  ├─ config.py                   pydantic-settings: every env var in 04 §12
 │  │  ├─ errors.py                   ApiError + exception handlers → { error: { code, message, fieldErrors? } }
 │  │  ├─ openapi.py                  `python -m app.openapi` dumps the OpenAPI document → api/openapi.json
@@ -73,7 +72,7 @@ tripsmith/
 │  │  │  ├─ chat.py (SSE) · alerts.py                            v3
 │  │  │  └─ mcp.py (mounts the FastMCP app at /mcp)              v4
 │  │  ├─ services/                   catalog/ enquiry/ pdf/ email/ (templates/) auth/ analytics/  (v2 booking/ payments/, v3 ai/, v4 mcp/)
-│  │  ├─ infra/                      db.py (engine, session dependency), ratelimit.py (Upstash REST), storage.py (Blob REST), observability.py (sentry), revalidate.py (→ web)
+│  │  ├─ infra/                      db.py (engine, session dependency), ratelimit.py (Upstash REST), storage.py (Blob REST), revalidate.py (→ web)
 │  │  ├─ models/                     SQLAlchemy 2.0 declarative models, one module per table group
 │  │  └─ schemas/                    pydantic v2 request/response models — the API contract (+ meta.py constants)
 │  ├─ alembic/ + alembic.ini         revisions 0001_v1, 0002–0003 (v1.0.1), then 0004_v2, 0005_v3, 0006_v4
@@ -191,10 +190,10 @@ MCP client → POST https://tripsmith-api.vercel.app/mcp (direct, no rewrite) �
 |---|---|
 | Validation | pydantic v2 models in `api/app/schemas/` — one request/response model per endpoint; web gets them as generated types (`api-types.ts`) and keeps one zod mirror for the enquiry form |
 | OpenAPI | FastAPI built-in: `/openapi.json` + Swagger UI at `/docs` (ReDoc off) — a portfolio artifact in itself; `api/openapi.json` committed and diff-checked in CI |
-| Errors | api returns `{ error: { code, message, fieldErrors? } }` with proper status (`errors.py` handlers, incl. `RequestValidationError` → `validation`); web maps to inline errors; unexpected → Sentry in both |
+| Errors | api returns `{ error: { code, message, fieldErrors? } }` with proper status (`errors.py` handlers, incl. `RequestValidationError` → `validation`); web maps to inline errors; unexpected → logged (Vercel function logs) |
 | Caching | web `fetch` tags + `/revalidate` hook; api sets `Cache-Control` on public GETs |
 | Rate limiting | api `infra/ratelimit.py` (Upstash Redis REST, sliding window) as a FastAPI dependency per route |
-| Observability | Sentry in both projects (`sentry-sdk[fastapi]` in api); Vercel Analytics on web; UptimeRobot on `/` and `/api/health` |
+| Observability | stdlib logging in api (Vercel function logs); Vercel Analytics on web; UptimeRobot on `/` and `/api/health` |
 | Content | `api/content/` seed modules; DB is the runtime source of truth |
 
 ## 8. v2 / v3 / v4 seams

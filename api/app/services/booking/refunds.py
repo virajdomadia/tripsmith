@@ -36,7 +36,6 @@ import logging
 from collections.abc import Sequence
 from typing import Literal
 
-import sentry_sdk
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -372,9 +371,8 @@ async def send_refunds(db: AsyncSession, ref: str, razorpay: Razorpay | None) ->
             log.warning("Refund %s on %s not sent: %s", refund_id, ref, exc)
             await _note_error(db, ref, refund_id, "Couldn't reach Razorpay")
             continue
-        except Exception as exc:  # never raise: the rows are committed and flagged
+        except Exception:  # never raise: the rows are committed and flagged
             log.exception("Refund %s on %s: unexpected error", refund_id, ref)
-            sentry_sdk.capture_exception(exc)
             await _note_error(db, ref, refund_id, "Couldn't reach Razorpay")
             continue
         else:
@@ -655,8 +653,7 @@ async def _swallow(db: AsyncSession, exc: Exception, what: str) -> None:
         await db.rollback()
     except Exception:  # noqa: S110 — the original error is the one worth reporting
         pass
-    log.exception(what)
-    sentry_sdk.capture_exception(exc)
+    log.exception(what, exc_info=exc)
 
 
 # --- the owner's buttons ------------------------------------------------------------------------

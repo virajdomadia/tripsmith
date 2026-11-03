@@ -59,7 +59,7 @@ def test_missing_session_secret_is_reported_on_a_deployment(
     """H4: without `SESSION_SECRET` the enquiry IP hash silently degrades to an unkeyed digest.
 
     Nothing else reads that variable yet, so a deployment missing it would look perfectly healthy.
-    The api says so at startup instead — at ERROR, so Sentry's logging integration carries it.
+    The api says so at startup instead — at ERROR.
     """
     monkeypatch.setenv("VERCEL", "1")
     with caplog.at_level(logging.ERROR):

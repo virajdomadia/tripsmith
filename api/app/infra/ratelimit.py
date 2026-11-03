@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
-import sentry_sdk
 
 from app.config import Settings
 
@@ -80,7 +79,6 @@ class UpstashRateLimiter:
             oldest_ms = int(float(oldest))
         except Exception as exc:  # noqa: BLE001 — any failure fails open, by design
             log.error("Rate limiter unavailable, allowing request: %s", exc)
-            sentry_sdk.capture_exception(exc)
             return RateLimitResult(allowed=True)
         wait_ms = oldest_ms + window_ms - now_ms
         return RateLimitResult(allowed=False, retry_after=max(1, math.ceil(wait_ms / 1000)))
@@ -93,7 +91,7 @@ def build_rate_limiter(settings: Settings) -> RateLimiter:
         )
     if os.environ.get("VERCEL"):
         # A deployment without Upstash takes unlimited enquiries, logins and views, and the
-        # NullRateLimiter WARNING only shows on the first hit. ERROR so Sentry carries it.
+        # NullRateLimiter WARNING only shows on the first hit. ERROR so it stands out.
         log.error(
             "UPSTASH_REDIS_REST_URL/TOKEN unset on a deployment: rate limiting is OFF for "
             "enquiries, sign-in and page views. Set both on this project."

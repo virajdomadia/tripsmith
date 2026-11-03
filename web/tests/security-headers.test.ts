@@ -53,11 +53,10 @@ describe('security headers', () => {
     expect(directives['img-src']).toContain('data:');
     expect(directives['img-src']).not.toContain('blob:');
     expect(directives['font-src']).toBe("'self'"); // next/font self-hosts DM Sans
-    // Sentry's ingest is the only cross-origin request the browser makes; Vercel Analytics posts
-    // to /_vercel/insights on this origin.
-    // Razorpay Checkout (B5) calls its api and logs to lumberjack from this page.
+    // Razorpay Checkout (B5) is the only cross-origin caller: it calls its api and logs to
+    // lumberjack from this page. Vercel Analytics posts to /_vercel/insights on this origin.
     expect(directives['connect-src']).toBe(
-      "'self' https://*.sentry.io https://api.razorpay.com https://lumberjack.razorpay.com",
+      "'self' https://api.razorpay.com https://lumberjack.razorpay.com",
     );
     // /contact embeds a keyless Google Maps iframe (components/site/contact/MapEmbed.tsx), so
     // frame-src cannot be 'none'. Both hosts: the embed URL redirects maps.google.com →

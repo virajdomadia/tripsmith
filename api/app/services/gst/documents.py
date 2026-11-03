@@ -33,7 +33,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
-import sentry_sdk
 from sqlalchemy import ColumnElement, and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -426,9 +425,8 @@ async def issue_due_safely(db: AsyncSession, booking: Booking) -> None:
     try:
         async with db.begin_nested():
             await issue_due(db, booking)
-    except Exception as exc:
+    except Exception:
         log.exception("GST documents for %s could not be issued now", booking.ref)
-        sentry_sdk.capture_exception(exc)
 
 
 async def documents_out(db: AsyncSession, booking: Booking) -> list[GstDocumentOut]:

@@ -1,16 +1,14 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { startTransition, useEffect } from 'react';
+import { startTransition } from 'react';
 import { Container } from '@/components/site/Container';
 import { BUSINESS } from '@/lib/business';
 
 /**
  * Render errors on any public page — most often the api timing out or down. Sits inside the site
  * layout, so the header and footer stay put and the visitor keeps a way to reach a person.
- * Reports the same way `global-error.tsx` does.
  */
 export default function SiteError({
   error,
@@ -20,9 +18,6 @@ export default function SiteError({
   reset: () => void;
 }) {
   const router = useRouter();
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
   // `reset()` alone re-renders on the client only; a failed server fetch needs the refresh too.
   const retry = () =>
     startTransition(() => {

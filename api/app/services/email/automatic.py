@@ -36,7 +36,6 @@ from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 
-import sentry_sdk
 from sqlalchemy import and_, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -650,10 +649,9 @@ async def finish(db: AsyncSession, row_id: str, lines: list[EmailLine] | None) -
             )
         )
         await db.commit()
-    except Exception as exc:
+    except Exception:
         await db.rollback()
         log.exception("Could not record the email ledger row %s", row_id)
-        sentry_sdk.capture_exception(exc)
     return state
 
 
@@ -950,9 +948,8 @@ async def _send(
 ) -> EmailSendState:
     try:
         labelled = await render(db, due, notify.settings, today=today)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render the %s email (%s)", due.type.value, due.key)
-        sentry_sdk.capture_exception(exc)
         return await finish(db, row_id, [EmailLine("customer", due.type.value, "failed")])
     if labelled is None:
         return await finish(db, row_id, None)
@@ -1021,10 +1018,9 @@ async def run_due(
                 continue
             handled += 1
             _count(run, due, await _send(db, notify, row_id, due, today=today))
-        except Exception as exc:
+        except Exception:
             await db.rollback()  # a failed statement must not poison the next claim
             log.exception("Could not send the %s email (%s)", due.type.value, due.key)
-            sentry_sdk.capture_exception(exc)
             run.failed += 1
     return run
 
@@ -1041,10 +1037,9 @@ async def send_balance_cancelled(db: AsyncSession, notify: Notify, booking_id: s
                 continue
             state = await _send(db, notify, row_id, due, today=ist_today())
             return state in (EmailSendState.SENT, EmailSendState.HELD)
-    except Exception as exc:
+    except Exception:
         await db.rollback()
         log.exception("Could not send the balance cancellation for booking %s", booking_id)
-        sentry_sdk.capture_exception(exc)
     return False
 
 
@@ -1061,10 +1056,9 @@ async def send_refund_emails(db: AsyncSession, notify: Notify, booking_id: str) 
                 continue
             state = await _send(db, notify, row_id, due, today=ist_today())
             sent += state in (EmailSendState.SENT, EmailSendState.HELD)
-    except Exception as exc:
+    except Exception:
         await db.rollback()
         log.exception("Could not send the refund emails for booking %s", booking_id)
-        sentry_sdk.capture_exception(exc)
     return sent
 
 

@@ -3,19 +3,17 @@
 Registered on production only, at https://tripsmith-api.vercel.app/webhooks/razorpay (previews
 are behind Vercel's SSO). The raw body's HMAC is checked with `RAZORPAY_WEBHOOK_SECRET` before
 the body is parsed: a forged or unsigned call is a 400 and a log line. A signature that is
-present but wrong is also one Sentry error under a fixed fingerprint (V4, OP-7) — a rotated
-secret set on one side only fails every event the same way, and that must page someone; a call
-with no signature at all is a scanner and stays a warning. Neither names the caller. Once an
-event is recorded (or deliberately ignored) the answer is 200, so Razorpay stops retrying; a
-database error is a 500 and Razorpay retries it. Not in the OpenAPI contract: the web never
-calls it.
+present but wrong is logged at ERROR (V4, OP-7) — a rotated secret set on one side only fails
+every event the same way; a call with no signature at all is a scanner and stays a warning.
+Neither names the caller. Once an event is recorded (or deliberately ignored) the answer is
+200, so Razorpay stops retrying; a database error is a 500 and Razorpay retries it. Not in the
+OpenAPI contract: the web never calls it.
 """
 
 import json
 import logging
 from typing import Annotated, Any
 
-import sentry_sdk
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +24,6 @@ from app.services.booking.after_capture import Notify
 from app.services.booking.webhook import handle_razorpay_event
 
 BAD_SIGNATURE = "Webhook signature missing or wrong"
-BAD_SIGNATURE_FINGERPRINT = ["razorpay-webhook-bad-signature"]
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +36,7 @@ async def signed_event(request: Request) -> dict[str, Any]:
     # Blank counts as unset: an empty key is one anyone can sign with.
     secret = setting.get_secret_value() if setting else ""
     if not secret:
-        # ERROR for Sentry: Razorpay keeps retrying, so events are delayed, not lost.
+        # ERROR: Razorpay keeps retrying, so events are delayed, not lost.
         log.error("RAZORPAY_WEBHOOK_SECRET is unset: the Razorpay webhook cannot verify events")
         raise ApiError(
             "internal", "Webhook not configured", status=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -50,10 +47,7 @@ async def signed_event(request: Request) -> dict[str, Any]:
         log.warning("Razorpay webhook call without a signature")
         raise ApiError("validation", BAD_SIGNATURE)
     if not verify_webhook_signature(secret, body, signature):
-        log.warning("Razorpay webhook signature did not verify")
-        with sentry_sdk.new_scope() as scope:
-            scope.fingerprint = BAD_SIGNATURE_FINGERPRINT
-            sentry_sdk.capture_message("Razorpay webhook signature did not verify", level="error")
+        log.error("Razorpay webhook signature did not verify")
         raise ApiError("validation", BAD_SIGNATURE)
     try:
         event = json.loads(body)
