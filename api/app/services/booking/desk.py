@@ -69,7 +69,6 @@ from app.schemas.admin_bookings import (
 from app.schemas.admin_enquiries import PAGE_SIZE
 from app.schemas.bookings import Quote
 from app.schemas.enquiries import normalise_phone
-from app.schemas.errors import ErrorReason
 from app.schemas.trip_pack import DeskPackStatus
 from app.services.account import CANCELLABLE
 from app.services.admin_enquiries import PHONE_QUERY_RE, csv_lines, csv_safe, like_escape
@@ -617,7 +616,7 @@ async def mark_paid(
     try:
         booking, live = await lock_booking(db, ref)
         if not awaiting_payment(booking):
-            raise ApiError("conflict", NOT_PAYABLE, reason=ErrorReason.NOT_PAYABLE)
+            raise ApiError("conflict", NOT_PAYABLE, reason="not_payable")
         short = await seats_short(db, booking, hold_live=live)
         if short:
             left = (
@@ -632,7 +631,7 @@ async def mark_paid(
                 "conflict",
                 f"Only {left} seat{'s' if left != 1 else ''} left on this date — the party of "
                 f"{party} is {short} short",
-                reason=ErrorReason.SEATS_SHORT,
+                reason="seats_short",
             )
         amount = booking.total_paise - booking.paid_paise
         db.add(
@@ -674,7 +673,7 @@ async def release_hold(db: AsyncSession, ref: str, *, by: str | None = None) -> 
     try:
         booking, live = await lock_booking(db, ref)
         if booking.status != BookingStatus.PENDING:
-            raise ApiError("conflict", NOT_PENDING, reason=ErrorReason.NOT_PENDING)
+            raise ApiError("conflict", NOT_PENDING, reason="not_pending")
         await db.execute(
             update(Booking)
             .where(Booking.id == booking.id, Booking.status == BookingStatus.PENDING)

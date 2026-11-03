@@ -22,7 +22,6 @@ from app.errors import ApiError
 from app.models import Booking, BookingCancellation
 from app.models.enums import BookingActor, BookingStatus, CancellationStatus, CancelReason
 from app.schemas.admin_bookings import AdminBooking, ResolveCancellationInput
-from app.schemas.errors import ErrorReason
 from app.services.account import CANCELLABLE
 from app.services.booking import waitlist
 from app.services.booking.after_capture import Notify
@@ -76,7 +75,7 @@ async def resolve_cancellation(
             raise ApiError(
                 "conflict",
                 f"This request was already {row.status.value}",
-                reason=ErrorReason.RESOLVED,
+                reason="resolved",
             )
         refund = payload.refund_paise if approve else None
         if approve:
@@ -85,7 +84,7 @@ async def resolve_cancellation(
                 raise ApiError(
                     "conflict",
                     f"This booking is {word} — the request can only be rejected",
-                    reason=ErrorReason.NOT_ACTIVE,
+                    reason="not_active",
                 )
             if refund is None:  # ResolveCancellationInput requires it on approve
                 raise RuntimeError("refund is None")

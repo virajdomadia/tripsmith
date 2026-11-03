@@ -48,7 +48,6 @@ from app.models.enums import (
 )
 from app.schemas.bookings import QuoteAddon
 from app.schemas.catalog import AddonOut, ImageOut
-from app.schemas.errors import ErrorReason
 from app.schemas.extras import BookedAddon, ExtrasOffer, ExtrasOrder, ExtrasQuote, ExtrasRequest
 from app.services.booking import history
 from app.services.booking.addons import addon_rows, detail, from_quote, summary
@@ -208,7 +207,7 @@ async def _price(
         await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
     ).scalar_one()
     if why := refusal(booking, departs, today, asked=await _open_request(db, booking.id)):
-        raise ApiError("conflict", why, reason=ErrorReason.EXTRAS_CLOSED)
+        raise ApiError("conflict", why, reason="extras_closed")
     held = await _held(db, booking.id)
     for i, c in enumerate(req.addons):
         if c.addon_id in held:
@@ -216,7 +215,7 @@ async def _price(
             raise ApiError(
                 "conflict",
                 message,
-                reason=ErrorReason.ADDON_UNAVAILABLE,
+                reason="addon_unavailable",
                 field_errors={f"addons.{i}": message},
             )
     party = (

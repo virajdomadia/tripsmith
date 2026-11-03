@@ -24,7 +24,6 @@ from app.models import Departure, Package, SavedPackage, User
 from app.models.catalog import departure_availability
 from app.models.enums import PackageStatus
 from app.schemas.dashboard import TOP_N, SavedCount
-from app.schemas.errors import ErrorReason
 from app.schemas.saved import (
     MAX_SAVED,
     NextDeparture,
@@ -106,7 +105,7 @@ async def save(db: AsyncSession, user_id: str, slug: str, *, now: dt.datetime) -
             raise ApiError(
                 "conflict",
                 f"You can keep {MAX_SAVED} saved trips — remove one first",
-                reason=ErrorReason.SAVED_FULL,
+                reason="saved_full",
             )
         db.add(SavedPackage(user_id=user_id, package_id=package_id, created_at=now))
     await db.commit()

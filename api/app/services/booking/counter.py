@@ -70,7 +70,6 @@ from app.schemas.counter import (
     EditTravellersInput,
 )
 from app.schemas.enquiries import normalise_phone
-from app.schemas.errors import ErrorReason
 from app.services.admin_enquiries import PHONE_QUERY_RE, like_escape
 from app.services.analytics import ist_today
 from app.services.booking import coupons, deposit, history, waitlist
@@ -202,7 +201,7 @@ async def _claim_enquiry(db: AsyncSession, enquiry_id: str) -> Enquiry:
         raise ApiError(
             "conflict",
             f"Enquiry {enquiry.ref} was already converted to booking {linked}",
-            reason=ErrorReason.ALREADY_CONVERTED,
+            reason="already_converted",
         )
     return enquiry
 
@@ -255,13 +254,13 @@ async def create_counter_booking(
         )
         chosen = offer.deposit if wants_deposit else None
         if wants_deposit and chosen is None:
-            raise ApiError("conflict", NO_DEPOSIT, reason=ErrorReason.DEPOSIT_UNAVAILABLE)
+            raise ApiError("conflict", NO_DEPOSIT, reason="deposit_unavailable")
         if offer.total_paise != req.expected_total_paise:
             raise ApiError(
                 "conflict",
                 f"The price is now {history.money(offer.total_paise)}, not "
                 f"{history.money(req.expected_total_paise)} — check the receipt and confirm again",
-                reason=ErrorReason.PRICE_CHANGED,
+                reason="price_changed",
             )
         amount = chosen.amount_paise if chosen else offer.total_paise
         hold_until = now + HOLD
@@ -271,14 +270,14 @@ async def create_counter_booking(
                 raise ApiError("internal", PAYMENTS_OFF, status=503)
             until = link_until(dep.date, now)
             if until is None:
-                raise ApiError("conflict", LINK_TOO_LATE, reason=ErrorReason.LINK_UNAVAILABLE)
+                raise ApiError("conflict", LINK_TOO_LATE, reason="link_unavailable")
             if rzp.link_max_paise is not None and amount > rzp.link_max_paise:
                 raise ApiError(
                     "conflict",
                     "Razorpay's test mode can't create a link over "
                     f"{history.money(rzp.link_max_paise)} — send the deposit link, or take the "
                     "payment now",
-                    reason=ErrorReason.LINK_OVER_CAP,
+                    reason="link_over_cap",
                 )
             hold_until = until
         quote = offer.model_copy(update={"deposit": chosen})
@@ -656,7 +655,7 @@ async def edit_travellers(
             raise ApiError(
                 "conflict",
                 "Travellers can't be changed on this booking",
-                reason=ErrorReason.NOT_EDITABLE,
+                reason="not_editable",
             )
         rows = (
             (
