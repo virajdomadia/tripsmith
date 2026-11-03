@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { TravellerDetails, type SaveDetails } from '@/components/site/account/TravellerDetails';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
 import { adminRequest } from '@/lib/admin/client';
-import { useRules } from '@/components/rules/RulesProvider';
 import { reportAdminError } from '@/lib/admin/errors';
 import { ApiRequestError } from '@/lib/api-errors';
 
@@ -18,19 +17,12 @@ import { ApiRequestError } from '@/lib/api-errors';
  * themselves — ID masked — which the owner can fill in or correct past the customer's lock.
  */
 export function DetailsPanel({ booking: b }: { booking: AdminBooking }) {
-  const { retention } = useRules();
   const router = useRouter();
   const pathname = usePathname();
   const [sending, setSending] = useState(false);
   const [, startTransition] = useTransition();
   const block = b.details;
   if (!block) return null;
-  if (block.purged)
-    return (
-      <p className="text-[13px] text-mute">
-        Deleted {retention.detailsDays} days after the trip, as the privacy rule says (R49).
-      </p>
-    );
 
   const save: SaveDetails = async (travellerId, body) => {
     try {

@@ -37,7 +37,7 @@ from app.services.booking.payments import (
     map_link_order,
 )
 from app.services.booking.refunds import apply_refund, failure_reason
-from app.services.email.automatic import send_refund_emails
+from app.services.email.ledger import send_refund_emails
 
 Outcome = Literal["captured", "replayed", "failed", "refund", "ignored"]
 REFUND_EVENTS = {"refund.processed": RefundStatus.PROCESSED, "refund.failed": RefundStatus.FAILED}

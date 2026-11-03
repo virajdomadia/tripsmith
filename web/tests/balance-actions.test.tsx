@@ -72,9 +72,9 @@ describe('BalanceActions', () => {
     ).toBe(true);
   });
 
-  it('says overdue with the day the tidy cancels, and paid in full once cleared', () => {
+  it('says overdue with the last day of grace, and paid in full once cleared', () => {
     render(<BalanceActions booking={booking({ daysLeft: -1 })} />);
-    expect(screen.getByText(/Overdue · cancelled after/)).toBeTruthy();
+    expect(screen.getByText(/Overdue · grace ends/)).toBeTruthy();
     cleanup();
     render(
       <BalanceActions

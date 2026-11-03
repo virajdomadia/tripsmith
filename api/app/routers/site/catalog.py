@@ -25,9 +25,10 @@ from app.services.catalog.reads import (
     list_destinations,
 )
 from app.services.catalog.search import search_packages
+from app.services.on_demand import fresh_prices
 from app.services.reviews import public_reviews_for_slug
 
-router = APIRouter(tags=["public"])
+router = APIRouter(tags=["public"], dependencies=[Depends(fresh_prices)])
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 

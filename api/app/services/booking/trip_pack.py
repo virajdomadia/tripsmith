@@ -2,7 +2,7 @@
 
 It opens on departure − 7 days (IST) once the booking is paid in full — a `partially_paid`
 booking never opens it, whatever the day — and stays readable while `confirmed` or `completed`
-until 30 days after the trip (the day R49 deletes the traveller details). Booked inside the 7
+until 30 days after the trip (`CLOSE_AFTER_DAYS`). Booked inside the 7
 days, it opens as soon as it is paid.
 
 Inside: the meeting point and time with a Maps link (the departure's own set, else the
@@ -43,13 +43,13 @@ from app.schemas.trip_pack import (
     TripPackSettingsInput,
 )
 from app.services.booking import history
-from app.services.booking.details import purge_on
 from app.services.format import meals_label
 
 if TYPE_CHECKING:
     from app.services.pdf.trip_pack import PackSheet
 
 OPEN_DAYS = 7
+CLOSE_AFTER_DAYS = 30  # the pack and its signed links stay usable this long after the return
 HAS_PACK = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID, BookingStatus.COMPLETED)
 LOCKED = "The trip pack opens 7 days before departure, once the booking is paid in full"
 
@@ -58,13 +58,17 @@ def opens_on(departs: dt.date) -> dt.date:
     return departs - dt.timedelta(days=OPEN_DAYS)
 
 
+def closes_on(returns: dt.date) -> dt.date:
+    return returns + dt.timedelta(days=CLOSE_AFTER_DAYS)
+
+
 def state_of(
     status: BookingStatus, departs: dt.date, returns: dt.date, today: dt.date
 ) -> PackState | None:
     """None = no pack at all (pending, cancelled)."""
     if status not in HAS_PACK:
         return None
-    if today >= purge_on(returns):
+    if today >= closes_on(returns):
         return "closed"
     if status == BookingStatus.PARTIALLY_PAID or today < opens_on(departs):
         return "locked"

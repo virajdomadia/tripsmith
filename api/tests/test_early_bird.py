@@ -1,6 +1,6 @@
 """P17 early-bird (R47): the tier a booking day earns, flipping exactly at IST midnight; the
 order deal → early-bird → coupon, per traveller, never below ₹1, never on add-ons; the price
-ladder; the reads (package tiers, the card tag); the owner's fields; the daily revalidation."""
+ladder; the reads (package tiers, the card tag); the owner's fields."""
 
 import datetime as dt
 
@@ -283,7 +283,7 @@ def test_the_input_refuses_a_bad_shape(value: dict[str, object], message: str) -
         EarlyBirdInput.model_validate(value)
 
 
-# --- reads, the owner, the cron (database) -----------------------------------------------------
+# --- reads and the owner (database) --------------------------------------------------------------
 
 
 async def set_tiers(db: AsyncSession, slug: str, **values: object) -> None:
@@ -382,21 +382,6 @@ async def test_the_route_files_a_bad_tier_under_its_field(
     assert res.status_code == 400, res.text
     errors = res.json()["error"]["fieldErrors"]
     assert "earlyBird.tiers" in errors and "fewer days" in errors["earlyBird.tiers"]
-
-
-@pytest.mark.db
-async def test_daily_revalidates_packages_whose_tier_ended_at_midnight(
-    catalog: None, db: AsyncSession, revalidated: RecordingRevalidate
-) -> None:
-    date = await first_open_date(db, KER)
-    days = (date - ist_today()).days
-    # KER's tier 1 was last bookable yesterday; GQE's ended a week ago; NGB is switched off.
-    await set_tiers(db, KER, early_bird_on=True, eb1_days=days + 1, eb1_off_paise=1_000_00)
-    await set_tiers(db, GQE, early_bird_on=True, eb1_days=1, eb1_off_paise=1_000_00)
-    assert await svc.revalidate_ended_early_birds(db, today=ist_today()) == 1
-    assert revalidated.calls == [
-        ["packages", "destinations", "home", "package:kerala-backwaters", "destination:kerala"]
-    ]
 
 
 @pytest.mark.db

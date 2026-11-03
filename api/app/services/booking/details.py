@@ -3,8 +3,8 @@
 After payment (`confirmed` or `partially_paid`) the lead booker fills in a card per traveller:
 ID, date of birth, emergency contact, food, medical notes. The package says which of them are
 required (default ID + emergency + food); a partial save is fine and the card says what's left.
-The customer's form locks on departure − 3 days (IST); the owner edits from the desk until the
-purge (P9b).
+The customer's form locks on departure − 3 days (IST); the owner edits from the desk, also
+after the trip (P9b).
 
 Readiness is equal parts: details (complete travellers ÷ travellers), balance paid, trip pack
 read and added to calendar (P10, R48), and each of the package's checklist items the customer
@@ -12,8 +12,8 @@ ticks.
 
 Privacy: the ID number is encrypted (id_numbers.py) and only its masked form leaves the api. The
 history log can't be edited (0010's trigger), so its entries name the fields that changed and
-never their values — an ID shows as its type and last four, the masked form. The daily tidy
-deletes every details row 30 days after the trip's return day.
+never their values — an ID shows as its type and last four, the masked form. (The 30-day purge
+after the trip went with the crons on 2026-11-04; the details stay with the booking.)
 """
 
 import datetime as dt
@@ -21,7 +21,7 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import ColumnElement, and_, delete, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -52,10 +52,9 @@ from app.services.email.render import IST
 from app.services.format import inr, long_date
 
 OPEN_STATUSES = (BookingStatus.CONFIRMED, BookingStatus.PARTIALLY_PAID)
-# The owner may still correct a finished trip's details for the record, until the purge.
+# The owner may still correct a finished trip's details for the record.
 OWNER_STATUSES = (*OPEN_STATUSES, BookingStatus.COMPLETED)
 LOCK_DAYS = 3
-PURGE_AFTER_DAYS = 30
 FIELD_WORDS: dict[DetailField, str] = {
     "id": "ID",
     "dob": "date of birth",
@@ -69,10 +68,6 @@ NOT_OPEN = "Traveller details open once the booking is paid"
 
 def locks_on(departs: dt.date) -> dt.date:
     return departs - dt.timedelta(days=LOCK_DAYS)
-
-
-def purge_on(returns: dt.date) -> dt.date:
-    return returns + dt.timedelta(days=PURGE_AFTER_DAYS)
 
 
 def required_of(pkg: Package) -> list[DetailField]:
@@ -102,7 +97,7 @@ def state_of(
 ) -> DetailsState:
     if status == BookingStatus.PENDING:
         return "not_yet"
-    if status not in OPEN_STATUSES or today > returns or today >= purge_on(returns):
+    if status not in OPEN_STATUSES or today > returns:
         return "closed"
     return "locked" if today >= locks_on(departs) else "open"
 
@@ -173,8 +168,7 @@ async def details_block(
 ) -> TravellerDetailsBlock:
     """The booking page's section. `booking.travellers` must be loaded."""
     required = required_of(pkg)
-    purged = today >= purge_on(returns)
-    found = {} if purged else await rows_of(db, booking.id)
+    found = await rows_of(db, booking.id)
     cards = [card(t, found.get(t.id), required) for t in _ordered(booking.travellers)]
     return TravellerDetailsBlock(
         state=state_of(booking.status, departs, returns, today),
@@ -182,7 +176,6 @@ async def details_block(
         required=required,
         travellers=cards,
         complete=sum(1 for c in cards if c.complete),
-        purged=purged,
     )
 
 
@@ -475,8 +468,8 @@ async def save_details(
     by: str | None,
     today: dt.date,
 ) -> TravellerDetailsOut:
-    """One traveller's card. The customer is held to the lock; the owner (P9b) is not, until the
-    purge. A save that changes nothing writes no history."""
+    """One traveller's card. The customer is held to the lock; the owner (P9b) is not. A save
+    that changes nothing writes no history."""
     try:
         booking = (
             await db.execute(select(Booking).where(Booking.ref == ref).with_for_update())
@@ -495,9 +488,7 @@ async def save_details(
         owner = actor == BookingActor.OWNER
         if state == "not_yet":
             raise ApiError("conflict", NOT_OPEN, reason="not_paid")
-        if state == "closed" and not (
-            owner and booking.status in OWNER_STATUSES and today < purge_on(returns)
-        ):
+        if state == "closed" and not (owner and booking.status in OWNER_STATUSES):
             raise ApiError(
                 "conflict",
                 "Traveller details can't be changed on this booking",
@@ -625,47 +616,6 @@ async def tick_item(db: AsyncSession, ref: str, key: str, *, done: bool, today: 
         have = [k for k in booking.checklist_done if k != key]
         booking.checklist_done = [*have, key] if done else have
         await db.commit()
-    except BaseException:
-        await db.rollback()
-        raise
-
-
-# --- the daily tidy -----------------------------------------------------------------------------
-
-
-async def purge(db: AsyncSession, *, today: dt.date) -> int:
-    """Delete every details row whose trip came back 30 or more days ago (R49), with one history
-    entry per booking. Returns the bookings cleared."""
-    try:
-        cutoff = today - dt.timedelta(days=PURGE_AFTER_DAYS)
-        due = (
-            (
-                await db.execute(
-                    select(TravellerDetail.booking_id)
-                    .join(Booking, Booking.id == TravellerDetail.booking_id)
-                    .join(Departure, Departure.id == Booking.departure_id)
-                    .join(Package, Package.id == Departure.package_id)
-                    .where(Departure.date + Package.nights <= cutoff)
-                    .distinct()
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if not due:
-            await db.rollback()
-            return 0
-        await db.execute(delete(TravellerDetail).where(TravellerDetail.booking_id.in_(due)))
-        history.record_each(
-            db,
-            due,
-            "details.purged",
-            actor=BookingActor.CRON,
-            text="Traveller details deleted (30 days after the trip)",
-            customer="Traveller details deleted, 30 days after the trip",
-        )
-        await db.commit()
-        return len(due)
     except BaseException:
         await db.rollback()
         raise

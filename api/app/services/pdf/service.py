@@ -1,31 +1,26 @@
 """`PdfService`: everything around `render_itinerary` that touches the network — the cover
-photo, the Blob cache (find / put), the email attachment and the daily GC. Lives on
-`app.state.pdf`. Every method degrades (logs) instead of raising, except `gc()`, which
-raises so the cron log shows failures: a package download falls back to streaming, an enquiry
-goes out without the attachment.
+photo, the Blob cache (find / put) and the email attachment. Lives on `app.state.pdf`. Every
+method degrades (logs) instead of raising: a package download falls back to streaming, an
+enquiry goes out without the attachment.
+
+No scheduled GC (2026-11-04, crons removed): `put` deletes the package's older PDFs once the new
+one is stored, so Blob keeps one PDF per package — the current one.
 
 Nothing here holds a database session across the network: callers load the `PackageDetail`,
-end their transaction, then hand the plain model in (`gc` alone reads, then lists and deletes).
+end their transaction, then hand the plain model in.
 """
 
 import asyncio
 import logging
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.infra.email import EmailAttachment
 from app.infra.storage import BlobStore
-from app.models import Package
-from app.models.enums import PackageStatus
 from app.schemas.catalog import PackageDetail
-from app.schemas.pdf import GcReport
-from app.services.catalog.reads import get_package
 from app.services.pdf.itinerary import (
     GALLERY_MAX,
-    PDF_PREFIX,
     pdf_filename,
     pdf_pathname,
     pdf_prefix,
@@ -77,11 +72,25 @@ class PdfService:
     async def put(self, pkg: PackageDetail, pdf: bytes) -> str | None:
         if self._store is None:
             return None
+        key = self.key(pkg)
         try:
-            return await self._store.put(self.key(pkg), pdf, PDF_CONTENT_TYPE)
+            url = await self._store.put(key, pdf, PDF_CONTENT_TYPE)
         except Exception as exc:
             self._degrade("Blob put failed for %s", pkg.slug, exc)
             return None
+        await self._drop_older(self._store, pkg.slug, keep=key)
+        return url
+
+    async def _drop_older(self, store: BlobStore, slug: str, *, keep: str) -> None:
+        """Delete this package's PDFs other than `keep` — the renderings an edit, a price move or
+        a departed date made stale. Best effort: a failure leaves them for the next upload."""
+        try:
+            blobs = await store.list(pdf_prefix(slug))
+            stale = [b.url for b in blobs if b.pathname != keep]
+            if stale:
+                await store.delete(stale)
+        except Exception as exc:
+            self._degrade("Blob cleanup failed for %s", slug, exc)
 
     # --- render --------------------------------------------------------------------------------
 
@@ -136,28 +145,6 @@ class PdfService:
         except Exception as exc:
             self._degrade("Itinerary PDF failed for %s", pkg.slug, exc)
             return None
-
-    # --- gc ------------------------------------------------------------------------------------
-
-    async def gc(self, db: AsyncSession) -> GcReport:
-        """Delete every `pdf/` object whose pathname is not a live package's current key — the
-        key as of today, so a PDF still listing a departed date goes too. Drafts have no PDF
-        route (it 404s), so their objects are garbage as well."""
-        if self._store is None:
-            return GcReport(deleted=0, kept=0, configured=False)
-        slugs = (
-            await db.execute(select(Package.slug).where(Package.status == PackageStatus.LIVE))
-        ).scalars()
-        current: set[str] = set()
-        for slug in slugs.all():
-            pkg = await get_package(db, slug, with_related=False)
-            if pkg is not None:
-                current.add(self.key(pkg))
-        await db.rollback()  # the reads are done; Blob list/delete below is network time
-        blobs = await self._store.list(PDF_PREFIX)
-        stale = [b.url for b in blobs if b.pathname not in current]
-        await self._store.delete(stale)
-        return GcReport(deleted=len(stale), kept=len(blobs) - len(stale), configured=True)
 
     def _degrade(self, msg: str, slug: str, exc: Exception) -> None:
         log.error(msg + ": %s", slug, exc)

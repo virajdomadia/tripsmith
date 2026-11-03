@@ -8,7 +8,7 @@ As lead booker you can fill everyone in on your booking page. The details lock o
 
 Add the details: {{ url }}
 
-ID numbers show masked everywhere except the trip leader's printed manifest, and every detail is deleted 30 days after you're back. {{ demo_note }}
+ID numbers show masked everywhere except the trip leader's printed manifest. {{ demo_note }}
 
 {{ business.legal_name }} · {{ business.address }}, {{ business.city }}
 {{ business.phone_display }} · {{ site_url }}

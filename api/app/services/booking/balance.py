@@ -1,5 +1,5 @@
-"""Paying the balance (R43, P5): My trips' "Pay the balance", and the daily tidy's reminders and
-overdue cancel. The rules themselves are in deposit.py.
+"""Paying the balance (R43, P5): My trips' "Pay the balance" and the owner's side. The rules
+themselves are in deposit.py.
 
 **A part.** A booking on its deposit (`partially_paid`) can pay any part of its balance — at
 least ₹1,000 unless less is left, in whole rupees unless it is all that is left — while no
@@ -8,33 +8,21 @@ the capture goes through `payments.settle_capture` like every payment: idempoten
 Razorpay payment id, the part that clears the balance confirms the booking, and money beyond the
 total (two parts paid at once) goes back.
 
-**Reminders** go 7 and 3 days before the due day and on it (`deposit.reminder_stage`). Each is
-claimed first — a `balance.reminder` history entry naming the stage and the due day, written
-under the booking's lock and committed — and only then sent, so a re-run of the tidy sends
-nothing twice (a lost email is logged, not retried). An owner extending the due day (P5b) arms
-the reminders again, since the day is part of the claim.
-
 **Owner (P5b).** The desk shows the balance and can record it paid offline (the whole
 balance, as one `offline` payment through `settle_capture`, so the booking is confirmed and the
 invoice issued like any clearing part) or move the due day later — not past departure − 3
-days, so the grace ends before the trip (logged; the reminders re-arm for the new day).
+days, so the grace ends before the trip (logged).
 
-**Overdue.** The day after the 2-day grace, the tidy cancels the booking as `balance_unpaid`,
-which frees its seats. The refund is the cancellation policy's tier applied to what was paid, as
-of that day; it is kept on the booking (`balance_refund_paise`) so `refunds.refund_owed` stays
-right after a failed refund, and sent through the one refund function. A booking whose customer
-has asked to cancel is left for the owner to decide, like the completion sweep does.
+**Overdue.** Nothing happens on its own (2026-11-04: the reminders and the automatic cancel past
+the 2-day grace went with the crons). The grace's last day is still shown to both sides.
 """
 
 import datetime as dt
 import logging
-import time
-from typing import NamedTuple
 
-from sqlalchemy import Exists, exists, func, select, update
+from sqlalchemy import Exists, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.business import suggested_refund_paise
 from app.errors import ApiError
 from app.infra.razorpay import Razorpay, RazorpayError
 from app.models import Booking, BookingCancellation, Departure, Payment, User
@@ -49,20 +37,17 @@ from app.models.enums import (
 from app.schemas.account import AccountBalance, BalanceOrder
 from app.schemas.admin_bookings import AdminBalance
 from app.services.analytics import ist_today
-from app.services.booking import deposit, history, waitlist
+from app.services.booking import deposit, history
 from app.services.booking.after_capture import Notify, on_new_capture
-from app.services.booking.freshness import refresh_quietly
 from app.services.booking.history import PaymentLog, money
 from app.services.booking.locking import lock_booking
 from app.services.booking.payments import settle_capture
-from app.services.booking.refunds import plan_refund, refund_owed, send_refunds
 from app.services.booking.settled import Capture
 from app.services.booking.voucher import offline_label
 
 NO_BALANCE = "This booking has no balance to pay"
 ASKED = "You've asked to cancel this booking, so the balance is on hold until we reply"
 PAYMENTS_DOWN = "Payments are not reachable right now — try again in a minute, or WhatsApp us"
-REMINDER = "balance.reminder"
 
 log = logging.getLogger(__name__)
 
@@ -189,8 +174,7 @@ HELD_ON_DEPOSIT = (
 
 
 def latest_due(departs: dt.date) -> dt.date:
-    """The latest due day an extension may set: its grace ends the day before departure, so the
-    tidy's cancel (the day after the grace) lands on the departure day at the latest."""
+    """The latest due day an extension may set: its grace ends the day before departure."""
     return departs - dt.timedelta(days=deposit.GRACE_DAYS + 1)
 
 
@@ -298,119 +282,3 @@ async def extend_due(db: AsyncSession, ref: str, due_on: dt.date, *, by: str | N
     except BaseException:
         await db.rollback()
         raise
-
-
-# --- the daily tidy -----------------------------------------------------------------------------
-
-
-class BalanceSweep(NamedTuple):
-    cancelled: int
-    more: bool = False  # stopped at the deadline with overdue bookings left
-
-
-async def _cancel_overdue(
-    db: AsyncSession, ref: str, today: dt.date
-) -> tuple[int, int, int] | None:
-    """Cancel one overdue booking (committed): (paid before, refund, days out) — or None when it
-    no longer qualifies (paid meanwhile, extended, or a request came in)."""
-    try:
-        booking, _ = await lock_booking(db, ref)
-        due = booking.balance_due_on
-        asked = (
-            await db.execute(select(_open_request()).where(Booking.id == booking.id))
-        ).scalar_one()
-        if (
-            booking.status != BookingStatus.PARTIALLY_PAID
-            or due is None
-            or today <= deposit.overdue_after(due)
-            or asked
-        ):
-            await db.rollback()
-            return None
-        departs = (
-            await db.execute(select(Departure.date).where(Departure.id == booking.departure_id))
-        ).scalar_one()
-        days_out = (departs - today).days
-        paid = booking.paid_paise
-        agreed = suggested_refund_paise(days_out, paid_paise=paid, total_paise=booking.total_paise)
-        before = {"status": booking.status.value, "paidPaise": paid}
-        await db.execute(
-            update(Booking)
-            .where(Booking.id == booking.id, Booking.status == BookingStatus.PARTIALLY_PAID)
-            .values(
-                status=BookingStatus.CANCELLED,
-                cancel_reason=CancelReason.BALANCE_UNPAID,
-                balance_refund_paise=agreed,
-                kept_paise=paid - agreed,  # V1: a later part goes back in full
-                updated_at=func.now(),
-            )
-            .execution_options(synchronize_session=False)
-        )
-        await db.refresh(booking)
-        keeps = f"refunding {money(agreed)}" if agreed else "no refund under the policy"
-        history.record(
-            db,
-            booking.id,
-            "cancelled.balance_unpaid",
-            actor=BookingActor.CRON,
-            text=f"Cancelled by the daily tidy — the balance of "
-            f"{money(booking.total_paise - paid)} was due {history.day(due)} and the grace "
-            f"ended · {days_out} days before departure, {keeps}",
-            customer="Cancelled — the balance wasn't paid by the end of the grace period · "
-            + (f"{money(agreed)} will be refunded" if agreed else "no refund under the policy"),
-            before=before,
-            after={"status": BookingStatus.CANCELLED.value, "cancelReason": "balance_unpaid"},
-        )
-        await plan_refund(
-            db, booking, await refund_owed(db, booking), reason="balance", actor=BookingActor.CRON
-        )
-        await waitlist.walk_locked(db, booking.departure_id)  # P6: the freed seats
-        await db.commit()
-        return paid, agreed, days_out
-    except BaseException:
-        await db.rollback()
-        raise
-
-
-async def sweep_balances(
-    db: AsyncSession, notify: Notify, *, today: dt.date, deadline: float | None = None
-) -> BalanceSweep:
-    """`/cron/daily`: cancel the bookings whose balance is past its grace. One booking's failure
-    is logged and never stops the rest. The reminders moved to `/cron/emails` in P15 (R53,
-    services/email/automatic.py), which runs at 09:00 IST — after this, so a cancelled booking
-    is never reminded.
-
-    V4 (OP-6): each cancellation can take a Razorpay refund (10 s), a revalidation and an SMTP
-    send (15 s), so no new one starts once `deadline` (a `time.monotonic()` value) has passed;
-    the rest wait for tomorrow's run (`more`). The email goes through the email ledger: claimed,
-    then sent — a failed send is retried by `/cron/emails`, a re-run never sends it twice."""
-    # Here, not at the top: automatic.py reads this module's reminder rules.
-    from app.services.email.automatic import send_balance_cancelled
-
-    last_due = today - dt.timedelta(days=deposit.GRACE_DAYS + 1)
-    overdue = (
-        await db.execute(
-            select(Booking.id, Booking.ref, Booking.package_id).where(
-                Booking.status == BookingStatus.PARTIALLY_PAID,
-                Booking.balance_due_on <= last_due,
-            )
-        )
-    ).all()
-    await db.rollback()
-    cancelled = 0
-    for booking_id, ref, package_id in overdue:
-        if deadline is not None and time.monotonic() >= deadline:
-            return BalanceSweep(cancelled=cancelled, more=True)
-        try:
-            done = await _cancel_overdue(db, ref, today)
-        except Exception:
-            log.exception("Could not cancel overdue booking %s", ref)
-            continue
-        if done is None:
-            continue
-        cancelled += 1
-        await send_refunds(db, ref, notify.razorpay)
-        await refresh_quietly(db, {package_id}, after=f"cancelling {ref} (balance unpaid)")
-        await send_balance_cancelled(db, notify, booking_id)
-
-    return BalanceSweep(cancelled=cancelled)

@@ -17,7 +17,6 @@ import {
   type TravellerDetailsOut,
 } from '@/lib/account';
 import { OCCUPANCY_LABEL } from '@/lib/booking';
-import { useRules } from '@/components/rules/RulesProvider';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -25,7 +24,7 @@ import { formatDate } from '@/lib/format';
  * shows its details (the ID only ever masked); an incomplete one opens as a form. The lead
  * booker fills everyone in until the lock, 3 days before departure. A partial save is fine:
  * the badge says what's left. The owner's booking page (P9b) reuses it with `owner`: editable
- * past the customer's lock until the purge, saved through the desk's own route.
+ * past the customer's lock, saved through the desk's own route.
  */
 export type SaveDetails = (
   travellerId: string,
@@ -44,7 +43,6 @@ export function TravellerDetails({
   /** P9b: the owner's edit — its save, and whether the booking still takes edits. */
   owner?: { save: SaveDetails; canEdit: boolean };
 }) {
-  const kept = useRules().retention.detailsDays;
   const open = owner ? owner.canEdit : block.state === 'open';
   const save: SaveDetails =
     owner?.save ?? ((id, body) => saveTravellerDetails(bookingRef, id, body));
@@ -55,8 +53,7 @@ export function TravellerDetails({
           block.state === 'open' ? (
             <>
               The customer can fill these in until{' '}
-              <b className="text-ink">{formatDate(block.locksOn)}</b>; you can edit them any time
-              until they’re deleted, {kept} days after the trip.
+              <b className="text-ink">{formatDate(block.locksOn)}</b>; you can edit them any time.
             </>
           ) : (
             <>
@@ -95,8 +92,7 @@ export function TravellerDetails({
           <span>
             <b className="text-ink">Demo site: use made-up details only.</b> Anyone using the public
             demo login can read what you enter here — dates of birth, emergency contacts, food and
-            medical notes — with ID numbers masked. We delete every detail {kept} days after you’re
-            back.
+            medical notes — with ID numbers masked.
           </span>
         </p>
       )}

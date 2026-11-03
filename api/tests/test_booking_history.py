@@ -26,13 +26,13 @@ from tests.test_auth import with_cookie
 from tests.test_booking_orders import seeded
 from tests.test_booking_payments import booking, booking_body, callback, rzp
 from tests.test_booking_webhook import deliver, event, mailing, with_webhook_secret
-from tests.test_bookings_desk import cron, lapse, owner_cookie, run_daily
+from tests.test_bookings_desk import lapse, owner_cookie, run_sweep
 from tests.test_cancellation_resolve import NOTE, asked, resolve
 from tests.test_coupons import add_coupon
 from tests.test_customer_accounts import EMAIL, paid_booking, signed_in
 from tests.test_session_migration import API_DIR, _sql
 
-__all__ = ["cron", "rzp"]
+__all__ = ["rzp"]
 
 TEXT = "Lovely trip, the houseboat night was the best part of it."
 
@@ -440,12 +440,12 @@ async def test_signing_in_links_and_logs_each_booking_once(
     assert (linked.actor, linked.actor_user_id) == (BookingActor.CUSTOMER, user.id)
 
 
-# --- the daily sweep ----------------------------------------------------------------------------
+# --- the bookings sweep --------------------------------------------------------------------------
 
 
 @pytest.mark.db
 async def test_the_sweep_logs_each_booking_once_however_often_it_runs(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     _, departure = await seeded(db, seats=6)
     abandoned = (await hold(db_client, departure.id, 9))["bookingRef"]
@@ -462,7 +462,7 @@ async def test_the_sweep_logs_each_booking_once_however_often_it_runs(
     )
     await db.commit()
     for _ in range(2):
-        await run_daily(db_client, db_app)
+        await run_sweep(db)
 
     expired = await one(db, abandoned, "hold.expired")
     assert expired.actor == BookingActor.CRON and expired.customer_text

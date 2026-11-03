@@ -1,6 +1,6 @@
 """P9 — traveller details and the pre-trip checklist (R49): the per-traveller cards after
 payment, the masked ID (encrypted at rest), the lock 3 days before departure, the readiness
-parts, the checklist ticks, the purge 30 days after the trip, and a party change keeping the
+parts, the checklist ticks, the details kept after the trip, and a party change keeping the
 details that still match. The db tests need TEST_DATABASE_URL."""
 
 import datetime as dt
@@ -164,7 +164,7 @@ async def test_a_paid_booking_opens_a_card_per_traveller_and_readiness_counts_th
     ref, token, departure = await booked(db, db_app, db_client)
     b = await detail(db_client, ref, token)
     d = b["details"]
-    assert d["state"] == "open" and d["purged"] is False
+    assert d["state"] == "open"
     assert d["locksOn"] == (departure.date - dt.timedelta(days=3)).isoformat()
     assert d["required"] == ["id", "emergency", "food"] and d["complete"] == 0
     assert [t["name"] for t in d["travellers"]] == ["Asha Rao", "Vikram Rao", "Mira Rao"]
@@ -336,40 +336,28 @@ async def test_checklist_ticks_and_required_fields_come_from_the_package(
 
 
 @pytest.mark.db
-async def test_the_daily_tidy_deletes_details_thirty_days_after_the_trip(
+async def test_details_stay_with_the_booking_after_the_trip(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
+    """No purge since 2026-11-04 (it was a cron): a trip back long ago keeps its details, closed
+    to the customer."""
     ref, token, departure = await booked(db, db_app, db_client)
     tid = (await detail(db_client, ref, token))["details"]["travellers"][0]["travellerId"]
     assert (
         await save(db_client, ref, token, tid, card_body("Asha Rao", **FULL))
     ).status_code == 200
     nights = (await db.execute(select(Package.nights))).scalar_one()
-    dep_id = departure.id  # purge's rollback expires loaded rows
-    today = ist_today()
-
-    # Back 29 days ago: kept. 30: deleted, with one history entry the customer sees.
-    back = today - dt.timedelta(days=29)
+    back = ist_today() - dt.timedelta(days=60)
     await db.execute(
         update(Departure)
-        .where(Departure.id == dep_id)
+        .where(Departure.id == departure.id)
         .values(date=back - dt.timedelta(days=nights))
     )
     await db.commit()
-    assert await details.purge(db, today=today) == 0
-    await db.execute(
-        update(Departure)
-        .where(Departure.id == dep_id)
-        .values(date=back - dt.timedelta(days=nights + 1))
-    )
-    await db.commit()
-    assert await details.purge(db, today=today) == 1
-    assert (await db.execute(select(TravellerDetail))).first() is None
-    assert await details.purge(db, today=today) == 0
-
+    assert (await db.execute(select(TravellerDetail))).first() is not None
     b = await detail(db_client, ref, token)
-    assert b["details"]["purged"] is True and b["details"]["state"] == "closed"
-    assert any(a["text"].startswith("Traveller details deleted") for a in b["activity"])
+    assert b["details"]["state"] == "closed" and "purged" not in b["details"]
+    assert b["details"]["travellers"][0]["complete"] is True
 
 
 @pytest.mark.db

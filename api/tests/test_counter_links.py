@@ -3,7 +3,7 @@
 through the one capture function whichever way the money is heard of — the webhook (for an order
 Razorpay opened, named by the link's notes), the signed redirect back, or the desk's Check
 payment — and a replayed webhook confirms once; Cancel link releases the seats unless the link
-was paid; the daily tidy logs an expired link and hands its departure on (P6); test mode's
+was paid; the bookings sweep logs an expired link and hands its departure on (P6); test mode's
 ₹15,000 cap and links too close to departure are refused up front; a link Razorpay can't make
 releases the seats. Needs TEST_DATABASE_URL."""
 
@@ -27,10 +27,10 @@ from tests.test_admin_enquiries import make_enquiry
 from tests.test_booking_orders import SOON, seats_left, seeded
 from tests.test_booking_payments import booking_body, rzp
 from tests.test_booking_webhook import deliver, mailing, with_webhook_secret
-from tests.test_bookings_desk import cron, owner_cookie, run_daily
+from tests.test_bookings_desk import owner_cookie, run_sweep
 from tests.test_counter import MANUAL, counter_body, later_date, post_booking
 
-__all__ = ["cron", "rzp"]
+__all__ = ["rzp"]
 pytestmark = pytest.mark.db
 
 UNDER_CAP = {**MANUAL, "value": 30_000}  # ₹40,000 for two on the cheap date → ₹10,000
@@ -301,12 +301,11 @@ async def test_web_and_counter_holds_leave_each_other_alone(
     assert await seats_left(db, dep_id) == 3  # both holds count
 
 
-async def test_the_tidy_logs_an_expired_link_and_a_late_payment_still_confirms(
+async def test_the_sweep_logs_an_expired_link_and_a_late_payment_still_confirms(
     db: AsyncSession,
     db_app: FastAPI,
     db_client: AsyncClient,
     rzp: FakeRazorpay,
-    cron: None,
 ) -> None:
     body, owner, dep_id = await link_booking(db, db_app, db_client)
     ref = body["ref"]
@@ -317,8 +316,8 @@ async def test_the_tidy_logs_an_expired_link_and_a_late_payment_still_confirms(
     )
     await db.commit()
     assert await seats_left(db, dep_id) == 6  # the view stopped counting it at expiry
-    report = await run_daily(db_client, db_app)
-    assert report["linksExpired"] == 1 and report["holdsExpired"] == 1
+    swept = await run_sweep(db)
+    assert swept.links_expired == 1 and swept.holds_expired == 1
     b, row = await row_of(db, ref)
     assert (b.status, b.cancel_reason) == (BookingStatus.CANCELLED, CancelReason.HOLD_EXPIRED)
     expired = (

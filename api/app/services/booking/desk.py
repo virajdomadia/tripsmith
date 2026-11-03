@@ -97,7 +97,6 @@ from app.services.booking.voucher import (
     payment_label,
 )
 from app.services.catalog.admin_leaders import departure_leader
-from app.services.email.owner import upcoming as upcoming_emails
 from app.services.email.render import IST
 from app.services.email.send import is_demo_address
 from app.services.format import inr
@@ -549,7 +548,6 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         refund_to_send_paise=await refund_owed(db, b) + stuck,
         refund_offline_paise=sum(r.amount_paise for r in waiting if r.by_hand),
         history=await booking_history(db, b.id),
-        upcoming_emails=await upcoming_emails(db, b, today=ist_today()),
         cancellation=_admin_cancellation(asked, b, seats.date) if asked else None,
         has_voucher=b.status in HAS_VOUCHER,
         can_mark_paid=payable,
@@ -570,7 +568,7 @@ async def get_booking(db: AsyncSession, ref: str) -> AdminBooking:
         payment_link=link,
         can_edit_travellers=b.status in EDITABLE,
         details=block,
-        can_edit_details=b.status in details.OWNER_STATUSES and not block.purged,
+        can_edit_details=b.status in details.OWNER_STATUSES,
         checklist=items,
         readiness=details.readiness(b, block, items, pack=pack),
         pack_status=DeskPackStatus(
@@ -738,8 +736,7 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         raise RuntimeError("dep is None")
     required = details.required_of(pkg)
     returns = seats.date + dt.timedelta(days=pkg.nights)
-    purged = ist_today() >= details.purge_on(returns)
-    found = {} if purged else await details.rows_for_departure(db, departure_id)
+    found = await details.rows_for_departure(db, departure_id)
     out = [
         ManifestBooking(
             ref=b.ref,
@@ -794,7 +791,6 @@ async def manifest(db: AsyncSession, settings: Settings, departure_id: str) -> M
         addons=list(totals.values()),
         readiness=await details.departure_readiness(db, departure_id),
         required=required,
-        purged=purged,
         checklist=details.details_settings(pkg).checklist,
         generated_at=dt.datetime.now(dt.UTC),
     )

@@ -104,7 +104,7 @@ class AccountBalance(ApiModel):
     deposit_paise: int
     balance_paise: int = Field(description="Still to pay; 0 once paid in full")
     due_on: dt.date = Field(description="The IST day the balance is due")
-    last_day_on: dt.date = Field(description="The last day of grace; cancelled the day after")
+    last_day_on: dt.date = Field(description="The last day of grace")
     min_part_paise: int = Field(description="The smallest part accepted now: ₹1,000, or less left")
     open: bool = Field(description="Pay the balance is available")
     reason: str | None = Field(

@@ -11,8 +11,8 @@ what keeps two offers from ever promising the same freed seat. It is called:
 - before any new hold on the departure (`create_booking_order`, the counter), so the list gets
   first call on seats a lapsed 10-minute hold gave back — a lapse fires no event, and this is
   where it's noticed;
-- on every waitlist read (join, a claim link, My trips) and from `/cron/waitlist` every 15
-  minutes and `/cron/daily`, each in its own short transaction (`walk_departures`).
+- on every waitlist read (join, a claim link, My trips), each in its own short transaction
+  (`walk_departures`). No scheduled walk since 2026-11-04: a lapse is noticed on the next read.
 
 **Walking.** First the lapses: an offer past its end, or a claim whose booking is no longer
 holding or paid, goes to the back of the list (still waiting — keeping its place would re-offer

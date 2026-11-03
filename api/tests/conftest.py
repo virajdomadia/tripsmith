@@ -10,6 +10,8 @@ unless `REQUIRE_DB_TESTS=1` (CI sets it), where a missing URL fails the run inst
 Postgres service can never turn into a green build that ran none of them.
 """
 
+import datetime as dt
+import math
 import os
 from collections.abc import AsyncIterator, Iterator
 
@@ -27,11 +29,20 @@ from app.infra import db as db_module
 from app.infra.db import get_session
 from app.main import create_app
 from app.models import Base
+from app.services import on_demand
 from app.services.pdf.service import PdfService
 from tests.settings import make_settings
 
 API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+
+@pytest.fixture(autouse=True)
+def _on_demand_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The reads' upkeep (services/on_demand.py) would rewrite the fixtures' prices and sweep
+    their bookings on the first read; tests that want it reset these or call it directly."""
+    monkeypatch.setattr(on_demand, "prices_fresh_on", dt.date.max)
+    monkeypatch.setattr(on_demand, "next_sweep_at", math.inf)
 
 
 def pytest_configure(config: pytest.Config) -> None:

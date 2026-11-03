@@ -67,7 +67,6 @@ async def test_meta_serves_the_rules_the_api_enforces(client: AsyncClient) -> No
         "balanceDays": 30,
         "graceDays": 2,
         "minPartPaise": 1_000_00,
-        "reminderDays": [7, 3, 0],
         "holdMinutes": 10,
         "leadDays": 2,
         "freeChangeDays": 30,
@@ -83,7 +82,7 @@ async def test_meta_serves_the_rules_the_api_enforces(client: AsyncClient) -> No
     ]
     assert rules["cancellationTiers"][2]["refund"] == "no refund"
     assert rules["ages"] == {"childMin": 5, "childMax": 11, "adultMin": 12}
-    assert body["retention"] == {"enquiryDays": 365, "detailsDays": 30, "sessionDays": 30}
+    assert body["retention"] == {"sessionDays": 30}
 
 
 def test_the_suggested_refund_follows_each_tier() -> None:

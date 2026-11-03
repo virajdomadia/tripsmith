@@ -16,11 +16,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Session, User
+from app.models import Session, User, Verification
 from app.schemas.auth import SessionInfo, SessionUser
 from app.services.auth.passwords import hash_password, needs_rehash, verify_password
 
 SESSION_TTL = dt.timedelta(days=30)
+CODE_KEEP = dt.timedelta(days=1)  # an expired sign-in code stays this long for a support look
 USER_AGENT_MAX = 300
 
 
@@ -59,12 +60,19 @@ async def open_session(
     db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
 ) -> tuple[Session, str]:
     """A new 30-day session for `user`, committed with whatever else the caller has pending —
-    the owner's password login and the customer's email code (B8) both end here."""
+    the owner's password login and the customer's email code (B8) both end here.
+
+    Every sign-in also deletes the expired sessions (a cookie never sent again would otherwise
+    stay forever; `find_session` only drops the ones still presented) and the sign-in codes
+    that expired over a day ago — the upkeep the nightly cron did until 2026-11-04."""
+    now = _now()
+    await db.execute(delete(Session).where(Session.expires_at <= now))
+    await db.execute(delete(Verification).where(Verification.expires_at < now - CODE_KEEP))
     token = new_token()
     session = Session(
         user_id=user.id,
         token_hash=hash_token(token),
-        expires_at=_now() + SESSION_TTL,
+        expires_at=now + SESSION_TTL,
         ip=ip,
         user_agent=(user_agent or "")[:USER_AGENT_MAX] or None,
     )
@@ -95,14 +103,6 @@ async def find_session(
         await db.commit()
         return None
     return session
-
-
-async def prune_sessions(db: AsyncSession, *, now: dt.datetime | None = None) -> int:
-    """Delete every expired session (the daily cron). `find_session` only drops the expired
-    rows someone still presents; a cookie that is never sent again would stay forever."""
-    result = await db.execute(delete(Session).where(Session.expires_at <= (now or _now())))
-    await db.commit()
-    return result.rowcount  # type: ignore[attr-defined]
 
 
 async def delete_session(db: AsyncSession, token: str) -> None:

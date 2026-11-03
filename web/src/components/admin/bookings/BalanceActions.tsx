@@ -27,7 +27,7 @@ type Balance = NonNullable<AdminBooking['balance']>;
 
 /**
  * R43 (P5b): a booking made on a deposit, on the desk — what was paid, what is left and by when
- * (overdue in the grace, and the day the tidy cancels it), and the owner's two moves: record the
+ * (overdue in the grace, and the grace's last day), and the owner's two moves: record the
  * whole balance paid offline, or move the due day later (up to the departure day, logged). Both
  * re-check on the api under the booking's lock; a refusal lands as a toast.
  */
@@ -50,7 +50,7 @@ export function BalanceActions({ booking }: { booking: AdminBooking }) {
               {formatDate(balance.dueOn)}
               <span className="block text-[12px] font-semibold text-mute">
                 {overdue
-                  ? `Overdue · cancelled after ${formatDate(balance.lastDayOn)}`
+                  ? `Overdue · grace ends ${formatDate(balance.lastDayOn)}`
                   : balance.daysLeft === 0
                     ? 'Today'
                     : `In ${balance.daysLeft} ${balance.daysLeft === 1 ? 'day' : 'days'}`}
@@ -124,8 +124,8 @@ function ExtendDue({ bookingRef, balance }: { bookingRef: string; balance: Balan
           <DialogDescription>
             Now due {formatDate(balance.dueOn)}. Pick a later day, up to{' '}
             {formatDate(balance.extendUntil)} — 3 days before departure, so the 2-day grace ends
-            before the trip. The customer sees the new day in My trips, the reminders start again
-            for it, and the history logs the change.
+            before the trip. The customer sees the new day in My trips, and the history logs the
+            change.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-1.5">

@@ -13,8 +13,8 @@ type Departure = components['schemas']['DepartureOut'];
 
 /**
  * Seat bar + status pill per departure. The price is after the deal and (P17) the early-bird
- * tier the date earns today. The page is prerendered and the daily cron only rebuilds it within
- * the hour after IST midnight, so the table hydrates with the day it was built (`builtOn`, no
+ * tier the date earns today. The page is prerendered and refetched hourly, so after IST midnight
+ * it can still carry yesterday's build for up to an hour; the table hydrates with the day it was built (`builtOn`, no
  * mismatch) and then re-reads the IST day: a tier or deal that ended at midnight leaves the
  * table at once, as it leaves the quote.
  */

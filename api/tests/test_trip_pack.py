@@ -109,7 +109,7 @@ def test_calendar_links_are_signed_per_booking_and_expire() -> None:
     assert calendar.calendar_path("TB-AAAAAA", "google", None, exp=exp) is None
     google = calendar.calendar_path("TB-AAAAAA", "google", SECRET, exp=exp)
     assert google and google.startswith("/calendar/TB-AAAAAA/google?exp=")
-    # An email's link lives until the details purge day, 30 days after the trip.
+    # An email's link lives until the pack closes, 30 days after the trip.
     back = dt.date(2026, 11, 17)
     end = dt.datetime.fromtimestamp(calendar.trip_link_exp(back), dt.UTC)
     assert end.date() == dt.date(2026, 12, 17)
