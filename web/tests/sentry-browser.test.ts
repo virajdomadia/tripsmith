@@ -25,6 +25,8 @@ describe('loadSentry', () => {
   });
 
   it('initialises the browser as errors only', async () => {
+    // A fresh module, so this test sees its own init call rather than relying on the one above.
+    vi.resetModules();
     const sdk = await import('@/lib/sentry-sdk');
     const { loadSentry } = await import('../src/lib/sentry-browser');
     await loadSentry();
