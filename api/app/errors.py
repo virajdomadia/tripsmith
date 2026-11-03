@@ -14,14 +14,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.infra import observability
 from app.middleware import security_headers
-from app.schemas.bookings import CouponReason, UnbookableReason
-from app.schemas.errors import ErrorReason
 
 log = logging.getLogger(__name__)
-
-# The reason enums an error may carry; CouponReason and UnbookableReason values sit inside
-# ErrorReason (a test keeps them so), so every one reaches the contract.
-Reason = ErrorReason | UnbookableReason | CouponReason
 
 ErrorCode = Literal[
     "validation",
@@ -54,7 +48,7 @@ class ApiError(Exception):
     message: str
     status: int
     field_errors: dict[str, str] | None
-    reason: Reason | None
+    reason: str | None
 
     def __init__(
         self,
@@ -62,7 +56,7 @@ class ApiError(Exception):
         message: str,
         *,
         field_errors: dict[str, str] | None = None,
-        reason: Reason | None = None,
+        reason: str | None = None,
         status: int | None = None,
     ) -> None:
         super().__init__(message)
@@ -80,14 +74,15 @@ def envelope(
     *,
     status: int | None = None,
     field_errors: dict[str, str] | None = None,
-    reason: Reason | None = None,
+    reason: str | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     error: dict[str, object] = {"code": code, "message": message}
     if field_errors is not None:
         error["fieldErrors"] = field_errors
     if reason is not None:
-        error["reason"] = reason.value
+        # str(): a StrEnum reason (UnbookableReason, CouponReason) goes out as its value.
+        error["reason"] = str(reason)
     # An error response is never cacheable (04 §Auth / 06 C0); merge with any caller headers
     # (Retry-After, X-Request-Id, …) so every envelope — success or not — carries it.
     # `security_headers()` because an unhandled 500 is rendered outside the middleware stack (H4).

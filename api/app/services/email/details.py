@@ -19,7 +19,6 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.email import EmailMessage, EmailSender
 from app.models import Booking, Departure, Package
-from app.schemas.errors import ErrorReason
 from app.services.booking import details
 from app.services.booking.after_capture import Notify
 from app.services.booking.voucher import BookingFacts, load_booking_facts
@@ -113,11 +112,11 @@ async def _still_owed(db: AsyncSession, ref: str, today: dt.date) -> StillOwed:
         raise ApiError(
             "conflict",
             "The details can't be filled in online any more",
-            reason=ErrorReason.NOT_OPEN,
+            reason="not_open",
         )
     left = details.owed(block)
     if not left:
-        raise ApiError("conflict", "Every traveller's details are in", reason=ErrorReason.COMPLETE)
+        raise ApiError("conflict", "Every traveller's details are in", reason="complete")
     facts = await load_booking_facts(db, ref)
     if facts is None:
         raise RuntimeError("facts is None")

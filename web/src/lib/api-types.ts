@@ -3704,7 +3704,7 @@ export interface components {
              * Reason
              * @description A machine-readable cause, mostly on 409s; the web branches on it.
              */
-            reason?: components["schemas"]["ErrorReason"];
+            reason?: string;
         };
         /** ApiErrorResponse */
         ApiErrorResponse: {
@@ -5959,15 +5959,6 @@ export interface components {
          * @enum {string}
          */
         ErrorCode: "validation" | "unauthorized" | "forbidden" | "not_found" | "rate_limited" | "conflict" | "internal";
-        /**
-         * ErrorReason
-         * @description Every machine-readable cause an error can carry; the web branches on these (OP-10).
-         *
-         *     `ApiError(reason=...)` takes this enum (or the two below, whose values are a subset — a test
-         *     keeps them so), so a new reason cannot reach the wire without reaching `api-types.ts`.
-         * @enum {string}
-         */
-        ErrorReason: "on_request" | "too_soon" | "sold_out" | "price_changed" | "deposit_unavailable" | "addon_unavailable" | "manual_no_room" | "coupon_unknown" | "coupon_not_started" | "coupon_expired" | "coupon_used_up" | "coupon_not_for_trip" | "coupon_below_minimum" | "coupon_used_by_email" | "waitlist_closed" | "seats_available" | "already_waiting" | "not_waiting" | "not_live" | "offers_closed" | "claim_short" | "claim_other" | "claim_email" | "claim_expired" | "already_requested" | "not_paid" | "not_active" | "departed" | "balance_closed" | "not_on_deposit" | "change_closed" | "same_date" | "extras_closed" | "closed" | "locked" | "not_open" | "complete" | "pack_locked" | "not_completed" | "already_reviewed" | "saved_full" | "code_dead" | "code_wrong" | "already_converted" | "link_unavailable" | "link_over_cap" | "link_paid" | "no_link" | "not_editable" | "not_payable" | "not_pending" | "seats_short" | "not_movable" | "nothing_to_move" | "no_refund" | "refund_exceeds_payments" | "resolved" | "no_switch" | "not_fitting" | "no_owner_email" | "send_failed" | "sent" | "id_key_missing";
         /**
          * ExtendDueInput
          * @description Move the balance's due day later (P5): after the current one, by the departure day.

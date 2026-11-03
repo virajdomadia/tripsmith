@@ -1,5 +1,4 @@
 import type { components } from './api-types';
-import type { ErrorReason } from './api-errors';
 import { inr } from '@/lib/format';
 import { billingErrors, normaliseGstin } from '@/lib/gst';
 import type { Rules } from './rules';
@@ -337,12 +336,10 @@ export function addonChoices(offered: Addon[], picks: AddonPicks, party: number)
 }
 
 /** An add-on refused because the owner switched it off since the page loaded (409). */
-export const isAddonGone = (reason: ErrorReason | undefined) => reason === 'addon_unavailable';
+export const isAddonGone = (reason: string | undefined) => reason === 'addon_unavailable';
 
 /** A coupon refusal (B15, R26): shown under the code field, never as an unbookable date. */
-export const isCouponRefusal = (
-  reason: ErrorReason | undefined,
-): reason is Extract<ErrorReason, `coupon_${string}`> => !!reason?.startsWith('coupon_');
+export const isCouponRefusal = (reason: string | undefined) => !!reason?.startsWith('coupon_');
 
 /** The email a coupon quote carries, so the visitor's own live hold is not counted against the
  * code's use limit: a valid address only. "Already used by this email" is answered at Pay. */
