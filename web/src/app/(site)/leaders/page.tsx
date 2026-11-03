@@ -10,10 +10,10 @@ import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { absolute } from '@/lib/seo/site-url';
 
 /**
- * `/leaders` (R41): everyone who leads our trips. Rendered on request like `/destinations` (CI
- * builds with no api); the fetch is cached for an hour and purged by the `leaders` tag.
+ * `/leaders` (R41): everyone who leads our trips. ISR, rebuilt at most hourly (no function
+ * time per visit); the fetch is cached for an hour and purged by the `leaders` tag.
  */
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 const REVALIDATE_SECONDS = 60 * 60;
 

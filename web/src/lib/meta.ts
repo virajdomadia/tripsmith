@@ -4,7 +4,7 @@ import { type Rules, rulesOf } from './rules';
 /** The api's runtime constants (`GET /meta`). They change only with an api deploy; five minutes
  * bounds how long a pre-deploy body (no `rules`, the web/api deploy race) can outlive it. One
  * request per render however many callers. */
-export const getMeta = () => api('/meta', { revalidate: 300 });
+export const getMeta = () => api('/meta', { revalidate: 3600 });
 
 /** For a layout: the rules, or null when the api can't be reached (a CI build, an outage) — so a
  * page that needs none still renders, and one that does fails in its own error boundary. */

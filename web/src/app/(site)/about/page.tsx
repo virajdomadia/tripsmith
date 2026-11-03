@@ -13,8 +13,9 @@ import { api } from '@/lib/api';
 import { BUSINESS } from '@/lib/business';
 import { absolute } from '@/lib/seo/site-url';
 
-/** Like `/`: rendered per request (CI builds with no api); the stats fetch is cached 1 h. */
-export const dynamic = 'force-dynamic';
+// ISR: served from Vercel's CDN, rebuilt at most hourly or when the api purges a tag — a visit
+// (or a monitor's ping) costs no function time. Vercel builds need the api (API_URL).
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'About',
