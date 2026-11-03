@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Python's version comes from api/.python-version.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.1
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
