@@ -1,9 +1,9 @@
 import { PolicyPage, policyMetadata } from '@/components/site/policies/PolicyPage';
 
 export const metadata = policyMetadata('privacy');
-// The numbers come from /meta (Q-5): rendered on request, so a build needs no api; the read is
-// cached an hour.
-export const dynamic = 'force-dynamic';
+// ISR: served from Vercel's CDN, rebuilt at most hourly or when the api purges a tag — a visit
+// (or a monitor's ping) costs no function time. Vercel builds need the api (API_URL).
+export const revalidate = 3600;
 
 export default function PrivacyPage() {
   return <PolicyPage slug="privacy" />;

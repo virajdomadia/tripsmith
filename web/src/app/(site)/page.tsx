@@ -15,8 +15,9 @@ import { api } from '@/lib/api';
 import { siteJsonLd } from '@/lib/seo/site-jsonld';
 import { absolute, SITE_URL } from '@/lib/seo/site-url';
 
-/** Like /destinations: rendered per request (CI builds with no api); fetches cached 1 h + tagged. */
-export const dynamic = 'force-dynamic';
+// ISR: served from Vercel's CDN, rebuilt at most hourly or when the api purges a tag — a visit
+// (or a monitor's ping) costs no function time. Vercel builds need the api (API_URL).
+export const revalidate = 3600;
 
 const REVALIDATE_SECONDS = 60 * 60;
 
@@ -32,7 +33,7 @@ const GRID = 'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3';
 export default async function Home() {
   const [home, { facets }] = await Promise.all([
     api('/home', { tags: ['home', 'packages', 'destinations'], revalidate: REVALIDATE_SECONDS }),
-    api('/packages', { tags: ['packages'], revalidate: 60 }),
+    api('/packages', { tags: ['packages'], revalidate: REVALIDATE_SECONDS }),
   ]);
   const { destinations, packages, deals, testimonials, stats } = home;
 

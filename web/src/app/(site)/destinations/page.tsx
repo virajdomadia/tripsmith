@@ -8,11 +8,10 @@ import { breadcrumbJsonLd } from '@/lib/seo/breadcrumb-jsonld';
 import { absolute } from '@/lib/seo/site-url';
 
 /**
- * Rendered on request like `/packages` (CI builds with no api reachable, and a static page would
- * bake whatever the api said at deploy time). The fetch itself is cached for an hour and tagged
- * `destinations` so admin edits (F18) can purge it on demand.
+ * ISR, rebuilt at most hourly (no function time per visit). The fetch is cached for an hour and
+ * tagged `destinations` so admin edits (F18) can purge it on demand.
  */
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 const REVALIDATE_SECONDS = 60 * 60;
 

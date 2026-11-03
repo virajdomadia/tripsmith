@@ -17,7 +17,9 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # web/ — Next.js: lint (eslint + prettier) → typecheck → vitest → next build
+  # web/ — Next.js: lint (eslint + prettier) → typecheck → vitest. No `next build` here: the
+  # public pages are ISR and prerender against the api, which CI doesn't run — Vercel's preview
+  # build (with API_URL) is the build check.
   # ---------------------------------------------------------------------------
   web:
     runs-on: ubuntu-latest
@@ -34,7 +36,6 @@ jobs:
       - run: pnpm --filter web lint
       - run: pnpm --filter web typecheck
       - run: pnpm --filter web test
-      - run: pnpm --filter web build
 
   # ---------------------------------------------------------------------------
   # api/ — FastAPI: ruff → pyright → pytest against a throwaway Postgres (S10+)
