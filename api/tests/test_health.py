@@ -2,11 +2,8 @@
 
 import uuid
 
-import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
-from tests.settings import make_settings
 
 
 async def test_health_returns_ok(client: AsyncClient) -> None:
@@ -39,7 +36,7 @@ async def test_lifespan_runs_cleanly(app: FastAPI) -> None:
 
 
 async def test_oversized_or_odd_request_id_is_replaced(client: AsyncClient) -> None:
-    # Only a bounded, safe charset is trusted (log/Sentry tag injection otherwise).
+    # Only a bounded, safe charset is trusted (log injection otherwise).
     res = await client.get("/health", headers={"X-Request-Id": "x" * 5000})
     assert uuid.UUID(res.headers["x-request-id"]).version == 4
     res = await client.get("/health", headers={"X-Request-Id": "bad id with spaces"})
@@ -80,19 +77,3 @@ async def test_head_on_a_route_that_raises_is_a_bodyless_500(app: FastAPI) -> No
         head = await c.head("/boom")
     assert get.status_code == 500 and get.content
     assert head.status_code == 500 and head.content == b""
-
-
-def test_sentry_is_initialised_before_the_startup_checks_log(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The limiter / sender / keyed-hash checks log at ERROR for Sentry to carry — only possible
-    once `init_sentry` has run."""
-    import app.main as main
-
-    order: list[str] = []
-    monkeypatch.setattr(main, "init_sentry", lambda s: order.append("sentry"))
-    monkeypatch.setattr(main, "build_rate_limiter", lambda s: order.append("limiter"))
-    monkeypatch.setattr(main, "build_email_sender", lambda s: order.append("sender"))
-    monkeypatch.setattr(main, "_check_keyed_hashing", lambda s: order.append("hashing"))
-    main.create_app(settings=make_settings())
-    assert order[0] == "sentry" and set(order[1:]) == {"limiter", "sender", "hashing"}

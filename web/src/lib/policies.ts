@@ -50,7 +50,7 @@ export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>
     title: 'Privacy policy',
     short: 'Privacy',
     summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-    updated: V5,
+    updated: '2026-11-04',
   },
   'cancellation-policy': {
     title: 'Cancellation & refunds',
@@ -171,7 +171,7 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         h: 'Who sees it',
         p: [
           'On this demo: anyone who signs in with the public demo login can see every enquiry and booking, as described above.',
-          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Sentry receives error reports. Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
+          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, and Gmail sends our emails. Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
           'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
         ],
       },
@@ -180,7 +180,7 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         p: [
           `The site sets no advertising cookies. It sets two of its own: when you sign in, a session cookie that keeps you signed in for ${retention.sessionDays} days; and, only if an enquiry sent without JavaScript fails, a ${DRAFT_COOKIE_OPTIONS.maxAge / 60}-minute cookie holding what you typed so the form can be filled in again.`,
           'Your browser also keeps, for the life of the tab, the packages in your compare tray, the email you just booked with (to fill in the sign-in form), and which package pages you have already viewed, so a refresh is not counted twice. Trips you save with the heart are kept in your browser’s local storage: as a guest until you sign in (they then move to your account), and while signed in as a copy of your list, so the hearts show at once (signing out removes that copy). Clearing your browser’s site data removes both.',
-          'Vercel Web Analytics counts page visits without cookies and without identifying you. When something breaks, Sentry records the page, the browser and the error — with addresses, cookies and form contents stripped out. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
+          'Vercel Web Analytics counts page visits without cookies and without identifying you. The map on our contact page is embedded from Google Maps and may set its own cookies when you interact with it.',
         ],
       },
       {

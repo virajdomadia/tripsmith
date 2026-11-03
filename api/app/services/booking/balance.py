@@ -31,7 +31,6 @@ import logging
 import time
 from typing import NamedTuple
 
-import sentry_sdk
 from sqlalchemy import Exists, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -404,9 +403,8 @@ async def sweep_balances(
             return BalanceSweep(cancelled=cancelled, more=True)
         try:
             done = await _cancel_overdue(db, ref, today)
-        except Exception as exc:
+        except Exception:
             log.exception("Could not cancel overdue booking %s", ref)
-            sentry_sdk.capture_exception(exc)
             continue
         if done is None:
             continue

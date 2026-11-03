@@ -55,9 +55,6 @@ class Settings(BaseSettings):
     upstash_redis_rest_url: str | None = None
     upstash_redis_rest_token: SecretStr | None = None
 
-    # --- Errors (Sentry; empty = off) ---
-    sentry_dsn: str | None = None
-
     # --- Payments (Razorpay, test mode; unset = online booking answers 503) ---
     # The key id is public — Checkout.js is opened with it — so only the secret is a SecretStr.
     razorpay_key_id: str | None = None

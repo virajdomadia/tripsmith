@@ -13,7 +13,6 @@ change is already committed.
 import logging
 from dataclasses import replace
 
-import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,9 +65,8 @@ async def send_change_emails(
         new_date = dates[change.to_departure_id]
         actor = change.actor
         facts = await load_booking_facts(db, ref)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not load date change %s for its emails", change_id)
-        sentry_sdk.capture_exception(exc)
         return
     finally:
         await db.rollback()
@@ -164,9 +162,8 @@ async def send_change_emails_for_payment(
                 )
             )
         ).scalar_one_or_none()
-    except Exception as exc:
+    except Exception:
         log.exception("Could not find the date change paid by %s", razorpay_payment_id)
-        sentry_sdk.capture_exception(exc)
         return
     finally:
         await db.rollback()

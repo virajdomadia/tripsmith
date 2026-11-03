@@ -10,7 +10,6 @@ import datetime as dt
 import logging
 from dataclasses import dataclass
 
-import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -70,9 +69,8 @@ async def send_details_link(
 ) -> None:
     try:
         labelled = render_details_link(facts, settings, owed=owed, locks_on=locks_on)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render the details link email for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
         return
     await deliver(sender, settings, labelled, ref=facts.ref, what="details link", db=db)
 

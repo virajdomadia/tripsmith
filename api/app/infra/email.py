@@ -148,7 +148,7 @@ class SmtpSender:
         except smtplib.SMTPException as exc:
             # Refused: bad login, rejected recipient, over Gmail's daily cap. Never the address —
             # and `from None` (V4, OP-4): SMTPRecipientsRefused carries every refused address,
-            # and a chained cause is printed in full in the Sentry event.
+            # and a chained cause is printed in full in the traceback.
             raise EmailSendError(f"SMTP refused: {type(exc).__name__}") from None
         except OSError as exc:  # DNS, connect, timeout
             raise EmailSendError(f"SMTP unreachable: {type(exc).__name__}") from None
@@ -167,7 +167,7 @@ def build_email_sender(settings: Settings) -> EmailSender:
     if settings.resend_api_key:
         return ResendSender(settings.resend_api_key.get_secret_value(), settings.email_from)
     if os.environ.get("VERCEL"):
-        # Enquiries still save, but nobody hears about them. ERROR so Sentry carries it.
+        # Enquiries still save, but nobody hears about them. ERROR so it stands out.
         log.error(
             "No SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY on a deployment: no email is being "
             "sent (enquiries, bookings, sign-in codes). Set them on this project."

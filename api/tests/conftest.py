@@ -15,7 +15,6 @@ from collections.abc import AsyncIterator, Iterator
 
 import httpx
 import pytest
-import sentry_sdk
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
@@ -35,13 +34,6 @@ API_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _sentry_off() -> None:
-    # Importing app.main builds the module-level `app` from the real settings, which turns Sentry
-    # on when api/.env.local carries a DSN. Tests start from an inactive SDK.
-    sentry_sdk.get_global_scope().set_client(None)
-
-
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "db: needs TEST_DATABASE_URL (Postgres)")
 
@@ -59,7 +51,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def app() -> FastAPI:
-    # Pure defaults (tests/settings.py): no env, no .env.local — Sentry and the DB stay off.
+    # Pure defaults (tests/settings.py): no env, no .env.local — the DB stays off.
     settings = make_settings()
     app = create_app(settings=settings)
     # No store, and a cover fetch that always 404s: PDFs render, nothing leaves the process.

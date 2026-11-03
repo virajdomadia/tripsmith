@@ -17,14 +17,13 @@
 Demo mode is the enquiry emails' rule (send.py `held_back`): while `EMAIL_FROM` is @resend.dev,
 or always for an @example.com/.org/.net customer, the customer's copy goes to
 `OWNER_NOTIFY_EMAIL` with a `[Test → …]` subject. Never raises — the
-payment is already committed; a lost email is logged and sent to Sentry.
+payment is already committed; a lost email is logged.
 """
 
 import asyncio
 import logging
 from dataclasses import replace
 
-import sentry_sdk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -262,9 +261,8 @@ async def send_booking_emails(
         labelled = render_booking_emails(
             facts, capture, settings=settings, voucher=voucher, invoice=invoice
         )
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render booking emails for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
         return
     await deliver(
         sender,
@@ -341,7 +339,6 @@ async def deliver(
         if isinstance(result, BaseException):
             # The role, never the address.
             log.error("%s %s email failed for %s: %s", role, what, ref, result)
-            sentry_sdk.capture_exception(result)
     if db is not None:
         await record_emails(db, ref, lines)
     return lines

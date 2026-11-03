@@ -37,7 +37,7 @@ async def get_ready(
     try:
         await db.execute(text("SELECT 1"))
     except Exception as exc:
-        # WARNING: the monitor's alert is the page; Sentry would get one issue per check.
+        # WARNING: the monitor's alert is the page.
         log.warning("Readiness check failed: %s", type(exc).__name__)
         raise ApiError(
             "internal", "Database unavailable", status=status.HTTP_503_SERVICE_UNAVAILABLE

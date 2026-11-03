@@ -22,7 +22,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-import sentry_sdk
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -67,9 +66,8 @@ async def voucher_attachment(facts: BookingFacts, settings: Settings) -> EmailAt
             ),
             timeout=settings.pdf_render_timeout,
         )
-    except Exception as exc:
+    except Exception:
         log.exception("Voucher for %s could not be rendered; emailing without it", facts.ref)
-        sentry_sdk.capture_exception(exc)
         return None
     return EmailAttachment(filename=voucher_filename(facts.ref), content=pdf)
 
@@ -111,9 +109,8 @@ async def on_new_capture(
         return
     try:
         facts = await load_booking_facts(db, ref)
-    except Exception as exc:
+    except Exception:
         log.exception("Could not load booking %s for its emails", ref)
-        sentry_sdk.capture_exception(exc)
         return
     finally:
         with contextlib.suppress(Exception):

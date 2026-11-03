@@ -7,7 +7,6 @@ the send lands in the booking's history, and nothing here raises.
 import datetime as dt
 import logging
 
-import sentry_sdk
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -57,8 +56,7 @@ async def send_payment_link(
         labelled = render_payment_link(
             facts, settings, url=url, amount_paise=amount_paise, expires=expires
         )
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render the payment link email for %s", facts.ref)
-        sentry_sdk.capture_exception(exc)
         return
     await deliver(sender, settings, labelled, ref=facts.ref, what="payment link", db=db)

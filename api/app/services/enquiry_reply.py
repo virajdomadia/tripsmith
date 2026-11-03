@@ -18,7 +18,6 @@ import asyncio
 import logging
 from dataclasses import replace
 
-import sentry_sdk
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,9 +104,8 @@ async def _deliver(
             package_name=package[1] if package else None,
             settings=settings,
         )
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render the reply to %s", enquiry_ref)
-        sentry_sdk.capture_exception(exc)
         return None, ERR_REJECTED
     if attachment is not None:
         message = replace(message, attachments=(attachment,))
@@ -123,7 +121,6 @@ async def _deliver(
     except Exception as exc:
         # The kind, never the address.
         log.error("Inbox reply failed for %s: %s", enquiry_ref, exc)
-        sentry_sdk.capture_exception(exc)
         unreachable = isinstance(exc, EmailSendError) and "unreachable" in str(exc)
         return None, ERR_UNREACHABLE if unreachable else ERR_REJECTED
     if sent is None:

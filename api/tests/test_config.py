@@ -24,7 +24,6 @@ def test_settings_load_with_no_env_at_all(monkeypatch: pytest.MonkeyPatch) -> No
     s = EnvOnlySettings()
     assert s.database_url is None
     assert s.session_secret is None
-    assert s.sentry_dsn is None
     assert s.web_url == "http://localhost:3000"
     assert s.site_url == "http://localhost:3000"
 

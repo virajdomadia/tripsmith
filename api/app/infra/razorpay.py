@@ -283,7 +283,7 @@ def verify_webhook_signature(secret: str, body: bytes, signature: str) -> bool:
 def build_razorpay(settings: Settings) -> Razorpay | None:
     if settings.razorpay_key_id and settings.razorpay_key_secret:
         if settings.public_demo_owner and settings.razorpay_key_id.startswith("rzp_live_"):
-            # SA-3: the owner login is public — it must never move real money. ERROR for Sentry.
+            # SA-3: the owner login is public — it must never move real money. ERROR.
             log.error(
                 "A live Razorpay key is set while PUBLIC_DEMO_OWNER is on: online booking is "
                 "switched off. Use test keys, or set PUBLIC_DEMO_OWNER=false on a private site."
@@ -291,7 +291,7 @@ def build_razorpay(settings: Settings) -> Razorpay | None:
             return None
         return Razorpay(settings.razorpay_key_id, settings.razorpay_key_secret.get_secret_value())
     if os.environ.get("VERCEL"):
-        # The site still browses and takes enquiries; Book now answers 503. ERROR for Sentry.
+        # The site still browses and takes enquiries; Book now answers 503. ERROR.
         log.error(
             "RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET unset on a deployment: online booking is "
             "switched off. Set both on this project."

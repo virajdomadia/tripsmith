@@ -72,7 +72,7 @@ describe('policy documents', () => {
       'keyed hash',
     ])
       expect(privacy).toContain(named);
-    for (const service of ['Supabase', 'Vercel', 'Razorpay', 'Gmail', 'Sentry'])
+    for (const service of ['Supabase', 'Vercel', 'Razorpay', 'Gmail'])
       expect(privacy).toContain(service);
   });
 

@@ -16,8 +16,6 @@ import asyncio
 import logging
 from dataclasses import dataclass, replace
 
-import sentry_sdk
-
 from app.config import Settings
 from app.infra.email import EmailAttachment, EmailMessage, EmailSender
 from app.models.enums import EmailStatus
@@ -92,9 +90,8 @@ async def send_enquiry_emails(
                 )
             else:
                 visitor = None
-    except Exception as exc:
+    except Exception:
         log.exception("Could not render enquiry emails for %s", ctx.ref)
-        sentry_sdk.capture_exception(exc)
         return EmailOutcome(EmailStatus.FAILED, False)
 
     # (role, message) pairs — never log the recipient address, only the role (`owner`/`visitor`).
@@ -114,7 +111,6 @@ async def send_enquiry_emails(
 
     for role, exc in failures:
         log.error("%s email failed for enquiry %s: %s", role, ctx.ref, exc)
-        sentry_sdk.capture_exception(exc)
 
     visitor_emailed = visitor_is_real and isinstance(visitor_result, str)
     if failures:
