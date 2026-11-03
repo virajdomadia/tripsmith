@@ -12,7 +12,7 @@ Each entry says how you notice, what to check first, and what to do.
 | Web | Vercel project `tripsmith` → https://tripsmith.virajdomadia.com (also `tripsmith.vercel.app`) |
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
 | Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations and seeds: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
-| Backups | **None.** The `db-backup.yml` workflow exists but is disabled by choice (Viraj, 2026-10-24: a portfolio project, losing the data is acceptable) — see §6 |
+| Backups | **None**, by choice — see §6 |
 | Scheduled jobs | Vercel crons `/cron/daily` (01:00 IST) and `/cron/emails` (09:00 IST); GitHub `waitlist-tick.yml` every 15 min (runs ~5×/day in practice) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
 
@@ -162,76 +162,11 @@ generate once and set both from the same value.
 4. `gh workflow run waitlist-tick.yml`, then `gh run watch` — it must end green with a waitlist
    report. Between steps 2 and 3 a tick fails loudly; that is expected and harmless.
 
-## 6. Restore from a backup
+## 6. Backups
 
-**Status: backups are off.** Viraj decided on 2026-10-24 that a portfolio project does not need
-them: the workflow is disabled in GitHub Actions, the `tripsmith_backup` role, the
-`BACKUP_DATABASE_URL` secret and the age key were never created, and no drill has run. Everything
-below is ready if that changes: do the **Backups set-up**, then `gh workflow enable
-db-backup.yml`, run it once by hand and run the drill.
-
-**What it would do when on:** `.github/workflows/db-backup.yml` runs at 02:10 IST: `pg_dump -Fc` of the `public`
-schema as the read-only role `tripsmith_backup`, with every table's row count read in the same
-exported snapshot; restored at once into a throwaway Postgres on the runner and the counts
-compared, then both the dump and the counts
-are `age`-encrypted and kept as a 30-day artifact `tripsmith-db-<UTC stamp>`. The repo is public,
-so only the encrypted files leave the runner. The private key would be kept at
-`C:\Users\Viraj\.age\tripsmith-backup.txt` with a copy in the password manager — without it every
-backup is useless. A failed run would email the repo owner (GitHub's default for scheduled
-runs), and GitHub disables a schedule after 60 days without a commit.
-
-**Drill / restore into a scratch database** (local Postgres on 5433; needs `gh`, `age`,
-`psql`, `pg_restore` on PATH):
-
-```powershell
-# from api/ in any checkout
-uv run python -m scripts.restore_drill --key C:\Users\Viraj\.age\tripsmith-backup.txt
-#   --run <id>       a given workflow run instead of the newest successful one
-#   --prod-url <url> also show how production differs now (informational; read-only URL)
-#   --drop           drop the scratch database afterwards
-```
-
-It downloads the newest artifact, decrypts it to a temp folder (deleted on exit), re-creates
-`tripsmith_restore_drill`, restores, compares the counts and prints the alembic revision and the
-timings. It refuses any target that is not local.
-
-**Restore into a real database** (a new Supabase project, §3) — by hand, against its **session
-pooler** URL, with the decrypted dump:
-
-```sh
-age --decrypt --identity tripsmith-backup.txt --output tripsmith.dump tripsmith-<stamp>.dump.age
-psql "$NEW_SESSION_URL" -Xc "drop schema public cascade"   # a new project only: the dump creates it
-pg_restore --dbname="$NEW_SESSION_URL" --no-owner --no-privileges --exit-on-error tripsmith.dump
-psql "$NEW_SESSION_URL" -XAtc "select version_num from alembic_version"   # = the repo's head
-```
-
-Then delete `tripsmith.dump`, re-create the `tripsmith_backup` role on the new project
-(§Backups set-up below) and update the `BACKUP_DATABASE_URL` secret.
-
-**Drill log**
-
-| Date | Backup | Download | Decrypt | Restore | Total | Counts | Revision |
-|---|---|---|---|---|---|---|---|
-| _none — backups are off_ | | | | | | | |
-
-**Backups set-up** (not done; only if backups are turned on): in the Supabase SQL editor, as
-`postgres`:
-
-```sql
-create role tripsmith_backup login password '<openssl rand -hex 24>'
-  nosuperuser nocreatedb nocreaterole noinherit;
-alter role tripsmith_backup set default_transaction_read_only = on;
-grant usage on schema public to tripsmith_backup;
-grant select on all tables in schema public to tripsmith_backup;
-grant select on all sequences in schema public to tripsmith_backup;
--- tables created by later migrations (run as postgres) are readable too:
-alter default privileges for role postgres in schema public grant select on tables to tripsmith_backup;
-alter default privileges for role postgres in schema public grant select on sequences to tripsmith_backup;
-```
-
-Then the repo secret `BACKUP_DATABASE_URL` =
-`postgresql://tripsmith_backup.yxlqhzjszwlpxttlbwqj:<pw>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require`
-and the repo variable `BACKUP_AGE_RECIPIENT` = the `age1…` public key from `age-keygen`.
+**None, by choice** (Viraj, 2026-10-24: a portfolio project, losing the data is acceptable). The
+backup workflow and restore drill were deleted in the 2026-11-04 lean cleanup. To recover, rebuild
+from migrations + seeds (§3).
 
 ## 7. Rolling back a bad deploy
 
