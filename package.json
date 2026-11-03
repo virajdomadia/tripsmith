@@ -17,9 +17,9 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "concurrently": "10.0.5",
+    "concurrently": "10.0.6",
     "openapi-typescript": "7.13.0",
-    "prettier": "3.9.6",
+    "prettier": "3.9.10",
     "typescript": "5.9.3"
   }
 }
