@@ -103,7 +103,7 @@ class CancelReason(StrEnum):
     SEATS_GONE = "seats_gone"
     CANCELLATION_APPROVED = "cancellation_approved"
     OWNER_RELEASED = "owner_released"
-    BALANCE_UNPAID = "balance_unpaid"  # P5: the daily tidy, after the 2-day grace
+    BALANCE_UNPAID = "balance_unpaid"  # P5: the nightly cron cancelled these until 2026-11-04
 
 
 class CouponKind(StrEnum):
@@ -117,7 +117,7 @@ class BookingActor(StrEnum):
     OWNER = "owner"
     CUSTOMER = "customer"
     WEBHOOK = "webhook"  # Razorpay's server-to-server event
-    CRON = "cron"  # /cron/daily
+    CRON = "cron"  # automatic: the bookings sweep (the nightly cron until 2026-11-04)
     SYSTEM = "system"  # the api on its own: a late capture's outcome, an email, the seed
 
 
@@ -192,10 +192,9 @@ class FoodChoice(StrEnum):
 
 
 class EmailType(StrEnum):
-    """The emails the P15 ledger (`email_sends`, R53) sends at most once per key. The first five
-    are the automatic ones the owner can switch off; a refund email always goes, and so does the
-    cancellation for a balance unpaid past its grace (V4: sent by the daily tidy, retried by
-    `/cron/emails`)."""
+    """The emails the P15 ledger (`email_sends`, R53) sent at most once per key. Only the refund
+    email is still sent (services/email/ledger.py); the scheduled ones went with the crons on
+    2026-11-04 and stay here for their old rows."""
 
     BALANCE_REMINDER = "balance_reminder"
     DETAILS_REMINDER = "details_reminder"

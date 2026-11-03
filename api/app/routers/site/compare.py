@@ -11,8 +11,9 @@ from app.infra.cache import PUBLIC_CACHE_CONTROL
 from app.infra.db import get_session
 from app.schemas.compare import CompareResult
 from app.services.catalog.compare import compare
+from app.services.on_demand import fresh_prices
 
-router = APIRouter(tags=["public"])
+router = APIRouter(tags=["public"], dependencies=[Depends(fresh_prices)])
 
 
 @router.get("/compare", operation_id="compareTrips")

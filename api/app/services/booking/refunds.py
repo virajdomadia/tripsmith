@@ -19,7 +19,7 @@ Where a refund can end up:
   the amount goes back onto `paid_paise`, so `refund_owed` counts it again and the desk offers
   "Send refund".
 - still **requested** without a Razorpay id — Razorpay could not be reached, or the process died
-  mid-call. `refund_needed` stays up, and the desk's "Send refund" (or the daily tidy) sends it
+  mid-call. `refund_needed` stays up, and the desk's "Send refund" sends it
   again under the same key.
 - **by hand** — an offline payment's share: `requested` until the owner records "Refund made
   (offline)".
@@ -754,32 +754,6 @@ async def record_by_hand(db: AsyncSession, ref: str, note: str | None, *, by: st
         await db.rollback()
         raise
     return total
-
-
-async def resend_stale(db: AsyncSession, razorpay: Razorpay | None, *, older_than_min: int) -> int:
-    """The daily tidy's safety net: resend Razorpay refunds stuck `requested` without a Razorpay
-    id (a process that died mid-call). Same key each time, so nothing is refunded twice."""
-    refs = (
-        (
-            await db.execute(
-                select(Booking.ref)
-                .join(Refund, Refund.booking_id == Booking.id)
-                .where(
-                    Refund.status == RefundStatus.REQUESTED,
-                    Refund.by_hand.is_(False),
-                    Refund.razorpay_refund_id.is_(None),
-                    Refund.created_at < func.now() - dt.timedelta(minutes=older_than_min),
-                )
-                .distinct()
-            )
-        )
-        .scalars()
-        .all()
-    )
-    await db.rollback()
-    for ref in refs:
-        await send_refunds(db, ref, razorpay)
-    return len(refs)
 
 
 async def refund(

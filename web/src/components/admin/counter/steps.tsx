@@ -1010,7 +1010,7 @@ export function SettleStep({
               ? 'The amount comes from the server quote.'
               : draft.settle === 'paid'
                 ? `${inr(amount)} received. Confirms at once and issues the receipt and the tax invoice.`
-                : `${inr(amount)} received today; ${inr(dep!.balancePaise)} balance due ${formatDate(dep!.dueOn)}, with reminders at 7 and 3 days. The customer can pay it in parts from My trips.`}
+                : `${inr(amount)} received today; ${inr(dep!.balancePaise)} balance due ${formatDate(dep!.dueOn)}. The customer can pay it in parts from My trips.`}
           </p>
         </div>
       )}

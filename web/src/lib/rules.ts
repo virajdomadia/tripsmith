@@ -22,13 +22,6 @@ export const rulesOf = (meta: Meta): Rules => ({
   retention: meta.retention,
 });
 
-/** `[7, 3, 0]` → "7 and 3": the reminders sent before the due day (0 = on the day itself). */
-export function remindersBefore(reminderDays: readonly number[]): string {
-  const before = reminderDays.filter((d) => d > 0);
-  if (before.length <= 1) return before.join('');
-  return `${before.slice(0, -1).join(', ')} and ${before.at(-1)}`;
-}
-
 export type ScheduleRow = { window: string; refund: string };
 
 /** `[30, 15, 0]` → "30 days or more", "15 to 29 days", "14 days or fewer" before departure. */

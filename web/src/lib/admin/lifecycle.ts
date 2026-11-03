@@ -212,7 +212,7 @@ export function lifecycle(b: AdminBooking): Step[] {
         },
         ...(owesOrRefunded ? refunded() : []),
       ];
-    case 'balance_unpaid': // P5: the daily tidy, after the balance's grace ran out
+    case 'balance_unpaid': // P5: the nightly cron, past the grace (until 2026-11-04)
       return [
         booked,
         paid('Deposit paid'),
@@ -433,6 +433,9 @@ export function blocked(b: AdminBooking): [string, string][] {
   if (!b.canMove)
     out.push(['Move to another date', 'Only a confirmed or part-paid booking can be moved']);
   if (b.status === 'confirmed')
-    out.push(['Mark completed', `The daily tidy does it after ${formatDate(b.departs)}`]);
+    out.push([
+      'Mark completed',
+      `Done automatically after ${formatDate(b.departs)}, the next time bookings are opened`,
+    ]);
   return out;
 }

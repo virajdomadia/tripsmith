@@ -37,10 +37,9 @@ export function DepositPanel() {
       />
       <p className="text-sm text-mute">
         Offer &ldquo;Reserve with {r.depositPercent}% now&rdquo; on this trip. The balance is due{' '}
-        {r.balanceDays} days before departure and can be paid in parts from My trips; unpaid{' '}
-        {r.graceDays} days after that, the booking is cancelled under the cancellation policy. Dates
-        inside {r.balanceDays} days are always paid in full. Switching it off changes new bookings
-        only.
+        {r.balanceDays} days before departure and can be paid in parts from My trips; the grace runs{' '}
+        {r.graceDays} days past the due day, and nothing is cancelled on its own. Dates inside{' '}
+        {r.balanceDays} days are always paid in full. Switching it off changes new bookings only.
       </p>
     </div>
   );

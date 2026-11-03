@@ -13,11 +13,12 @@ from app.schemas.money import WINDOW_DEFAULT, WINDOW_MAX, WINDOW_MIN, MoneyDesk
 from app.services import dashboard as svc
 from app.services.auth.deps import require_owner
 from app.services.money import money_desk
+from app.services.on_demand import swept_bookings
 
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+    dependencies=[Depends(swept_bookings), Depends(same_origin_write), Depends(require_owner)],
 )
 
 Db = Annotated[AsyncSession, Depends(get_session)]

@@ -18,7 +18,6 @@ from app.models.enums import (
 )
 from app.schemas import ApiModel
 from app.schemas.account import AccountCancellation, AccountTraveller, GstDocumentOut
-from app.schemas.admin_emails import UpcomingEmail
 from app.schemas.admin_enquiries import MAX_PAGE, SEARCH_MAX
 from app.schemas.bookings import Quote
 from app.schemas.details import (
@@ -295,10 +294,6 @@ class AdminBooking(ApiModel):
     history: BookingHistory = Field(
         description="Every change, payment and email, oldest first (R54)"
     )
-    upcoming_emails: list[UpcomingEmail] = Field(
-        default_factory=list,
-        description="P15b (R53): the automatic emails still to come, as the rules stand today",
-    )
     cancellation: AdminCancellation | None
     has_voucher: bool
     can_mark_paid: bool = Field(description="Pending, or swept as hold_expired")
@@ -329,7 +324,7 @@ class AdminBooking(ApiModel):
         default=None, description="P9: the traveller cards, ID masked"
     )
     can_edit_details: bool = Field(
-        default=False, description="P9: the owner may edit them (paid or completed, before purge)"
+        default=False, description="P9: the owner may edit them (paid or completed)"
     )
     checklist: list[ChecklistItem] = Field(default_factory=list, description="P9")
     readiness: Readiness | None = Field(default=None, description="P9")
@@ -367,7 +362,7 @@ class AdminBalance(ApiModel):
     deposit_paise: int
     balance_paise: int = Field(description="Still to pay; 0 once paid in full or cancelled")
     due_on: dt.date
-    last_day_on: dt.date = Field(description="The grace's last day; the tidy cancels after it")
+    last_day_on: dt.date = Field(description="The grace's last day")
     days_left: int = Field(description="From today (IST) to the due day; negative = overdue")
     can_mark_paid: bool = Field(description="On its deposit: record the balance paid offline")
     can_extend: bool = Field(description="On its deposit: move the due day later")
@@ -493,9 +488,6 @@ class Manifest(ApiModel):
     addons: list[ManifestAddon] = Field(description="Totals per add-on, in first-booked order")
     readiness: DepartureReadiness | None = Field(default=None, description="P9")
     required: list[DetailField] = Field(default_factory=list, description="P9: the package's")
-    purged: bool = Field(
-        default=False, description="P9: details deleted, 30 days after the trip (R49)"
-    )
     checklist: list[ChecklistItemOut] = Field(
         default_factory=list, description="P9: the package's pre-trip items"
     )

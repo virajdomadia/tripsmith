@@ -1,13 +1,12 @@
 """B10 — the bookings desk (R22): the list and its numbers against `departure_availability`,
 mark paid (offline) with the seat re-check, release hold, the late capture's automatic refund
-(P13), the manifest, the CSV, the daily sweep and a late payment on a swept booking, and
+(P13), the manifest, the CSV, the bookings sweep and a late payment on a swept booking, and
 travellers in entry order. The db tests need TEST_DATABASE_URL."""
 
 import asyncio
 import csv
 import io
 import os
-from typing import Any
 
 import pytest
 from alembic import command
@@ -19,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Booking, User
 from app.models.enums import BookingStatus, CancelReason, UserRole
+from app.services.analytics import ist_today
 from app.services.auth.sessions import open_session
+from app.services.booking.sweep import Swept, sweep_bookings
 from app.services.booking.voucher import load_booking_facts
 from app.services.pdf.voucher import voucher_filename
 from tests.razorpay_fake import FakeRazorpay
@@ -62,30 +63,9 @@ async def lapse(db: AsyncSession, ref: str, by: str = "2 hours") -> None:
     await db.commit()
 
 
-async def run_daily(client: AsyncClient, app: FastAPI) -> dict[str, object]:
-    secret = app.state.settings.cron_secret
-    headers = {"Authorization": f"Bearer {secret.get_secret_value()}"} if secret else {}
-    res = await client.get("/cron/daily", headers=headers)
-    assert res.status_code == 200, res.text
-    return res.json()
-
-
-async def run_emails(client: AsyncClient, app: FastAPI) -> dict[str, Any]:
-    """P15 (R53): `/cron/emails` — the automatic emails."""
-    secret = app.state.settings.cron_secret
-    headers = {"Authorization": f"Bearer {secret.get_secret_value()}"} if secret else {}
-    res = await client.get("/cron/emails", headers=headers)
-    assert res.status_code == 200, res.text
-    return res.json()
-
-
-@pytest.fixture
-def cron(db_app: FastAPI) -> None:
-    from pydantic import SecretStr
-
-    db_app.state.settings = db_app.state.settings.model_copy(
-        update={"cron_secret": SecretStr("cron-test-secret")}
-    )
+async def run_sweep(db: AsyncSession) -> Swept:
+    """The bookings sweep the reads run on demand (services/on_demand.py)."""
+    return await sweep_bookings(db, today=ist_today())
 
 
 # --- access -------------------------------------------------------------------------------------
@@ -335,7 +315,7 @@ async def test_a_late_capture_with_no_seats_is_refunded_once_and_clears_the_badg
 
 
 async def test_sweep_cancels_old_holds_and_a_late_payment_still_confirms_if_seats_are_free(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     _, departure = await seeded(db, seats=4)
     dep_id = departure.id
@@ -344,10 +324,10 @@ async def test_sweep_cancels_old_holds_and_a_late_payment_still_confirms_if_seat
     await lapse(db, str(old["bookingRef"]), "2 hours")
     await lapse(db, str(recent["bookingRef"]), "30 minutes")  # under an hour: left alone
 
-    report = await run_daily(db_client, db_app)
-    assert (report["holdsExpired"], report["bookingsCompleted"]) == (1, 0)
-    swept = await booking(db, str(old["bookingRef"]))
-    assert (swept.status, swept.cancel_reason) == (
+    swept = await run_sweep(db)
+    assert (swept.holds_expired, swept.completed) == (1, 0)
+    old_row = await booking(db, str(old["bookingRef"]))
+    assert (old_row.status, old_row.cancel_reason) == (
         BookingStatus.CANCELLED,
         CancelReason.HOLD_EXPIRED,
     )
@@ -364,13 +344,13 @@ async def test_sweep_cancels_old_holds_and_a_late_payment_still_confirms_if_seat
 
 
 async def test_a_late_payment_on_a_swept_booking_with_no_seats_is_seats_gone(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     _, departure = await seeded(db, seats=2)
     dep_id = departure.id
     old = await hold(db_client, dep_id, 2, 1)
     await lapse(db, str(old["bookingRef"]))
-    await run_daily(db_client, db_app)
+    await run_sweep(db)
     await hold(db_client, dep_id, 2, 2)  # the seats go to someone else
 
     res = await db_client.post(
@@ -389,13 +369,13 @@ async def test_a_late_payment_on_a_swept_booking_with_no_seats_is_seats_gone(
 
 
 async def test_mark_paid_works_on_a_swept_booking(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     owner = await owner_cookie(db)
     _, departure = await seeded(db, seats=4)
     old = await hold(db_client, departure.id, 2, 1)
     await lapse(db, str(old["bookingRef"]))
-    await run_daily(db_client, db_app)
+    await run_sweep(db)
     ref = str(old["bookingRef"])
     res = await db_client.post(f"/admin/bookings/{ref}/mark-paid", json={}, headers=owner)
     assert res.status_code == 200, res.text
@@ -403,7 +383,7 @@ async def test_mark_paid_works_on_a_swept_booking(
 
 
 async def test_sweep_completes_departed_confirmed_bookings(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
     _, departure = await seeded(db, seats=4)
     order = await hold(db_client, departure.id, 1, 1)
@@ -415,8 +395,7 @@ async def test_sweep_completes_departed_confirmed_bookings(
         text("update departures set date = current_date - 3 where id = :id"), {"id": departure.id}
     )
     await db.commit()
-    report = await run_daily(db_client, db_app)
-    assert report["bookingsCompleted"] == 1
+    assert (await run_sweep(db)).completed == 1
     assert (await booking(db, ref)).status == BookingStatus.COMPLETED
 
 

@@ -23,7 +23,7 @@ import math
 import secrets
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, not_, or_, select, update
+from sqlalchemy import func, not_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,7 +83,7 @@ async def _refuse_if_capped(
     db: AsyncSession, email: str, *, emailed: bool, now: dt.datetime
 ) -> None:
     """Raise TooManyCodes when this email is at a cap, or (for a code that will really be
-    emailed) when the day's code-email budget is spent. Counts rows `prune_codes` keeps."""
+    emailed) when the day's code-email budget is spent. Counts rows sign-ins keep (sessions.py)."""
     for window, cap in OTP_EMAIL_CAPS:
         recent = (
             select(Verification.created_at)
@@ -233,12 +233,3 @@ async def sign_in_customer(
         customer="Added to your account when you signed in",
     )
     return await open_session(db, user, ip=ip, user_agent=user_agent)
-
-
-async def prune_codes(db: AsyncSession, *, now: dt.datetime | None = None) -> int:
-    """Delete codes that expired over a day ago (the daily cron) — kept that long only so a
-    support question about a failed sign-in can still be looked at."""
-    cutoff = (now or _now()) - dt.timedelta(days=1)
-    result = await db.execute(delete(Verification).where(Verification.expires_at < cutoff))
-    await db.commit()
-    return result.rowcount  # type: ignore[attr-defined]

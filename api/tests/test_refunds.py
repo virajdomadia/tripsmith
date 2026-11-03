@@ -1,12 +1,11 @@
 """P13a — the one refund function (R51): newest-first split, row-before-call idempotency,
 Razorpay's answers and webhooks (requested → processed | failed), "Send refund" and "Refund
-made (offline)" on the desk, the daily tidy's resend, and 0012's backfill. The accept line —
+made (offline)" on the desk, and 0012's backfill. The accept line —
 a refund lands in Razorpay exactly once under replays and double clicks — is tested against
 FakeRazorpay, which answers refunds the way test mode did when probed on our account. The db
 tests need TEST_DATABASE_URL."""
 
 import asyncio
-import datetime as dt
 import json
 import os
 from typing import Any
@@ -27,10 +26,10 @@ from tests.test_booking_history import kinds, one
 from tests.test_booking_orders import seeded
 from tests.test_booking_payments import booking, callback, rzp
 from tests.test_booking_webhook import deliver, with_webhook_secret
-from tests.test_bookings_desk import cron, hold, lapse, owner_cookie, run_daily
+from tests.test_bookings_desk import hold, lapse, owner_cookie
 from tests.test_session_migration import API_DIR, _sql
 
-__all__ = ["cron", "rzp"]
+__all__ = ["rzp"]
 
 pytestmark = pytest.mark.db
 
@@ -156,28 +155,6 @@ async def test_a_lost_answer_is_retried_under_the_same_key(
     )
     assert res.json()["refundNeeded"] is False
     assert rzp.refund_calls()[-1].headers["X-Refund-Idempotency"] == row_id
-
-
-async def test_the_daily_tidy_resends_a_refund_stuck_for_an_hour(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
-) -> None:
-    owner = await owner_cookie(db)
-    _, departure = await seeded(db, seats=4)
-    rzp.refunds_down = True
-    ref, _ = await released_and_paid(db_client, owner, departure.id, 3, "pay_Stuck001")
-    rzp.refunds_down = False
-    assert (await run_daily(db_client, db_app))["refundsResent"] == 0  # under an hour: waits
-    [row] = await rows_of(db, ref)
-    await db.execute(
-        update(Refund)
-        .where(Refund.id == row.id)
-        .values(created_at=row.created_at - dt.timedelta(hours=2))
-    )
-    await db.commit()
-    assert (await run_daily(db_client, db_app))["refundsResent"] == 1
-    [row] = await rows_of(db, ref)
-    assert row.status == RefundStatus.PROCESSED and len(rzp.refunds) == 1
-    assert (await booking(db, ref)).refund_needed is False
 
 
 # --- webhooks -----------------------------------------------------------------------------------

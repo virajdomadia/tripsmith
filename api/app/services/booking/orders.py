@@ -223,7 +223,7 @@ async def _release_holds(
     """One active hold per email or phone (R16): end the previous one now.
 
     The booking stays `pending` with its hold lapsed — exactly the state an abandoned checkout
-    reaches on its own — so the seats free at once, `/cron/daily` later cancels it as
+    reaches on its own — so the seats free at once, the bookings sweep later cancels it as
     `hold_expired`, and a payment that still lands on it goes through B4's late-capture re-check.
     `now()` is the database clock the view compares against. Returns what was released, with
     each hold's old expiry, so a Razorpay outage can put it back (`_undo_hold`).

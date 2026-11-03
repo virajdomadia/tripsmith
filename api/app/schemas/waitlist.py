@@ -81,15 +81,6 @@ class AccountWaitlistEntry(ApiModel):
     )
 
 
-class WaitlistTick(ApiModel):
-    """`/cron/waitlist`'s report."""
-
-    offered: int
-    lapsed: int
-    closed: int
-    emails: int
-
-
 class AdminWaitlistEntry(ApiModel):
     """One place on a departure's waitlist, for the owner (R44, P6b)."""
 

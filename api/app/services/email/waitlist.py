@@ -3,9 +3,8 @@ offer ended — you're back on the list at #N".
 
 What an entry owes sits on the row (`mail_due`, set by `booking/waitlist.walk`). `send_due`
 claims one at a time with a guarded UPDATE in a short transaction and sends after it commits,
-so two callers (a route and the 15-minute tick) never send one email twice; a send that fails
-is logged and reported, not retried. It runs after any commit that may have made offers, and
-`/cron/waitlist` sweeps whatever a caller left. Demo mode follows the booking emails
+so two callers never send one email twice; a send that fails is logged and reported, not
+retried. It runs after any commit that may have made offers. Demo mode follows the booking emails
 (`deliver`): an @example.com address, or Resend's test sender, redirects to the owner. Each
 send lands in the entry's own log. Never raises.
 """
@@ -199,12 +198,10 @@ async def send_due(db: AsyncSession, notify: Notify | None, *, limit: int = BATC
 
 
 async def walk_and_send(
-    db: AsyncSession, departure_ids: list[str] | None, notify: Notify | None
+    db: AsyncSession, departure_ids: list[str], notify: Notify | None
 ) -> tuple[waitlist.Walked, int]:
-    """Walk these departures (None = every one with a list), each in its own transaction, then
-    send what that owes. For callers outside a seat change's transaction: a package save, the
-    tick, the daily tidy, a read."""
-    ids = departure_ids if departure_ids is not None else await waitlist.departures_with_list(db)
+    """Walk these departures, each in its own transaction, then send what that owes. For
+    callers outside a seat change's transaction: a package save, the owner's offer by hand."""
     await db.rollback()
-    walked = await waitlist.walk_departures(db, ids)
+    walked = await waitlist.walk_departures(db, departure_ids)
     return walked, await send_due(db, notify)

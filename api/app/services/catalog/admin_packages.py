@@ -53,7 +53,7 @@ from app.schemas.catalog import (
 from app.services.analytics import ist_today
 from app.services.booking import trip_pack, waitlist
 from app.services.booking.details import apply_details_settings, details_settings
-from app.services.catalog import admin_leaders, deals, early_bird, urgency
+from app.services.catalog import admin_leaders, deals
 from app.services.catalog.deals import DealField
 from app.services.catalog.slug_lock import SLUG_LOCKED as SLUG_LOCKED
 from app.services.format import inr, long_date
@@ -121,22 +121,23 @@ def recompute_starting_price(
 
 
 async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> int:
-    """Daily (`/cron/daily`, 01:00–01:59 IST): the admin writes are the only other place
-    `starting_price_paise` moves, so without this a package kept advertising the price of a
-    departure that has already left — or "from ₹X" when nothing is left at all. Rewrites the
-    packages whose price changed, revalidates their pages, returns how many moved.
+    """Once a day, on demand (`services/on_demand.py`; the nightly cron until 2026-11-04): the
+    admin writes and booking events are the only other places `starting_price_paise` moves, so
+    without this a package kept advertising the price of a departure that has already left — or
+    "from ₹X" when nothing is left at all. Rewrites the packages whose price changed and returns
+    how many moved. No revalidation: the public pages refetch hourly.
 
     `updated_at` is pinned to itself: it is the owner's "last edited", not the calendar's.
 
     The package rows are locked (`FOR UPDATE`) before their departures are read: an owner save
-    in flight finishes first and this job then computes from what it wrote, instead of reading
-    the old rows and overwriting the owner's fresh price with a stale one.
+    in flight finishes first and this then computes from what it wrote, instead of reading the
+    old rows and overwriting the owner's fresh price with a stale one.
     """
     packages = (
         (
             await db.execute(
                 select(Package)
-                .options(selectinload(Package.departures), selectinload(Package.destination))
+                .options(selectinload(Package.departures))
                 .order_by(Package.id)  # one lock order, whoever else locks packages
                 .with_for_update(of=Package)
             )
@@ -145,7 +146,6 @@ async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> 
         .all()
     )
     seats = await seats_left_for(db, [d.id for p in packages for d in p.departures])
-    tags: list[str] = []
     changed = 0
     for pkg in packages:
         price = recompute_starting_price(pkg, today=today, seats_left=seats)
@@ -158,75 +158,8 @@ async def recompute_all_starting_prices(db: AsyncSession, *, today: dt.date) -> 
             .values(starting_price_paise=price, updated_at=Package.updated_at)
             .execution_options(synchronize_session=False)
         )
-        tags += [t for t in revalidate_tags(pkg.slug, pkg.destination.slug) if t not in tags]
     await db.commit()
-    if tags:
-        await revalidate(tags)
     return changed
-
-
-ENDED_DEAL_WINDOW = dt.timedelta(hours=48)
-
-
-async def revalidate_ended_deals(db: AsyncSession, *, now: dt.datetime) -> int:
-    """Daily (`/cron/daily`): the pages of live packages whose deal ended in the last 48 h are
-    rebuilt, so a prerendered strikethrough disappears without a deploy (03 R20). Quotes stop
-    the moment it ends; nothing is written, the fields stay for the owner to extend. 48 h, not
-    24: a missed run still catches up, and rebuilding a page twice costs nothing."""
-    rows = await db.execute(
-        select(Package.slug, Destination.slug)
-        .join(Destination, Destination.id == Package.destination_id)
-        .where(
-            Package.status == PackageStatus.LIVE,
-            Package.deal_ends_at <= now,
-            Package.deal_ends_at > now - ENDED_DEAL_WINDOW,
-        )
-    )
-    ended = rows.all()
-    tags: list[str] = []
-    for slug, destination_slug in ended:
-        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
-    if tags:
-        await revalidate(tags)
-    return len(ended)
-
-
-async def revalidate_ended_early_birds(db: AsyncSession, *, today: dt.date) -> int:
-    """Daily (`/cron/daily`, after IST midnight): the pages of live packages where an early-bird
-    tier ended for an upcoming date are rebuilt (R47), so the card tag leaves the prerendered
-    pages without a deploy. The quote and the date labels already follow the IST day; nothing
-    is written."""
-    ended = await early_bird.ended_tiers(db, today)
-    tags: list[str] = []
-    for slug, destination_slug in ended:
-        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
-    if tags:
-        await revalidate(tags)
-    return len(ended)
-
-
-async def revalidate_urgency(db: AsyncSession, *, today: dt.date) -> int:
-    """Daily (`/cron/daily`, after IST midnight): P2's day-counted labels ("Last booked 2 days
-    ago", the 30- and 14-day windows) move with the IST day, not with a booking event — the live
-    packages with a counted booking in the last 31 days are rebuilt, so a label that just
-    lapsed leaves the page too. Nothing is written."""
-    ids = await urgency.labelled_packages(db, today)
-    if not ids:
-        return 0
-    rows = (
-        await db.execute(
-            select(Package.slug, Destination.slug)
-            .join(Destination, Destination.id == Package.destination_id)
-            .where(Package.id.in_(ids), Package.status == PackageStatus.LIVE)
-            .order_by(Package.slug)
-        )
-    ).all()
-    tags: list[str] = []
-    for slug, destination_slug in rows:
-        tags += [t for t in revalidate_tags(slug, destination_slug) if t not in tags]
-    if tags:
-        await revalidate(tags)
-    return len(rows)
 
 
 def publish_rules(pkg: Package, *, image_count: int, today: dt.date) -> list[PublishRule]:

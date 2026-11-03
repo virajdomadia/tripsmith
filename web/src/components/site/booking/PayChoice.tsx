@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { daysBetween } from '@/lib/account';
 import { formatDate, inr } from '@/lib/format';
-import { remindersBefore } from '@/lib/rules';
 import type { BookingFlow } from './use-booking';
 
 /**
@@ -62,9 +61,9 @@ export function PayChoice({ flow }: { flow: BookingFlow }) {
       )}
       {pay === 'deposit' && depositOffer && (
         <p className="text-[12.5px] leading-snug text-mute">
-          We remind you {remindersBefore(rules.reminderDays)} days before{' '}
-          {formatDate(depositOffer.dueOn)}. Unpaid {rules.graceDays} days after that, the booking is
-          cancelled under the{' '}
+          Pay the balance from My trips by {formatDate(depositOffer.dueOn)}. Still unpaid{' '}
+          {rules.graceDays} days after that, we’ll be in touch — a booking we cancel is refunded
+          under the{' '}
           <Link href="/cancellation-policy" className="text-primary">
             cancellation policy
           </Link>

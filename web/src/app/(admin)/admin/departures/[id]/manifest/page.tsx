@@ -4,7 +4,6 @@ import { WaitlistPanel } from '@/components/admin/bookings/WaitlistPanel';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { ACCOUNT_PATH, LOGIN_PATH } from '@/lib/auth/gate';
 import { getSession } from '@/lib/auth/session';
-import { loadRules } from '@/lib/meta';
 import { api, ApiRequestError } from '@/lib/api';
 import { foodLabel, idTypeLabel } from '@/lib/account';
 import { OCCUPANCY_LABEL } from '@/lib/booking';
@@ -33,7 +32,6 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
     auth: true,
     params: { id },
   }).catch(() => null);
-  const rulesRead = loadRules(); // never rejects; read beside the manifest
   let m;
   try {
     m = await api('/admin/departures/{id}/manifest', { auth: true, params: { id } });
@@ -42,9 +40,6 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
     throw e;
   }
   const { seats } = m;
-  // Best effort like the waitlist: the printed manifest still says the rule, without the number.
-  const rules = await rulesRead;
-  const days = rules ? `${rules.retention.detailsDays} days ` : '';
   const counts = [
     ['Seats', seats.seatsTotal],
     ['Booked', seats.booked],
@@ -113,18 +108,8 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
         )}
       </dl>
       <p className="mt-3 rounded-btn border border-warn/40 bg-warn-soft px-3 py-2 text-[12.5px] text-ink2 print:bg-transparent">
-        {m.purged ? (
-          <>
-            <b className="text-ink">Details deleted</b> {days}after the trip, as the privacy rule
-            says — only names, ages and rooms remain.
-          </>
-        ) : (
-          <>
-            <b className="text-warn">Confidential:</b> this page carries travellers’ ID numbers and
-            medical notes in full. Keep it with the trip leader and shred it after the trip — the
-            details are deleted from Tripsmith {days}after the return.
-          </>
-        )}
+        <b className="text-warn">Confidential:</b> this page carries travellers’ ID numbers and
+        medical notes in full. Keep it with the trip leader and shred it after the trip.
       </p>
 
       {m.addons.length > 0 && (
@@ -187,9 +172,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
                 {b.travellers.map((t, i) => {
                   const missing = t.missing ?? [];
                   const gap = (f: (typeof missing)[number], have: React.ReactNode) =>
-                    m.purged ? (
-                      <span className="text-mute">deleted</span>
-                    ) : have ? (
+                    have ? (
                       have
                     ) : missing.includes(f) ? (
                       <span className="font-bold text-warn">missing</span>

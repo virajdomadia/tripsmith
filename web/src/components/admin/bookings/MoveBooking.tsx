@@ -351,7 +351,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
               Add to the balance
               {quote && (
                 <span className="block text-[12px] text-mute">
-                  Due by {formatDate(quote.dueOn)} — they pay it in My trips; reminders go out
+                  Due by {formatDate(quote.dueOn)} — they pay it in My trips
                 </span>
               )}
             </span>

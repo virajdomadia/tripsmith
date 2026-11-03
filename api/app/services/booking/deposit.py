@@ -6,8 +6,8 @@
 - The balance is due 30 days before departure, the first day of the full-refund tier. A
   departure whose due day has come (IST) is pay in full only.
 - The balance can be paid in parts of at least ₹1,000; a remainder under that is one last part.
-- Two days' grace after the due day, the daily tidy cancels the booking as `balance_unpaid`.
-- Reminders go 7 and 3 days before the due day, and on it.
+- Two days' grace follow the due day. Nothing happens on its own after it (2026-11-04: the
+  reminders and the automatic cancel went with the crons).
 """
 
 import datetime as dt
@@ -18,7 +18,6 @@ DEPOSIT_PERCENT = 25
 BALANCE_DAYS = 30
 GRACE_DAYS = 2
 MIN_PART_PAISE = 1_000_00
-REMINDER_DAYS = (7, 3, 0)  # before the due day; the tidy sends the nearest one not yet sent
 
 
 def due_on(departs: dt.date) -> dt.date:
@@ -56,14 +55,5 @@ def min_part(balance_paise: int) -> int:
 
 
 def overdue_after(due: dt.date) -> dt.date:
-    """The last IST day of grace; the tidy cancels on the day after it."""
+    """The last IST day of grace."""
     return due + dt.timedelta(days=GRACE_DAYS)
-
-
-def reminder_stage(due: dt.date, today: dt.date) -> int | None:
-    """Which reminder today calls for: the nearest stage whose day has come (a missed run
-    catches up with the latest one, never sends two), or None before −7 and after the grace."""
-    left = (due - today).days
-    if left > REMINDER_DAYS[0] or today > overdue_after(due):
-        return None
-    return next((s for s in reversed(REMINDER_DAYS) if left <= s), REMINDER_DAYS[0])

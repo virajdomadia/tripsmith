@@ -1,5 +1,6 @@
 """services/pdf/service.py — the network side of the PDF: cover fetch, Blob cache, attachment,
-GC. Every failure degrades; nothing here may raise into a request."""
+and dropping a package's older PDFs on upload. Every failure degrades; nothing here may raise
+into a request."""
 
 from pathlib import Path
 
@@ -10,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.storage import BlobInfo
 from app.models import Departure, Destination, ItineraryDay, Package, PackageImage
-from app.models.enums import PackageStatus
 from app.services.catalog.reads import get_package
 from app.services.pdf.service import PdfService
 from scripts.seed import seed
@@ -138,6 +138,32 @@ async def test_put_stores_under_the_key_and_degrades() -> None:
     assert await service(FakeBlobStore(fail=True)).put(package(), b"%PDF-x") is None
 
 
+async def test_put_deletes_the_packages_older_pdfs_and_nothing_else() -> None:
+    """No scheduled GC: storing a package's new PDF drops its stale renderings."""
+    store = FakeBlobStore()
+    store.objects["pdf/north-goa-beaches/1/Tripsmith-north-goa-beaches-itinerary.pdf"] = b"old"
+    store.objects["pdf/north-goa-beaches-2/1/Tripsmith-north-goa-beaches-2-itinerary.pdf"] = b"x"
+    store.objects["packages/goa/photo.jpg"] = b"not a pdf"
+    await service(store).put(package(), b"%PDF-x")
+    assert set(store.objects) == {
+        KEY,
+        "pdf/north-goa-beaches-2/1/Tripsmith-north-goa-beaches-2-itinerary.pdf",
+        "packages/goa/photo.jpg",
+    }
+
+
+async def test_a_failed_cleanup_still_returns_the_new_pdf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = FakeBlobStore()
+
+    async def down(prefix: str) -> list[BlobInfo]:
+        raise httpx.ConnectError("blob list down")
+
+    monkeypatch.setattr(store, "list", down)
+    assert await service(store).put(package(), b"%PDF-x") == f"https://blob.test/{KEY}"
+
+
 async def test_attachment_for_renders_warms_the_cache_and_names_the_file() -> None:
     store = FakeBlobStore()
     att = await service(store).attachment_for(package())
@@ -217,42 +243,3 @@ async def test_the_key_moves_with_edits_that_never_touch_the_package_row(
         await db.commit()
         assert await live_key(db) != before, what
     assert await row_updated_at(db) == stamp, "none of these touched the package row"
-
-
-async def current_keys(db: AsyncSession) -> set[str]:
-    stmt = select(Package.slug).where(Package.status == PackageStatus.LIVE)
-    slugs = (await db.execute(stmt)).scalars().all()
-    return {await live_key(db, slug) for slug in slugs}
-
-
-@pytest.mark.db
-async def test_gc_deletes_every_pathname_that_is_not_current(db: AsyncSession) -> None:
-    await seed(db, fixture_content(), RecordingStore(), make_settings())
-    current = await current_keys(db)
-    assert len(current) == 2
-    store = FakeBlobStore()
-    for key in current:
-        store.objects[key] = b"keep"
-    store.objects["pdf/north-goa-beaches/1/Tripsmith-north-goa-beaches-itinerary.pdf"] = b"stale"
-    store.objects["pdf/deleted-trip/5/Tripsmith-deleted-trip-itinerary.pdf"] = b"stale"
-    store.objects["packages/goa/photo.jpg"] = b"not a pdf, not touched"
-
-    report = await service(store).gc(db)
-
-    assert (report.deleted, report.kept, report.configured) == (2, 2, True)
-    assert set(store.objects) == current | {"packages/goa/photo.jpg"}
-    # An edit the PDF draws rotates the key: the old object becomes stale on the next run.
-    await db.execute(
-        update(ItineraryDay)
-        .where(ItineraryDay.package_id == await package_id(db), ItineraryDay.day_no == 1)
-        .values(title="A different first day")
-    )
-    await db.commit()
-    report = await service(store).gc(db)
-    assert report.deleted == 1 and report.kept == 1
-
-
-@pytest.mark.db
-async def test_gc_without_a_store_reports_unconfigured(db: AsyncSession) -> None:
-    report = await service(None).gc(db)
-    assert (report.deleted, report.kept, report.configured) == (0, 0, False)

@@ -5,10 +5,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.signing import keys_of
-from app.models.enums import EmailType
 from app.services.auth.otp import check_code, issue_code
 from app.services.booking import calendar, voucher, waitlist
-from app.services.email import unsubscribe
 from tests.settings import make_settings
 
 OLD, NEW, STRANGER = "old-key", "new-key", "someone-else"
@@ -47,15 +45,10 @@ def test_voucher_and_calendar_links_signed_by_the_old_key_still_open() -> None:
     assert not calendar.link_is_valid("TB-ABC123", exp, sig, NEW)
 
 
-def test_waitlist_and_unsubscribe_tokens_signed_by_the_old_key_still_read() -> None:
+def test_waitlist_tokens_signed_by_the_old_key_still_read() -> None:
     claim = waitlist.claim_token("entry1", 2, OLD) or ""
     assert waitlist.read_token(claim, ROTATING) == ("entry1", 2)
     assert waitlist.read_token(claim, NEW) is None
-
-    unsub = unsubscribe.token_for("A@Example.test", EmailType.REVIEW_REQUEST, OLD) or ""
-    assert unsubscribe.read_token(unsub, ROTATING) == ("a@example.test", EmailType.REVIEW_REQUEST)
-    assert unsubscribe.read_token(unsub, NEW) is None
-    assert unsubscribe.read_token(unsub, ()) is None
 
 
 @pytest.mark.db

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # does can't reach a real inbox or a real customer's full ID number: customer emails on
     # counter bookings and inbox replies go to OWNER_NOTIFY_EMAIL, and the manifest masks the
     # IDs of anyone but the seeded demo addresses. V2 (SA-1): every customer email the owner
-    # (or the cron) sends goes there too — only the sign-in code and a customer's own receipt
+    # (or a waitlist walk) sends goes there too — only the sign-in code and a customer's own receipt
     # reach a real inbox. V2 (SA-3): unset on production (VERCEL_ENV=production) means on; only
     # an explicit 'false' turns it off there, and while on, a live Razorpay key is refused.
     public_demo_owner: bool = False
@@ -73,14 +73,6 @@ class Settings(BaseSettings):
     # runner rendered past 5 s and dropped the attachment.
     # Positive only: 0 would read as "no bound" and a negative value would drop every invoice.
     pdf_render_timeout: float = Field(default=5.0, gt=0)
-
-    # --- Cron ---
-    cron_secret: SecretStr | None = None
-    # V4 (OP-1): healthchecks.io ping URLs, hit at the end of /cron/daily and /cron/emails, so a
-    # job that stops running alerts within its grace. Secrets: whoever holds one can report the
-    # job healthy. Unset = no ping (local dev, previews).
-    healthcheck_daily_url: SecretStr | None = None
-    healthcheck_emails_url: SecretStr | None = None
 
     # --- Cross-service URLs ---
     web_url: str = "http://localhost:3000"

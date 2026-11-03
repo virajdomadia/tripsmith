@@ -1,9 +1,8 @@
 """P5 — deposit now, balance later (R43): 25 % rounded up to the rupee, offered only while the
 balance would not yet be due; the deposit confirms the booking (`partially_paid`) and holds the
 seats; the balance is paid in parts through the same capture path, replays apply once, and the
-deposit plus every part equals the quote to the paisa; two parts at once refund the surplus; the
-daily tidy reminds once per stage and cancels an unpaid booking after the grace, refunding per
-the policy tier and freeing its seats. Unit tests need nothing; the rest need TEST_DATABASE_URL."""
+deposit plus every part equals the quote to the paisa; two parts at once refund the surplus; past
+the grace nothing happens on its own. Unit tests need nothing; the rest need TEST_DATABASE_URL."""
 
 import datetime as dt
 from typing import Any
@@ -14,8 +13,8 @@ from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Booking, BookingCancellation, BookingEvent, Departure, Payment, Refund
-from app.models.enums import BookingStatus, CancellationStatus, CancelReason, PaymentStatus
+from app.models import Booking, BookingCancellation, Departure, Payment, Refund
+from app.models.enums import BookingStatus, CancellationStatus, PaymentStatus
 from app.services.analytics import ist_today
 from app.services.booking import deposit
 from tests.razorpay_fake import FakeRazorpay, sign
@@ -24,10 +23,10 @@ from tests.test_auth import with_cookie
 from tests.test_booking_orders import SOON, seats_left, seeded
 from tests.test_booking_payments import booking_body, rzp
 from tests.test_booking_webhook import deliver, event, mailing, with_webhook_secret
-from tests.test_bookings_desk import cron, owner_cookie, run_daily, run_emails
+from tests.test_bookings_desk import owner_cookie
 from tests.test_customer_accounts import EMAIL, signed_in
 
-__all__ = ["cron", "rzp"]
+__all__ = ["rzp"]
 
 TOTAL = 34_000_00  # the later seeded date: ₹25,000 double + ₹9,000 supplement, one traveller
 DEPOSIT = 8_500_00
@@ -55,26 +54,6 @@ def test_the_deposit_is_offered_only_before_the_balance_falls_due() -> None:
     assert deposit.offered(TOTAL, today + dt.timedelta(days=30), today, on=True) is None
     assert deposit.offered(TOTAL, departs, today, on=False) is None  # switched off
     assert deposit.offered(1_00, departs, today, on=True) is None  # nothing left to split
-
-
-def test_one_reminder_per_stage_and_a_missed_run_catches_up_with_the_latest() -> None:
-    due = dt.date(2026, 11, 14)
-    stage = {n: deposit.reminder_stage(due, due - dt.timedelta(days=n)) for n in range(9, -4, -1)}
-    assert stage == {
-        9: None,
-        8: None,
-        7: 7,
-        6: 7,
-        5: 7,
-        4: 7,
-        3: 3,
-        2: 3,
-        1: 3,
-        0: 0,
-        -1: 0,
-        -2: 0,  # the last day of grace
-        -3: None,  # cancelled that night instead
-    }
 
 
 def test_a_part_is_at_least_a_thousand_rupees_unless_less_is_left() -> None:
@@ -143,11 +122,6 @@ async def balance_order(client: AsyncClient, ref: str, cookie: dict[str, str], a
     return await client.post(
         f"/account/bookings/{ref}/balance", json={"amountPaise": amount}, headers=cookie
     )
-
-
-async def reminded(client: AsyncClient, app: FastAPI) -> int:
-    """Balance reminders sent by one `/cron/emails` run (P15 moved them there from the tidy)."""
-    return (await run_emails(client, app))["sent"].get("balance_reminder", 0)
 
 
 async def set_due(db: AsyncSession, ref: str, due: dt.date) -> None:
@@ -328,104 +302,18 @@ async def test_a_part_paid_while_checkout_closed_is_found_by_the_sync(
     assert (await row(db, ref)).paid_paise == DEPOSIT + 5_000_00
 
 
-# --- the daily tidy ------------------------------------------------------------------------------
+# --- past the grace -----------------------------------------------------------------------------
 
 
-async def test_reminders_go_once_per_stage_and_again_after_the_due_day_moves(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
+async def test_an_open_cancellation_request_closes_the_balance_and_waits_for_the_owner(
+    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay
 ) -> None:
-    ref, _, sender = await on_deposit(db, db_app, db_client)
-    today = ist_today()
-    await set_due(db, ref, today + dt.timedelta(days=7))
-    assert await reminded(db_client, db_app) == 1
-    assert await reminded(db_client, db_app) == 0  # a re-run sends nothing
-    mails = [m for m in sender.sent if "due in 7 days" in m.subject]
-    assert len(mails) == 1 and "₹25,500" in mails[0].text
-    # An extension (P5b) moves the due day: the claim names the day, so the −7 stage goes again.
-    await set_due(db, ref, today + dt.timedelta(days=5))
-    assert await reminded(db_client, db_app) == 1
-    await set_due(db, ref, today)
-    assert await reminded(db_client, db_app) == 1
-    assert any("due today" in m.subject for m in sender.sent)
-    b = await row(db, ref)
-    claims = (
-        (
-            await db.execute(
-                select(BookingEvent.after)
-                .where(BookingEvent.booking_id == b.id, BookingEvent.kind == "balance.reminder")
-                .order_by(BookingEvent.at)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert [(c or {}).get("stage") for c in claims] == [7, 7, 0]
-
-
-async def test_the_tidy_cancels_after_the_grace_refunds_per_tier_and_frees_the_seats(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
-) -> None:
-    ref, dep_id, sender = await on_deposit(db, db_app, db_client)
-    rzp.captured["pay_Deposit00001"] = DEPOSIT
-    today = ist_today()
-    held = await seats_left(db, dep_id)
-    await set_due(db, ref, today - dt.timedelta(days=2))  # the last day of grace: not yet
-    report = await run_daily(db_client, db_app)
-    assert report["balancesCancelled"] == 0
-    assert (await row(db, ref)).status == BookingStatus.PARTIALLY_PAID
-
-    await set_due(db, ref, today - dt.timedelta(days=3))
-    report = await run_daily(db_client, db_app)
-    assert report["balancesCancelled"] == 1 and await reminded(db_client, db_app) == 0
-    b = await row(db, ref)
-    assert (b.status, b.cancel_reason) == (BookingStatus.CANCELLED, CancelReason.BALANCE_UNPAID)
-    # 37 days before departure is the full-refund tier: the whole deposit goes back.
-    assert b.balance_refund_paise == DEPOSIT and b.paid_paise == 0
-    refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
-    assert [(r.amount_paise, r.reason, r.status.value) for r in refunds] == [
-        (DEPOSIT, "balance", "processed")
-    ]
-    assert await seats_left(db, dep_id) == held + 1
-    subjects = [m.subject for m in sender.sent]
-    assert sum("cancelled — the balance" in s for s in subjects) == 1
-    assert sum(s.startswith("Cancelled for an unpaid balance") for s in subjects) == 1
-    assert (await run_daily(db_client, db_app))["balancesCancelled"] == 0
-
-
-async def test_inside_the_half_tier_the_deposit_is_kept(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
-) -> None:
-    ref, dep_id, _ = await on_deposit(db, db_app, db_client)
-    today = ist_today()
-    await db.execute(
-        update(Departure).where(Departure.id == dep_id).values(date=today + dt.timedelta(days=28))
-    )
-    await db.commit()
-    await set_due(db, ref, today - dt.timedelta(days=3))
-    assert (await run_daily(db_client, db_app))["balancesCancelled"] == 1
-    b = await row(db, ref)
-    assert (b.cancel_reason, b.balance_refund_paise, b.paid_paise) == (
-        CancelReason.BALANCE_UNPAID,
-        0,
-        DEPOSIT,
-    )
-    assert (await db.execute(select(Refund).where(Refund.booking_id == b.id))).first() is None
-    # The desk has nothing to send: what is kept is not owed.
-    from app.services.booking.refunds import refund_owed
-
-    assert await refund_owed(db, b) == 0
-
-
-async def test_an_open_cancellation_request_waits_for_the_owner(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
-) -> None:
-    ref, _, sender = await on_deposit(db, db_app, db_client)
+    """Past the grace nothing happens on its own (no cron since 2026-11-04): still part-paid."""
+    ref, _, _ = await on_deposit(db, db_app, db_client)
     b = await row(db, ref)
     db.add(BookingCancellation(booking_id=b.id, reason="Plans changed, sorry about this"))
     await db.commit()
     await set_due(db, ref, ist_today() - dt.timedelta(days=5))
-    report = await run_daily(db_client, db_app)
-    assert (report["balancesCancelled"], await reminded(db_client, db_app)) == (0, 0)
     assert (await row(db, ref)).status == BookingStatus.PARTIALLY_PAID
     cookie = with_cookie(await signed_in(db_client))
     page = (await db_client.get(f"/account/bookings/{ref}", headers=cookie)).json()
@@ -497,27 +385,6 @@ async def test_an_add_on_taken_off_a_deposit_booking_comes_off_the_balance_first
     assert [(r.amount_paise, r.reason) for r in refunds] == [(500_00, "surplus")]
     page = (await db_client.get(f"/account/bookings/{ref}", headers=cookie)).json()
     assert [d["kind"] for d in page["documents"]].count("invoice") == 1
-
-
-async def test_a_part_that_lands_after_the_cancel_goes_back_in_full(
-    db: AsyncSession, db_app: FastAPI, db_client: AsyncClient, rzp: FakeRazorpay, cron: None
-) -> None:
-    ref, dep_id, _ = await on_deposit(db, db_app, db_client)
-    today = ist_today()
-    await db.execute(
-        update(Departure).where(Departure.id == dep_id).values(date=today + dt.timedelta(days=28))
-    )
-    await db.commit()
-    cookie = with_cookie(await signed_in(db_client))
-    part = (await balance_order(db_client, ref, cookie, 5_000_00)).json()  # Checkout left open
-    await set_due(db, ref, today - dt.timedelta(days=3))
-    assert (await run_daily(db_client, db_app))["balancesCancelled"] == 1  # deposit kept
-    rzp.captured["pay_LatePart0001"] = 5_000_00
-    await capture(db_client, part, "pay_LatePart0001")
-    b = await row(db, ref)
-    assert (b.balance_refund_paise, b.paid_paise, b.refund_needed) == (5_000_00, DEPOSIT, False)
-    refunds = (await db.execute(select(Refund).where(Refund.booking_id == b.id))).scalars().all()
-    assert [(r.amount_paise, r.status.value) for r in refunds] == [(5_000_00, "processed")]
 
 
 async def test_a_balance_that_lands_after_an_approved_cancellation_goes_back_in_full(

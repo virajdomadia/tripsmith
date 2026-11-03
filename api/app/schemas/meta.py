@@ -129,7 +129,6 @@ class BookingRules(ApiModel):
     balance_days: int = Field(description="The balance falls due this many days before departure")
     grace_days: int
     min_part_paise: int
-    reminder_days: list[int] = Field(description="Days before the due day a reminder goes")
     hold_minutes: int
     lead_days: int = Field(description="A date is bookable from IST today + this many days")
     free_change_days: int
@@ -142,10 +141,8 @@ class BookingRules(ApiModel):
 
 
 class Retention(ApiModel):
-    """How long the nightly job keeps things — the privacy page quotes these."""
+    """How long things are kept — the privacy page quotes these."""
 
-    enquiry_days: int
-    details_days: int
     session_days: int
 
 

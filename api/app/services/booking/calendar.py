@@ -31,8 +31,7 @@ from app.models.enums import BookingActor
 from app.schemas.trip_pack import CalendarBlock, CalendarVia
 from app.services.analytics import ist_today
 from app.services.booking import history
-from app.services.booking.details import purge_on
-from app.services.booking.trip_pack import HAS_PACK, meeting_of, opens_on
+from app.services.booking.trip_pack import HAS_PACK, closes_on, meeting_of, opens_on
 from app.services.email.render import IST
 from app.services.format import long_date
 
@@ -50,8 +49,8 @@ def _signature(ref: str, exp: int, secret: str) -> str:
 
 
 def trip_link_exp(returns: dt.date) -> int:
-    """A link that lives as long as the trip matters: to the end of the purge day (IST)."""
-    end = dt.datetime.combine(purge_on(returns), dt.time.max, tzinfo=IST)
+    """A link that lives as long as the trip matters: to the end of the pack's closing day (IST)."""
+    end = dt.datetime.combine(closes_on(returns), dt.time.max, tzinfo=IST)
     return int(end.timestamp())
 
 

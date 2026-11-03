@@ -362,7 +362,8 @@ function StageBody({ step, b }: { step: Step; b: AdminBooking }) {
   const AHEAD: Record<string, string> = {
     Paid: 'Reached when the customer pays, or when you mark it paid.',
     Departs: `${formatDate(b.departs)} · back ${formatDate(b.returns)}.`,
-    Completed: 'Marked by the daily tidy the day after departure; then the customer can review.',
+    Completed:
+      'Marked automatically after departure, the next time bookings are opened; then the customer can review.',
     'Checkout open': `The seats are held until ${istTime(b.holdExpiresAt)}.`,
     'Hold lapsed': `The hold lapsed at ${istTime(b.holdExpiresAt)}, ${istFullDate(b.holdExpiresAt)}; its seats are free for others.`,
     Refunded: 'Reached when Razorpay processes the refund, or you record an offline one.',

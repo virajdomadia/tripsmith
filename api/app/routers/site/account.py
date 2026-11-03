@@ -42,9 +42,14 @@ from app.services.email.cancellations import send_cancellation_emails
 from app.services.email.changes import send_change_emails
 from app.services.email.reviews import send_review_email
 from app.services.email.waitlist import send_due
+from app.services.on_demand import swept_bookings
 from app.services.reviews import submit_review
 
-router = APIRouter(prefix="/account", tags=["account"], dependencies=[Depends(same_origin_write)])
+router = APIRouter(
+    prefix="/account",
+    tags=["account"],
+    dependencies=[Depends(swept_bookings), Depends(same_origin_write)],
+)
 
 
 @router.get("/bookings", operation_id="listMyBookings", response_model_by_alias=True)

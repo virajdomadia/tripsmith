@@ -27,9 +27,8 @@ from app.schemas.meta import (
     Theme,
     ThemeOption,
 )
-from app.services import enquiries
 from app.services.auth import sessions
-from app.services.booking import changes, deposit, details, orders, pricing
+from app.services.booking import changes, deposit, orders, pricing
 from app.services.gst import tax
 
 
@@ -39,7 +38,6 @@ def booking_rules() -> BookingRules:
         balance_days=deposit.BALANCE_DAYS,
         grace_days=deposit.GRACE_DAYS,
         min_part_paise=deposit.MIN_PART_PAISE,
-        reminder_days=list(deposit.REMINDER_DAYS),
         hold_minutes=int(orders.HOLD.total_seconds() // 60),
         lead_days=pricing.MIN_DAYS_AHEAD,
         free_change_days=changes.FREE_DAYS,
@@ -69,9 +67,5 @@ def build_meta() -> Meta:
             image_max_bytes=IMAGE_MAX_BYTES,
         ),
         rules=booking_rules(),
-        retention=Retention(
-            enquiry_days=enquiries.KEEP_DAYS,
-            details_days=details.PURGE_AFTER_DAYS,
-            session_days=sessions.SESSION_TTL.days,
-        ),
+        retention=Retention(session_days=sessions.SESSION_TTL.days),
     )

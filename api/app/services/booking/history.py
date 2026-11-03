@@ -36,7 +36,7 @@ Values = dict[str, Any]
 ACTOR_LABEL = {
     BookingActor.CUSTOMER: "Customer",
     BookingActor.WEBHOOK: "Razorpay",
-    BookingActor.CRON: "Daily tidy",
+    BookingActor.CRON: "Automatic",
     BookingActor.SYSTEM: "System",
 }
 PAYMENT_KINDS = ("order.", "payment.", "refund.")

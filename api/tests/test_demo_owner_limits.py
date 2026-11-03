@@ -145,7 +145,7 @@ def _calls(deps: Sequence[params.Depends]) -> set[object]:
 
 def test_every_admin_router_has_the_same_origin_check() -> None:
     routers = _admin_routers()
-    assert len(routers) >= 13
+    assert len(routers) >= 12
     missing = [n for n, r in routers.items() if same_origin_write not in _calls(r.dependencies)]
     assert missing == []
 

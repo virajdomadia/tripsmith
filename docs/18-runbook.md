@@ -13,7 +13,7 @@ Each entry says how you notice, what to check first, and what to do.
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
 | Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations and seeds: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
 | Backups | **None**, by choice — see §6 |
-| Scheduled jobs | Vercel crons `/cron/daily` (01:00 IST) and `/cron/emails` (09:00 IST); GitHub `waitlist-tick.yml` every 15 min (runs ~5×/day in practice) |
+| Scheduled jobs | **None** since 2026-11-04 (lean cleanup). The upkeep runs on demand from the reads — [05-architecture.md §6](05-architecture.md) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
 
 The Vercel CLI commands below run from the main checkout's `web/` or `api/` folder (each has its
@@ -66,25 +66,26 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://tripsmith-api.vercel.ap
 the sign-in code never came.
 
 **Context:** prod sends through Gmail SMTP (~500 messages a day). Sign-in codes share that cap;
-non-demo code requests are capped at 200 a day before Gmail's limit (SA-5). Every automatic
-email is claimed in the `email_sends` ledger first, so a retry never sends twice.
+non-demo code requests are capped at 200 a day before Gmail's limit (SA-5). The refund email is
+claimed in the `email_sends` ledger first, so a replayed webhook never sends it twice.
 
 **Fix:**
 
-1. Wait: the cap is a rolling 24 hours. Nothing is lost — failed ledger rows are retried by
-   `/cron/emails` (09:00 IST) and by the 15-minute tick between 09:00 and 21:00 IST.
+1. Wait: the cap is a rolling 24 hours. A failed send is not retried (no scheduled job since
+   2026-11-04); it shows as failed in the booking's history.
 2. If it will not wait (a burst of code requests is draining it): find the source in Sentry /
    the Vercel logs; the per-IP and per-email limits already apply, so it is many IPs — lower the
    daily code budget or switch transport.
 3. Switch to Resend: remove `SMTP_HOST` from `tripsmith-api` Production (the app uses Resend
    when SMTP is not fully configured, and `RESEND_API_KEY` must be set and the sending domain
    verified in Resend), redeploy the api. Switch back the same way.
-4. Re-send what matters by hand from the owner Emails page once mail flows.
+4. Re-send what matters by hand from the booking desk (payment link, details link) or the
+   enquiry inbox once mail flows.
 
 ## 3. Database down
 
 **You notice:** pages render their error state, `/health/ready` answers 503, Sentry fills with
-connection errors, the crons fail.
+connection errors.
 
 **First, stop the bleeding:** a dead database turns every request into an uncached error render
 (2026-10-23: a 1/min pinger on the web burned the Vercel Hobby CPU allowance in five days). If
@@ -96,7 +97,8 @@ than the web.
 1. `curl -s https://tripsmith-api.vercel.app/health/ready` — 503 means the api is fine and the
    database is not.
 2. Supabase dashboard → project `tripsmith`: **paused?** (Free projects pause after a week of
-   low activity — the crons normally prevent it) → *Restore project*. **Status page**
+   low activity — with no crons since 2026-11-04 nothing keeps a quiet week busy) → *Restore
+   project*. **Status page**
    (status.supabase.com) for an `ap-south-1` incident → wait.
 3. Usage → over a Free plan limit (database size 500 MB, egress)? Delete what can go (old
    `package_views`, expired PDFs) or move plan.
@@ -140,27 +142,21 @@ link or code is **checked**, never used to sign.
    production` for each, from `api/`).
 3. Redeploy the api; wait for Ready. New links are signed with the new key; links and codes
    already sent keep working.
-4. Leave `SESSION_SECRET_PREVIOUS` until the next rotation overwrites it — unsubscribe links in
-   old emails depend on it. Enquiry IP hashes start from the new key (they are only stored, so
+4. Leave `SESSION_SECRET_PREVIOUS` until the next rotation overwrites it — signed links in old
+   emails (waitlist claims, calendar links) depend on it. Enquiry IP hashes start from the new key (they are only stored, so
    nothing breaks).
 
 **After a leak:** do steps 1–3 **without** `SESSION_SECRET_PREVIOUS` (remove it if set). A
 leaked key must stop verifying at once. Cost: links in mailboxes stop opening (customers can
-still reach their voucher and calendar from their account, and ask for a new sign-in code),
-and old unsubscribe links fail — reply-to-unsubscribe by hand.
+still reach their voucher and calendar from their account, and ask for a new sign-in code).
 
-## 5. Rotating CRON_SECRET
+## 5. Rotating CRON_SECRET (retired)
 
-Two consumers: Vercel's own crons (Vercel sends `Authorization: Bearer $CRON_SECRET` from the
-api project's env) and the GitHub tick (`secrets.CRON_SECRET`). Vercel's copy is write-only, so
-generate once and set both from the same value.
-
-1. `openssl rand -hex 32`.
-2. `tripsmith-api` Production: `vercel env rm CRON_SECRET production --yes`,
-   `vercel env add CRON_SECRET production`; redeploy the api; wait for Ready.
-3. Right after: `gh secret set CRON_SECRET --repo virajdomadia/tripsmith` (paste the value).
-4. `gh workflow run waitlist-tick.yml`, then `gh run watch` — it must end green with a waitlist
-   report. Between steps 2 and 3 a tick fails loudly; that is expected and harmless.
+There is nothing to rotate since 2026-11-04: the lean cleanup removed every scheduled job (the
+Vercel crons and the GitHub tick), so nothing reads `CRON_SECRET` any more. Delete it from
+`tripsmith-api` (`vercel env rm CRON_SECRET production --yes`) and the repo
+(`gh secret delete CRON_SECRET --repo virajdomadia/tripsmith`), along with
+`HEALTHCHECK_DAILY_URL` / `HEALTHCHECK_EMAILS_URL` if they were ever set.
 
 ## 6. Backups
 
@@ -195,10 +191,10 @@ Tripsmith runs Razorpay in test mode. Before taking real money, in this order:
 1. **Owner demo off.** While `PUBLIC_DEMO_OWNER` is on (production default), the api refuses an
    `rzp_live_` key. Set `PUBLIC_DEMO_OWNER=false` on `tripsmith-api` Production, change
    `OWNER_PASSWORD`, and remove the demo login from the site footer (web `NEXT_PUBLIC_DEMO_*`).
-2. **Monitoring** (deferred in V4 until now): healthchecks.io checks for `/cron/daily` (daily,
-   grace 90 min) and `/cron/emails` (grace 30 min) with `HEALTHCHECK_DAILY_URL` /
-   `HEALTHCHECK_EMAILS_URL` set on the api; UptimeRobot on the web `/` and api `/health` every
-   5 min, `/health/ready` hourly; Sentry alert rules reach the phone.
+2. **Monitoring** (deferred in V4 until now): UptimeRobot on the web `/` and api `/health`
+   every 5 min, `/health/ready` hourly; Sentry alert rules reach the phone. (No crons to watch
+   since 2026-11-04 — consider bringing back the balance auto-cancel and the automatic emails
+   first, see docs/17.)
 3. **Razorpay account:** KYC activated; auto-capture on; live API keys generated.
 4. **Keys:** `RAZORPAY_KEY_ID` (`rzp_live_…`) and `RAZORPAY_KEY_SECRET` on `tripsmith-api`
    Production; Checkout gets the key id from the api's booking order (`keyId`), nothing to set

@@ -197,8 +197,7 @@ export function BalancePanel({
         </h2>
         <p className="mt-1 text-[12.5px] font-semibold text-mute">
           Paid <b className="num text-ink">{inr(paidPaise)}</b> of{' '}
-          <span className="num">{inr(totalPaise)}</span> · reminders 7 and 3 days before, and on the
-          day
+          <span className="num">{inr(totalPaise)}</span>
         </p>
       </div>
       <Meter pct={paidPct} />
@@ -216,7 +215,7 @@ export function BalancePanel({
           className="rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] font-semibold text-warn"
         >
           The due day has passed. Pay by {formatDate(balance.lastDayOn)} to keep the booking — after
-          that it is cancelled under the cancellation policy.
+          that we may cancel it under the cancellation policy.
         </p>
       )}
       {!balance.open ? (

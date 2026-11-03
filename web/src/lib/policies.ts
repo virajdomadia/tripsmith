@@ -3,14 +3,15 @@
  * purpose: these are read by travellers, not lawyers. The cancellation schedule is exported
  * separately because the package price box quotes it.
  *
- * V5 (OP-5): every retention promise names the job that keeps it — the pages say what the code
- * does. V8 (Q-5): every number a page promises comes from `GET /meta` (`rules`, `retention`), so
- * the pages are built per request from those, never from a copy.
+ * V5 (OP-5): the pages say what the code does — 2026-11-04 the scheduled jobs went (a lean
+ * portfolio project), and with them the deletion and reminder promises they kept. V8 (Q-5): every
+ * number a page promises comes from `GET /meta` (`rules`, `retention`), so the pages are built per
+ * request from those, never from a copy.
  */
 import { BUSINESS } from './business';
 import { DRAFT_COOKIE_OPTIONS } from './enquiry-form-state';
 import { inr } from './format';
-import { cancellationSchedule, remindersBefore, type Rules } from './rules';
+import { cancellationSchedule, type Rules } from './rules';
 
 export type PolicySlug = 'terms' | 'privacy' | 'cancellation-policy';
 
@@ -37,6 +38,8 @@ export const POLICY_SLUGS = [
 ] as const satisfies readonly PolicySlug[];
 
 const V5 = '2026-10-23';
+/** The scheduled jobs (reminders, nightly deletes) went: terms and privacy changed. */
+const LEAN = '2026-11-04';
 
 /** The title, switcher label, summary and date of each page — what metadata needs, no rules. */
 export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>> = {
@@ -44,13 +47,13 @@ export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>
     title: 'Terms of service',
     short: 'Terms',
     summary: 'What you are buying when you book a Tripsmith trip, and what each of us promises.',
-    updated: V5,
+    updated: LEAN,
   },
   privacy: {
     title: 'Privacy policy',
     short: 'Privacy',
     summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-    updated: '2026-11-04',
+    updated: LEAN,
   },
   'cancellation-policy': {
     title: 'Cancellation & refunds',
@@ -61,17 +64,11 @@ export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>
   },
 };
 
-/** 365 → "12 months"; anything not a whole year stays in days. */
-const keptFor = (days: number) =>
-  days % 365 === 0 ? `${(days / 365) * 12} months` : `${days} days`;
-
 /** The three pages, built from `/meta`'s rules (retention included). */
 export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
   const { retention } = rules;
   const T = rules; // short, because the copy quotes it on every other line
   const schedule = cancellationSchedule(T.cancellationTiers);
-  /** `[7, 3, 0]` → "7 and 3 days before it is due, and on the day". */
-  const reminders = `${remindersBefore(T.reminderDays)} days before it is due${T.reminderDays.includes(0) ? ', and on the day' : ''}`;
 
   /** The date-change rule (`changes.py`), quoted on the terms and the cancellation page. */
   const changeRule = `One date change per booking, from your account, subject to seats on the new date: free ${T.freeChangeDays} days or more before departure, ${inr(T.changeFeePaise)} a traveller from ${T.onlineChangeDays} to ${T.freeChangeDays - 1} days before, and ${T.onlineChangeDays - 1} days or fewer before only by talking to us. Any difference in fare is paid or refunded.`;
@@ -105,7 +102,7 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         p: [
           `Seats are held for ${T.holdMinutes} minutes while you pay. A booking is confirmed when the payment goes through, and we email a confirmation with a booking reference; if the time runs out first, the seats go back on sale.`,
           `You can pay in full, or — when the package offers it — a deposit now of ${T.depositPercent}% of the total after any discounts, rounded up to the rupee, and the balance by ${T.balanceDays} days before departure. Departures ${T.balanceDays} days away or less are paid in full at booking.`,
-          `The balance can be paid in parts of at least ${inr(T.minPartPaise)}. We remind you ${reminders}. If it is still unpaid after ${T.graceDays} days’ grace, the booking is cancelled the next day and refunded under our cancellation & refunds policy, counted from that day.`,
+          `The balance can be paid in parts of at least ${inr(T.minPartPaise)}, from your account. If it is still unpaid after ${T.graceDays} days’ grace, we may cancel the booking; it is then refunded under our cancellation & refunds policy, counted from the day we cancel.`,
         ],
       },
       {
@@ -186,12 +183,11 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
       {
         h: 'How long we keep it',
         p: [
-          'The deleting is done by our nightly clean-up job, so nobody has to remember it. What goes, and what stays:',
+          'This is a portfolio demo with no scheduled clean-up jobs, so nothing is deleted on a timer. What happens to each kind of data:',
         ],
         list: [
-          `Enquiries that did not lead to a booking are deleted ${keptFor(retention.enquiryDays)} after they arrive, with our notes and replies.`,
-          `Traveller details — ID numbers, dates of birth, emergency contacts, food and medical notes — are deleted ${retention.detailsDays} days after the trip comes back.`,
-          `A signed-in device’s session, with its internet address, is deleted when it expires, ${retention.sessionDays} days after sign-in or at sign-out. Sign-in codes are deleted a day after they expire.`,
+          'Enquiries, with our notes and replies, and traveller details — ID numbers, dates of birth, emergency contacts, food and medical notes — stay until you ask us to delete them.',
+          `A signed-in device’s session, with its internet address, expires ${retention.sessionDays} days after sign-in, or at sign-out; expired sessions and old sign-in codes are cleared out whenever someone signs in.`,
           'Booking records, payments and GST invoices are kept for at least 8 years, because tax law requires it. Your account, saved packages, reviews and waitlist entries stay until you ask us to delete them.',
         ],
       },

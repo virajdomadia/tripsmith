@@ -51,9 +51,9 @@ data behind them (R40): Kasol weekend "Booked 4×", the Rajasthan circuit "Booke
 Shimla–Manali date "Likely to sell out" and one North Goa date "Filling fast · 3 left". Each is a
 confirmed, paid-in-full (offline) booking on the package's first departure at least a week out,
 made N days before the run. They are marked: `urgency-seed-N@example.com`, a "Demo booking
-(seed)" history line, and the automatic emails skip them. Idempotent by ref — a re-run adds
-nothing — so the labels fade honestly as the days pass. A full seed never runs it. Redeploy
-the web afterwards (or wait for /cron/daily):
+(seed)" history line. Idempotent by ref — a re-run adds nothing — so the labels fade honestly
+as the days pass. A full seed never runs it. Redeploy the web afterwards (or wait for the pages'
+hourly refetch):
 
     uv run python scripts/seed.py --urgency --database-url …
 
