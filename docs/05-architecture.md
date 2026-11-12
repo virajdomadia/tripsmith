@@ -81,7 +81,7 @@ tripsmith/
 │  ├─ tests/                         pytest + pytest-asyncio + httpx AsyncClient; DB tests on TEST_DATABASE_URL
 │  ├─ evals/                         v3: scripted conversations against the real provider (pytest -m evals, nightly)
 │  ├─ openapi.json                   GENERATED, committed — the contract web/ builds its types from
-│  ├─ pyproject.toml · uv.lock · vercel.json (functions.app/main.py.maxDuration = 30, region bom1)
+│  ├─ pyproject.toml · uv.lock · vercel.json (functions.app/main.py.maxDuration = 60, region bom1)
 ├─ docs/ · mockups/ · brand/
 ├─ package.json                      root scripts fan out: lint / typecheck / test / dev (concurrently) / gen:api
 ├─ pnpm-workspace.yaml               web/ only
@@ -179,7 +179,7 @@ MCP client → POST https://tripsmith-api.vercel.app/mcp (direct, no rewrite) �
 | Preview (step 14 staging) | Vercel preview per PR; `API_URL` = the api preview URL | Vercel preview per PR | the Preview env's `DATABASE_URL` (the per-PR Neon branches ended with the 2026-10-23 move to Supabase) |
 | Production | `tripsmith.virajdomadia.com` | `tripsmith-api.vercel.app` (no custom api domain) | Supabase `tripsmith`, Mumbai (since 2026-10-23); nightly encrypted dump, [18-runbook.md](18-runbook.md) |
 
-- Two Vercel projects from one repo (root directories `web/` and `api/`), both region `bom1`; the database in Mumbai (Supabase, `ap-south-1`). The api project uses Vercel's **FastAPI** preset: `api/app/main.py` exports `app`, one Vercel Function on Fluid compute, `api/vercel.json` sets `maxDuration 30` and the region.
+- Two Vercel projects from one repo (root directories `web/` and `api/`), both region `bom1`; the database in Mumbai (Supabase, `ap-south-1`). The api project uses Vercel's **FastAPI** preset: `api/app/main.py` exports `app`, one Vercel Function on Fluid compute, `api/vercel.json` sets `maxDuration 60` (v3 C1) and the region.
 - **No scheduled jobs (2026-11-04, lean cleanup).** The Vercel crons (`/cron/daily`, `/cron/emails`), the 15-minute GitHub tick and their healthchecks.io heartbeats were removed, with the features only a schedule could run: the automatic trip emails (with their settings page, "Coming up" list and unsubscribe link), the balance auto-cancel past its grace, the 30-day traveller-details and 12-month enquiry purges, and the stuck-refund resend. What still moves with the clock runs on demand (`api/app/services/on_demand.py`): the first catalogue read of an IST day recomputes every "from ₹" price; reads of My trips and the owner's bookings desk and dashboard run the bookings sweep (lapsed holds → `hold_expired`, departed → `completed`) at most every 10 minutes; each sign-in prunes expired sessions and old sign-in codes; storing a package's new itinerary PDF deletes its older ones; the waitlist walks on its reads as before. Ended deals and early-bird tiers are judged at read time, and the public pages refetch hourly. Webhooks (v2) and MCP (v4) hit the api domain directly. One schedule stays: the `keep-awake` GitHub Actions workflow opens `/health/ready` every Monday so the free Supabase project never pauses for inactivity.
 - Secrets split: `api/` holds all service keys; `web/` holds only `API_URL`, `REVALIDATE_SECRET`, `NEXT_PUBLIC_*`.
 

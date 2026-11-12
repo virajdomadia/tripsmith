@@ -30,6 +30,7 @@ from app.models.catalog import (
     Testimonial,
     TripLeader,
 )
+from app.models.concierge import ChatBudget, Conversation, DepartureAlert, Message
 from app.models.coupons import Coupon, coupon_packages
 from app.models.details import TravellerDetail
 from app.models.emails import EmailSend, EmailSuppression, EmailSwitch
@@ -40,6 +41,9 @@ from app.models.waitlist import WaitlistEntry
 __all__ = [
     "Base",
     "Booking",
+    "ChatBudget",
+    "Conversation",
+    "DepartureAlert",
     "BookingAddon",
     "BookingCancellation",
     "BookingEvent",
@@ -57,6 +61,7 @@ __all__ = [
     "EnquiryMessage",
     "EnquiryNote",
     "ItineraryDay",
+    "Message",
     "Package",
     "PackageAddon",
     "PackageImage",

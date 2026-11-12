@@ -18,6 +18,7 @@ from app.infra.razorpay import build_razorpay
 from app.infra.storage import LOCAL_STORE_DIR, build_store
 from app.middleware import (
     BlankQueryParamsMiddleware,
+    ChatCorsMiddleware,
     FreshQueryMiddleware,
     HeadAsGetMiddleware,
     RequestIdMiddleware,
@@ -41,6 +42,7 @@ from app.routers.site import (
     bookings,
     calendar,
     catalog,
+    chat,
     compare,
     enquiries,
     health,
@@ -53,6 +55,7 @@ from app.routers.site import (
     webhooks,
 )
 from app.routers.site import leaders as site_leaders
+from app.services.ai.gemini import models_from_settings
 from app.services.pdf.service import PdfService
 
 log = logging.getLogger(__name__)
@@ -71,6 +74,11 @@ def _check_keyed_hashing(settings: Settings) -> None:
             "SESSION_SECRET is unset: enquiry IP hashes are unkeyed and can be reversed by "
             "enumeration. Set it on this project (see docs/12-security-performance.md)."
         )
+
+
+def chat_origins(settings: Settings) -> list[str]:
+    """The web origins allowed to call `POST /chat` from the browser."""
+    return sorted({u.rstrip("/") for u in (settings.web_url, settings.site_url) if u})
 
 
 class TripsmithApi(FastAPI):
@@ -108,11 +116,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.razorpay = build_razorpay(settings)  # None when unset; swapped by tests
     app.state.store = build_store(settings)  # Vercel Blob or None; read by services/pdf
     app.state.pdf = PdfService(app.state.store, settings)  # swapped by tests; read by routers
+    # v3: [AI_MODEL, AI_MODEL_FALLBACK], or None without GEMINI_API_KEY (the SDK itself is only
+    # imported on the first chat turn). Swapped for a scripted fake by tests.
+    app.state.chat_models = models_from_settings(settings)
 
     _check_keyed_hashing(settings)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(BlankQueryParamsMiddleware)
     app.add_middleware(FreshQueryMiddleware)
+    app.add_middleware(ChatCorsMiddleware, origins=chat_origins(settings))
     # Last call = outermost (Starlette inserts each at index 0 and wraps the list in reverse), so
     # this one sees every response the stack below can produce — including one from a middleware
     # added here later that answers without delegating. Keep it at the bottom of this block.
@@ -148,6 +160,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(webhooks.router)
     app.include_router(views.router)
     app.include_router(waitlist.router)
+    app.include_router(chat.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`
