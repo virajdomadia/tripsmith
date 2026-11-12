@@ -216,3 +216,30 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class ChatCorsMiddleware:
+    """CORS on `POST /chat` only (v3 C1): the browser calls the api domain directly for the
+    concierge stream. Every other route stays same-origin through the web's `/api` rewrite and
+    gets no CORS headers at all. No credentials: the chat is anonymous."""
+
+    PATH = "/chat"
+
+    def __init__(self, app: ASGIApp, origins: list[str]) -> None:
+        from starlette.middleware.cors import CORSMiddleware
+
+        self.app = app
+        self.cors = CORSMiddleware(
+            app,
+            allow_origins=origins,
+            allow_methods=["POST"],
+            allow_headers=["content-type"],
+            expose_headers=["x-conversation-id", "x-request-id", "retry-after"],
+            max_age=600,
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == self.PATH:
+            await self.cors(scope, receive, send)
+        else:
+            await self.app(scope, receive, send)

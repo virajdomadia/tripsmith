@@ -215,3 +215,21 @@ class EmailSendState(StrEnum):
     HELD = "held"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+class ConversationOutcome(StrEnum):
+    """Where a concierge chat ended up (R31; text column + check constraint, migration 0028).
+    C1 only writes `open`; `startBooking` / `createEnquiry` (C3) move it on."""
+
+    OPEN = "open"
+    BOOKING_STARTED = "booking_started"
+    ENQUIRY_CREATED = "enquiry_created"
+    DROPPED = "dropped"
+
+
+class MessageRole(StrEnum):
+    """`user` = the visitor's message; `assistant` = one whole turn of the concierge (its tool
+    calls, their results and its text, in order, as `parts`)."""
+
+    USER = "user"
+    ASSISTANT = "assistant"

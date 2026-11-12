@@ -1802,6 +1802,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat
+         * @description Server-sent events, each `event: <name>` + `data: <json>`:
+         *
+         *     - `text-delta` `{text}` — the next piece of the reply
+         *     - `tool-call` `{id, name, args}` — the concierge is looking something up
+         *     - `tool-result` `{id, name, result}` — cards to render (`result.packages`, `result.departures`)
+         *     - `done` `{conversationId, model, tokensIn, tokensOut}` — send `conversationId` next time
+         *     - `error` `{reason: busy | internal, message}` — the turn ended early
+         *
+         *     Refusals before the stream opens are the usual envelope: 429 with `reason` = `conversation_full`,
+         *     `ip_limit`, `daily_cap` or `monthly_cap`; 503 `ai_off`; 404 for an unknown conversation.
+         */
+        post: operations["chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/compare": {
         parameters: {
             query?: never;
@@ -4488,6 +4517,16 @@ export interface components {
              * @enum {string}
              */
             state: "done" | "pay";
+        };
+        /** ChatRequest */
+        ChatRequest: {
+            /**
+             * Conversationid
+             * @description From the previous turn's `done`; omit to start
+             */
+            conversationId?: string | null;
+            /** Message */
+            message: string;
         };
         /** ChecklistItem */
         ChecklistItem: {
@@ -12717,6 +12756,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
             };
             /** @description Error envelope (06 C0) */
             default: {

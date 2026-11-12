@@ -10,7 +10,7 @@
 
 **Split rule:** `web/` renders and collects input; `api/` owns data and logic. Every write below is an HTTP endpoint on `api/`; `web/` calls it through the same-origin `/api/*` rewrite.
 
-**Backend conventions (2026-09-13):** one `FastAPI` instance named `app` in `api/app/main.py`; one Vercel Function on Fluid compute, region `bom1`, `api/vercel.json` → `functions: { "app/main.py": { "maxDuration": 30 } }`; lifespan events create the SQLAlchemy engine lazily. Local dev: `uv run uvicorn app.main:app --port 8000 --reload`. Layout in [05-architecture.md](05-architecture.md) §2.
+**Backend conventions (2026-09-13):** one `FastAPI` instance named `app` in `api/app/main.py`; one Vercel Function on Fluid compute, region `bom1`, `api/vercel.json` → `functions: { "app/main.py": { "maxDuration": 60 } }` (30 until v3 C1: a concierge turn waits on up to 5 model calls); lifespan events create the SQLAlchemy engine lazily. Local dev: `uv run uvicorn app.main:app --port 8000 --reload`. Layout in [05-architecture.md](05-architecture.md) §2.
 
 ## v1-specific decisions
 
@@ -116,7 +116,7 @@
 |---|---|
 | fpdf2 fonts / Unicode: core fonts are Latin-1 only, so `₹` and dashes need a registered TTF; long itinerary text needs manual page breaks | Bundle DM Sans TTF in `api/assets/fonts` and `add_font` at render; `multi_cell` with auto page breaks; test asserts the PDF opens and stays < 2 MB; keep layout simple |
 | Cold start of the Python function (SQLAlchemy + pydantic import, engine creation) | Fluid compute keeps instances warm between requests; engine created lazily in lifespan and reused; no heavy imports at module top (fpdf2, Pillow, google-genai loaded inside the service that needs them); measured cold time target < 3 s |
-| Vercel Hobby function limits (10 s default) | `api/vercel.json` `maxDuration = 30` for the single function; measured cold time target < 3 s |
+| Vercel Hobby function limits (10 s default) | `api/vercel.json` `maxDuration = 60` for the single function (30 until v3 C1); measured cold time target < 3 s |
 | Extra hop web → api on SSR | public pages are static (tags + revalidation), so the hop happens at build/revalidate, not per request; admin pages are owner-only |
 | Blob free-tier storage | 12 packages × 8 images ≈ 30 MB; PDFs GC'd daily |
 | Neon branch creation in CI | Use the Neon GitHub Action; fall back to a shared test DB with per-run schema if quota is hit |

@@ -5230,6 +5230,34 @@
         "title": "ChangeResult",
         "type": "object"
       },
+      "ChatRequest": {
+        "properties": {
+          "conversationId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the previous turn's `done`; omit to start",
+            "title": "Conversationid"
+          },
+          "message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
       "ChecklistItem": {
         "properties": {
           "done": {
@@ -21071,6 +21099,48 @@
           }
         },
         "summary": "Open Google Calendar",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/chat": {
+      "post": {
+        "description": "Server-sent events, each `event: <name>` + `data: <json>`:\n\n- `text-delta` `{text}` — the next piece of the reply\n- `tool-call` `{id, name, args}` — the concierge is looking something up\n- `tool-result` `{id, name, result}` — cards to render (`result.packages`, `result.departures`)\n- `done` `{conversationId, model, tokensIn, tokensOut}` — send `conversationId` next time\n- `error` `{reason: busy | internal, message}` — the turn ended early\n\nRefusals before the stream opens are the usual envelope: 429 with `reason` = `conversation_full`,\n`ip_limit`, `daily_cap` or `monthly_cap`; 503 `ai_off`; 404 for an unknown conversation.",
+        "operationId": "chat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Chat",
         "tags": [
           "public"
         ]

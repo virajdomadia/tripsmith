@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     # Positive only: 0 would read as "no bound" and a negative value would drop every invoice.
     pdf_render_timeout: float = Field(default=5.0, gt=0)
 
+    # --- AI concierge (v3 C1): Gemini free tier, billing off. No key = POST /chat answers 503 ---
+    gemini_api_key: SecretStr | None = None
+    ai_model: str = "gemini-3.5-flash-lite"
+    # Used when the first model answers 429 (its 15 RPM burst) or 5xx; it has its own 500 RPD.
+    ai_model_fallback: str = "gemini-3.1-flash-lite"
+    # Site-wide turns, held in Postgres (chat_budget) so they hold if Upstash fails open.
+    chat_daily_limit: int = Field(default=100, ge=0)  # per IST day
+    chat_monthly_limit: int = Field(default=1500, ge=0)  # per IST calendar month
+
     # --- Cross-service URLs ---
     web_url: str = "http://localhost:3000"
     revalidate_secret: SecretStr | None = None
