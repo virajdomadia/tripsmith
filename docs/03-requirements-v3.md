@@ -10,7 +10,7 @@ The spec was written before v2.5, v2.6 and the lean cleanup. These decisions rep
 | # | Decision | Replaces |
 |---|---|---|
 | 1 | **Layout D, "trip ticket"** (variants page: claude.ai/artifact/ReuRHBahaPFKqxxmcJ8xie) | an unspecified floating panel |
-| 2 | **Model `gemini-3.5-flash-lite`**, fallback `gemini-3.1-flash-lite`, free tier, billing off. Caps: **100 turns / day and 1,500 / month** across the site. If C1's first real test shows the free tier allows fewer than 50 requests a day, the provider choice is reopened | "Gemini Flash", 600 requests / day, Claude via env |
+| 2 | **Model `gemini-3.5-flash-lite`**, fallback `gemini-3.1-flash-lite`, free tier, billing off. Caps: **100 turns / day and 1,500 / month** across the site. AI Studio rate-limit page (project `tripsmith`, 2026-11-12): **3.5 Flash Lite and 3.1 Flash Lite each 15 RPM · 250K TPM · 500 RPD** — 100 turns × ≤ 5 calls fits one model's day, and the fallback has its own 500 | "Gemini Flash", 600 requests / day, Claude via env |
 | 3 | **Official `google-genai` SDK** with our own tool loop, imported only when a chat starts. Measured locally: `httpx` 0.2 s, + `google-genai` 0.9 s, + `pydantic-ai` 1.4 s. No Anthropic code (₹0 rule) | pydantic-ai, `AI_PROVIDER=google\|anthropic` |
 | 4 | **Notify me without a schedule:** the alert is sent when the owner saves new departures in admin; **one email per alert**, then it closes (no unsubscribe page) | a daily cron + unsubscribe link |
 | 5 | **Evals in two layers:** fake-model tests in normal CI; ~20 real-model evals **run by hand** on a separate free key (second Google project) | nightly GitHub Actions evals |
