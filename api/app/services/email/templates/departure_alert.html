@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% set title = "New dates · " ~ f.package_name %}
+{% block body %}
+<h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;">New dates for {{ f.package_name }}</h1>
+<p style="margin:0 0 16px;">You asked us to email you when new dates were added for <strong>{{ watched }}</strong>. They’re up:</p>
+<ul style="margin:0 0 16px;padding-left:20px;">
+{% for day, price in dates %}<li style="margin:0 0 4px;"><strong>{{ day }}</strong> — {{ price }}</li>
+{% endfor %}{% if more %}<li style="margin:0 0 4px;">…and {{ more }} more</li>{% endif %}
+</ul>
+<p style="margin:0 0 16px;"><a href="{{ url }}" style="display:inline-block;background:#1b4fd8;color:#ffffff;font-weight:700;text-decoration:none;padding:10px 16px;border-radius:10px;">See the dates and book</a></p>
+<p style="margin:0 0 16px;color:#5e6b76;">This is a one-time alert: we won’t email you about {{ watched }} again. Want another? Ask again on the trip page.</p>
+{% endblock %}

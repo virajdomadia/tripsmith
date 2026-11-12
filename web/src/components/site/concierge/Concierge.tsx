@@ -1,9 +1,12 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { errorFromResponse } from '@/lib/api-errors';
+import { requestBooking } from '@/lib/concierge/book-request';
 import { streamChat } from '@/lib/concierge/client';
-import { initialState, reducer, type State } from '@/lib/concierge/reducer';
+import { type Action, initialState, reducer, type State } from '@/lib/concierge/reducer';
 
 /**
  * The AI concierge (v3 C2, R26, layout D "trip ticket"): a launcher on every public page and a
@@ -32,9 +35,15 @@ export type ConciergeApi = {
   state: State;
   send: (text: string) => void;
   reset: () => void;
+  dispatch: (action: Action) => void;
+  /** A departure list's "Book" (C3): same hand-off as the model's startBooking, no turn spent.
+   *  Resolves to an error message to show, or null once the sheet is on its way. */
+  book: (departureId: string) => Promise<string | null>;
 };
 
-/** The conversation and the two things the panel can do to it. */
+const BOOK_FAILED = 'Couldn’t open that date just now — try again, or open the trip page.';
+
+/** The conversation and what the panel can do to it. */
 export function useConcierge(apiUrl: string): ConciergeApi {
   const [state, dispatch] = useReducer(reducer, initialState);
   const live = useRef<AbortController | null>(null);
@@ -72,14 +81,43 @@ export function useConcierge(apiUrl: string): ConciergeApi {
 
   useEffect(() => () => live.current?.abort(), []);
 
-  return { state, send, reset };
+  const party = useRef(state.party);
+  party.current = state.party;
+  const book = useCallback(async (departureId: string): Promise<string | null> => {
+    const conversationId = conversation.current;
+    if (!conversationId) return BOOK_FAILED;
+    try {
+      const res = await fetch('/api/chat/booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, departureId, ...party.current }),
+      });
+      const body: unknown = await res.json().catch(() => undefined);
+      if (!res.ok) {
+        const err = errorFromResponse(res.status, res.statusText, body);
+        return err.body.code === 'conflict' || err.body.code === 'not_found'
+          ? err.body.message
+          : BOOK_FAILED;
+      }
+      dispatch({ type: 'booked', data: body });
+      return null;
+    } catch {
+      return BOOK_FAILED;
+    }
+  }, []);
+
+  return { state, send, reset, dispatch, book };
 }
+
+const isPhone = () => !window.matchMedia('(min-width: 1024px)').matches;
 
 export function Concierge({ apiUrl }: { apiUrl: string }) {
   const concierge = useConcierge(apiUrl.replace(/\/$/, ''));
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const launcher = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+  const { state, dispatch } = concierge;
 
   const show = () => {
     setMounted(true);
@@ -90,6 +128,18 @@ export function Concierge({ apiUrl }: { apiUrl: string }) {
     // Back to where the visitor was (WCAG 2.4.3); after the panel hides.
     requestAnimationFrame(() => launcher.current?.focus());
   }, []);
+
+  // C3: once the turn that started a booking has finished (or a list's "Book" answered), go to
+  // the package page with the Book-now sheet open. On a phone the panel covers the page, so it
+  // closes; the chat stays in memory for when they come back.
+  const go = state.busy ? null : state.go;
+  useEffect(() => {
+    if (!go) return;
+    dispatch({ type: 'went' });
+    requestBooking(go.url);
+    router.push(go.url, { scroll: false });
+    if (isPhone()) setOpen(false);
+  }, [go, dispatch, router]);
 
   return (
     <>

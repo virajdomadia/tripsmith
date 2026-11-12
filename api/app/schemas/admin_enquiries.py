@@ -12,6 +12,7 @@ from pydantic import Field, ValidationInfo, field_validator
 
 from app.models.enums import BookingStatus, EmailStatus, EnquiryStatus, PackageStatus
 from app.schemas import ApiModel
+from app.schemas.chat import TranscriptLine
 from app.schemas.enquiries import CONTROL_RE, PackageRef
 from app.schemas.meta import AdminEnquiryType
 
@@ -201,6 +202,10 @@ class AdminEnquiry(ApiModel):
     follow_up_on: dt.date | None = None
     lost_reason: str | None = None
     bookings: list[RelatedBooking] = Field(default_factory=list, description="Newest first")
+    transcript: list[TranscriptLine] = Field(
+        default_factory=list,
+        description="v3 C3: the concierge chat a `chat-handoff` came from, oldest first",
+    )
 
 
 class EnquiryStatusInput(ApiModel):

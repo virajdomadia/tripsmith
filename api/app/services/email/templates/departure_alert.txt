@@ -1,0 +1,13 @@
+New dates for {{ f.package_name }}
+
+You asked us to email you when new dates were added for {{ watched }}. They're up:
+
+{% for day, price in dates %}- {{ day }} — {{ price }}
+{% endfor %}{% if more %}…and {{ more }} more.
+{% endif %}
+See the dates and book: {{ url }}
+
+This is a one-time alert: we won't email you about {{ watched }} again. Want another? Ask again on the trip page.
+
+{{ business.legal_name }} · {{ business.address }}, {{ business.city }}
+{{ business.phone_display }} · {{ site_url }}

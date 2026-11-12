@@ -40,7 +40,7 @@ const int = (min: number, max: number, message?: string) =>
 
 export const enquirySchema = z
   .object({
-    type: z.enum(['standard', 'custom', 'contact']),
+    type: z.enum(['standard', 'custom', 'contact', 'chat-handoff']),
     packageSlug: z.preprocess(
       blankToUndefined,
       z
@@ -87,6 +87,8 @@ export const enquirySchema = z
     ),
     changes: trimmed(MESSAGE_MAX),
     website: z.string().default(''),
+    /** v3 C3: the concierge chat a `chat-handoff` comes from (its transcript goes with it). */
+    conversationId: z.preprocess(blankToUndefined, z.string().max(40).optional()),
   })
   .superRefine((v, ctx) => {
     if (v.adults + v.children > TRAVELLERS.maxTotal)
@@ -95,7 +97,7 @@ export const enquirySchema = z
         path: ['children'],
         message: `Up to ${TRAVELLERS.maxTotal} travellers per enquiry — for more, call us`,
       });
-    if (v.type !== 'contact' && !v.packageSlug)
+    if ((v.type === 'standard' || v.type === 'custom') && !v.packageSlug)
       ctx.addIssue({
         code: 'custom',
         path: ['packageSlug'],
@@ -108,6 +110,7 @@ export const enquirySchema = z
     preferredDates: v.type === 'custom' ? v.preferredDates : undefined,
     budget: v.type === 'custom' ? v.budget : undefined,
     changes: v.type === 'custom' ? v.changes : undefined,
+    conversationId: v.type === 'chat-handoff' ? v.conversationId : undefined,
   }));
 
 export type EnquiryInput = z.input<typeof enquirySchema>;

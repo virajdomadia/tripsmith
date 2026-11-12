@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { type Prefill, prefillFromSearch } from '@/lib/booking';
+import { onBookingRequest, takeBooking } from '@/lib/concierge/book-request';
 import { claimFromSearch } from '@/lib/waitlist';
 import { useRules } from '@/components/rules/RulesProvider';
 import type { BookingPackage } from './use-booking';
@@ -45,7 +46,10 @@ const BookNowContext = createContext<Ctx | null>(null);
  * bar — open the one sheet, whose state (date, party, contact) survives closing it. `#book` in
  * the URL opens it on arrival, once the page has loaded (`afterLoad`). A waitlist offer's link
  * (`?claim=…#book`, R44) opens it the same way, in claim mode, and the still-thinking email's
- * (`?date=…&double=…#book`, R53) with the party and date the visitor held.
+ * (`?date=…&double=…#book`, R53) with the party and date the visitor held. The concierge
+ * (v3 C3) sends the same link, and also hands the request over in memory
+ * (lib/concierge/book-request): a chat can ask to book the very page the visitor is on, where
+ * no mount happens to read the URL — the sheet then remounts with the new date and party.
  */
 export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; children: ReactNode }) {
   const { maxTravellers } = useRules();
@@ -56,19 +60,37 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
   const touched = useRef(false);
   const [claim, setClaim] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<Prefill | null>(null);
+  const [sheetKey, setSheetKey] = useState(0);
 
   useEffect(() => {
     setHydrated(true);
-    const token = claimFromSearch(window.location.search);
+    const asked = takeBooking(pkg.slug); // the concierge sent the visitor here to book
+    const token = asked ? null : claimFromSearch(window.location.search);
     setClaim(token);
-    if (!token) setPrefill(prefillFromSearch(window.location.search, maxTravellers));
-    if (window.location.hash !== '#book' && !token) return;
+    if (!token)
+      setPrefill(prefillFromSearch(asked?.search ?? window.location.search, maxTravellers));
+    if (window.location.hash !== '#book' && !token && !asked) return;
     return afterLoad(() => {
       if (touched.current) return;
       setMounted(true);
       setOpen(true);
     });
-  }, [maxTravellers]);
+  }, [maxTravellers, pkg.slug]);
+
+  // Already on this page when the concierge asks: open it now, with the chat's date and party.
+  useEffect(
+    () =>
+      onBookingRequest((req) => {
+        if (req.slug !== pkg.slug || !takeBooking(pkg.slug)) return;
+        touched.current = true;
+        setClaim(null);
+        setPrefill(prefillFromSearch(req.search, maxTravellers));
+        setSheetKey((k) => k + 1);
+        setMounted(true);
+        setOpen(true);
+      }),
+    [maxTravellers, pkg.slug],
+  );
 
   const value: Ctx = {
     hydrated,
@@ -85,6 +107,7 @@ export function BookNowProvider({ pkg, children }: { pkg: BookingPackage; childr
       {children}
       {mounted && (
         <BookingSheet
+          key={sheetKey}
           pkg={pkg}
           open={open}
           onOpenChange={setOpen}

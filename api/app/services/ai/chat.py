@@ -150,6 +150,8 @@ async def save_turn(db: AsyncSession, conversation_id: str, turn: Turn) -> None:
     }
     if turn.model:
         values["model"] = turn.model
+    if turn.outcome:
+        values["outcome"] = turn.outcome
     if turn.errors:
         values["last_error"] = "; ".join(turn.errors)[:ERROR_TEXT_MAX]
     await db.execute(

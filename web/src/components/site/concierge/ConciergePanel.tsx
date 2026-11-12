@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
+import { NotifyMe } from '@/components/site/alerts/NotifyMe';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
-import type { Item, Part } from '@/lib/concierge/reducer';
+import { EMPTY_PREFILL, type Item, type Part } from '@/lib/concierge/reducer';
 import type { ConciergeApi } from './Concierge';
-import { ChatDepartures, ChatPackageCards } from './ChatCards';
+import { ChatBookingCard, ChatDepartures, ChatPackageCards } from './ChatCards';
+import { HandoffForm } from './HandoffForm';
 import { Ticket } from './Ticket';
 
 export const MAX_CHARS = 500; // R28, api/app/schemas/chat.py MAX_MESSAGE_CHARS
@@ -26,9 +28,6 @@ export const PRIVACY_NOTE =
 const GREETING =
   'Hi! I can find you a trip from Tripsmith’s real packages, with live dates and seats. ' +
   'Where are you thinking of going?';
-
-/** C3 moves this into the panel (the enquiry form with the transcript attached). */
-const PERSON_HREF = '/contact#enquire';
 
 /** **bold**, paragraphs and line breaks: all the formatting a short reply needs. React escapes
  * the rest, so model text can never become markup. */
@@ -93,6 +92,8 @@ export default function ConciergePanel({
   state,
   send,
   reset,
+  dispatch,
+  book,
 }: ConciergeApi & { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState('');
   const input = useRef<HTMLTextAreaElement>(null);
@@ -121,6 +122,8 @@ export default function ConciergePanel({
   };
 
   const lastUser = state.items.findLast((it) => it.kind === 'user');
+  // "Talk to a person": the form the concierge pre-filled, if it did, else a blank one.
+  const talk = () => dispatch({ type: 'open-form', prefill: state.form ?? EMPTY_PREFILL });
 
   const renderItem = (item: Item): ReactNode => {
     switch (item.kind) {
@@ -164,7 +167,24 @@ export default function ConciergePanel({
                     />
                   );
                 case 'departures':
-                  return <ChatDepartures key={part.id} {...part} onNavigate={closeIfCovering} />;
+                  return (
+                    <ChatDepartures
+                      key={part.id}
+                      {...part}
+                      onNavigate={closeIfCovering}
+                      onBook={book}
+                    />
+                  );
+                case 'booking':
+                  return (
+                    <ChatBookingCard
+                      key={part.id}
+                      booking={part.booking}
+                      onOpen={(b) => dispatch({ type: 'booked', data: b })}
+                    />
+                  );
+                case 'alert':
+                  return <NotifyMe key={part.id} offer={part.offer} compact />;
               }
             })}
             {item.streaming && item.parts.length === 0 && (
@@ -216,9 +236,9 @@ export default function ConciergePanel({
               <Link href="/packages" onClick={closeIfCovering} className={LINK_BTN}>
                 Browse all trips
               </Link>
-              <Link href={PERSON_HREF} onClick={closeIfCovering} className={LINK_BTN}>
+              <button type="button" onClick={talk} className={LINK_BTN}>
                 Send an enquiry
-              </Link>
+              </button>
               <a
                 href={whatsappHref(whatsappInterest())}
                 target="_blank"
@@ -228,6 +248,23 @@ export default function ConciergePanel({
                 WhatsApp us
               </a>
             </div>
+          </div>
+        );
+      case 'handed-off':
+        return (
+          <div
+            key={item.id}
+            role="status"
+            className="grid gap-1 rounded-card border border-ok/40 bg-ok-soft p-3.5 text-[14px] text-ink"
+          >
+            <p className="font-bold">
+              Thanks, {item.firstName} — it’s with our team. Ref{' '}
+              <span className="num">{item.ref}</span>.
+            </p>
+            <p>
+              {item.emailed ? 'We’ve emailed you a copy. ' : ''}
+              They have this chat too, so you won’t need to repeat yourself.
+            </p>
           </div>
         );
     }
@@ -252,13 +289,14 @@ export default function ConciergePanel({
           </h2>
           <small className="text-[12px] font-semibold text-ok">Real trips only</small>
         </div>
-        <Link
-          href={PERSON_HREF}
-          onClick={closeIfCovering}
-          className="ml-auto rounded-chip border border-line bg-bg px-3 py-1.5 text-[13px] font-bold whitespace-nowrap text-ink no-underline hover:border-ink"
+        <button
+          type="button"
+          onClick={talk}
+          aria-pressed={state.form !== null}
+          className="ml-auto rounded-chip border border-line bg-bg px-3 py-1.5 text-[13px] font-bold whitespace-nowrap text-ink hover:border-ink aria-pressed:border-ink aria-pressed:bg-bg2"
         >
           Talk to a person
-        </Link>
+        </button>
         <button
           type="button"
           onClick={onClose}
@@ -271,7 +309,26 @@ export default function ConciergePanel({
 
       <Ticket ticket={state.ticket} />
 
+      {state.form && (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+          <HandoffForm
+            prefill={state.form}
+            conversationId={state.conversationId}
+            onClose={() => dispatch({ type: 'close-form' })}
+            onSent={(created) =>
+              dispatch({
+                type: 'handed-off',
+                ref: created.ref,
+                firstName: created.firstName,
+                emailed: created.emailed,
+              })
+            }
+          />
+        </div>
+      )}
+
       <div
+        hidden={state.form !== null}
         ref={thread}
         role="log"
         aria-label="Conversation"
@@ -300,6 +357,7 @@ export default function ConciergePanel({
       </div>
 
       <form
+        hidden={state.form !== null}
         onSubmit={(e) => {
           e.preventDefault();
           submit(draft);

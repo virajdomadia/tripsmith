@@ -8,16 +8,21 @@ web origin only (`ChatCorsMiddleware`).
 import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
+from app.infra.cache import NO_STORE
 from app.infra.client_ip import client_ip
 from app.infra.db import get_session
-from app.schemas.chat import ChatLimitReason, ChatRequest
+from app.models import Conversation
+from app.models.enums import ConversationOutcome
+from app.schemas.chat import ChatBooking, ChatBookingRequest, ChatLimitReason, ChatRequest
 from app.services.ai.chat import open_turn, stream_turn
+from app.services.ai.handoff import start_booking
 from app.services.ai.model import ChatModel
+from app.services.ai.outcome import set_outcome
 
 router = APIRouter(tags=["public"])
 
@@ -78,4 +83,38 @@ async def chat(
             "X-Accel-Buffering": "no",
             "X-Conversation-Id": conversation.id,
         },
+    )
+
+
+@router.post(
+    "/chat/booking",
+    operation_id="chatBooking",
+    response_model_by_alias=True,
+    responses={404: {"description": "Unknown conversation, or the trip is gone"}},
+)
+async def chat_booking(
+    payload: ChatBookingRequest,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ChatBooking:
+    """A "Book" button on a chat's departure list (C3): checks the date for the party, marks the
+    conversation `booking_started` and returns where the Book-now sheet opens. No model call, so
+    no turn is spent. Same-origin through the web's `/api` rewrite (no visitor IP is needed)."""
+    response.headers.update(NO_STORE)
+    if await db.get(Conversation, payload.conversation_id) is None:
+        raise ApiError("not_found", "That chat has ended — start a new one")
+    started = await start_booking(
+        db, payload.departure_id, adults=payload.adults, children=payload.children
+    )
+    await set_outcome(db, payload.conversation_id, ConversationOutcome.BOOKING_STARTED)
+    await db.commit()
+    return ChatBooking(
+        package_slug=started.package_slug,
+        package_name=started.package_name,
+        departure_id=started.departure_id,
+        date=started.date,
+        adults=started.adults,
+        children=started.children,
+        total_paise=started.total_paise,
+        url=started.url,
     )

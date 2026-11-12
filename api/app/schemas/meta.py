@@ -32,13 +32,15 @@ class Badge(StrEnum):
 class EnquiryType(StrEnum):
     """The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.
 
-    `callback`, `group` and `chat-handoff` are forward-compat DB values that join here with
-    their features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.
+    `callback` and `group` are forward-compat DB values that join here with their feature (v2
+    add-on); `chat-handoff` joined with the concierge's handoff form (v3 C3). The owner's inbox
+    reads all six via `AdminEnquiryType`.
     """
 
     STANDARD = "standard"
     CUSTOM = "custom"
     CONTACT = "contact"
+    CHAT_HANDOFF = "chat-handoff"
 
 
 class AdminEnquiryType(StrEnum):

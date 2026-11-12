@@ -1,7 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { useState } from 'react';
 import { Photo } from '@/components/site/Photo';
 import { Stamp } from '@/components/site/Stamp';
-import type { ChatDeparture, ChatPackage } from '@/lib/concierge/types';
+import type { ChatBooking, ChatDeparture, ChatPackage } from '@/lib/concierge/types';
 import { duration, inr, isPriced } from '@/lib/format';
 
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -127,6 +130,7 @@ export function ChatDepartures({
   departures,
   more,
   onNavigate,
+  onBook,
 }: {
   slug: string;
   name: string;
@@ -134,9 +138,19 @@ export function ChatDepartures({
   departures: ChatDeparture[];
   more: number;
   onNavigate: () => void;
+  /** C3: opens the Book-now sheet pre-filled; resolves to an error to show, or null. */
+  onBook: (departureId: string) => Promise<string | null>;
 }) {
-  // C3 swaps "Book" for the Book-now sheet opened pre-filled; until then, the trip's dates.
   const href = `/packages/${slug}#dates`;
+  const [booking, setBooking] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const book = async (departureId: string) => {
+    if (booking) return;
+    setBooking(departureId);
+    setError(null);
+    setError(await onBook(departureId));
+    setBooking(null);
+  };
   return (
     <div className="animate-card-deal overflow-hidden rounded-card border border-line bg-bg">
       <div className="flex items-center gap-2.5 border-b border-line p-2.5">
@@ -167,20 +181,30 @@ export function ChatDepartures({
               {isPriced(d.pricePerPersonPaise) ? inr(d.pricePerPersonPaise) : 'On request'}
             </span>
             {d.seatsLeft > 0 ? (
-              <Link
-                href={href}
-                onClick={onNavigate}
+              <button
+                type="button"
+                onClick={() => void book(d.departureId)}
+                disabled={booking !== null}
                 aria-label={`Book ${dayLabel(d.date)}`}
+                aria-busy={booking === d.departureId}
                 className={`${BTN} border-action bg-action text-ink hover:bg-action-ink`}
               >
-                Book
-              </Link>
+                {booking === d.departureId ? 'Opening…' : 'Book'}
+              </button>
             ) : (
               <span className="w-[54px]" />
             )}
           </li>
         ))}
       </ul>
+      {error && (
+        <p
+          role="alert"
+          className="border-t border-line bg-warn-soft px-3 py-2 text-[13px] font-semibold text-warn"
+        >
+          {error}
+        </p>
+      )}
       {more > 0 && (
         <Link
           href={href}
@@ -190,6 +214,44 @@ export function ChatDepartures({
           {more} more {more === 1 ? 'date' : 'dates'} on the trip page →
         </Link>
       )}
+    </div>
+  );
+}
+
+/** C3: what `startBooking` set up — the sheet opens on its own once the reply ends; this card
+ *  stays in the chat so the visitor can open it again after closing it. */
+export function ChatBookingCard({
+  booking,
+  onOpen,
+}: {
+  booking: ChatBooking;
+  onOpen: (b: ChatBooking) => void;
+}) {
+  const party =
+    `${booking.adults} adult${booking.adults === 1 ? '' : 's'}` +
+    (booking.children ? `, ${booking.children} child${booking.children === 1 ? '' : 'ren'}` : '');
+  return (
+    <div className="animate-card-deal grid gap-2 rounded-card border border-action bg-action/10 p-3">
+      <p className="text-[12px] font-bold tracking-wide text-ink2 uppercase">Booking sheet ready</p>
+      <p className="leading-snug">
+        <b>{booking.packageName}</b>
+        <br />
+        <span className="num">{dayLabel(booking.date)}</span> · {party}
+        {booking.totalPaise > 0 && (
+          <>
+            {' '}
+            · <span className="num font-bold">{inr(booking.totalPaise)}</span>
+          </>
+        )}
+      </p>
+      <p className="text-[12.5px] text-mute">You pay on the trip page, not in this chat.</p>
+      <button
+        type="button"
+        onClick={() => onOpen(booking)}
+        className={`${BTN} justify-self-start border-ink bg-ink text-white hover:bg-ink2`}
+      >
+        Open the booking sheet
+      </button>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from '@/lib/admin/inbox';
 import { formatDate, inr } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { ConciergeTranscript } from './ConciergeTranscript';
 import { Composer, ConvertPreview, FollowUpControl, StageControl } from './InboxControls';
 import { EnquiryChips } from './InboxList';
 
@@ -52,6 +53,7 @@ export function InboxPanel({
     );
   }
   const bookings = e.bookings ?? [];
+  const transcript = e.transcript ?? []; // v3 C3: the concierge chat a handoff came from
   const hello = `Hi ${e.name.split(' ')[0]}, this is Tripsmith about your enquiry ${e.ref}.`;
   const subject = emailSubject(e);
   const estimate = e.package?.startingPricePaise
@@ -209,6 +211,19 @@ export function InboxPanel({
         <section className="grid gap-2 border-b border-line p-4" id="inbox-followup">
           <h3 className={H3}>Follow up</h3>
           <FollowUpControl e={e} today={today} />
+        </section>
+      )}
+
+      {transcript.length > 0 && (
+        <section className="grid gap-3 border-b border-line p-4">
+          <h3 className={H3}>
+            From the concierge
+            <span className="ml-auto tracking-normal normal-case">
+              {transcript.filter((l) => l.role === 'visitor').length} messages from{' '}
+              {e.name.split(' ')[0]}
+            </span>
+          </h3>
+          <ConciergeTranscript lines={transcript} firstName={e.name.split(' ')[0] ?? e.name} />
         </section>
       )}
 

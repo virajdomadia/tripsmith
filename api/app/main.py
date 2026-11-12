@@ -54,6 +54,7 @@ from app.routers.site import (
     waitlist,
     webhooks,
 )
+from app.routers.site import alerts as site_alerts
 from app.routers.site import leaders as site_leaders
 from app.services.ai.gemini import models_from_settings
 from app.services.pdf.service import PdfService
@@ -161,6 +162,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(views.router)
     app.include_router(waitlist.router)
     app.include_router(chat.router)
+    app.include_router(site_alerts.router)
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`
