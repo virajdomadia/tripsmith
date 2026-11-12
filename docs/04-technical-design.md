@@ -115,7 +115,7 @@
 | Risk | Mitigation |
 |---|---|
 | fpdf2 fonts / Unicode: core fonts are Latin-1 only, so `₹` and dashes need a registered TTF; long itinerary text needs manual page breaks | Bundle DM Sans TTF in `api/assets/fonts` and `add_font` at render; `multi_cell` with auto page breaks; test asserts the PDF opens and stays < 2 MB; keep layout simple |
-| Cold start of the Python function (SQLAlchemy + pydantic import, engine creation) | Fluid compute keeps instances warm between requests; engine created lazily in lifespan and reused; no heavy imports at module top (fpdf2, Pillow, pydantic-ai loaded inside the service that needs them); measured cold time target < 3 s |
+| Cold start of the Python function (SQLAlchemy + pydantic import, engine creation) | Fluid compute keeps instances warm between requests; engine created lazily in lifespan and reused; no heavy imports at module top (fpdf2, Pillow, google-genai loaded inside the service that needs them); measured cold time target < 3 s |
 | Vercel Hobby function limits (10 s default) | `api/vercel.json` `maxDuration = 30` for the single function; measured cold time target < 3 s |
 | Extra hop web → api on SSR | public pages are static (tags + revalidation), so the hop happens at build/revalidate, not per request; admin pages are owner-only |
 | Blob free-tier storage | 12 packages × 8 images ≈ 30 MB; PDFs GC'd daily |

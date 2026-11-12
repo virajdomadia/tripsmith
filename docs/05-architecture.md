@@ -164,7 +164,7 @@ web GalleryUploader → POST /api/admin/packages/:id/images (multipart: file, po
 
 ### 5.6 v3 chat (SSE across the split)
 ```
-web Concierge (useConcierge hook: fetch POST /api/chat, reads the SSE stream) → rewrite → api POST /chat (sse-starlette EventSourceResponse over a pydantic-ai run_stream) → named events back through the rewrite
+web Concierge (useConcierge hook: fetch POST https://tripsmith-api…/chat directly, CORS for the web origin, reads the SSE stream) → api POST /chat (own tool loop over the google-genai SDK) → named events straight back (re-validated 2026-11-12: no rewrite — it hides the visitor IP and can buffer a stream)
 ```
 
 ### 5.7 v4 MCP

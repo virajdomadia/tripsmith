@@ -4,7 +4,7 @@
 
 > **Revision 2026-09-13: backend switched from Hono to FastAPI.** `api/` is now FastAPI (Python 3.12, uv, SQLAlchemy + Alembic, pydantic, pytest); `shared/` is gone and the contract is `api/openapi.json` → generated `web/src/lib/api-types.ts`. What PR #1 (`feat/1.0.2-workspace`, merged as 270f27e — old numbering) and PR #3 (`fix/pr1-review-followups`, merged as 1ccf5da) built for the Hono api and `shared/` is removed in **S1**; their web-side pieces are kept. The v1 rows below were then re-cut into structure C the same evening (see the next note).
 
-**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 20.5 h (raised from 15 at re-validation, 2026-09-24, then +3.5 h for B15 coupons, 2026-09-26) · v3 ≈ 15 h · v4 ≈ 6 h · add-ons only if hours remain.
+**Inputs:** steps 3–6 for v1 ([03-requirements.md](03-requirements.md)), v2 ([03-requirements-v2.md](03-requirements-v2.md)) and v3 ([03-requirements-v3.md](03-requirements-v3.md)). **Budget:** v1 ≈ 35 h · v2 ≈ 20.5 h (raised from 15 at re-validation, 2026-09-24, then +3.5 h for B15 coupons, 2026-09-26) · v3 ≈ 21 h (re-cut from 15 at re-validation, 2026-11-12) · v4 ≈ 6 h · add-ons only if hours remain.
 **Cadence:** evenings/weekends. Each minor milestone ends **deployed to production** — no long-lived unlaunched branches.
 
 How the lifecycle maps onto milestones: step 8 (setup) **is** milestone 1.0 (the walking skeleton); steps 13 (CI/CD), 15 (production) and 16 (monitoring) are set up **inside 1.0** and then every later milestone cycles through 9 → 10 → 11 → 14 → 15. Steps 12 and 17 close in 1.4. When a milestone starts, its tasks below are expanded into a detailed execution plan (file-level, TDD) before coding.
@@ -233,43 +233,21 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 ---
 
-## v3 — AI concierge (≈ 15 h) — requirements: [03-requirements-v3.md](03-requirements-v3.md)
-Starts **after v2.5 closes (P19)**, with a step-3 re-validation (30 min): confirm the provider/free-tier situation and R26–R33 against v1+v2 as shipped.
+## v3 — AI concierge (≈ 21 h) — requirements: [03-requirements-v3.md](03-requirements-v3.md)
+**Re-validated and re-cut 2026-11-12** (decisions table at the top of 03-requirements-v3). The old milestones 3.0–3.3 (≈ 15 h, pydantic-ai, nightly evals, cron alerts) are replaced by rows C1–C6. One chat + worktree + PR per row, built in order. Only C1 migrates. Keys: `GEMINI_API_KEY` is set (api/.env.local + tripsmith-api Production, 2026-11-12); `GEMINI_EVALS_API_KEY` (second Google project) is created by Viraj at C4.
 
-### Milestone 3.0 — Chat with search (≈ 6 h)
-| # | Task | Est. | Done when |
-|---|---|---|---|
-| 3.0.1 | Gemini API key (free tier), **pydantic-ai** with the Gemini and Anthropic providers, `services/ai/provider.py` building the `Agent` from `AI_PROVIDER`/`AI_MODEL` | 0.5 h | a script streams a reply from both providers |
-| 3.0.2 | Alembic `0005_v3`: conversations, messages, departure_alerts, ai_generations; enforce `enquiries.conversation_id` FK | 0.5 h | |
-| 3.0.3 | `POST /chat` (SSE via `sse-starlette`): quotas (per-IP, per-conversation, global), session cookie, persistence, `agent.run_stream` with `searchPackages` + `checkAvailability` tools (`services/ai/tools.py`), named SSE events, system prompt v1 | 2 h | tool calls hit the v1 functions; quotas tested |
-| 3.0.4 | Concierge UI: launcher, panel (mobile full-height), in-house `useConcierge` hook (fetch stream over SSE, event reducer), streaming text, package cards + departure lists from tool-result events, example prompts, privacy note, lazy-loaded | 2.5 h | "3 days in Goa under ₹15k" shows correct cards at 360 px |
-| 3.0.5 | Deploy; CI green | 0.5 h | live on production |
+| # | Row | Delivers | Est. | Done when |
+|---|---|---|---|---|
+| C1 | **Engine** | Migration `0028_v3` (`conversations`, `messages`, `chat_budget`, `departure_alerts`; FK `enquiries.conversation_id`) — Viraj runs it on prod before merge · `services/ai/gemini.py` (official `google-genai`, imported on first chat; `AI_MODEL` + `AI_MODEL_FALLBACK`) · own tool loop, ≤ 5 steps · `POST /chat` streaming named events, called by the browser on the api domain (CORS for the web origin) · tools `searchPackages` + `checkAvailability` in `services/ai/tools.py` · limits: 500 chars, 30 messages / conversation, 20 / IP / day, site-wide 100 / IST day + 1,500 / month in `chat_budget` · fake-model tests · free tier confirmed 2026-11-12: 15 RPM · 250K TPM · 500 RPD per model — on a 429 (per-minute burst) switch to the fallback model, then to the no-AI finder | 5 h | a curl conversation streams real Goa cards on prod; limits tested |
+| C2 | **Ticket UI** | Layout D: launcher on every public page, panel full-screen on mobile · `useConcierge` (fetch stream, event reducer) kept in the `(site)` layout's React state · streaming text, package cards + departure lists from tool-result events, three example prompts, privacy note (R28 wording) · lazy-loaded on first open · reduced motion | 4.5 h | "3 days in Goa under ₹15k" shows correct cards at 360 px on prod; public PSI unchanged |
+| C3 | **Book, handoff, notify** | `startBooking` → package page with the Book-now sheet open and pre-filled; outcome `booking_started` · `createEnquiry` → form in the panel, transcript attached, type `chat-handoff`, outcome `enquiry_created`; "Talk to a person" always visible; enquiry detail renders the transcript · notify-me: `POST /alerts` (chat + package page with no upcoming dates), saving new departures in admin emails matching open alerts once and closes them | 4 h | a chat → sheet → Razorpay test flow works; a handoff shows in the inbox; a new departure sends one alert email |
+| C4 | **Guardrails + evals** | Post-turn check (packages/prices ⊆ tool results, else replace + forced search) · Hindi/Hinglish instruction · injection case · `api/evals/` (≥ 20 conversations, `-m evals`, never in CI) run on `GEMINI_EVALS_API_KEY`; results table in docs/12 | 3 h | evals: 0 invented packages, injection changes nothing |
+| C5 | **Owner log** | `/admin/conversations` (list, outcome filter, transcript with tool calls/results/errors) · dashboard tile (conversations this week, % booking started, % handoff, cap-hit days) · tokens per conversation | 2 h | outcomes update from C3's tools |
+| C6 | **v3 close — Tripsmith complete** | Out-of-quota no-AI quick finder · error states · security pass (pydantic on every tool, caps, PII audit) → docs/12 v3 · /privacy "AI concierge" section · final eval run · docs/17 v3 section, README "how the agent works" + diagram, portfolio card | 2.5 h | v3 signed off; Tripsmith is complete |
 
-### Milestone 3.1 — Booking & handoff (≈ 3 h)
-| # | Task | Est. |
-|---|---|---|
-| 3.1.1 | `startBooking` tool → prefilled `/packages/[slug]/book?…`; Book buttons on departure lists; conversation outcome `booking_started` | 1 h |
-| 3.1.2 | `createEnquiry` tool → enquiry form pre-filled in the panel; transcript attached; type `chat-handoff`; outcome `enquiry_created`; "Talk to a person" button; admin enquiry detail renders the transcript | 1 h |
-| 3.1.3 | Post-turn guardrail (slug/price ⊆ tool results, else replace + forced search); Hinglish instruction; prompt-injection test cases | 1 h |
+**v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. **v3 is the last planned stage (Viraj, 2026-11-12):** v4 and the add-ons below are parked — out of plan, not scheduled.
 
-### Milestone 3.2 — Evals & admin (≈ 4 h)
-| # | Task | Est. |
-|---|---|---|
-| 3.2.1 | `api/evals/` harness (pytest `-m evals`, real provider, excluded from CI's default run), 20 scripted conversations with assertions (tools+args, no hallucination, off-catalog refusal, handoff, language, injection); nightly GitHub Actions workflow + manual dispatch | 2 h |
-| 3.2.2 | Admin conversation log (list, filters, transcript with tool calls); dashboard tiles (conversations, % booking started, % handoff, quota hits); token usage recorded | 1.5 h |
-| 3.2.3 | Notify-me: subscribe action (chat + package page), unsubscribe route, daily cron, emails | 0.5 h |
-
-### Milestone 3.3 — Polish & review (≈ 2 h) — closes lifecycle 10–12, 17 for v3
-| # | Task | Est. |
-|---|---|---|
-| 3.3.1 | Quota-exhausted UX, reduced-motion, error states, bundle check | 0.5 h |
-| 3.3.2 | Security pass on chat inputs/tools (pydantic on every tool, caps, PII audit) → `docs/12-security-performance.md` v3 section | 0.5 h |
-| 3.3.3 | Post-launch review (`docs/17-post-launch.md`), README "how the agent works" with diagram, portfolio case study update | 1 h |
-| Stretch | Owner-side AI drafting (A, 4 h) → trip-hub packing list (2 h) | |
-
-**v3 total: ≈ 15 h** (6 + 3 + 4 + 2).
-
-## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
+## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — ⏸ **parked 2026-11-12, out of plan** — requirements: [03-requirements-v4.md](03-requirements-v4.md)
 Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape.
 
 ### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
@@ -291,9 +269,9 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | v2 | 2.0 – 2.3 | 20.5 | 55.5 |
 | v2.5 | 2.5.0 – 2.5.5 | 56 | 111.5 |
 | v2.6 | 2.6.0 – 2.6.2 | 23 | 134.5 |
-| v3 | 3.0 – 3.3 | 15 | 149.5 |
-| v4 | 4.0 | 6 | 155.5 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 187.5 |
+| v3 | C1 – C6 | 21 | 155.5 |
+| v4 *(parked)* | 4.0 | — | — |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | parked | — |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 
