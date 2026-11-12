@@ -1284,3 +1284,84 @@
     animation: none;
   }
 }
+
+/*
+ * v3 C2: the concierge's motion signature (layout D). The panel slides in, the trip ticket's
+ * fields land like the site's postmark stamps, result cards are dealt in one after another, and
+ * the launcher's marigold dot breathes. All of it off under reduced motion.
+ */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(44px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ticket-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.7) rotate(-6deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.95);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(34px) rotate(-2.5deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes concierge-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(242 169 59 / 0.6);
+  }
+  60% {
+    box-shadow: 0 0 0 8px rgb(242 169 59 / 0);
+  }
+}
+
+@utility animate-panel-in {
+  animation: panel-in 0.45s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@utility animate-ticket-stamp {
+  display: block;
+  transform-origin: left center;
+  animation: ticket-stamp 0.5s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@utility animate-card-deal {
+  animation: card-deal 0.7s var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@utility animate-concierge-pulse {
+  animation: concierge-pulse 2.4s infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

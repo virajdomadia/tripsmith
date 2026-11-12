@@ -23,6 +23,8 @@ const isDev = process.env.NODE_ENV === 'development';
 const RAZORPAY_SCRIPT = 'https://checkout.razorpay.com https://cdn.razorpay.com';
 const RAZORPAY_FRAME = 'https://api.razorpay.com';
 const RAZORPAY_CONNECT = 'https://api.razorpay.com https://lumberjack.razorpay.com';
+// v3 C2: the concierge streams `POST /chat` from the api's own origin (not the `/api` rewrite).
+const API_ORIGIN = new URL(API_URL).origin;
 
 const csp = [
   "default-src 'self'",
@@ -47,10 +49,10 @@ const csp = [
   // in the app creates object URLs today, and the uploader posts its File straight through.
   "img-src 'self' data: https://*.public.blob.vercel-storage.com",
   "font-src 'self'", // next/font self-hosts DM Sans
-  // Razorpay (Checkout.js talks to its api from this page) is the only cross-origin call from
-  // the browser; Vercel Analytics posts to /_vercel/insights on this
-  // origin. `ws:` is the dev server's HMR socket.
-  `connect-src 'self' ${RAZORPAY_CONNECT}${isDev ? ' ws:' : ''}`,
+  // Two cross-origin callers from the browser: Razorpay (Checkout.js talks to its api from this
+  // page) and the concierge (v3 C2: `POST /chat` on the api's origin). Vercel Analytics posts to
+  // /_vercel/insights on this origin. `ws:` is the dev server's HMR socket.
+  `connect-src 'self' ${API_ORIGIN} ${RAZORPAY_CONNECT}${isDev ? ' ws:' : ''}`,
   ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 

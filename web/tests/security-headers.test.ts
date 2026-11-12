@@ -53,10 +53,13 @@ describe('security headers', () => {
     expect(directives['img-src']).toContain('data:');
     expect(directives['img-src']).not.toContain('blob:');
     expect(directives['font-src']).toBe("'self'"); // next/font self-hosts DM Sans
-    // Razorpay Checkout (B5) is the only cross-origin caller: it calls its api and logs to
-    // lumberjack from this page. Vercel Analytics posts to /_vercel/insights on this origin.
+    // Two cross-origin callers: the concierge streams `POST /chat` from the api's own origin
+    // (v3 C2 — the `/api` rewrite would hide the visitor's IP and buffer the stream), and
+    // Razorpay Checkout (B5) calls its api and logs to lumberjack from this page. Vercel
+    // Analytics posts to /_vercel/insights on this origin. The api origin comes from API_URL
+    // (unset under test, so the local default).
     expect(directives['connect-src']).toBe(
-      "'self' https://api.razorpay.com https://lumberjack.razorpay.com",
+      "'self' http://localhost:8000 https://api.razorpay.com https://lumberjack.razorpay.com",
     );
     // /contact embeds a keyless Google Maps iframe (components/site/contact/MapEmbed.tsx), so
     // frame-src cannot be 'none'. Both hosts: the embed URL redirects maps.google.com →
