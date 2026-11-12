@@ -4,8 +4,12 @@ import { SiteFooter } from '@/components/site/SiteFooter';
 import { SiteHeader } from '@/components/site/SiteHeader';
 import { SavedToasts } from '@/components/site/saved/SavedToasts';
 import { CompareTray } from '@/components/site/compare/CompareTray';
+import { Concierge } from '@/components/site/concierge/Concierge';
 import { WhatsAppProvider } from '@/components/site/whatsapp/WhatsAppContext';
 import { WhatsAppFab } from '@/components/site/whatsapp/WhatsAppFab';
+
+/** The browser calls `POST /chat` on the api's own domain (v3), so it needs the address. */
+const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,6 +32,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <SiteFooter />
         <WhatsAppFab />
         <CompareTray />
+        {/* v3 C2: after the tray, so the launcher can sit above it (`[data-compare-tray]~&`). */}
+        <Concierge apiUrl={API_URL} />
         <SavedToasts />
       </WhatsAppProvider>
     </RulesProvider>
