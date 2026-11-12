@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 TIMEOUT_MS = 12_000
 TEMPERATURE = 0.4
 # Tool choice needs little reasoning; `minimal` shaved ~1 s off the first chunk (measured).
-THINKING_LEVEL = "minimal"
+THINKING_LEVEL = "MINIMAL"  # types.ThinkingLevel.MINIMAL
 
 
 def _b64(raw: bytes | None) -> str | None:
@@ -121,7 +121,9 @@ class GeminiModel:
         config = types.GenerateContentConfig(
             system_instruction=system,
             temperature=TEMPERATURE,
-            thinking_config=types.ThinkingConfig(thinking_level=THINKING_LEVEL),
+            thinking_config=types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel(THINKING_LEVEL)
+            ),
             tools=[
                 types.Tool(
                     function_declarations=[
