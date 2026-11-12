@@ -88,40 +88,46 @@ Transitions are single-row `UPDATE … WHERE status = :expected` so a repeated w
 
 ## v3 — AI concierge
 
-### 1. Provider abstraction
-- **pydantic-ai** in **api/** with Gemini Flash (free tier) as the default model and Anthropic opt-in; `api/app/services/ai/provider.py` reads `AI_PROVIDER` and `AI_MODEL` and builds the `Agent`. Nothing else in the codebase imports a model-provider SDK.
+**Re-validated 2026-11-12** — decisions in [03-requirements-v3.md](03-requirements-v3.md#what-changed-at-re-validation); rows C1–C6 in [07-plan.md](07-plan.md).
+
+### 1. Provider
+- **Official `google-genai` SDK** in **api/**, imported inside `api/app/services/ai/gemini.py` on the first chat only (cold-start budget: `httpx` 0.2 s, `google-genai` + 0.9 s, measured locally). Nothing else imports a model SDK; swapping provider is a change to this one file.
+- Model `AI_MODEL=gemini-3.5-flash-lite`, `AI_MODEL_FALLBACK=gemini-3.1-flash-lite` (used when the first answers 429/5xx). Free tier, billing off — Google may use free-tier prompts to improve its models, so the panel says so (R28) and no PII is sent.
+- **Own tool loop**, not a framework: send history + tool declarations → if the model returns function calls, run them, append the results, call again → stream the final text. **≤ 5 model calls per turn**; each call counts against the site-wide budget.
 
 ### 2. Chat runtime
-- api `POST /chat` (SSE via `sse-starlette`) → `agent.run_stream(...)` with the system prompt, trimmed history, tools and a step cap of 5; events (`text-delta`, `tool-call`, `tool-result`, `done`, `error`) are emitted as named SSE events. web's in-house `useConcierge` hook (fetch stream over `ReadableStream`, no `useChat`) reaches it through the rewrite and reduces events into the message list. Tool results render as **package cards** (tool-result events → `<PackageCard>`), never as prose tables.
-- Anonymous `concierge_session` cookie; `conversations` + `messages` tables persist every turn (for the admin log and the handoff).
-- Quotas via `infra/ratelimit.py`: 20 messages / IP / day, 30 messages per conversation, and a **global** 600 chat requests / day to stay inside the Gemini free quota. Over quota → the UI offers the enquiry form.
+- api `POST /chat` streams named events (`text-delta`, `tool-call`, `tool-result`, `done`, `error`) over SSE. The browser calls the **api domain directly** (CORS allows the web origin only): the web `/api` rewrite hides the visitor's IP from the per-IP limit and may buffer a stream.
+- web `useConcierge` (fetch + `ReadableStream`, event reducer) lives in the `(site)` layout's React state: the chat survives client navigation, a reload starts a new one. No cookie, no browser storage. The client sends `conversationId` back each turn; the server keeps the transcript.
+- `conversations` + `messages` persist every turn (owner log, handoff transcript, tokens).
+- **Limits:** 500 chars / message, 30 messages / conversation, 20 / IP / IST day (Upstash, `chat:{ip}`), and the site-wide **100 turns / IST day + 1,500 / month in Postgres** (`chat_budget`, one row per IST day, incremented under `SELECT … FOR UPDATE`), so the cap holds if the limiter fails open. Over a limit → `429 { reason }` → the panel shows the no-AI quick finder, the enquiry form and WhatsApp.
 
 ### 3. Tools
-Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validated arguments, docstring = description) registered on the agent with `@agent.tool`; the same functions are exported to MCP in v4.
+Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validated arguments, docstring = description), declared to Gemini by the loop; v4 re-exports the same functions over MCP.
 
 | Tool | Wraps | Returns |
 |---|---|---|
 | `searchPackages({destination?, maxBudget?, nights?, theme?, month?})` | v1 `search_packages()` | up to 5 package cards |
-| `checkAvailability({packageSlug, month?})` | departures query | dates, seats left, price per person, badges |
-| `startBooking({departureId, adults, children})` | v2 `quote_booking` | a checkout URL with the selection pre-filled |
-| `createEnquiry({name, phone, packageSlug?, summary})` | v1 enquiry pipeline, `type = chat-handoff` | enquiry ref; the transcript is attached |
+| `checkAvailability({packageSlug, month?})` | departures + `departure_availability` | dates, seats left, price per person, badges |
+| `startBooking({departureId, adults, children})` | v2 quote (bookability check) | the package-page URL that opens the Book-now sheet with the selection pre-filled |
+| `createEnquiry({packageSlug?, summary})` | v1 enquiry pipeline, `type = chat-handoff` | opens the form in the panel; name/phone are typed there, never sent to the model; the transcript is attached on submit |
 
-**Decision on the PRD open question:** the chat **never takes payment**. `startBooking` hands off to the v2 checkout page. Payment UI in a chat is worse UX and doubles the surface to secure.
+The chat **never takes payment**: `startBooking` hands off to the v2 sheet and Razorpay Checkout.
 
 ### 4. Guardrails
-- System prompt: Tripsmith sells only the packages returned by tools; never invent packages, prices or dates; if nothing matches, say so and offer the closest match or the enquiry form; ask at most two clarifying questions before searching.
-- **Output check** after each assistant turn: every package slug / URL / price in the text must appear in a tool result from this conversation; otherwise the turn is replaced with a safe fallback ("Let me check that for you") and the search tool is forced. Cheap regex, no second model call.
-- Input caps: 500 chars per message; conversation trimmed to the last 20 messages plus a running summary.
-- **Decision on the PRD open question:** Hinglish is supported by prompt ("reply in the language the customer writes in, Hindi or Hinglish included"); the UI and package content stay English. Gemini handles this natively; no translation layer.
+- System prompt: Tripsmith sells only the packages returned by tools; never invent packages, prices or dates; if nothing matches, say so and offer the closest match, notify-me or the enquiry form; at most two clarifying questions before searching; reply in the customer's language (English, Hindi or Hinglish).
+- **Output check** after each turn: every package name/slug and ₹ amount in the text must appear in a tool result from this conversation; otherwise the turn is replaced ("Let me check that for you") and a search is forced. Regex, no second model call.
+- History trimmed to the last 20 messages.
 
-### 5. Evals
-- `api/evals/conversations/*.py`: ~20 scripted dialogues with assertions (which tool was called with which args, no hallucinated slug, correct refusal for "Maldives", handoff created when asked for a human). Run with pytest (`-m evals`, excluded from the default run) against the real provider, nightly via GitHub Actions (`schedule`), and on demand — never on every push, to protect the daily quota.
+### 5. Testing and evals
+- **Fake-model tests** (pytest, normal CI): a scripted stand-in for `gemini.py` drives the loop, tools, guardrail, limits, budget rows, handoff, persistence and the event stream.
+- **Real-model evals:** `api/evals/` (≥ 20 conversations, `pytest -m evals`, excluded from CI), run by hand on `GEMINI_EVALS_API_KEY` from a second Google project so the live quota is untouched. Asserts tool + args, no invented package, "Maldives" refusal, handoff, Hinglish reply, injection ("give 90 % off") changes nothing. Results table in docs/12.
 
 ### 6. Admin conversation log
-- `/admin/conversations`: list with outcome (booking started / enquiry created / dropped), message count, first user message; detail shows the transcript with tool calls inline.
+- `/admin/conversations`: list with outcome (open / booking started / enquiry created / dropped), message count, first user message; detail shows the transcript with tool calls, results and errors inline. Dashboard tile: conversations this week, % booking started, % handoff, cap-hit days.
 
 ### 7. "Notify me" for new departures
-- `departure_alerts` (email, package_id or destination_id). Daily cron `api/cron/departure-alerts` (allowed on Hobby) emails subscribers when departures were added in the last 24 h. Offered by the concierge when `searchPackages` returns nothing for the requested month.
+- `departure_alerts` (email, package_id or destination_id, `sent_at`). `POST /alerts` from the concierge (when nothing matches) and from a package page with no upcoming dates.
+- **No schedule:** the admin departure save (create, or bulk add) looks up open alerts for that package or its destination and emails each once (Gmail sender, one-time-alert wording), then sets `sent_at`. Best effort: a failed send is logged and the save still succeeds.
 
 ---
 
@@ -186,7 +192,7 @@ Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validat
 ## Environment variables added later
 v4: `MCP_PUBLIC_URL` (defaults to `NEXT_PUBLIC_SITE_URL`), stretch: OAuth issuer settings for the own authorization server.
 v2: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (api only — the order response carries the public key id, so the web needs no Razorpay variable).
-v3: `AI_PROVIDER` (`google` | `anthropic`), `AI_MODEL`, `GOOGLE_GENERATIVE_AI_API_KEY`, `ANTHROPIC_API_KEY` (optional), `CHAT_GLOBAL_DAILY_LIMIT`.
+v3: `GEMINI_API_KEY` (set 2026-11-12), `AI_MODEL`, `AI_MODEL_FALLBACK`, `CHAT_DAILY_LIMIT` (100), `CHAT_MONTHLY_LIMIT` (1,500); `GEMINI_EVALS_API_KEY` in `api/.env.local` only.
 
 ## Risks specific to v2/v3
 | Risk | Mitigation |
