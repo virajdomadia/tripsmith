@@ -48,17 +48,18 @@ describe('policy documents', () => {
     const terms = text('terms');
     expect(terms).toContain('by 30 days before departure');
     expect(terms).toContain('held for 10 minutes');
-    expect(terms).toContain('We remind you 7 and 3 days before it is due, and on the day.');
+    expect(terms).toContain('still unpaid after 2 days’ grace, we may cancel the booking');
+    expect(terms).not.toContain('We remind you');
     expect(terms).toContain('a deposit now of 25% of the total');
     expect(terms).not.toMatch(/30% of the package|21 days|seats are not held/);
     expect(text('cancellation-policy')).toContain('₹1,000 a traveller from 15 to 29 days before');
   });
 
-  it('keep each retention promise with the job that deletes it (V5)', () => {
+  it('promise no deletion a job would have to keep (2026-11-04: no scheduled jobs)', () => {
     const privacy = text('privacy');
     for (const said of [
-      'deleted 12 months after they arrive',
-      'deleted 30 days after the trip comes back',
+      'nothing is deleted on a timer',
+      'stay until you ask us to delete them',
       'keeps you signed in for 30 days',
       'a 2-minute cookie',
       'stay in that Gmail mailbox',
@@ -81,12 +82,12 @@ describe('policy documents', () => {
       ...RULES,
       balanceDays: 45,
       cancellationTiers: [nth(RULES.cancellationTiers, 0)],
-      retention: { ...RETENTION, enquiryDays: 90 },
+      retention: { ...RETENTION, sessionDays: 14 },
     });
     const said = (slug: (typeof POLICY_SLUGS)[number]) =>
       changed[slug].blocks.flatMap((b) => [...(b.p ?? []), ...(b.list ?? [])]).join(' ');
     expect(said('terms')).toContain('by 45 days before departure');
-    expect(said('privacy')).toContain('deleted 90 days after they arrive');
+    expect(said('privacy')).toContain('expires 14 days after sign-in');
     expect(nth(changed['cancellation-policy'].blocks, 0).list).toHaveLength(1);
   });
 

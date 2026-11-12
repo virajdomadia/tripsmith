@@ -29,8 +29,7 @@ A real product, not a CRUD demo. It has a public catalog that is fast and indexa
         ┌─────────────────────────────────┐        Razorpay
         │  api — FastAPI (Python 3.12)    │ ◀────▶ orders · payments · links · refunds (httpx)
         │  routers → services → models    │ ◀────  POST /webhooks/razorpay (signed)
-        │                                 │ ◀────  /cron/* — Vercel cron (daily, emails)
-        │                                 │        + GitHub Actions tick (15 min)
+        │                                 │        upkeep on demand; weekly keep-awake only
         └───┬─────────┬─────────┬─────────┘
             │         │         │
        PostgreSQL  Vercel    Gmail SMTP · Upstash
@@ -54,7 +53,7 @@ Four decisions carry most of the design:
 
 **web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (+ charts, Recharts) · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
 **api/** FastAPI (Python 3.12) · pydantic v2 · SQLAlchemy 2 + Alembic · PostgreSQL (Supabase, Mumbai) · argon2id owner auth + email-code customer sign-in · Razorpay (orders, Payment Links, refunds, signed webhook) · fpdf2 (itinerary PDFs, vouchers, GST documents, trip packs) · cryptography (Fernet, traveller ID numbers) · Jinja2 + Gmail SMTP (email; Resend as fallback) · Pillow · httpx · pytest · uv
-**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · GitHub Actions (web · api · contract; a 15-minute tick for the waitlist and emails) · Vercel cron
+**platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · GitHub Actions (web · api · contract) · no crons: the upkeep a cron would do (prices, the bookings sweep, session pruning, PDF cleanup) runs on demand from the reads that need it (2026-11-04)
 
 After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 and v2.5 security passes and their PageSpeed Insights runs are in [docs/12](docs/12-security-performance.md#p19--v25-close-security--performance).
 
@@ -100,7 +99,7 @@ web/        Next.js 15 (App Router, TypeScript, Tailwind 4, pnpm)
 api/        FastAPI (Python 3.12, uv)
   app/routers/      site/ (catalog, enquiries, pdf, views, meta, health, bookings, webhooks,
                     vouchers, account) · admin/ (packages, images, destinations, enquiries,
-                    dashboard, bookings, coupons, reviews) · auth.py · cron/
+                    dashboard, bookings, coupons, reviews) · auth.py
   app/services/     catalog/ · booking/ (pricing, orders, payments, webhook, coupons, desk…) · account
                     · reviews · enquiries · admin_enquiries · enquiry_reply · auth/ · email/ · pdf/ · images
   app/infra/        db · razorpay · storage (Blob) · email · ratelimit · revalidate · cache · client_ip · observability

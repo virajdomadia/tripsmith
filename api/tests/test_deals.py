@@ -1,5 +1,5 @@
 """B12 deals (03 R20/R24): what every read shows while a deal runs, the owner's three fields
-and their validation, and the daily job that clears ended deals off prerendered pages."""
+and their validation; an ended deal leaves every read with no write."""
 
 import datetime as dt
 
@@ -365,31 +365,13 @@ def test_the_label_is_capped_to_fit_the_stamp() -> None:
         )
 
 
-# --- cron -----------------------------------------------------------------------------------------
-
-
-@pytest.mark.db
-async def test_daily_revalidates_pages_of_deals_that_ended_since_the_last_run(
-    catalog: None, db: AsyncSession, revalidated: RecordingRevalidate
-) -> None:
-    now = dt.datetime.now(dt.UTC)
-    for slug, ended_ago in ((KER, dt.timedelta(hours=1)), (GQE, dt.timedelta(days=5))):
-        await db.execute(
-            update(Package)
-            .where(Package.slug == slug)
-            .values(deal_price_paise=1_00, deal_ends_at=now - ended_ago)
-        )
-    await set_deal(db, NGB, 1_00, days=3)  # still running
-
-    assert await svc.revalidate_ended_deals(db, now=now) == 1
-    assert revalidated.calls == [
-        ["packages", "destinations", "home", "package:kerala-backwaters", "destination:kerala"]
-    ]
+# --- the stale price between IST midnight and the daily refresh ---------------------------------
 
 
 def test_a_stale_starting_price_never_shows_below_the_deal_price() -> None:
-    """IST midnight → 01:00 cron: the cached starting price still names a date that just left,
-    while the base has moved on to a dearer one; `starting − off` would undercut the quote."""
+    """IST midnight → the day's price refresh: the cached starting price still names a date
+    that just left, while the base has moved on to a dearer one; `starting − off` would
+    undercut the quote."""
     later = NOW + dt.timedelta(days=3)
     stale = deals.deal_for(pkg(20_000_00, later, starting=30_000_00), 50_000_00, NOW)
     assert stale is not None and stale.price_paise == 20_000_00

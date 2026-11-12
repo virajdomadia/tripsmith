@@ -351,3 +351,26 @@ accepted every finding. The re-run at this close has **no FAIL**.
   a force-push, Blob orphans when a leader photo goes.
 - **The contract now carries every error reason** (`ErrorReason`): v3's chat and MCP endpoints add
   theirs to the enum, and the web gets them typed.
+
+## 2026-11-04 lean cleanup: crons removed
+
+Viraj chose to run Tripsmith with **no scheduled work** (free tiers, a portfolio project), after
+being told which features stop. Gone: the Vercel crons `/cron/daily` and `/cron/emails`, the
+15-minute GitHub tick, the healthchecks.io heartbeats and `CRON_SECRET`.
+
+- **Removed with them** (they only existed as scheduled jobs): the automatic trip emails —
+  balance and details reminders, the trip pack email, the review request, "still thinking" — with
+  the owner's Emails settings page, the booking's "Coming up" list and the unsubscribe page; the
+  balance auto-cancel past its grace (and its email); the 30-day traveller-details purge and the
+  12-month enquiry purge, and their promises on /privacy, /terms and in `/meta`; the stuck-refund
+  resend (the desk's "Send refund" stays).
+- **Now on demand** (`api/app/services/on_demand.py`): the "from ₹" price is recomputed on the
+  first catalogue read of each IST day; My trips and the owner's desk and dashboard run the
+  bookings sweep (`hold_expired`, `completed`) at most every 10 minutes; a sign-in prunes expired
+  sessions and old codes; a new itinerary PDF deletes the package's older ones; the waitlist walks
+  on its reads as before. Deals and early-bird tiers already ended at read time; the pages refetch
+  hourly.
+- **Kept awake:** Supabase's free project pauses after a week without activity, so one GitHub
+  Actions workflow (`keep-awake`, Mondays) opens `/health/ready`. It is the only schedule left.
+- **Watch:** a part-paid booking past its grace now stays part-paid;
+  there is no owner "cancel" button for it yet.

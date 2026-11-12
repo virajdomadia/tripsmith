@@ -59,11 +59,12 @@ from app.services.email.changes import send_change_emails
 from app.services.email.details import email_details_link
 from app.services.email.waitlist import send_due, walk_and_send
 from app.services.format import short_name
+from app.services.on_demand import swept_bookings
 
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(same_origin_write), Depends(require_owner)],
+    dependencies=[Depends(swept_bookings), Depends(same_origin_write), Depends(require_owner)],
 )
 DETAILS_LINK_LIMIT = 3  # P19: per booking per day
 DETAILS_LINK_WINDOW = 24 * 60 * 60

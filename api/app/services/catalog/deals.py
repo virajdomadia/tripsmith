@@ -10,8 +10,9 @@ Two starting prices meet here, on purpose:
 - the cached `starting_price_paise` — the cheapest date *with seats* — is what a card shows,
   struck through, and the price shown next to it is `starting − off`. That equals the owner's
   deal price whenever the cheapest date has seats, and is never shown below it: between IST
-  midnight and the 01:00 cron the cached starting price can still include a date that just
-  left while the base has already moved past it, and `starting − off` would undercut the quote.
+  midnight and the day's first catalog read the cached starting price can still include a date
+  that just left while the base has already moved past it, and `starting − off` would undercut
+  the quote.
 
 A deal is shown only while the package has a bookable price at all (`starting > 0`): a sold-out
 package has nothing to strike through.

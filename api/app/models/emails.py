@@ -1,7 +1,7 @@
-"""Automatic trip emails (R53, P15; migration 0023).
+"""The email ledger (R53, P15; migration 0023). Since 2026-11-04 only the refund email writes to
+it (services/email/ledger.py); the switches and suppressions are kept for their old rows.
 
-- `email_sends` is the ledger: one row per email the cron (or the refund webhook, or the daily
-  tidy's balance cancellation — V4, migration 0026) owes, keyed by
+- `email_sends` is the ledger: one row per email owed, keyed by
   `key` — `<type>:<booking>:<stage>:<anchor>` for a booking's email (the anchor is the departure
   day, or the balance's due day, so a date change re-arms every stage), `refund:<refund id>`, and
   `still_thinking:<email>:<package>` (once per address per package, ever). The row is inserted

@@ -62,7 +62,6 @@ const BLOCK: TravellerDetailsBlock = {
   required: ['id', 'emergency', 'food'],
   travellers: [ASHA, MIRA],
   complete: 1,
-  purged: false,
 };
 
 describe('TravellerDetails', () => {

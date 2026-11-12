@@ -28,13 +28,13 @@ from tests.razorpay_fake import FakeRazorpay
 from tests.test_auth import with_cookie
 from tests.test_booking_orders import seats_left
 from tests.test_booking_payments import booking, rzp
-from tests.test_bookings_desk import cron, owner_cookie, run_daily
+from tests.test_bookings_desk import owner_cookie, run_sweep
 from tests.test_customer_accounts import EMAIL, signed_in
 from tests.test_email_send import FakeSender
 from tests.test_my_trips import REASON, setup
 from tests.test_session_migration import API_DIR, _sql
 
-__all__ = ["cron", "rzp"]
+__all__ = ["rzp"]
 
 NOTE = "Refund of the full amount to your card within 5–7 working days."
 
@@ -247,7 +247,6 @@ async def test_the_sweep_waits_for_the_owner_to_decide(
     db_app: FastAPI,
     db_client: AsyncClient,
     rzp: FakeRazorpay,
-    cron: None,
 ) -> None:
     _, ref, owner, id = await asked(db, db_app, db_client)
     b = await booking(db, ref)
@@ -257,14 +256,14 @@ async def test_the_sweep_waits_for_the_owner_to_decide(
         .values(date=ist_today() - dt.timedelta(days=2))
     )
     await db.commit()
-    assert (await run_daily(db_client, db_app))["bookingsCompleted"] == 0
+    assert (await run_sweep(db)).completed == 0
     assert (await booking(db, ref)).status == BookingStatus.CONFIRMED
     # Late, but the customer asked in time: approving still works after the date.
     detail = (await db_client.get(f"/admin/bookings/{ref}", headers=owner)).json()
     assert detail["cancellation"]["canApprove"] is True
     res = await resolve(db_client, id, owner, decision="reject", note="The trip has already run.")
     assert res.status_code == 200
-    assert (await run_daily(db_client, db_app))["bookingsCompleted"] == 1
+    assert (await run_sweep(db)).completed == 1
     assert (await booking(db, ref)).status == BookingStatus.COMPLETED
 
 

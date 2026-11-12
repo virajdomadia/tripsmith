@@ -21,7 +21,7 @@ from app.services.booking.after_capture import Notify
 from app.services.booking.desk import release_hold
 from app.services.booking.orders import create_booking_order
 from app.services.email.render import IST
-from app.services.email.waitlist import send_due
+from app.services.email.waitlist import send_due, walk_and_send
 from tests.razorpay_fake import FakeRazorpay
 from tests.settings import make_settings
 from tests.test_booking_orders import order, seats_left, seeded
@@ -33,7 +33,6 @@ from tests.test_lock_paths import race
 SECRET = "waitlist-test-secret"
 SETTINGS = make_settings(
     session_secret=SECRET,
-    cron_secret="s3cret",
     email_from="Tripsmith <trips@tripsmith.test>",
     owner_notify_email="owner@tripsmith.test",
     site_url="https://tripsmith.test",
@@ -539,7 +538,7 @@ async def test_the_offer_email_goes_once_with_a_claim_link(db: AsyncSession) -> 
 
 
 @pytest.mark.db
-async def test_the_tick_needs_the_secret_and_walks_every_list(
+async def test_a_walk_offers_the_seats_a_lapsed_hold_gave_back(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
 ) -> None:
     db_app.state.settings = SETTINGS
@@ -549,10 +548,8 @@ async def test_the_tick_needs_the_secret_and_walks_every_list(
     await join(db, dep_id, "asha", 2)
     await lapse_holds(db, dep_id)
 
-    assert (await db_client.get("/cron/waitlist")).status_code == 401
-    res = await db_client.get("/cron/waitlist", headers={"Authorization": "Bearer s3cret"})
-    assert res.status_code == 200, res.text
-    assert res.json() == {"offered": 1, "lapsed": 0, "closed": 0, "emails": 1}
+    walked, emails = await walk_and_send(db, [dep_id], Notify.of(db_app.state))
+    assert (walked.offered, walked.lapsed, walked.closed, emails) == (1, 0, 0, 1)
     assert len(sender.sent) == 1
 
 

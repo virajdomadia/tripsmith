@@ -29,7 +29,8 @@ export function DeparturePicker({ flow, pkg }: { flow: BookingFlow; pkg: Booking
     ? flow.departures.filter((d) => d.id === claim.departureId)
     : flow.departures;
   const slug = pkg.slug;
-  // The page is prerendered: a deal that ended at IST midnight stays in it until the cron.
+  // The page is prerendered (refetched hourly): a deal that ended at IST midnight can stay in it
+  // until the next refetch.
   const deal = pkg.deal && pkg.deal.endsOn >= today ? pkg.deal : null;
 
   if (departures.length === 0)

@@ -17,17 +17,15 @@ from app.models.enums import (
     BookingChannel,
     BookingStatus,
     CancelReason,
-    EmailType,
     Occupancy,
     PackageStatus,
 )
 from app.schemas.catalog import BookingProof
 from app.schemas.meta import Badge
-from app.services.catalog import admin_packages, urgency
+from app.services.catalog import urgency
 from app.services.catalog.availability import Availability
 from app.services.catalog.pricing import badge_for
 from app.services.catalog.urgency import Proof
-from app.services.email import automatic
 from app.services.email.send import is_seed_address
 from app.services.pdf.itinerary import pdf_version
 from scripts.seed import UrgencySeed, seed_urgency
@@ -202,36 +200,6 @@ async def test_likely_to_sell_out_needs_70_percent_and_2_recent_bookings(
     assert await urgency.likely_to_sell_out(db, [], TODAY) == set()
 
 
-@pytest.mark.db
-async def test_the_cron_rebuilds_pages_whose_labels_move_with_the_day(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    posted: list[list[str]] = []
-
-    async def fake_revalidate(tags: list[str]) -> None:
-        posted.append(tags)
-
-    monkeypatch.setattr(admin_packages, "revalidate", fake_revalidate)
-    a = (await live(db, "trip-a", (TRIP, 40))).departures[0]
-    b = (await live(db, "trip-b", (TRIP, 40))).departures[0]
-    c = (await live(db, "trip-c", (TRIP, 40))).departures[0]
-    draft = (await live(db, "trip-d", (TRIP, 40))).departures[0]
-    await db.execute(update(Package).where(Package.slug == "trip-d").values(status="draft"))
-    db.add_all(
-        [
-            booking(a, ago(30)),  # its label lapsed at this midnight: rebuilt once more
-            booking(b, ago(31)),  # long gone
-            booking(c, ago(2), status=BookingStatus.CANCELLED),
-            booking(draft, ago(1)),  # not public
-        ]
-    )
-    await db.commit()
-
-    assert await admin_packages.revalidate_urgency(db, today=TODAY) == 1
-    assert posted and "package:trip-a" in posted[0]
-    assert not any("package:trip-b" in t or "package:trip-d" in t for t in posted[0])
-
-
 # --- db: through the public api -----------------------------------------------------------------
 
 
@@ -355,20 +323,7 @@ def test_the_booking_facts_never_mint_a_new_itinerary_pdf() -> None:
     assert pdf_version(pkg, **site) == pdf_version(busy, **site)
 
 
-@pytest.mark.db
-async def test_the_automatic_emails_skip_seed_bookings_only(db: AsyncSession) -> None:
-    def due(email: str) -> automatic.Due:
-        return automatic.Due(
-            type=EmailType.DETAILS_REMINDER,
-            key=f"details:{email}",
-            email=email,
-            booking_id=None,
-            ref=None,
-            package_id=None,
-        )
-
-    kept = await automatic._unclaimed(  # noqa: SLF001
-        db, [due("urgency-seed-3@example.com"), due("asha@example.com"), due("a@b.in")]
-    )
-    assert [d.email for d in kept] == ["asha@example.com", "a@b.in"]
-    assert not is_seed_address("urgency-seed-3@gmail.com")  # only the reserved demo domain
+def test_only_the_reserved_demo_domain_is_a_seed_address() -> None:
+    assert is_seed_address("urgency-seed-3@example.com")
+    assert not is_seed_address("asha@example.com")
+    assert not is_seed_address("urgency-seed-3@gmail.com")

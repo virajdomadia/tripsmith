@@ -14,8 +14,8 @@ do holds and pending checkouts. "Booked" is `bookings.created_at` on its IST day
   offers are left out — they come and go. `pricing.badge_for` shows it only above Filling fast.
 
 The labels ride on the package reads, so the pages' existing tags carry them: a booking event
-revalidates through `freshness.refresh_packages`, and `/cron/daily` rebuilds the pages whose
-day-counted labels move at IST midnight (`admin_packages.revalidate_urgency`).
+revalidates through `freshness.refresh_packages`, and the day-counted labels move at IST
+midnight with the pages' hourly refetch (no scheduled rebuild since 2026-11-04).
 """
 
 import datetime as dt
@@ -116,14 +116,3 @@ async def likely_to_sell_out(
         and int(booked) * 100 >= LIKELY_FULL_PERCENT * total
         and int(recent) >= LIKELY_MIN_BOOKINGS
     }
-
-
-async def labelled_packages(db: AsyncSession, today: dt.date) -> list[str]:
-    """Package ids with a counted booking made in the last 31 IST days: every page whose
-    day-counted labels can change at this midnight — including one whose label just lapsed."""
-    day = booked_on()
-    since = today - dt.timedelta(days=RECENT_DAYS)
-    rows = await db.execute(
-        select(distinct(Booking.package_id)).where(Booking.status.in_(COUNTED), day >= since)
-    )
-    return sorted(rows.scalars().all())

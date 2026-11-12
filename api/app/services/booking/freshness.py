@@ -29,8 +29,8 @@ async def refresh_packages(db: AsyncSession, package_ids: Iterable[str]) -> None
     """Recompute and store each package's starting price, then revalidate its pages.
 
     Runs in its own transaction after the booking one has committed, so the view already counts
-    the new hold. The package rows are locked in id order — the order `/cron/daily` and the
-    owner's saves use — so a concurrent save is never overwritten with a stale price.
+    the new hold. The package rows are locked in id order — the order the daily price refresh
+    and the owner's saves use — so a concurrent save is never overwritten with a stale price.
     """
     ids = sorted(set(package_ids))
     if not ids:
@@ -69,7 +69,7 @@ async def refresh_quietly(db: AsyncSession, package_ids: Iterable[str], *, after
     """`refresh_packages` for a booking event that has already committed: a failure is logged,
     never raised. A stale "from ₹X" or seat count is better than a 500 that hides the booking's
     outcome (a retry would release a hold, or re-post a payment). The next booking event or
-    /cron/daily refreshes the page."""
+    the next day's price refresh fixes the price."""
     try:
         await refresh_packages(db, package_ids)
     except Exception:

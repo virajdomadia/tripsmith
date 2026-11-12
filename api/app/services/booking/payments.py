@@ -7,9 +7,9 @@ with a guarded single-row UPDATE (§2). The hold decides what the money buys:
 - lapsed (Checkout's 10 minutes ran out, or a newer hold replaced it) → re-check the seats now:
   enough → `confirmed`; not enough → `cancelled` (`seats_gone`) with `refund_needed`, never
   confirmed (03-requirements-v2, "Late capture");
-- cancelled by `/cron/daily` as `hold_expired` (B10) → the same as a lapsed hold: the sweep only
-  tidies abandoned checkouts, so a payment that lands after it still gets its seats if they are
-  free;
+- cancelled by the bookings sweep as `hold_expired` (B10) → the same as a lapsed hold: the
+  sweep only tidies abandoned checkouts, so a payment that lands after it still gets its seats
+  if they are free;
 - the booking is otherwise no longer pending (cancelled, or confirmed by an earlier payment) →
   the payment is kept, and what the booking now owes back is refunded.
 

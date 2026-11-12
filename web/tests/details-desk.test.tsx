@@ -53,7 +53,6 @@ function booking(over: Partial<AdminBooking> = {}): AdminBooking {
       required: ['id', 'emergency', 'food'],
       travellers: [card],
       complete: 0,
-      purged: false,
     },
     canEditDetails: true,
     canSendDetailsLink: true,
@@ -91,16 +90,6 @@ describe('DetailsPanel (owner)', () => {
         method: 'POST',
       }),
     );
-  });
-
-  it('says so once the details are deleted', () => {
-    render(
-      <DetailsPanel
-        booking={booking({ details: { ...booking().details!, purged: true, travellers: [] } })}
-      />,
-      withRules,
-    );
-    expect(screen.getByText(/Deleted 30 days after the trip/)).toBeTruthy();
   });
 });
 

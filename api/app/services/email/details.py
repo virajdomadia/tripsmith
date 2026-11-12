@@ -40,21 +40,15 @@ def render_details_link(
     *,
     owed: list[Owed],
     locks_on: dt.date,
-    reminder: bool = False,
 ) -> list[tuple[str, EmailMessage]]:
-    """The desk's button, or (`reminder`, R53) the automatic one 14 and 5 days out."""
+    """The desk's button."""
     vars = {
         **_vars(facts, settings),
         "url": f"{settings.site_url.rstrip('/')}/account/bookings/{facts.ref}#details",
         "owed": owed,
         "locks_on": long_date(locks_on),
-        "reminder": reminder,
     }
-    subject = (
-        f"Reminder: traveller details for {facts.package_name} lock on {vars['locks_on']}"
-        if reminder
-        else f"A few traveller details for {facts.package_name} — {facts.ref}"
-    )
+    subject = f"A few traveller details for {facts.package_name} — {facts.ref}"
     return [("customer", _message(facts.lead_email, subject, "details_link", vars))]
 
 
@@ -80,15 +74,6 @@ class StillOwed:
     facts: BookingFacts
     owed: list[Owed]
     locks_on: dt.date
-
-
-async def still_owed(db: AsyncSession, ref: str, *, today: dt.date) -> StillOwed | None:
-    """Who still owes which details, while they can still be filled in online — None when the
-    booking isn't paid for, the details are locked, or every card is complete."""
-    try:
-        return await _still_owed(db, ref, today)
-    except ApiError:
-        return None
 
 
 async def _still_owed(db: AsyncSession, ref: str, today: dt.date) -> StillOwed:

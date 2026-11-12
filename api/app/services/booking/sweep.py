@@ -1,4 +1,5 @@
-"""The bookings part of `/cron/daily` (R22, B10).
+"""The bookings sweep (R22, B10) — run on demand by the reads that show booking states
+(services/on_demand.py; the nightly cron until 2026-11-04).
 
 1. A pending booking whose hold lapsed over an hour ago is an abandoned checkout: `cancelled`
    with `hold_expired`. Its seats were already free (the view stops counting a lapsed hold), so
@@ -11,7 +12,7 @@
 2. A confirmed booking whose departure date has passed (IST) is `completed` — the state B13's
    review form waits for. Seats are unchanged: the view counts completed bookings too. A booking
    whose cancellation request is still open is skipped (B11): it stays confirmed until the owner
-   decides — approving cancels it, rejecting lets the next night's sweep complete it.
+   decides — approving cancels it, rejecting lets the next sweep complete it.
 
 Each is one guarded UPDATE. A capture in progress holds the booking's row lock; the UPDATE waits
 for it and then re-checks its WHERE, so a booking confirmed a moment earlier is never swept.
@@ -76,7 +77,7 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
             "link.expired",
             actor=BookingActor.CRON,
             text=f"Payment link expired unpaid at {ist_moment(lapsed)} — seats released, "
-            "booking cancelled by the daily tidy",
+            "booking cancelled",
             customer="The payment link expired unpaid — the held seats were released",
             before={"status": BookingStatus.PENDING.value},
             after={"status": BookingStatus.CANCELLED.value, "cancelReason": "hold_expired"},
@@ -101,7 +102,7 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
         expired_ids,
         "hold.expired",
         actor=BookingActor.CRON,
-        text="Cancelled by the daily tidy — the checkout was abandoned",
+        text="Cancelled — the checkout was abandoned",
         customer="Not paid in time — the held seats were released",
         before={"status": BookingStatus.PENDING.value},
         after={"status": BookingStatus.CANCELLED.value, "cancelReason": "hold_expired"},
@@ -126,7 +127,7 @@ async def sweep_bookings(db: AsyncSession, *, today: dt.date) -> Swept:
         completed_ids,
         "trip.completed",
         actor=BookingActor.CRON,
-        text="Departed — marked completed by the daily tidy",
+        text="Departed — marked completed",
         customer="Trip completed — welcome back",
         before={"status": BookingStatus.CONFIRMED.value},
         after={"status": BookingStatus.COMPLETED.value},

@@ -1,0 +1,20 @@
+# Supabase's free plan pauses a project after 7 days without activity. With no other
+# scheduled job left (lean cleanup, 2026-11-04), a quiet week would take the site down.
+# Once a week this opens /health/ready, which runs `SELECT 1` on the database.
+# It does nothing else. A non-200 fails the run, so GitHub emails the owner.
+name: keep-awake
+
+on:
+  schedule:
+    - cron: "30 3 * * 1" # Mondays 09:00 IST
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Touch the database
+        run: curl --fail --silent --show-error --max-time 30 --retry 2 --retry-delay 10 https://tripsmith-api.virajdomadia.com/health/ready

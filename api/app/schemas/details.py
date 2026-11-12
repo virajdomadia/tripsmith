@@ -67,7 +67,6 @@ class TravellerDetailsBlock(ApiModel):
     required: list[DetailField]
     travellers: list[TravellerDetailsOut]
     complete: int = Field(description="Travellers with every required field")
-    purged: bool = Field(description="Deleted 30 days after the trip (R49)")
 
 
 class ReadinessPart(ApiModel):

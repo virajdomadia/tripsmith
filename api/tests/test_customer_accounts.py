@@ -25,10 +25,9 @@ from app.services.auth.otp import (
     hash_code,
     issue_code,
     new_code,
-    prune_codes,
 )
 from app.services.auth.passwords import hash_password
-from app.services.auth.sessions import SESSION_TTL, login, prune_sessions
+from app.services.auth.sessions import SESSION_TTL, login, open_session
 from app.services.email.signin import render_signin_code
 from tests.razorpay_fake import FakeRazorpay
 from tests.settings import make_settings
@@ -473,11 +472,11 @@ async def test_the_owner_still_downloads_any_voucher_and_sees_no_trips(
     assert trips.status_code == 200 and trips.json()["bookings"] == []
 
 
-# --- db: the daily prune ------------------------------------------------------------------------
+# --- db: the prune on sign-in ------------------------------------------------------------------
 
 
 @pytest.mark.db
-async def test_the_daily_job_prunes_expired_sessions_and_old_codes(db: AsyncSession) -> None:
+async def test_a_sign_in_prunes_expired_sessions_and_old_codes(db: AsyncSession) -> None:
     db.add(User(name="C", email=EMAIL))
     await db.commit()
     user = (await db.execute(select(User))).scalar_one()
@@ -495,7 +494,7 @@ async def test_the_daily_job_prunes_expired_sessions_and_old_codes(db: AsyncSess
             )
         )
     await db.commit()
-    assert await prune_sessions(db) == 1
-    assert await prune_codes(db) == 1  # only the one over a day old
-    assert await count(db, Session) == 1 and await count(db, Verification) == 1
+    await open_session(db, user, ip=None, user_agent=None)
+    # The expired session went (the live one and the new one stay); only the code over a day old.
+    assert await count(db, Session) == 2 and await count(db, Verification) == 1
     assert (await db.execute(select(Booking))).first() is None  # untouched

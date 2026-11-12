@@ -10,7 +10,7 @@ while `now < deal_ends_at`, never more than that traveller's own price.
 The "starting price" here is the deal *base*: the cheapest upcoming priced double, seats
 ignored. The cached `starting_price_paise` skips sold-out dates, so it rises while holds sit on
 the cheap date — reading it would let anyone widen the discount by holding seats and walking
-away (the lapse fires no event, so it would stay wide until the daily cron).
+away (the lapse fires no event, so it would stay wide until the next price refresh).
 
 Early-bird (R47, P17) comes after the deal: the package's furthest-out tier that the IST booking
 day still reaches (booked on or before departure − N days) takes its ₹ off each traveller, from
