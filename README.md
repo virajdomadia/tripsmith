@@ -29,7 +29,7 @@ A real product, not a CRUD demo. It has a public catalog that is fast and indexa
         ┌─────────────────────────────────┐        Razorpay
         │  api — FastAPI (Python 3.12)    │ ◀────▶ orders · payments · links · refunds (httpx)
         │  routers → services → models    │ ◀────  POST /webhooks/razorpay (signed)
-        │                                 │        no scheduled jobs: upkeep runs on demand
+        │                                 │        upkeep on demand; weekly keep-awake only
         └───┬─────────┬─────────┬─────────┘
             │         │         │
        PostgreSQL  Vercel    Gmail SMTP · Upstash

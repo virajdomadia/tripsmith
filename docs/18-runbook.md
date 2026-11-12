@@ -13,7 +13,7 @@ Each entry says how you notice, what to check first, and what to do.
 | Api | Vercel project `tripsmith-api` → **https://tripsmith-api.vercel.app** (there is no custom api domain) |
 | Database | Supabase project `tripsmith` (ref `yxlqhzjszwlpxttlbwqj`, Mumbai `ap-south-1`). Runtime: transaction pooler `:6543`. Migrations and seeds: session pooler `:5432` (`aws-0-ap-south-1.pooler.supabase.com`) |
 | Backups | **None**, by choice — see §6 |
-| Scheduled jobs | **None** since 2026-11-04 (lean cleanup). The upkeep runs on demand from the reads — [05-architecture.md §6](05-architecture.md) |
+| Scheduled jobs | Only `keep-awake` (GitHub Actions, Mondays 09:00 IST): opens `/health/ready` so the free Supabase project never sees a week without activity. Everything else runs on demand from the reads since 2026-11-04 (lean cleanup) — [05-architecture.md §6](05-architecture.md) |
 | Errors | Sentry (api + web). Readiness: `GET /health/ready` (db `SELECT 1`, 503 when down) |
 
 The Vercel CLI commands below run from the main checkout's `web/` or `api/` folder (each has its
@@ -97,7 +97,7 @@ than the web.
 1. `curl -s https://tripsmith-api.vercel.app/health/ready` — 503 means the api is fine and the
    database is not.
 2. Supabase dashboard → project `tripsmith`: **paused?** (Free projects pause after a week of
-   low activity — with no crons since 2026-11-04 nothing keeps a quiet week busy) → *Restore
+   low activity; the weekly `keep-awake` workflow should prevent it — check its last run) → *Restore
    project*. **Status page**
    (status.supabase.com) for an `ap-south-1` incident → wait.
 3. Usage → over a Free plan limit (database size 500 MB, egress)? Delete what can go (old

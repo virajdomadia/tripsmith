@@ -370,6 +370,7 @@ being told which features stop. Gone: the Vercel crons `/cron/daily` and `/cron/
   sessions and old codes; a new itinerary PDF deletes the package's older ones; the waitlist walks
   on its reads as before. Deals and early-bird tiers already ended at read time; the pages refetch
   hourly.
-- **Watch:** with nothing calling it on a quiet week, Supabase's free project can pause (restore
-  it from the dashboard, runbook §3). A part-paid booking past its grace now stays part-paid;
+- **Kept awake:** Supabase's free project pauses after a week without activity, so one GitHub
+  Actions workflow (`keep-awake`, Mondays) opens `/health/ready`. It is the only schedule left.
+- **Watch:** a part-paid booking past its grace now stays part-paid;
   there is no owner "cancel" button for it yet.
