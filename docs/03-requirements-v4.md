@@ -1,5 +1,7 @@
 # Tripsmith v4 — Requirements & Scope ("Tripsmith anywhere" — MCP server)
 
+> ⏸ **Parked 2026-11-12 — out of plan.** Viraj: only v3 is to be completed; this spec is kept for the record.
+
 **Lifecycle step:** 3 of 17 for v4 · **Locked:** 2026-09-12 (re-validated when v4 starts)
 **Builds on:** v3 tools (R27). Design: [04-technical-design-v2-v3.md](04-technical-design-v2-v3.md) §v4, [06-data-and-api.md](06-data-and-api.md) §C8.
 

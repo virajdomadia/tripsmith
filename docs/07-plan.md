@@ -243,11 +243,11 @@ Goal: the owner runs the business from `/admin` without touching the database.
 | C3 | **Book, handoff, notify** | `startBooking` → package page with the Book-now sheet open and pre-filled; outcome `booking_started` · `createEnquiry` → form in the panel, transcript attached, type `chat-handoff`, outcome `enquiry_created`; "Talk to a person" always visible; enquiry detail renders the transcript · notify-me: `POST /alerts` (chat + package page with no upcoming dates), saving new departures in admin emails matching open alerts once and closes them | 4 h | a chat → sheet → Razorpay test flow works; a handoff shows in the inbox; a new departure sends one alert email |
 | C4 | **Guardrails + evals** | Post-turn check (packages/prices ⊆ tool results, else replace + forced search) · Hindi/Hinglish instruction · injection case · `api/evals/` (≥ 20 conversations, `-m evals`, never in CI) run on `GEMINI_EVALS_API_KEY`; results table in docs/12 | 3 h | evals: 0 invented packages, injection changes nothing |
 | C5 | **Owner log** | `/admin/conversations` (list, outcome filter, transcript with tool calls/results/errors) · dashboard tile (conversations this week, % booking started, % handoff, cap-hit days) · tokens per conversation | 2 h | outcomes update from C3's tools |
-| C6 | **v3 close** | Out-of-quota no-AI quick finder · error states · security pass (pydantic on every tool, caps, PII audit) → docs/12 v3 · /privacy "AI concierge" section · final eval run · docs/17 v3 section, README "how the agent works" + diagram, portfolio card | 2.5 h | v3 signed off; v4 may start |
+| C6 | **v3 close — Tripsmith complete** | Out-of-quota no-AI quick finder · error states · security pass (pydantic on every tool, caps, PII audit) → docs/12 v3 · /privacy "AI concierge" section · final eval run · docs/17 v3 section, README "how the agent works" + diagram, portfolio card | 2.5 h | v3 signed off; Tripsmith is complete |
 
-**v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. Owner AI drafting (A) and the trip-hub packing list (C) stay in the add-on bucket after v4.
+**v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. **v3 is the last planned stage (Viraj, 2026-11-12):** v4 and the add-ons below are parked — out of plan, not scheduled.
 
-## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
+## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — ⏸ **parked 2026-11-12, out of plan** — requirements: [03-requirements-v4.md](03-requirements-v4.md)
 Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape.
 
 ### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
@@ -270,8 +270,8 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 | v2.5 | 2.5.0 – 2.5.5 | 56 | 111.5 |
 | v2.6 | 2.6.0 – 2.6.2 | 23 | 134.5 |
 | v3 | C1 – C6 | 21 | 155.5 |
-| v4 | 4.0 | 6 | 161.5 |
-| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | up to 32 | up to 193.5 |
+| v4 *(parked)* | 4.0 | — | — |
+| Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | parked | — |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
 
