@@ -900,6 +900,11 @@ async def update_package(db: AsyncSession, id: str, payload: PackageInput) -> Ad
     return out
 
 
+async def is_live(db: AsyncSession, id: str) -> bool:
+    status = (await db.execute(select(Package.status).where(Package.id == id))).scalar_one_or_none()
+    return status is PackageStatus.LIVE
+
+
 async def set_status(db: AsyncSession, id: str, status: PackageStatus) -> AdminPackage:
     """Going live runs the four rules; unpublishing is always allowed (06 §C4). The row is
     locked so a concurrent photo delete cannot slip under the rules between check and write."""

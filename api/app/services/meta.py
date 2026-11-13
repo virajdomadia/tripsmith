@@ -19,7 +19,6 @@ from app.schemas.meta import (
     BadgeOption,
     BookingRules,
     CancellationTierOut,
-    EnquiryType,
     EnquiryTypeOption,
     Limits,
     Meta,
@@ -57,8 +56,9 @@ def build_meta() -> Meta:
     return Meta(
         themes=[ThemeOption(value=t, label=THEME_LABELS[t]) for t in Theme],
         badges=[BadgeOption(value=b, label=BADGE_LABELS[b]) for b in Badge],
+        # The public form's own types; `chat-handoff` is posted by the concierge panel only.
         enquiry_types=[
-            EnquiryTypeOption(value=e, label=ENQUIRY_TYPE_LABELS[e]) for e in EnquiryType
+            EnquiryTypeOption(value=e, label=label) for e, label in ENQUIRY_TYPE_LABELS.items()
         ],
         limits=Limits(
             max_travellers=MAX_TRAVELLERS,

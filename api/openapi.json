@@ -2059,6 +2059,14 @@
           "status": {
             "$ref": "#/components/schemas/EnquiryStatus"
           },
+          "transcript": {
+            "description": "v3 C3: the concierge chat a `chat-handoff` came from, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptLine"
+            },
+            "title": "Transcript",
+            "type": "array"
+          },
           "travelMonth": {
             "anyOf": [
               {
@@ -3336,6 +3344,77 @@
         ],
         "title": "AgeLimits",
         "type": "object"
+      },
+      "AlertSubscribe": {
+        "properties": {
+          "destinationSlug": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[a-z0-9-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destinationslug"
+          },
+          "email": {
+            "maxLength": 120,
+            "title": "Email",
+            "type": "string"
+          },
+          "packageSlug": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[a-z0-9-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packageslug"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AlertSubscribe",
+        "type": "object"
+      },
+      "AlertSubscribed": {
+        "properties": {
+          "name": {
+            "description": "The trip's or destination's name, for the confirmation line",
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AlertTarget"
+          }
+        },
+        "required": [
+          "target",
+          "slug",
+          "name"
+        ],
+        "title": "AlertSubscribed",
+        "type": "object"
+      },
+      "AlertTarget": {
+        "enum": [
+          "package",
+          "destination"
+        ],
+        "title": "AlertTarget",
+        "type": "string"
       },
       "ApiErrorBody": {
         "properties": {
@@ -5228,6 +5307,93 @@
           "refundPaise"
         ],
         "title": "ChangeResult",
+        "type": "object"
+      },
+      "ChatBooking": {
+        "properties": {
+          "adults": {
+            "title": "Adults",
+            "type": "integer"
+          },
+          "children": {
+            "title": "Children",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "departureId": {
+            "title": "Departureid",
+            "type": "string"
+          },
+          "packageName": {
+            "title": "Packagename",
+            "type": "string"
+          },
+          "packageSlug": {
+            "title": "Packageslug",
+            "type": "string"
+          },
+          "totalPaise": {
+            "title": "Totalpaise",
+            "type": "integer"
+          },
+          "url": {
+            "description": "The package page with the Book-now sheet open and pre-filled",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageSlug",
+          "packageName",
+          "departureId",
+          "date",
+          "adults",
+          "children",
+          "totalPaise",
+          "url"
+        ],
+        "title": "ChatBooking",
+        "type": "object"
+      },
+      "ChatBookingRequest": {
+        "description": "A \"Book\" button on a chat's departure list (C3): the same hand-off as the model's\n`startBooking`, without spending a turn.",
+        "properties": {
+          "adults": {
+            "default": 2,
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Adults",
+            "type": "integer"
+          },
+          "children": {
+            "default": 0,
+            "maximum": 11.0,
+            "minimum": 0.0,
+            "title": "Children",
+            "type": "integer"
+          },
+          "conversationId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Conversationid",
+            "type": "string"
+          },
+          "departureId": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Departureid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId",
+          "departureId"
+        ],
+        "title": "ChatBookingRequest",
         "type": "object"
       },
       "ChatRequest": {
@@ -7454,6 +7620,19 @@
             "title": "Children",
             "type": "integer"
           },
+          "conversationId": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`chat-handoff` only (v3 C3): the concierge chat whose transcript the owner reads with this enquiry",
+            "title": "Conversationid"
+          },
           "email": {
             "maxLength": 120,
             "title": "Email",
@@ -7966,11 +8145,12 @@
         "type": "object"
       },
       "EnquiryType": {
-        "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.\n\n`callback`, `group` and `chat-handoff` are forward-compat DB values that join here with\ntheir features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.",
+        "description": "The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.\n\n`callback` and `group` are forward-compat DB values that join here with their feature (v2\nadd-on); `chat-handoff` joined with the concierge's handoff form (v3 C3). The owner's inbox\nreads all six via `AdminEnquiryType`.",
         "enum": [
           "standard",
           "custom",
-          "contact"
+          "contact",
+          "chat-handoff"
         ],
         "title": "EnquiryType",
         "type": "string"
@@ -14471,6 +14651,39 @@
         "title": "ThemeOption",
         "type": "object"
       },
+      "TranscriptLine": {
+        "description": "One line of a concierge chat as the owner reads it (R29, R31).",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TranscriptRole"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text",
+          "at"
+        ],
+        "title": "TranscriptLine",
+        "type": "object"
+      },
+      "TranscriptRole": {
+        "enum": [
+          "visitor",
+          "concierge",
+          "lookup"
+        ],
+        "title": "TranscriptRole",
+        "type": "string"
+      },
       "TravellerDetails": {
         "properties": {
           "age": {
@@ -19715,7 +19928,7 @@
     },
     "/admin/packages/{id}/departures": {
       "post": {
-        "description": "P11: one date from the calendar; the package's other dates are left alone. 409 when the\npackage already leaves that day, has 60 dates, or the leader is on another trip then.",
+        "description": "P11: one date from the calendar; the package's other dates are left alone. 409 when the\npackage already leaves that day, has 60 dates, or the leader is on another trip then.\nv3 C3: open \"notify me\" alerts for the package or its destination are emailed once.",
         "operationId": "addDeparture",
         "parameters": [
           {
@@ -20463,6 +20676,47 @@
         ]
       }
     },
+    "/alerts": {
+      "post": {
+        "operationId": "subscribeDepartureAlert",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertSubscribe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSubscribed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Post Alert",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "operationId": "login",
@@ -21141,6 +21395,51 @@
           }
         },
         "summary": "Chat",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/chat/booking": {
+      "post": {
+        "description": "A \"Book\" button on a chat's departure list (C3): checks the date for the party, marks the\nconversation `booking_started` and returns where the Book-now sheet opens. No model call, so\nno turn is spent. Same-origin through the web's `/api` rewrite (no visitor IP is needed).",
+        "operationId": "chatBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatBooking"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown conversation, or the trip is gone"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Chat Booking",
         "tags": [
           "public"
         ]

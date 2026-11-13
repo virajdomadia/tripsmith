@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infra.cache import NO_STORE
 from app.infra.db import get_session
+from app.models.enums import PackageStatus
 from app.routers.site.guards import same_origin_write
 from app.schemas.admin_calendar import NewDeparture, NewDepartureInput
 from app.schemas.catalog import (
@@ -19,6 +20,7 @@ from app.schemas.catalog import (
     PackageInput,
     PackageStatusInput,
 )
+from app.services import alerts
 from app.services.auth.deps import require_owner
 from app.services.booking import waitlist
 from app.services.booking.after_capture import Notify
@@ -53,10 +55,16 @@ async def create_route(payload: PackageInput, response: Response, db: Db) -> Adm
 
 @router.post("/{id}/status", operation_id="setPackageStatus", response_model_by_alias=True)
 async def set_status_route(
-    id: str, payload: PackageStatusInput, response: Response, db: Db
+    id: str, payload: PackageStatusInput, request: Request, response: Response, db: Db
 ) -> AdminPackage:
     response.headers.update(NO_STORE)
-    return await svc.set_status(db, id, payload.status)
+    was_live = await svc.is_live(db, id)
+    out = await svc.set_status(db, id, payload.status)
+    if payload.status is PackageStatus.LIVE and not was_live:
+        # v3 C3 (R30): a package going live with dates is new dates for its destination.
+        new = await alerts.upcoming_ids(db, id)
+        await alerts.send_for_new_dates(db, id, new, Notify.of(request.app.state))
+    return out
 
 
 @router.post(
@@ -77,12 +85,15 @@ async def duplicate_route(id: str, response: Response, db: Db) -> AdminPackage:
     response_model_by_alias=True,
 )
 async def add_departure_route(
-    id: str, payload: NewDepartureInput, response: Response, db: Db
+    id: str, payload: NewDepartureInput, request: Request, response: Response, db: Db
 ) -> NewDeparture:
     """P11: one date from the calendar; the package's other dates are left alone. 409 when the
-    package already leaves that day, has 60 dates, or the leader is on another trip then."""
+    package already leaves that day, has 60 dates, or the leader is on another trip then.
+    v3 C3: open "notify me" alerts for the package or its destination are emailed once."""
     response.headers.update(NO_STORE)
-    return await svc.add_departure(db, id, payload)
+    out = await svc.add_departure(db, id, payload)
+    await alerts.send_for_new_dates(db, id, [out.id], Notify.of(request.app.state))
+    return out
 
 
 @router.get("/{id}", operation_id="getAdminPackage", response_model_by_alias=True)
@@ -96,11 +107,15 @@ async def update_route(
     id: str, payload: PackageInput, request: Request, response: Response, db: Db
 ) -> AdminPackage:
     response.headers.update(NO_STORE)
+    before = await alerts.upcoming_ids(db, id)
     out = await svc.update_package(db, id, payload)
     # P6: more seats on a date with a waitlist are offered down it at once.
     await walk_and_send(
         db, await waitlist.departures_with_list(db, id), Notify.of(request.app.state)
     )
+    # v3 C3 (R30): new upcoming rows in the editor email the open alerts once.
+    new = await alerts.upcoming_ids(db, id) - before
+    await alerts.send_for_new_dates(db, id, new, Notify.of(request.app.state))
     return out
 
 

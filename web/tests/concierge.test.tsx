@@ -235,7 +235,7 @@ describe('ConciergePanel', () => {
         'Don’t share your name, phone or other personal details here — we’ll ask for them in a ' +
         'form when needed. Tripsmith keeps chats to improve the service.',
     );
-    expect(screen.getByRole('link', { name: 'Talk to a person' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Talk to a person' })).toBeTruthy();
   });
 
   it('streams a prompt into cards, text and a stamped ticket, then continues the chat', async () => {

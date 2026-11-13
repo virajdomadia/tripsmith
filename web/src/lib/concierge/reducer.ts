@@ -12,9 +12,12 @@
 
 import { inr, MONTHS } from '@/lib/format';
 import type {
+  AlertOffer,
   AvailabilityArgs,
+  ChatBooking,
   ChatDeparture,
   ChatPackage,
+  HandoffPrefill,
   LimitReason,
   SearchArgs,
 } from './types';
@@ -38,12 +41,15 @@ export type Part =
       coverUrl: string | null;
       departures: ChatDeparture[];
       more: number;
-    };
+    }
+  | { kind: 'booking'; id: string; booking: ChatBooking }
+  | { kind: 'alert'; id: string; offer: AlertOffer };
 
 export type Item =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; parts: Part[]; streaming: boolean; error?: string }
-  | { kind: 'limit'; id: string; reason: LimitReason; message: string };
+  | { kind: 'limit'; id: string; reason: LimitReason; message: string }
+  | { kind: 'handed-off'; id: string; ref: string; firstName: string; emailed: boolean };
 
 export type Ticket = {
   where: string | null;
@@ -61,6 +67,12 @@ export type State = {
   /** Packages seen in this chat by slug, so a departure list can carry the trip's name. */
   known: Record<string, { name: string; coverUrl: string | null }>;
   seq: number;
+  /** C3: the enquiry form open in the panel, and what it starts with. */
+  form: HandoffPrefill | null;
+  /** C3: a booking sheet to open once the turn that asked for it has finished. */
+  go: ChatBooking | null;
+  /** C3: the party the concierge last booked for, so a list's "Book" keeps it. */
+  party: { adults: number; children: number } | null;
 };
 
 export type Action =
@@ -69,7 +81,12 @@ export type Action =
   | { type: 'event'; event: string; data: unknown }
   | { type: 'refused'; reason: LimitReason; message: string }
   | { type: 'failed'; message: string }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | { type: 'open-form'; prefill?: HandoffPrefill }
+  | { type: 'close-form' }
+  | { type: 'handed-off'; ref: string; firstName: string; emailed: boolean }
+  | { type: 'went' }
+  | { type: 'booked'; data: unknown };
 
 export const IDLE_LINE = 'Waiting for your first message';
 
@@ -80,6 +97,17 @@ export const initialState: State = {
   ticket: { where: null, when: null, nights: null, budget: null, line: IDLE_LINE },
   known: {},
   seq: 0,
+  form: null,
+  go: null,
+  party: null,
+};
+
+export const EMPTY_PREFILL: HandoffPrefill = {
+  summary: '',
+  package: null,
+  adults: null,
+  children: null,
+  month: null,
 };
 
 // ---- defensive readers: the stream is our api, but a missing field must not crash the page ----
@@ -130,6 +158,54 @@ function toDeparture(raw: unknown): ChatDeparture | null {
     pricePerPersonPaise: num(d.pricePerPersonPaise) ?? 0,
     guaranteed: d.guaranteed === true,
   };
+}
+
+const SLUG = /^[a-z0-9-]+$/;
+
+function toBooking(raw: unknown): ChatBooking | null {
+  const b = obj(raw);
+  const packageSlug = str(b.packageSlug);
+  const date = str(b.date);
+  const url = str(b.url);
+  const departureId = str(b.departureId);
+  // Only ever an internal package page: the URL is checked, not trusted.
+  if (!packageSlug || !SLUG.test(packageSlug) || !date || !departureId) return null;
+  if (!url?.startsWith(`/packages/${packageSlug}?`) || !url.endsWith('#book')) return null;
+  return {
+    packageSlug,
+    packageName: str(b.packageName) ?? packageSlug,
+    departureId,
+    date,
+    adults: num(b.adults) ?? 2,
+    children: num(b.children) ?? 0,
+    totalPaise: num(b.totalPaise) ?? 0,
+    url,
+  };
+}
+
+function toPrefill(raw: Obj): HandoffPrefill {
+  const pkg = obj(raw.package);
+  const slug = str(pkg.slug);
+  const name = str(pkg.name);
+  const month = str(raw.month);
+  return {
+    summary: str(raw.summary) ?? '',
+    package: slug && name && SLUG.test(slug) ? { slug, name } : null,
+    adults: num(raw.adults) ?? null,
+    children: num(raw.children) ?? null,
+    month: month && /^\d{4}-\d{2}$/.test(month) ? month : null,
+  };
+}
+
+function toAlert(raw: unknown): AlertOffer | null {
+  const a = obj(raw);
+  const name = str(a.name);
+  const pkg = str(a.packageSlug);
+  const dest = str(a.destinationSlug);
+  if (!name) return null;
+  if (pkg && SLUG.test(pkg)) return { target: 'package', slug: pkg, name };
+  if (dest && SLUG.test(dest)) return { target: 'destination', slug: dest, name };
+  return null;
 }
 
 // ---- wording ----
@@ -214,6 +290,14 @@ function onToolCall(state: State, data: Obj): State {
       when: monthLabel(str(a.month)) ?? ticket.when,
       line: 'Checking live dates…',
     };
+  } else if (name === 'startBooking') {
+    const a = obj(data.args);
+    const people = (num(a.adults) ?? 0) + (num(a.children) ?? 0);
+    label = people ? `Checking that date for ${plural(people, 'traveller')}` : 'Checking that date';
+    ticket = { ...ticket, line: 'Getting the booking sheet ready…' };
+  } else if (name === 'createEnquiry') {
+    label = 'Getting the enquiry form ready';
+    ticket = { ...ticket, line: 'Passing you to a person…' };
   }
   const next = patchTurn(state, (turn) => {
     turn.parts.push({ kind: 'tool', id, name, label, state: 'running' });
@@ -230,6 +314,9 @@ function onToolResult(state: State, data: Obj): State {
   let known = state.known;
   let done = 'Looked it up';
   const extra: Part[] = [];
+  let form = state.form;
+  let go = state.go;
+  let party = state.party;
 
   if (failed) {
     done = 'That lookup failed';
@@ -253,6 +340,8 @@ function onToolResult(state: State, data: Obj): State {
       done = 'No trip matched';
       ticket = { ...ticket, line: 'Nothing matched — loosen one thing' };
     }
+    const alert = toAlert(result.alertFor);
+    if (alert) extra.push({ kind: 'alert', id: `${id}-a`, offer: alert });
   } else if (name === 'checkAvailability') {
     const slug = str(result.packageSlug) ?? '';
     const departures = (Array.isArray(result.departures) ? result.departures : [])
@@ -278,6 +367,21 @@ function onToolResult(state: State, data: Obj): State {
         more,
       });
     }
+    const alert = toAlert(result.alertFor);
+    if (alert) extra.push({ kind: 'alert', id: `${id}-a`, offer: alert });
+  } else if (name === 'startBooking') {
+    const booking = toBooking(result);
+    if (booking) {
+      done = 'Booking sheet ready';
+      ticket = { ...ticket, where: booking.packageName, line: 'Opening the booking sheet' };
+      extra.push({ kind: 'booking', id: `${id}-r`, booking });
+      go = booking;
+      party = { adults: booking.adults, children: booking.children };
+    }
+  } else if (name === 'createEnquiry') {
+    done = 'Enquiry form open';
+    ticket = { ...ticket, line: 'Add your details in the form' };
+    form = toPrefill(result);
   }
 
   const next = patchTurn(state, (turn) => {
@@ -288,7 +392,7 @@ function onToolResult(state: State, data: Obj): State {
     }
     turn.parts.push(...extra);
   });
-  return { ...next, ticket, known };
+  return { ...next, ticket, known, form, go, party };
 }
 
 export function reducer(state: State, action: Action): State {
@@ -378,6 +482,34 @@ export function reducer(state: State, action: Action): State {
     }
     case 'reset':
       return { ...initialState, seq: state.seq };
+    case 'open-form':
+      return { ...state, form: action.prefill ?? state.form ?? EMPTY_PREFILL };
+    case 'close-form':
+      return { ...state, form: null };
+    case 'handed-off':
+      return {
+        ...state,
+        form: null,
+        seq: state.seq + 1,
+        items: [
+          ...state.items,
+          {
+            kind: 'handed-off',
+            id: `h${state.seq}`,
+            ref: action.ref,
+            firstName: action.firstName,
+            emailed: action.emailed,
+          },
+        ],
+        ticket: { ...state.ticket, line: `Sent to the team · ${action.ref}` },
+      };
+    case 'went':
+      return { ...state, go: null };
+    case 'booked': {
+      // A departure list's "Book" answered (POST /chat/booking): the same hand-off, no turn.
+      const booking = toBooking(action.data);
+      return booking ? { ...state, go: booking } : state;
+    }
   }
 }
 

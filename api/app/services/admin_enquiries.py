@@ -51,6 +51,7 @@ from app.schemas.admin_enquiries import (
 )
 from app.schemas.enquiries import PackageRef, normalise_phone
 from app.schemas.meta import AdminEnquiryType
+from app.services.ai.transcript import transcript_for
 from app.services.analytics import ist_today
 from app.services.email.render import IST
 from app.services.format import MONTHS
@@ -399,6 +400,7 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
         follow_up_on=row.follow_up_on,
         lost_reason=row.lost_reason,
         bookings=await _bookings(db, row),
+        transcript=await transcript_for(db, row.conversation_id) if row.conversation_id else [],
     )
 
 

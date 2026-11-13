@@ -359,13 +359,17 @@ def test_destination_matching() -> None:
 
 def test_tool_schemas_are_flat_for_the_model() -> None:
     by_name = {t.name: t for t in TOOL_SPECS}
-    assert set(by_name) == {"searchPackages", "checkAvailability"}
+    assert set(by_name) == {"searchPackages", "checkAvailability", "startBooking", "createEnquiry"}
     search = by_name["searchPackages"].parameters
     assert set(search["properties"]) == {"destination", "maxBudget", "nights", "theme", "month"}
     assert "required" not in search
     assert search["properties"]["theme"]["enum"][0] == "beach"
     assert "anyOf" not in json.dumps(search) and "null" not in json.dumps(search)
     assert by_name["checkAvailability"].parameters["required"] == ["packageSlug"]
+    assert by_name["startBooking"].parameters["required"] == ["departureId", "adults"]
+    assert by_name["createEnquiry"].parameters["required"] == ["summary"]
+    for spec in TOOL_SPECS:
+        assert "anyOf" not in json.dumps(spec.parameters), spec.name
 
 
 # --- limits ------------------------------------------------------------------------------------

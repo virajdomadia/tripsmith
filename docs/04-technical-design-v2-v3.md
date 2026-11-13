@@ -114,6 +114,8 @@ Plain typed Python functions in `api/app/services/ai/tools.py` (pydantic-validat
 
 The chat **never takes payment**: `startBooking` hands off to the v2 sheet and Razorpay Checkout.
 
+**As built (C3, 2026-11-13):** `startBooking` runs the v2 quote (no side effects) and returns `/packages/<slug>?date=…&double=…&triple=…&single=…&children=…#book` — the R53 prefill link (an odd party gets a triple, one adult a single). The panel navigates once the turn ends (on a phone it closes) and also hands the request over in memory (`lib/concierge/book-request.ts`), because a client navigation to the page the visitor is already on remounts nothing; the sheet then remounts with the new date and party. A departure list's "Book" calls `POST /chat/booking` (same service, no turn). The outcome is saved with the turn (a tool's own writes would roll back with the read transaction the tools share). `createEnquiry` only opens the panel's form; the outcome `enquiry_created` is set when the visitor sends it (`POST /enquiries`, `chat-handoff`, `conversationId`). Tool results carry `alertFor` when a package has no upcoming date, or a known destination has nothing open.
+
 ### 4. Guardrails
 - System prompt: Tripsmith sells only the packages returned by tools; never invent packages, prices or dates; if nothing matches, say so and offer the closest match, notify-me or the enquiry form; at most two clarifying questions before searching; reply in the customer's language (English, Hindi or Hinglish).
 - **Output check** after each turn: every package name/slug and ₹ amount in the text must appear in a tool result from this conversation; otherwise the turn is replaced ("Let me check that for you") and a search is forced. Regex, no second model call.
@@ -129,6 +131,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 ### 7. "Notify me" for new departures
 - `departure_alerts` (email, package_id or destination_id, `sent_at`). `POST /alerts` from the concierge (when nothing matches) and from a package page with no upcoming dates.
 - **No schedule:** the admin departure save (create, or bulk add) looks up open alerts for that package or its destination and emails each once (Gmail sender, one-time-alert wording), then sets `sent_at`. Best effort: a failed send is logged and the save still succeeds.
+- **As built (C3):** the triggers are a calendar "add date", new upcoming rows in the package editor (compared by departure id before/after the save), and a package going live with upcoming dates; a draft sends nothing. Alerts are claimed with `UPDATE … WHERE sent_at IS NULL RETURNING` and committed before sending, sends go 5 at a time, a failed send reopens its alert. Meters: Gmail SMTP sends (personal account ≈ 500/day), function time inside the owner's save, Upstash commands for `alerts:{ip}` (5 / 10 min).
 
 ---
 

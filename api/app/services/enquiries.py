@@ -21,8 +21,9 @@ from app.config import Settings
 from app.errors import ApiError
 from app.infra.db import constraint_name
 from app.infra.email import EmailSender
-from app.models import Enquiry, Package
+from app.models import Conversation, Enquiry, Package
 from app.models.enums import (
+    ConversationOutcome,
     EmailStatus,
     EnquiryStatus,
     EnquiryType,
@@ -30,6 +31,7 @@ from app.models.enums import (
 )
 from app.schemas.catalog import PackageDetail
 from app.schemas.enquiries import EnquiryCreate, EnquiryCreated, PackageRef
+from app.services.ai.outcome import set_outcome
 from app.services.catalog.reads import get_package
 from app.services.email.render import PackageFacts, context_from
 from app.services.email.send import EmailOutcome, send_enquiry_emails
@@ -38,6 +40,7 @@ from app.services.pdf.service import PdfService
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — refs are read out on the phone
 DEDUPE_WINDOW = dt.timedelta(seconds=60)
 PACKAGE_GONE = "That trip is no longer available"
+CHAT_GONE = "That chat has ended — send this as a normal enquiry"
 REF_CONSTRAINT = "uq_enquiries_ref"
 PACKAGE_FK = "fk_enquiries_package_id_packages"
 REF_ATTEMPTS = 5
@@ -159,6 +162,13 @@ async def submit_enquiry(
         # A bot filled the honeypot: look successful, keep nothing.
         return EnquiryCreated(ref=make_ref(), first_name=payload.first_name, package=ref_of)
 
+    if payload.conversation_id and await db.get(Conversation, payload.conversation_id) is None:
+        raise ApiError(
+            "validation",
+            "Request validation failed",
+            field_errors={"conversationId": CHAT_GONE},
+        )
+
     await _lock_submitter(db, payload.phone, package_id)
     existing = await _recent_duplicate(db, payload.phone, package_id, now - DEDUPE_WINDOW)
     if existing is not None:
@@ -185,6 +195,7 @@ async def submit_enquiry(
             email_status=EmailStatus.SKIPPED,
             ip_hash=hash_ip(ip, secret=session_secret),
             user_agent=(user_agent or "")[:300] or None,
+            conversation_id=payload.conversation_id,
         )
         try:
             # A savepoint, not the transaction: rolling back a ref collision must keep the lock.
@@ -200,6 +211,8 @@ async def submit_enquiry(
             raise
         await db.refresh(enquiry, ["created_at"])  # server default, printed in the emails
         ctx = context_from(enquiry, facts)
+        if payload.conversation_id:  # v3 C3: the chat ended in a handoff (R29, R31)
+            await set_outcome(db, payload.conversation_id, ConversationOutcome.ENQUIRY_CREATED)
         await db.commit()
         break
     else:

@@ -42,3 +42,29 @@ export type AvailabilityArgs = { packageSlug?: string; month?: string };
 /** `error.reason` on a refused turn (api ChatLimitReason) plus the stream's own `error` reasons. */
 export type LimitReason =
   'conversation_full' | 'ip_limit' | 'daily_cap' | 'monthly_cap' | 'ai_off' | 'ended';
+
+/** `startBooking`'s result (C3): where the Book-now sheet opens, pre-filled. */
+export type ChatBooking = {
+  packageSlug: string;
+  packageName: string;
+  departureId: string;
+  date: string;
+  adults: number;
+  children: number;
+  totalPaise: number;
+  url: string;
+};
+
+/** `createEnquiry`'s result, or "Talk to a person" (empty): what the panel's form starts with. */
+export type HandoffPrefill = {
+  summary: string;
+  package: { slug: string; name: string } | null;
+  adults: number | null;
+  children: number | null;
+  month: string | null;
+};
+
+/** `alertFor` on a tool result (R30): what "Email me when new dates are added" watches. */
+export type AlertOffer =
+  | { target: 'package'; slug: string; name: string }
+  | { target: 'destination'; slug: string; name: string };

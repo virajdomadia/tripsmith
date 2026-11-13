@@ -107,10 +107,21 @@ def test_surrounding_newlines_are_trimmed_not_rejected() -> None:
     assert e.name == "Sneha Iyer"
 
 
-@pytest.mark.parametrize("kind", ["callback", "group", "chat-handoff"])
+@pytest.mark.parametrize("kind", ["callback", "group"])
 def test_the_public_form_still_takes_only_the_v1_types(kind: str) -> None:
-    # The inbox reads all six (`AdminEnquiryType`); the public contract stays at three (R24).
+    # The inbox reads all six (`AdminEnquiryType`); the public contract takes the three form
+    # types (R24) plus the concierge's `chat-handoff` (v3 C3).
     body = {**expand(CASES["valid"][0]), "type": kind}
     with pytest.raises(ValidationError) as exc:
         EnquiryCreate.model_validate(body)
     assert ("type",) in {tuple(err["loc"]) for err in exc.value.errors()}
+
+
+def test_a_concierge_handoff_keeps_its_conversation_and_an_optional_trip() -> None:
+    body = {**expand(CASES["valid"][0]), "type": "chat-handoff", "conversationId": "c1"}
+    body.pop("packageSlug", None)
+    e = EnquiryCreate.model_validate(body)
+    assert (e.type, e.conversation_id, e.package_slug) == ("chat-handoff", "c1", None)
+    # Any other type drops a stray conversation id rather than linking a transcript.
+    other = EnquiryCreate.model_validate({**expand(CASES["valid"][0]), "conversationId": "c1"})
+    assert other.conversation_id is None

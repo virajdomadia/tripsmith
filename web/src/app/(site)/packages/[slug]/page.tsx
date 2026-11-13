@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { JsonLd } from '@/components/seo/JsonLd';
+import { NotifyMe } from '@/components/site/alerts/NotifyMe';
 import { BookNowProvider } from '@/components/site/booking/BookNow';
 import { istToday } from '@/lib/booking';
 import { Container } from '@/components/site/Container';
@@ -177,6 +178,12 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
                 builtOn={istToday()}
               />
               <OccupancyPricing departures={pkg.departures} deal={pkg.deal} ages={rules.ages} />
+              {pkg.departures.length === 0 && (
+                // v3 C3 (R30): one email when the owner adds dates, then the alert closes.
+                <div className="mt-4">
+                  <NotifyMe offer={{ target: 'package', slug: pkg.slug, name: pkg.name }} />
+                </div>
+              )}
             </Section>
             {pkg.rating && (
               <Section id="reviews" title="What travellers say">

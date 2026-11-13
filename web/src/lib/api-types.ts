@@ -1367,6 +1367,7 @@ export interface paths {
          * Add Departure Route
          * @description P11: one date from the calendar; the package's other dates are left alone. 409 when the
          *     package already leaves that day, has 60 dates, or the leader is on another trip then.
+         *     v3 C3: open "notify me" alerts for the package or its destination are emailed once.
          */
         post: operations["addDeparture"];
         delete?: never;
@@ -1566,6 +1567,23 @@ export interface paths {
          * @description Take a place off the list; seats its offer held go down the list at once.
          */
         post: operations["removeWaitlistEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Alert */
+        post: operations["subscribeDepartureAlert"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1825,6 +1843,28 @@ export interface paths {
          *     `ip_limit`, `daily_cap` or `monthly_cap`; 503 `ai_off`; 404 for an unknown conversation.
          */
         post: operations["chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/booking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Booking
+         * @description A "Book" button on a chat's departure list (C3): checks the date for the party, marks the
+         *     conversation `booking_started` and returns where the Book-now sheet opens. No model call, so
+         *     no turn is spent. Same-origin through the web's `/api` rewrite (no visitor IP is needed).
+         */
+        post: operations["chatBooking"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3087,6 +3127,11 @@ export interface components {
             /** Related */
             related: components["schemas"]["RelatedEnquiry"][];
             status: components["schemas"]["EnquiryStatus"];
+            /**
+             * Transcript
+             * @description v3 C3: the concierge chat a `chat-handoff` came from, oldest first
+             */
+            transcript?: components["schemas"]["TranscriptLine"][];
             /** Travelmonth */
             travelMonth: string | null;
             type: components["schemas"]["AdminEnquiryType"];
@@ -3609,6 +3654,31 @@ export interface components {
             /** Childmin */
             childMin: number;
         };
+        /** AlertSubscribe */
+        AlertSubscribe: {
+            /** Destinationslug */
+            destinationSlug?: string | null;
+            /** Email */
+            email: string;
+            /** Packageslug */
+            packageSlug?: string | null;
+        };
+        /** AlertSubscribed */
+        AlertSubscribed: {
+            /**
+             * Name
+             * @description The trip's or destination's name, for the confirmation line
+             */
+            name: string;
+            /** Slug */
+            slug: string;
+            target: components["schemas"]["AlertTarget"];
+        };
+        /**
+         * AlertTarget
+         * @enum {string}
+         */
+        AlertTarget: "package" | "destination";
         /** ApiErrorBody */
         ApiErrorBody: {
             code: components["schemas"]["ErrorCode"];
@@ -4517,6 +4587,52 @@ export interface components {
              * @enum {string}
              */
             state: "done" | "pay";
+        };
+        /** ChatBooking */
+        ChatBooking: {
+            /** Adults */
+            adults: number;
+            /** Children */
+            children: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departureid */
+            departureId: string;
+            /** Packagename */
+            packageName: string;
+            /** Packageslug */
+            packageSlug: string;
+            /** Totalpaise */
+            totalPaise: number;
+            /**
+             * Url
+             * @description The package page with the Book-now sheet open and pre-filled
+             */
+            url: string;
+        };
+        /**
+         * ChatBookingRequest
+         * @description A "Book" button on a chat's departure list (C3): the same hand-off as the model's
+         *     `startBooking`, without spending a turn.
+         */
+        ChatBookingRequest: {
+            /**
+             * Adults
+             * @default 2
+             */
+            adults: number;
+            /**
+             * Children
+             * @default 0
+             */
+            children: number;
+            /** Conversationid */
+            conversationId: string;
+            /** Departureid */
+            departureId: string;
         };
         /** ChatRequest */
         ChatRequest: {
@@ -5554,6 +5670,11 @@ export interface components {
              * @default 0
              */
             children: number;
+            /**
+             * Conversationid
+             * @description `chat-handoff` only (v3 C3): the concierge chat whose transcript the owner reads with this enquiry
+             */
+            conversationId?: string | null;
             /** Email */
             email: string;
             /** Message */
@@ -5753,11 +5874,12 @@ export interface components {
          * EnquiryType
          * @description The v1 subset of the `enquiry_type` DB enum (06 A1) — what the public form can submit.
          *
-         *     `callback`, `group` and `chat-handoff` are forward-compat DB values that join here with
-         *     their features (v2 add-on / v3). The owner's inbox reads all six via `AdminEnquiryType`.
+         *     `callback` and `group` are forward-compat DB values that join here with their feature (v2
+         *     add-on); `chat-handoff` joined with the concierge's handoff form (v3 C3). The owner's inbox
+         *     reads all six via `AdminEnquiryType`.
          * @enum {string}
          */
-        EnquiryType: "standard" | "custom" | "contact";
+        EnquiryType: "standard" | "custom" | "contact" | "chat-handoff";
         /** EnquiryTypeOption */
         EnquiryTypeOption: {
             /** Label */
@@ -8708,6 +8830,25 @@ export interface components {
             label: string;
             value: components["schemas"]["Theme"];
         };
+        /**
+         * TranscriptLine
+         * @description One line of a concierge chat as the owner reads it (R29, R31).
+         */
+        TranscriptLine: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            role: components["schemas"]["TranscriptRole"];
+            /** Text */
+            text: string;
+        };
+        /**
+         * TranscriptRole
+         * @enum {string}
+         */
+        TranscriptRole: "visitor" | "concierge" | "lookup";
         /** TravellerDetails */
         TravellerDetails: {
             /** Age */
@@ -12300,6 +12441,39 @@ export interface operations {
             };
         };
     };
+    subscribeDepartureAlert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertSubscribe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSubscribed"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -12789,6 +12963,46 @@ export interface operations {
                 content: {
                     "text/event-stream": string;
                 };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    chatBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatBooking"];
+                };
+            };
+            /** @description Unknown conversation, or the trip is gone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error envelope (06 C0) */
             default: {

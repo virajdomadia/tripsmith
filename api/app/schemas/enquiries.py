@@ -57,6 +57,12 @@ class EnquiryCreate(ApiModel):
     )
     changes: str | None = Field(default=None, max_length=ENQUIRY_MESSAGE_MAX)
     website: str = Field(default="", description="Honeypot — humans never fill it")
+    conversation_id: str | None = Field(
+        default=None,
+        max_length=40,
+        description="`chat-handoff` only (v3 C3): the concierge chat whose transcript the owner "
+        "reads with this enquiry",
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -159,6 +165,8 @@ class EnquiryCreate(ApiModel):
             self.preferred_dates = None
             self.budget_paise = None
             self.changes = None
+        if self.type != EnquiryType.CHAT_HANDOFF:
+            self.conversation_id = None
         return self
 
     @property

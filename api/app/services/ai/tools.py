@@ -5,7 +5,10 @@ Every tool validates its arguments with pydantic (R33) — the model's JSON is u
 and returns a JSON-able dict. A bad argument or a failing lookup comes back as `{"error": ...}`
 for the model to recover from, and is recorded on the conversation (`last_error`).
 
-C1 ships `searchPackages` and `checkAvailability`; `startBooking` and `createEnquiry` join in C3.
+C1 shipped `searchPackages` and `checkAvailability`; C3 adds `startBooking` (the Book-now sheet,
+never payment) and `createEnquiry` (opens the enquiry form in the panel — the model never sees a
+name or phone; it only writes the summary). When nothing can be booked, a result carries
+`alertFor` so the panel can offer "Email me when new dates are added" (R30).
 """
 
 import datetime as dt
@@ -14,14 +17,17 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.errors import ApiError
 from app.models import Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import MONTH_PATTERN, PackageCard, SearchParams
+from app.schemas.meta import MAX_TRAVELLERS
+from app.services.ai.handoff import start_booking
 from app.services.ai.model import ToolSpec
 from app.services.catalog.reads import get_departures_for_month
 from app.services.catalog.search import search_packages
@@ -80,6 +86,40 @@ class CheckAvailabilityArgs(ToolArgs):
     month: str | None = Field(
         default=None, pattern=MONTH_PATTERN, description="YYYY-MM to show one month only."
     )
+
+
+class StartBookingArgs(ToolArgs):
+    departure_id: str = Field(
+        min_length=1, max_length=40, description="The departureId from checkAvailability."
+    )
+    adults: int = Field(ge=1, le=MAX_TRAVELLERS, description="Adults travelling (12+ years).")
+    children: int = Field(
+        default=0, ge=0, le=MAX_TRAVELLERS - 1, description="Children under 12 travelling."
+    )
+
+    @model_validator(mode="after")
+    def _party(self) -> "StartBookingArgs":
+        if self.adults + self.children > MAX_TRAVELLERS:
+            raise ValueError(f"at most {MAX_TRAVELLERS} travellers per booking")
+        return self
+
+
+class CreateEnquiryArgs(ToolArgs):
+    summary: str = Field(
+        min_length=10,
+        max_length=500,
+        description="What the customer wants, in a few sentences, for the Tripsmith team: where, "
+        "when, how many, budget, anything special. No names, phone numbers or emails.",
+    )
+    package_slug: str | None = Field(
+        default=None,
+        max_length=120,
+        pattern=r"^[a-z0-9-]+$",
+        description="The package they are asking about, if one.",
+    )
+    adults: int | None = Field(default=None, ge=1, le=MAX_TRAVELLERS)
+    children: int | None = Field(default=None, ge=0, le=MAX_TRAVELLERS - 1)
+    month: str | None = Field(default=None, pattern=MONTH_PATTERN, description="YYYY-MM")
 
 
 def _rupees(paise: int) -> str:
@@ -155,6 +195,9 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
     }
     if not found.items:
         result["weOffer"] = offered
+        if len(slugs) == 1:  # one known destination, nothing open: offer its new-dates alert
+            name = next(n for slug, n in destinations if slug == slugs[0])
+            result["alertFor"] = {"destinationSlug": slugs[0], "name": name}
     return result
 
 
@@ -166,8 +209,20 @@ async def check_availability_tool(ctx: ToolContext, args: CheckAvailabilityArgs)
     if departures is None:
         return {"error": f"No live package has the slug {args.package_slug!r}."}
     shown = departures[:MAX_DEPARTURES]
+    name = (
+        await ctx.db.execute(select(Package.name).where(Package.slug == args.package_slug))
+    ).scalar_one()
+    alert: dict[str, str] | None = None
+    if not departures and (
+        args.month is None
+        or not await get_departures_for_month(ctx.db, args.package_slug, None, today=ctx.today)
+    ):
+        # No upcoming date at all (not just none that month): offer the new-dates alert.
+        alert = {"packageSlug": args.package_slug, "name": name}
     return {
         "packageSlug": args.package_slug,
+        "packageName": name,
+        **({"alertFor": alert} if alert else {}),
         "departures": [
             {
                 "departureId": d.id,
@@ -183,6 +238,52 @@ async def check_availability_tool(ctx: ToolContext, args: CheckAvailabilityArgs)
         ],
         "more": len(departures) - len(shown),
         "pricesAre": "per adult, twin sharing",
+    }
+
+
+async def start_booking_tool(ctx: ToolContext, args: StartBookingArgs) -> dict[str, Any]:
+    """Check the date can be booked for the party and hand over to the Book-now sheet."""
+    try:
+        started = await start_booking(
+            ctx.db, args.departure_id, adults=args.adults, children=args.children, now=ctx.now
+        )
+    except ApiError as exc:  # gone (404) or unbookable for this party (409): say why
+        return {"error": exc.message}
+    return {
+        "packageSlug": started.package_slug,
+        "packageName": started.package_name,
+        "departureId": started.departure_id,
+        "date": started.date.isoformat(),
+        "adults": started.adults,
+        "children": started.children,
+        "totalPaise": started.total_paise,
+        "total": _rupees(started.total_paise),
+        "url": started.url,
+        "next": "The site now opens the booking sheet; the customer pays there, not in chat.",
+    }
+
+
+async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict[str, Any]:
+    """Open the enquiry form in the panel, pre-filled; the customer types name and phone there."""
+    package: dict[str, str] | None = None
+    if args.package_slug:
+        name = (
+            await ctx.db.execute(
+                select(Package.name).where(
+                    Package.slug == args.package_slug, Package.status == PackageStatus.LIVE
+                )
+            )
+        ).scalar_one_or_none()
+        if name:
+            package = {"slug": args.package_slug, "name": name}
+    return {
+        "form": "enquiry",
+        "summary": args.summary,
+        "package": package,
+        "adults": args.adults,
+        "children": args.children,
+        "month": args.month,
+        "next": "The enquiry form is open for the customer to add their name and phone.",
     }
 
 
@@ -238,7 +339,25 @@ TOOLS: dict[str, Tool] = {
             CheckAvailabilityArgs,
             check_availability_tool,
             "Upcoming departure dates of one package with seats left and the price per person "
-            "(adult, twin sharing). Use the slug from searchPackages.",
+            "(adult, twin sharing). Use the slug from searchPackages. When the package has no "
+            "upcoming date, returns `alertFor`: the site then offers a new-dates email alert.",
+        ),
+        _tool(
+            "startBooking",
+            StartBookingArgs,
+            start_booking_tool,
+            "When the customer wants to book a specific date: checks it can be booked for the "
+            "party and opens the booking sheet on the package page with the date and party filled "
+            "in. Payment happens there, never in chat. Ask how many adults and children first if "
+            "you do not know. Use a departureId from checkAvailability.",
+        ),
+        _tool(
+            "createEnquiry",
+            CreateEnquiryArgs,
+            create_enquiry_tool,
+            "Hand the customer to a person: opens the enquiry form in the chat, pre-filled with "
+            "your summary, for the customer to add their contact details. Use when they ask for a "
+            "person, want something we cannot book online, or you cannot help.",
         ),
     )
 }

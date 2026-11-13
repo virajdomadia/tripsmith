@@ -27,7 +27,8 @@ def test_document_exposes_the_v1_enums_and_operations() -> None:
         "likely-to-sell-out",
         "guaranteed",
     ]
-    assert schemas["EnquiryType"]["enum"] == ["standard", "custom", "contact"]
+    # v3 C3: the concierge panel posts `chat-handoff`; /meta still lists only the form's three.
+    assert schemas["EnquiryType"]["enum"] == ["standard", "custom", "contact", "chat-handoff"]
     assert doc["paths"]["/health"]["get"]["operationId"] == "getHealth"
     assert doc["paths"]["/meta"]["get"]["operationId"] == "getMeta"
     assert doc["paths"]["/auth/login"]["post"]["operationId"] == "login"
