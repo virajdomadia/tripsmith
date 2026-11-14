@@ -21360,7 +21360,7 @@
     },
     "/chat": {
       "post": {
-        "description": "Server-sent events, each `event: <name>` + `data: <json>`:\n\n- `text-delta` `{text}` — the next piece of the reply\n- `tool-call` `{id, name, args}` — the concierge is looking something up\n- `tool-result` `{id, name, result}` — cards to render (`result.packages`, `result.departures`)\n- `done` `{conversationId, model, tokensIn, tokensOut}` — send `conversationId` next time\n- `error` `{reason: busy | internal, message}` — the turn ended early\n\nRefusals before the stream opens are the usual envelope: 429 with `reason` = `conversation_full`,\n`ip_limit`, `daily_cap` or `monthly_cap`; 503 `ai_off`; 404 for an unknown conversation.",
+        "description": "Server-sent events, each `event: <name>` + `data: <json>`:\n\n- `text-delta` `{text}` — the next piece of the reply\n- `tool-call` `{id, name, args}` — the concierge is looking something up\n- `tool-result` `{id, name, result}` — cards to render (`result.packages`, `result.departures`)\n- `replace` `{text}` — the guardrail stopped the reply: drop the text shown so far for this turn\n  and show `text` instead (cards stay); a forced search's `tool-call`/`tool-result` may follow\n- `done` `{conversationId, model, tokensIn, tokensOut}` — send `conversationId` next time\n- `error` `{reason: busy | internal, message}` — the turn ended early\n\nRefusals before the stream opens are the usual envelope: 429 with `reason` = `conversation_full`,\n`ip_limit`, `daily_cap` or `monthly_cap`; 503 `ai_off`; 404 for an unknown conversation.",
         "operationId": "chat",
         "requestBody": {
           "content": {

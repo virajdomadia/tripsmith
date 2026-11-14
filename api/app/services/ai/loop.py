@@ -8,6 +8,11 @@ A call that fails with `ModelUnavailable` before it produced anything is retried
 model in the chain (AI_MODEL → AI_MODEL_FALLBACK → AI_MODEL again), which then answers the rest
 of the turn; at most `MAX_ATTEMPTS` tries per call. A failure after output has streamed, or with
 every try used, ends the turn with `ChatUnavailable`.
+
+Text streams through the guardrail's `Gate` (row C4): a reply may only quote packages and ₹
+amounts the tools returned. On a violation the text stops, a `replace` event swaps what was shown
+for "Let me check that for you", and the last search runs again without the model, so real cards
+sit under it. The violation goes into `turn.errors` (→ `conversations.last_error`).
 """
 
 import datetime as dt
@@ -17,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.models.enums import ConversationOutcome
+from app.services.ai.guardrail import CHECKING, Gate, known_from
 from app.services.ai.model import (
     ChatModel,
     FunctionCall,
@@ -26,10 +32,11 @@ from app.services.ai.model import (
     TextChunk,
     Usage,
 )
-from app.services.ai.tools import TOOL_SPECS, ToolContext, run_tool
+from app.services.ai.tools import TOOL_SPECS, ToolContext, package_names, run_tool
 
 MAX_MODEL_CALLS = 5  # R28 / 03 decision 2: 100 turns × 5 calls fits one model's 500 RPD
 MAX_ATTEMPTS = 3  # per call: primary, fallback, primary (free-tier models 503 under load)
+FORCED = "guardrail"  # the `model` of a call the server made itself (replayed as a foreign call)
 EMPTY_REPLY = (
     "Sorry — I couldn't put an answer together. Try asking another way, or tap "
     "“Talk to a person” and we'll help you directly."
@@ -99,8 +106,10 @@ async def run_turn(
     *,
     max_calls: int = MAX_MODEL_CALLS,
 ) -> AsyncIterator[Event]:
-    """Yields stream events (`text-delta`, `tool-call`, `tool-result`) while filling `turn`."""
+    """Yields stream events (`text-delta`, `tool-call`, `tool-result`, and `replace` when the
+    guardrail stops the reply) while filling `turn`."""
     system = system_prompt(ctx.today)
+    gate = Gate(known_from(history), await package_names(ctx.db))
     active = 0
     for call in range(max_calls):
         allow_tools = call < max_calls - 1
@@ -125,10 +134,12 @@ async def run_turn(
                             if signature:
                                 text_part["signature"] = signature
                                 text_part["model"] = model.name
-                            if text:
-                                yield "text-delta", {"text": text}
+                            if text and (shown := gate.feed(text)):
+                                yield "text-delta", {"text": shown}
                         case FunctionCall():
                             produced = True
+                            if text_part is not None and (shown := gate.pause()):
+                                yield "text-delta", {"text": shown}
                             text_part = None
                             part: Part = {
                                 "type": "tool-call",
@@ -156,6 +167,13 @@ async def run_turn(
                 del turn.parts[kept:]  # an empty, signature-only part from the failed call
                 active += 1  # the next model answers the rest of this turn
         turn.model = model.name
+        if shown := gate.pause():
+            yield "text-delta", {"text": shown}
+        if gate.blocked:
+            # The reply is being replaced: run nothing it asked for (an unanswered call would
+            # break the replay of this turn next time).
+            turn.parts = [p for p in turn.parts if p not in calls]
+            break
         if calls and not allow_tools:
             # Asked for a tool on the last allowed call: not run, and not kept — a call with no
             # response would break the replay of this turn next time.
@@ -165,6 +183,7 @@ async def run_turn(
         if not calls:
             break
         for part in calls:
+            gate.learn(part)
             yield "tool-call", {"id": part["id"], "name": part["name"], "args": part["args"]}
             result, error = await run_tool(ctx, part["name"], part["args"])
             if error:
@@ -176,7 +195,52 @@ async def run_turn(
                 done["callId"] = part["callId"]
             done["result"] = result
             turn.parts.append(done)
+            gate.learn(done)
             yield "tool-result", {"id": part["id"], "name": part["name"], "result": result}
-    if not turn.text.strip():
+    if gate.blocked:
+        async for event in _replace(history, ctx, turn, gate.blocked):
+            yield event
+    elif not turn.text.strip():
         turn.parts.append({"type": "text", "text": EMPTY_REPLY})
         yield "text-delta", {"text": EMPTY_REPLY}
+
+
+def _last_search(history: list[Message], parts: list[Part]) -> dict[str, Any]:
+    for message in [*history, {"parts": parts}][::-1]:
+        for part in message["parts"][::-1]:
+            if part.get("type") == "tool-call" and part.get("name") == "searchPackages":
+                return dict(part.get("args") or {})
+    return {}
+
+
+async def _replace(
+    history: list[Message], ctx: ToolContext, turn: Turn, problems: list[str]
+) -> AsyncIterator[Event]:
+    """The guardrail stopped the reply: swap its text, and put real cards under it — the last
+    search of the conversation, run again without the model (skipped if this turn already
+    showed search results)."""
+    turn.errors.append("guardrail: " + "; ".join(problems))
+    turn.parts = [p for p in turn.parts if p["type"] != "text"]
+    yield "replace", {"text": CHECKING}
+    searched = any(
+        p["type"] == "tool-result" and p["name"] == "searchPackages" and "error" not in p["result"]
+        for p in turn.parts
+    )
+    if not searched:
+        call: Part = {
+            "type": "tool-call",
+            "id": f"call_{uuid.uuid4().hex[:12]}",
+            "name": "searchPackages",
+            "args": _last_search(history, turn.parts),
+            "model": FORCED,
+        }
+        turn.parts.append(call)
+        yield "tool-call", {"id": call["id"], "name": call["name"], "args": call["args"]}
+        result, error = await run_tool(ctx, call["name"], call["args"])
+        if error:
+            turn.errors.append(error)
+        turn.parts.append(
+            {"type": "tool-result", "id": call["id"], "name": call["name"], "result": result}
+        )
+        yield "tool-result", {"id": call["id"], "name": call["name"], "result": result}
+    turn.parts.append({"type": "text", "text": CHECKING})

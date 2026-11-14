@@ -124,7 +124,9 @@ async def test_a_turn_streams_tool_cards_then_text_and_is_stored(
     assert res.headers["content-type"].startswith("text/event-stream")
     events = parse(res.text)
     names = [name for name, _ in events]
-    assert names == ["tool-call", "tool-result", "text-delta", "text-delta", "done"]
+    # C4: the guardrail holds back the word being written, so deltas break at word boundaries.
+    assert names == ["tool-call", "tool-result", "text-delta", "text-delta", "text-delta", "done"]
+    assert "".join(d["text"] for n, d in events if n == "text-delta") == "Here are two Goa trips."
     call, result, done = events[0][1], events[1][1], events[-1][1]
     assert call["name"] == "searchPackages" and call["args"] == {
         "destination": "Goa",

@@ -426,6 +426,15 @@ export function reducer(state: State, action: Action): State {
             else turn.parts.push({ kind: 'text', text });
           });
         }
+        case 'replace': {
+          // C4 guardrail: the reply quoted something no tool returned. Its text goes; the cards
+          // (real tool results) stay; the replacement line takes the text's place at the end.
+          const text = str(data.text);
+          if (!text) return state;
+          return patchTurn(state, (turn) => {
+            turn.parts = [...turn.parts.filter((p) => p.kind !== 'text'), { kind: 'text', text }];
+          });
+        }
         case 'tool-call':
           return onToolCall(state, data);
         case 'tool-result':

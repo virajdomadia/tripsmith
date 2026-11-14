@@ -45,6 +45,8 @@ STREAM_DOC = """Server-sent events, each `event: <name>` + `data: <json>`:
 - `text-delta` `{text}` — the next piece of the reply
 - `tool-call` `{id, name, args}` — the concierge is looking something up
 - `tool-result` `{id, name, result}` — cards to render (`result.packages`, `result.departures`)
+- `replace` `{text}` — the guardrail stopped the reply: drop the text shown so far for this turn
+  and show `text` instead (cards stay); a forced search's `tool-call`/`tool-result` may follow
 - `done` `{conversationId, model, tokensIn, tokensOut}` — send `conversationId` next time
 - `error` `{reason: busy | internal, message}` — the turn ended early
 
