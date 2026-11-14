@@ -37,7 +37,7 @@ class ConversationRow(ApiModel):
     created_at: dt.datetime
     updated_at: dt.datetime
     outcome: ConversationOutcome
-    message_count: int
+    message_count: int = Field(description="Messages the visitor sent (capped at 30, R28)")
     tokens_in: int
     tokens_out: int
     first_message: str

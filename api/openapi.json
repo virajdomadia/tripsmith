@@ -1562,6 +1562,7 @@
             "title": "Lasterror"
           },
           "messageCount": {
+            "description": "Messages the visitor sent (capped at 30, R28)",
             "title": "Messagecount",
             "type": "integer"
           },
@@ -2046,6 +2047,18 @@
           "children": {
             "title": "Children",
             "type": "integer"
+          },
+          "conversationId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "v3 C5: the concierge chat, for a link to the owner log",
+            "title": "Conversationid"
           },
           "createdAt": {
             "format": "date-time",
@@ -5934,6 +5947,7 @@
             "type": "string"
           },
           "messageCount": {
+            "description": "Messages the visitor sent (capped at 30, R28)",
             "title": "Messagecount",
             "type": "integer"
           },

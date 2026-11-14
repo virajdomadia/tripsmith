@@ -72,6 +72,8 @@ async def chat(
             parts=parts or [{"type": "text", "text": "Happy to help."}],
             tokens_in=120,
             tokens_out=30,
+            # One transaction gives both rows the same now(); the api commits them apart.
+            created_at=dt.datetime.now(dt.UTC) + dt.timedelta(seconds=1),
         )
     )
     await db.commit()

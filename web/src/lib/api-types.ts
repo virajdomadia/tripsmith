@@ -2951,7 +2951,10 @@ export interface components {
              * @description The latest turn's errors (guardrail, model, tool)
              */
             lastError: string | null;
-            /** Messagecount */
+            /**
+             * Messagecount
+             * @description Messages the visitor sent (capped at 30, R28)
+             */
             messageCount: number;
             /**
              * Model
@@ -3169,6 +3172,11 @@ export interface components {
             changes: string | null;
             /** Children */
             children: number;
+            /**
+             * Conversationid
+             * @description v3 C5: the concierge chat, for a link to the owner log
+             */
+            conversationId?: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -4902,7 +4910,10 @@ export interface components {
             hasError: boolean;
             /** Id */
             id: string;
-            /** Messagecount */
+            /**
+             * Messagecount
+             * @description Messages the visitor sent (capped at 30, R28)
+             */
             messageCount: number;
             outcome: components["schemas"]["ConversationOutcome"];
             /** Tokensin */
