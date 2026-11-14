@@ -113,7 +113,7 @@ Row = tuple[MessageRole, list[dict[str, Any]], dt.datetime]
 
 
 def _turn_lines(
-    role: MessageRole, parts: list[dict[str, Any]], at: dt.datetime
+    role: MessageRole, parts: list[dict[str, Any]], at: dt.datetime, *, raw: bool
 ) -> list[TranscriptLine]:
     speaker = TranscriptRole.VISITOR if role == MessageRole.USER else TranscriptRole.CONCIERGE
     calls = {p.get("id"): p for p in parts if p.get("type") == "tool-call"}
@@ -134,17 +134,49 @@ def _turn_lines(
             raw_args, raw_result = call.get("args"), part.get("result")
             args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
             result: dict[str, Any] = raw_result if isinstance(raw_result, dict) else {}
-            line = describe(str(part.get("name")), args, result)
-            lines.append(TranscriptLine(role=TranscriptRole.LOOKUP, text=line, at=at))
+            name = str(part.get("name"))
+            lines.append(
+                TranscriptLine(
+                    role=TranscriptRole.LOOKUP,
+                    text=describe(name, args, result),
+                    at=at,
+                    tool=name,
+                    args=args if raw else None,
+                    result=result if raw else None,
+                    failed=isinstance(result.get("error"), str),
+                )
+            )
+    # A call whose turn failed before its result came back is still worth seeing: it is the
+    # lookup the owner opened the log to debug.
+    answered = {p.get("id") for p in parts if p.get("type") == "tool-result"}
+    for id_, call in calls.items():
+        if id_ in answered:
+            continue
+        raw_args = call.get("args")
+        name = str(call.get("name"))
+        lines.append(
+            TranscriptLine(
+                role=TranscriptRole.LOOKUP,
+                text=f"{name} was called but no result was recorded",
+                at=at,
+                tool=name,
+                args=(raw_args if isinstance(raw_args, dict) else {}) if raw else None,
+                failed=True,
+            )
+        )
     return lines
 
 
-def readable(rows: list[Row]) -> list[TranscriptLine]:
-    """Stored messages (oldest first) → lines. A turn's text pieces join into one line."""
-    return [line for role, parts, at in rows for line in _turn_lines(role, parts, at)]
+def readable(rows: list[Row], *, raw: bool = False) -> list[TranscriptLine]:
+    """Stored messages (oldest first) → lines. A turn's text pieces join into one line.
+    `raw` keeps each lookup's arguments and result for the owner log (C5); the enquiry detail
+    leaves them out."""
+    return [line for role, parts, at in rows for line in _turn_lines(role, parts, at, raw=raw)]
 
 
-async def transcript_for(db: AsyncSession, conversation_id: str) -> list[TranscriptLine]:
+async def transcript_for(
+    db: AsyncSession, conversation_id: str, *, raw: bool = False
+) -> list[TranscriptLine]:
     rows = (
         await db.execute(
             select(Message.role, Message.parts, Message.created_at)
@@ -152,4 +184,4 @@ async def transcript_for(db: AsyncSession, conversation_id: str) -> list[Transcr
             .order_by(Message.created_at, Message.id)
         )
     ).all()
-    return readable([(role, parts, at) for role, parts, at in rows])
+    return readable([(role, parts, at) for role, parts, at in rows], raw=raw)

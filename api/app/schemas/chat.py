@@ -2,7 +2,7 @@
 
 import datetime as dt
 from enum import StrEnum
-from typing import Self
+from typing import Any, Self
 
 from pydantic import Field, field_validator, model_validator
 
@@ -74,3 +74,11 @@ class TranscriptLine(ApiModel):
     role: TranscriptRole
     text: str
     at: dt.datetime
+    tool: str | None = Field(default=None, description="C5: the tool a lookup line ran")
+    args: dict[str, Any] | None = Field(
+        default=None, description="C5 owner log only: the tool call's arguments, as the model sent"
+    )
+    result: dict[str, Any] | None = Field(
+        default=None, description="C5 owner log only: what the tool returned"
+    )
+    failed: bool = Field(default=False, description="The tool returned an error")

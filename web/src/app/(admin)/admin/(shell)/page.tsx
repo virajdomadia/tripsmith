@@ -7,6 +7,7 @@ import { Panel } from '@/components/admin/dashboard/Panel';
 import { CashDesk } from '@/components/admin/money/CashDesk';
 import { RefundMadeButton } from '@/components/admin/money/RefundMadeButton';
 import { buttonVariants } from '@/components/ui/button';
+import { pct, tokens } from '@/lib/admin/conversations';
 import { greeting, waited } from '@/lib/admin/dashboard';
 import { api } from '@/lib/api';
 import { getSession } from '@/lib/auth/session';
@@ -29,6 +30,7 @@ export default async function AdminHome() {
     api('/admin/money', { auth: true }),
   ]);
   const firstName = (session?.user.name ?? 'there').split(' ')[0];
+  const ai = data.concierge;
   const month = MONTHS[Number(money.monthStart.slice(5, 7)) - 1];
 
   return (
@@ -54,6 +56,12 @@ export default async function AdminHome() {
         </Waiting>
         <Waiting href="/admin/bookings" n={data.upcomingDeparturesTotal}>
           {data.upcomingDeparturesTotal === 1 ? 'departure' : 'departures'} in the next 30 days
+        </Waiting>
+        <Waiting href="/admin/conversations" n={ai.conversations}>
+          concierge {ai.conversations === 1 ? 'chat' : 'chats'} this week
+          {ai.conversations > 0 &&
+            ` · ${pct(ai.bookingStarted, ai.conversations)} started a booking · ${pct(ai.enquiryCreated, ai.conversations)} handed off · ${tokens(ai.tokens)} tokens`}
+          {` · cap hit ${ai.capHitDays === 1 ? '1 day' : `${ai.capHitDays} days`} this month`}
         </Waiting>
       </nav>
 

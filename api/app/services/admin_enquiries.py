@@ -401,6 +401,7 @@ async def _detail(db: AsyncSession, row: Enquiry) -> AdminEnquiry:
         lost_reason=row.lost_reason,
         bookings=await _bookings(db, row),
         transcript=await transcript_for(db, row.conversation_id) if row.conversation_id else [],
+        conversation_id=row.conversation_id,
     )
 
 

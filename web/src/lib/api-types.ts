@@ -797,6 +797,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["listAdminConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Route */
+        get: operations["getAdminConversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/counter/bookings": {
         parameters: {
             query?: never;
@@ -2895,6 +2929,59 @@ export interface components {
              */
             tier: string;
         };
+        /** AdminConversation */
+        AdminConversation: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            enquiry: components["schemas"]["HandoffEnquiry"] | null;
+            /** Firstmessage */
+            firstMessage: string;
+            /**
+             * Haserror
+             * @description A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)
+             */
+            hasError: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Lasterror
+             * @description The most recent turn errors recorded (guardrail, model, tool)
+             */
+            lastError: string | null;
+            /**
+             * Messagecount
+             * @description Messages the visitor sent (capped at 30, R28)
+             */
+            messageCount: number;
+            /**
+             * Model
+             * @description The model that answered the latest turn
+             */
+            model: string | null;
+            outcome: components["schemas"]["ConversationOutcome"];
+            /**
+             * Signedin
+             * @description The visitor was signed in
+             */
+            signedIn: boolean;
+            /** Tokensin */
+            tokensIn: number;
+            /** Tokensout */
+            tokensOut: number;
+            /**
+             * Transcript
+             * @description Oldest first; lookup lines carry the raw tool args and result
+             */
+            transcript: components["schemas"]["TranscriptLine"][];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
         /** AdminCoupon */
         AdminCoupon: {
             /** Active */
@@ -3085,6 +3172,11 @@ export interface components {
             changes: string | null;
             /** Children */
             children: number;
+            /**
+             * Conversationid
+             * @description v3 C5: the concierge chat, for a link to the owner log
+             */
+            conversationId?: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -4752,6 +4844,84 @@ export interface components {
             startingPricePaise: number;
         };
         /**
+         * ConciergeWeek
+         * @description The dashboard's concierge tile (R31): this IST week, Monday to now.
+         */
+        ConciergeWeek: {
+            /** Bookingstarted */
+            bookingStarted: number;
+            /**
+             * Caphitdays
+             * @description Days this IST month the site-wide cap was reached
+             */
+            capHitDays: number;
+            /** Conversations */
+            conversations: number;
+            /** Enquirycreated */
+            enquiryCreated: number;
+            /**
+             * Tokens
+             * @description Tokens in + out across this week's conversations
+             */
+            tokens: number;
+        };
+        /** ConversationList */
+        ConversationList: {
+            counts: components["schemas"]["OutcomeCounts"];
+            /** Items */
+            items: components["schemas"]["ConversationRow"][];
+            /** Page */
+            page: number;
+            /** Pagesize */
+            pageSize: number;
+            /**
+             * Total
+             * @description Rows matching the outcome filter
+             */
+            total: number;
+            /** Totalpages */
+            totalPages: number;
+        };
+        /**
+         * ConversationOutcome
+         * @description Where a concierge chat ended up (R31; text column + check constraint, migration 0028).
+         *     C1 only writes `open`; `startBooking` / `createEnquiry` (C3) move it on.
+         * @enum {string}
+         */
+        ConversationOutcome: "open" | "booking_started" | "enquiry_created" | "dropped";
+        /** ConversationRow */
+        ConversationRow: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Firstmessage */
+            firstMessage: string;
+            /**
+             * Haserror
+             * @description A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)
+             */
+            hasError: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Messagecount
+             * @description Messages the visitor sent (capped at 30, R28)
+             */
+            messageCount: number;
+            outcome: components["schemas"]["ConversationOutcome"];
+            /** Tokensin */
+            tokensIn: number;
+            /** Tokensout */
+            tokensOut: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /**
          * CounterBookingRequest
          * @description `POST /admin/counter/bookings`: book and settle in one step.
          *
@@ -5115,6 +5285,8 @@ export interface components {
              */
             awaitingFirstCall: number;
             byStatus: components["schemas"]["StatusCounts"];
+            /** @description v3 C5: the AI concierge this IST week */
+            concierge: components["schemas"]["ConciergeWeek"];
             /**
              * Convertedlast30Days
              * @description Received in that window and now marked converted
@@ -6025,6 +6197,23 @@ export interface components {
             number: string | null;
             /** Title */
             title: string;
+        };
+        /**
+         * HandoffEnquiry
+         * @description The enquiry a `createEnquiry` hand-off made from this chat.
+         */
+        HandoffEnquiry: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
         };
         /** Health */
         Health: {
@@ -7177,6 +7366,17 @@ export interface components {
             code: string;
             /** Email */
             email: string;
+        };
+        /** OutcomeCounts */
+        OutcomeCounts: {
+            /** All */
+            all: number;
+            /** Bookingstarted */
+            bookingStarted: number;
+            /** Enquirycreated */
+            enquiryCreated: number;
+            /** Open */
+            open: number;
         };
         /**
          * PackContent
@@ -8838,13 +9038,38 @@ export interface components {
          */
         TranscriptLine: {
             /**
+             * Args
+             * @description C5 owner log only: the tool call's arguments, as the model sent
+             */
+            args?: {
+                [key: string]: unknown;
+            } | null;
+            /**
              * At
              * Format: date-time
              */
             at: string;
+            /**
+             * Failed
+             * @description The tool returned an error
+             * @default false
+             */
+            failed: boolean;
+            /**
+             * Result
+             * @description C5 owner log only: what the tool returned
+             */
+            result?: {
+                [key: string]: unknown;
+            } | null;
             role: components["schemas"]["TranscriptRole"];
             /** Text */
             text: string;
+            /**
+             * Tool
+             * @description C5: the tool a lookup line ran
+             */
+            tool?: string | null;
         };
         /**
          * TranscriptRole
@@ -10624,6 +10849,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminBooking"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    listAdminConversations: {
+        parameters: {
+            query?: {
+                outcome?: ("open" | "booking_started" | "enquiry_created") | null;
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            /** @description Error envelope (06 C0) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorResponse"];
+                };
+            };
+        };
+    };
+    getAdminConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminConversation"];
                 };
             };
             /** @description Error envelope (06 C0) */

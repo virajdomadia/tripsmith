@@ -11,6 +11,7 @@ import datetime as dt
 from pydantic import Field
 
 from app.schemas import ApiModel
+from app.schemas.admin_conversations import ConciergeWeek
 from app.schemas.admin_enquiries import StatusCounts
 from app.schemas.meta import Badge
 
@@ -82,3 +83,4 @@ class Dashboard(ApiModel):
     )
     upcoming_departures_total: int = Field(description="Departures in the whole window")
     reviews_pending: int = Field(description="Reviews waiting to be published or hidden (B13)")
+    concierge: ConciergeWeek = Field(description="v3 C5: the AI concierge this IST week")

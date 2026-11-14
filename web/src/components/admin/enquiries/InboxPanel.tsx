@@ -224,6 +224,14 @@ export function InboxPanel({
             </span>
           </h3>
           <ConciergeTranscript lines={transcript} firstName={e.name.split(' ')[0] ?? e.name} />
+          {e.conversationId && (
+            <Link
+              href={`/admin/conversations?sel=${e.conversationId}`}
+              className="justify-self-start text-[12.5px] font-bold"
+            >
+              Open in the concierge log, with every lookup
+            </Link>
+          )}
         </section>
       )}
 

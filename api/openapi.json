@@ -1519,6 +1519,114 @@
         "title": "AdminCancellation",
         "type": "object"
       },
+      "AdminConversation": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "enquiry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandoffEnquiry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstMessage": {
+            "title": "Firstmessage",
+            "type": "string"
+          },
+          "hasError": {
+            "description": "A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)",
+            "title": "Haserror",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The most recent turn errors recorded (guardrail, model, tool)",
+            "title": "Lasterror"
+          },
+          "messageCount": {
+            "description": "Messages the visitor sent (capped at 30, R28)",
+            "title": "Messagecount",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model that answered the latest turn",
+            "title": "Model"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ConversationOutcome"
+          },
+          "signedIn": {
+            "description": "The visitor was signed in",
+            "title": "Signedin",
+            "type": "boolean"
+          },
+          "tokensIn": {
+            "title": "Tokensin",
+            "type": "integer"
+          },
+          "tokensOut": {
+            "title": "Tokensout",
+            "type": "integer"
+          },
+          "transcript": {
+            "description": "Oldest first; lookup lines carry the raw tool args and result",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptLine"
+            },
+            "title": "Transcript",
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "updatedAt",
+          "outcome",
+          "messageCount",
+          "tokensIn",
+          "tokensOut",
+          "firstMessage",
+          "hasError",
+          "model",
+          "lastError",
+          "signedIn",
+          "enquiry",
+          "transcript"
+        ],
+        "title": "AdminConversation",
+        "type": "object"
+      },
       "AdminCoupon": {
         "properties": {
           "active": {
@@ -1939,6 +2047,18 @@
           "children": {
             "title": "Children",
             "type": "integer"
+          },
+          "conversationId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "v3 C5: the concierge chat, for a link to the owner log",
+            "title": "Conversationid"
           },
           "createdAt": {
             "format": "date-time",
@@ -5711,6 +5831,151 @@
         "title": "CompareTrip",
         "type": "object"
       },
+      "ConciergeWeek": {
+        "description": "The dashboard's concierge tile (R31): this IST week, Monday to now.",
+        "properties": {
+          "bookingStarted": {
+            "title": "Bookingstarted",
+            "type": "integer"
+          },
+          "capHitDays": {
+            "description": "Days this IST month the site-wide cap was reached",
+            "title": "Caphitdays",
+            "type": "integer"
+          },
+          "conversations": {
+            "title": "Conversations",
+            "type": "integer"
+          },
+          "enquiryCreated": {
+            "title": "Enquirycreated",
+            "type": "integer"
+          },
+          "tokens": {
+            "description": "Tokens in + out across this week's conversations",
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "conversations",
+          "bookingStarted",
+          "enquiryCreated",
+          "tokens",
+          "capHitDays"
+        ],
+        "title": "ConciergeWeek",
+        "type": "object"
+      },
+      "ConversationList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OutcomeCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pageSize": {
+            "title": "Pagesize",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Rows matching the outcome filter",
+            "title": "Total",
+            "type": "integer"
+          },
+          "totalPages": {
+            "minimum": 1.0,
+            "title": "Totalpages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total",
+          "totalPages",
+          "counts"
+        ],
+        "title": "ConversationList",
+        "type": "object"
+      },
+      "ConversationOutcome": {
+        "description": "Where a concierge chat ended up (R31; text column + check constraint, migration 0028).\nC1 only writes `open`; `startBooking` / `createEnquiry` (C3) move it on.",
+        "enum": [
+          "open",
+          "booking_started",
+          "enquiry_created",
+          "dropped"
+        ],
+        "title": "ConversationOutcome",
+        "type": "string"
+      },
+      "ConversationRow": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "firstMessage": {
+            "title": "Firstmessage",
+            "type": "string"
+          },
+          "hasError": {
+            "description": "A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)",
+            "title": "Haserror",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "messageCount": {
+            "description": "Messages the visitor sent (capped at 30, R28)",
+            "title": "Messagecount",
+            "type": "integer"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ConversationOutcome"
+          },
+          "tokensIn": {
+            "title": "Tokensin",
+            "type": "integer"
+          },
+          "tokensOut": {
+            "title": "Tokensout",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "updatedAt",
+          "outcome",
+          "messageCount",
+          "tokensIn",
+          "tokensOut",
+          "firstMessage",
+          "hasError"
+        ],
+        "title": "ConversationRow",
+        "type": "object"
+      },
       "CounterBookingRequest": {
         "description": "`POST /admin/counter/bookings`: book and settle in one step.\n\n`paid` = the whole total taken now (cash, UPI or bank), confirmed at once with a receipt;\n`deposit` = the quote's deposit taken now, the balance due later as on the website.",
         "properties": {
@@ -6549,6 +6814,10 @@
           "byStatus": {
             "$ref": "#/components/schemas/StatusCounts"
           },
+          "concierge": {
+            "$ref": "#/components/schemas/ConciergeWeek",
+            "description": "v3 C5: the AI concierge this IST week"
+          },
           "convertedLast30Days": {
             "description": "Received in that window and now marked converted",
             "title": "Convertedlast30Days",
@@ -6673,7 +6942,8 @@
           "topByViews",
           "upcomingDepartures",
           "upcomingDeparturesTotal",
-          "reviewsPending"
+          "reviewsPending",
+          "concierge"
         ],
         "title": "Dashboard",
         "type": "object"
@@ -8449,6 +8719,36 @@
           "dated"
         ],
         "title": "GstDocumentOut",
+        "type": "object"
+      },
+      "HandoffEnquiry": {
+        "description": "The enquiry a `createEnquiry` hand-off made from this chat.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "createdAt"
+        ],
+        "title": "HandoffEnquiry",
         "type": "object"
       },
       "Health": {
@@ -10975,6 +11275,34 @@
           "code"
         ],
         "title": "OtpVerify",
+        "type": "object"
+      },
+      "OutcomeCounts": {
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "bookingStarted": {
+            "title": "Bookingstarted",
+            "type": "integer"
+          },
+          "enquiryCreated": {
+            "title": "Enquirycreated",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all",
+          "open",
+          "bookingStarted",
+          "enquiryCreated"
+        ],
+        "title": "OutcomeCounts",
         "type": "object"
       },
       "PackContent": {
@@ -14654,10 +14982,42 @@
       "TranscriptLine": {
         "description": "One line of a concierge chat as the owner reads it (R29, R31).",
         "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "C5 owner log only: the tool call's arguments, as the model sent",
+            "title": "Args"
+          },
           "at": {
             "format": "date-time",
             "title": "At",
             "type": "string"
+          },
+          "failed": {
+            "default": false,
+            "description": "The tool returned an error",
+            "title": "Failed",
+            "type": "boolean"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "C5 owner log only: what the tool returned",
+            "title": "Result"
           },
           "role": {
             "$ref": "#/components/schemas/TranscriptRole"
@@ -14665,6 +15025,18 @@
           "text": {
             "title": "Text",
             "type": "string"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "C5: the tool a lookup line ran",
+            "title": "Tool"
           }
         },
         "required": [
@@ -17901,6 +18273,114 @@
           }
         },
         "summary": "Resolve Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/conversations": {
+      "get": {
+        "operationId": "listAdminConversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "booking_started",
+                    "enquiry_created"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 10000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "List Route",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/conversations/{id}": {
+      "get": {
+        "operationId": "getAdminConversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConversation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Error envelope (06 C0)"
+          }
+        },
+        "summary": "Get Route",
         "tags": [
           "admin"
         ]

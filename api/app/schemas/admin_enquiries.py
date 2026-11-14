@@ -206,6 +206,9 @@ class AdminEnquiry(ApiModel):
         default_factory=list,
         description="v3 C3: the concierge chat a `chat-handoff` came from, oldest first",
     )
+    conversation_id: str | None = Field(
+        default=None, description="v3 C5: the concierge chat, for a link to the owner log"
+    )
 
 
 class EnquiryStatusInput(ApiModel):
