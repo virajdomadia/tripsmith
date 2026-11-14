@@ -30,6 +30,7 @@ from app.schemas.dashboard import (
     PackageCount,
     UpcomingDeparture,
 )
+from app.services.admin_conversations import concierge_week
 from app.services.admin_enquiries import ist_day_start, status_counts
 from app.services.analytics import ist_today
 from app.services.catalog.pricing import badge_for
@@ -226,4 +227,5 @@ async def get_dashboard(db: AsyncSession, *, today: dt.date | None = None) -> Da
         upcoming_departures=await _upcoming(db, day),
         upcoming_departures_total=await _upcoming_total(db, day),
         reviews_pending=await count_pending(db),
+        concierge=await concierge_week(db, monday=monday, today=day),
     )
