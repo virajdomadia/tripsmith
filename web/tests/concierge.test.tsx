@@ -391,9 +391,8 @@ describe('ConciergePanel', () => {
         .getAttribute('href'),
     ).toBe('/packages/old-goa-dudhsagar');
     await screen.findByText('Old Goa & Dudhsagar', { selector: 'strong' });
-    const ticket = screen.getByRole('region', { name: 'Your trip so far' });
-    expect(within(ticket).getByText('Goa')).toBeTruthy();
-    expect(within(ticket).getByText('₹7,500')).toBeTruthy();
+    // The chatbot's status line says what it found (the reducer's ticket line).
+    expect(screen.getByText('Found 1 matching trip')).toBeTruthy();
     // The prompts go once the chat has started.
     expect(screen.queryByRole('button', { name: PROMPTS[1] })).toBeNull();
 
@@ -514,8 +513,7 @@ describe('ConciergePanel', () => {
     expect(
       screen.getByRole('link', { name: '5 more on the trips page →' }).getAttribute('href'),
     ).toBe('/packages?destination=goa&maxBudget=15000&month=2026-12');
-    const ticket = screen.getByRole('region', { name: 'Your trip so far' });
-    expect(within(ticket).getByText('Quick finder · found 6 trips')).toBeTruthy();
+    expect(screen.getByText('Quick finder · found 6 trips')).toBeTruthy();
     expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/chat'))).toHaveLength(1);
   });
 

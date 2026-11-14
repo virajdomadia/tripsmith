@@ -9,8 +9,8 @@ import { streamChat } from '@/lib/concierge/client';
 import { type Action, initialState, reducer, type State } from '@/lib/concierge/reducer';
 
 /**
- * The AI concierge (v3 C2, R26, layout D "trip ticket"): a launcher on every public page and a
- * panel that opens beside the page (full-screen on a phone).
+ * The AI trip planner (v3 C2, R26): a chatbot — a round chat button on every public page and a
+ * chat window in the corner (full-screen on a phone).
  *
  * Mounted once in the `(site)` layout, so the conversation lives in this component's state while
  * the visitor moves between pages; a reload starts a new chat. The panel's code — everything but
@@ -24,7 +24,7 @@ const ConciergePanel = dynamic(loadPanel, {
   loading: () => (
     <div
       role="status"
-      className="fixed inset-0 z-40 grid place-items-center bg-bg font-semibold text-mute lg:inset-auto lg:top-0 lg:right-0 lg:bottom-0 lg:w-[440px] lg:shadow-[-24px_0_50px_-30px_rgb(20_32_42/0.55)]"
+      className="fixed inset-0 z-40 grid place-items-center bg-bg font-semibold text-mute lg:inset-auto lg:right-6 lg:bottom-6 lg:h-[min(660px,calc(100dvh-48px))] lg:w-[400px] lg:rounded-2xl lg:border lg:border-line lg:shadow-[0_24px_60px_-20px_rgb(20_32_42/0.45)]"
     >
       Opening the trip planner…
     </div>
@@ -152,13 +152,23 @@ export function Concierge({ apiUrl }: { apiUrl: string }) {
         onFocus={() => void loadPanel()}
         aria-haspopup="dialog"
         data-concierge-launcher
-        className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] left-4 z-30 inline-flex items-center gap-2.5 rounded-chip bg-ink py-3 pr-4.5 pl-3.5 font-bold text-white shadow-[0_16px_30px_-12px_rgb(20_32_42/0.7)] transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 [main:has([data-cta-bar])~&]:bottom-[calc(max(10px,env(safe-area-inset-bottom))+70px)] [[data-compare-tray]~&]:bottom-[calc(max(16px,env(safe-area-inset-bottom))+136px)] lg:right-6 lg:bottom-[88px] lg:left-auto lg:[main:has([data-cta-bar])~&]:bottom-[88px] lg:[[data-compare-tray]~&]:bottom-[88px]"
+        aria-label="Chat with us"
+        title="Chat with us"
+        className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] left-4 z-30 grid size-14 place-items-center rounded-full bg-primary text-white shadow-[0_16px_30px_-12px_rgb(20_32_42/0.7)] transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 [main:has([data-cta-bar])~&]:bottom-[calc(max(10px,env(safe-area-inset-bottom))+70px)] [[data-compare-tray]~&]:bottom-[calc(max(16px,env(safe-area-inset-bottom))+136px)] lg:right-6 lg:bottom-[88px] lg:left-auto lg:[main:has([data-cta-bar])~&]:bottom-[88px] lg:[[data-compare-tray]~&]:bottom-[88px]"
       >
+        <svg viewBox="0 0 24 24" aria-hidden className="size-[26px]">
+          <path
+            d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16.9A2.5 2.5 0 0 1 4 14.5z"
+            fill="currentColor"
+          />
+          <circle cx="9" cy="9.6" r="1.2" fill="var(--color-primary)" />
+          <circle cx="12" cy="9.6" r="1.2" fill="var(--color-primary)" />
+          <circle cx="15" cy="9.6" r="1.2" fill="var(--color-primary)" />
+        </svg>
         <span
           aria-hidden
-          className="size-2.5 shrink-0 animate-concierge-pulse rounded-full bg-action"
+          className="absolute top-0.5 right-0.5 size-3 animate-concierge-pulse rounded-full border-2 border-white bg-action"
         />
-        Plan my trip
       </button>
       {mounted && <ConciergePanel open={open} onClose={close} {...concierge} />}
     </>
