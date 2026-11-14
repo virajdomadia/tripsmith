@@ -9,7 +9,7 @@ const H3 = 'label-caps flex items-center gap-2 text-[11px] text-mute';
 /**
  * R31: one concierge chat as it happened — the visitor, the concierge, and every lookup as a
  * sentence with its raw arguments and result one click away. Tool errors are red where they
- * happened; the latest turn's guardrail or model error sits on top. Plain text and `<pre>`
+ * happened; the most recent guardrail or model error recorded on the chat sits on top. Plain text and `<pre>`
  * only: nothing a visitor or the model wrote can become markup.
  */
 export function ConversationPanel({
@@ -25,7 +25,7 @@ export function ConversationPanel({
         Pick a conversation to read it, lookups and all.
       </div>
     );
-  const visitorTurns = c.transcript.filter((l) => l.role === 'visitor').length;
+  const visitorTurns = c.messageCount;
   return (
     <article className="overflow-hidden rounded-card border border-line bg-bg">
       <header className="grid gap-1.5 border-b border-line p-4">
@@ -59,7 +59,7 @@ export function ConversationPanel({
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span className="break-words">
-            <b>Latest turn reported:</b> {c.lastError}
+            <b>Most recent error recorded:</b> {c.lastError}
           </span>
         </p>
       )}

@@ -2941,14 +2941,14 @@ export interface components {
             firstMessage: string;
             /**
              * Haserror
-             * @description The latest turn recorded an error
+             * @description A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)
              */
             hasError: boolean;
             /** Id */
             id: string;
             /**
              * Lasterror
-             * @description The latest turn's errors (guardrail, model, tool)
+             * @description The most recent turn errors recorded (guardrail, model, tool)
              */
             lastError: string | null;
             /**
@@ -4864,11 +4864,6 @@ export interface components {
              * @description Tokens in + out across this week's conversations
              */
             tokens: number;
-            /**
-             * Turnstoday
-             * @description Turns counted against today's site-wide cap
-             */
-            turnsToday: number;
         };
         /** ConversationList */
         ConversationList: {
@@ -4905,7 +4900,7 @@ export interface components {
             firstMessage: string;
             /**
              * Haserror
-             * @description The latest turn recorded an error
+             * @description A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)
              */
             hasError: boolean;
             /** Id */

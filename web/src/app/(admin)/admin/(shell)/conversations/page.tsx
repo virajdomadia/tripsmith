@@ -1,10 +1,18 @@
 import { AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PageHead } from '@/components/admin/PageHead';
 import { ConversationPanel, OutcomePill } from '@/components/admin/conversations/ConversationPanel';
 import { istShortDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { Pager } from '@/components/admin/enquiries/Pager';
-import { logHref, parseLogFilters, pct, tokens, type LogFilters } from '@/lib/admin/conversations';
+import {
+  clampLogHref,
+  logHref,
+  parseLogFilters,
+  pct,
+  tokens,
+  type LogFilters,
+} from '@/lib/admin/conversations';
 import { api, ApiRequestError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +38,8 @@ export default async function ConversationsPage({
     }),
     filters.sel ? load(filters.sel) : Promise.resolve(null),
   ]);
+  const clamped = clampLogHref(filters, log.totalPages);
+  if (clamped) redirect(clamped);
   const { counts } = log;
   const chips: { label: string; n: number; patch: Partial<LogFilters>; on: boolean }[] = [
     { label: 'All', n: counts.all, patch: { outcome: undefined }, on: !filters.outcome },

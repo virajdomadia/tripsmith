@@ -146,6 +146,24 @@ def _turn_lines(
                     failed=isinstance(result.get("error"), str),
                 )
             )
+    # A call whose turn failed before its result came back is still worth seeing: it is the
+    # lookup the owner opened the log to debug.
+    answered = {p.get("id") for p in parts if p.get("type") == "tool-result"}
+    for id_, call in calls.items():
+        if id_ in answered:
+            continue
+        raw_args = call.get("args")
+        name = str(call.get("name"))
+        lines.append(
+            TranscriptLine(
+                role=TranscriptRole.LOOKUP,
+                text=f"{name} was called but no result was recorded",
+                at=at,
+                tool=name,
+                args=(raw_args if isinstance(raw_args, dict) else {}) if raw else None,
+                failed=True,
+            )
+        )
     return lines
 
 

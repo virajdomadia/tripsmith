@@ -95,6 +95,12 @@ def test_raw_lookup_fields_only_when_asked() -> None:
     assert raw[0].result == {"packages": [{"name": "North Goa Beaches"}], "totalMatches": 1}
     assert raw[1].failed and raw[1].result == {"error": "packageSlug is required"}
 
+    orphan = readable([(MessageRole.ASSISTANT, [SEARCH_CALL], at)], raw=True)
+    assert [(o.tool, o.failed, o.args) for o in orphan] == [
+        ("searchPackages", True, {"destination": "Goa", "maxBudget": 15000})
+    ]
+    assert "no result" in orphan[0].text
+
 
 @pytest.mark.db
 async def test_the_log_is_owner_only(db_client: AsyncClient) -> None:
@@ -194,7 +200,7 @@ async def test_the_dashboard_tile_counts_this_week_and_cap_days(
     assert week.conversations == 3
     assert week.booking_started == 1 and week.enquiry_created == 1
     assert week.tokens == 3 * 150
-    assert week.turns_today == 7 and week.cap_hit_days == 1
+    assert week.cap_hit_days == 1
 
     headers = await owner_cookie(db)
     res = await db_client.get("/admin/dashboard", headers=headers)

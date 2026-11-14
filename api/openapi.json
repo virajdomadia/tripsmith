@@ -1541,7 +1541,7 @@
             "type": "string"
           },
           "hasError": {
-            "description": "The latest turn recorded an error",
+            "description": "A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)",
             "title": "Haserror",
             "type": "boolean"
           },
@@ -1558,7 +1558,7 @@
                 "type": "null"
               }
             ],
-            "description": "The latest turn's errors (guardrail, model, tool)",
+            "description": "The most recent turn errors recorded (guardrail, model, tool)",
             "title": "Lasterror"
           },
           "messageCount": {
@@ -5855,11 +5855,6 @@
             "description": "Tokens in + out across this week's conversations",
             "title": "Tokens",
             "type": "integer"
-          },
-          "turnsToday": {
-            "description": "Turns counted against today's site-wide cap",
-            "title": "Turnstoday",
-            "type": "integer"
           }
         },
         "required": [
@@ -5867,7 +5862,6 @@
           "bookingStarted",
           "enquiryCreated",
           "tokens",
-          "turnsToday",
           "capHitDays"
         ],
         "title": "ConciergeWeek",
@@ -5938,7 +5932,7 @@
             "type": "string"
           },
           "hasError": {
-            "description": "The latest turn recorded an error",
+            "description": "A turn recorded an error (`last_error` keeps the latest; a clean turn does not clear it)",
             "title": "Haserror",
             "type": "boolean"
           },

@@ -69,7 +69,6 @@ async def list_conversations(db: AsyncSession, filters: ConversationFilters) -> 
         )
     elif filters.outcome is not None:
         stmt = stmt.where(Conversation.outcome == ConversationOutcome(filters.outcome))
-    total = int((await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one())
     rows = (
         await db.execute(
             stmt.order_by(Conversation.created_at.desc(), Conversation.id)
@@ -77,13 +76,15 @@ async def list_conversations(db: AsyncSession, filters: ConversationFilters) -> 
             .offset((filters.page - 1) * PAGE_SIZE)
         )
     ).scalars()
+    counts = await _counts(db)
+    total = counts.all if filters.outcome is None else getattr(counts, filters.outcome)
     return ConversationList(
         items=[_row(c) for c in rows],
         page=filters.page,
         page_size=PAGE_SIZE,
         total=total,
         total_pages=max(1, math.ceil(total / PAGE_SIZE)),
-        counts=await _counts(db),
+        counts=counts,
     )
 
 
@@ -128,9 +129,6 @@ async def concierge_week(
             ).where(Conversation.created_at >= ist_day_start(monday))
         )
     ).scalar_one()
-    turns_today = (
-        await db.execute(select(ChatBudget.turns).where(ChatBudget.day == day))
-    ).scalar_one_or_none()
     cap_hit_days = (
         await db.execute(
             select(func.count())
@@ -147,6 +145,5 @@ async def concierge_week(
         booking_started=outcome_counts.get(ConversationOutcome.BOOKING_STARTED, 0),
         enquiry_created=outcome_counts.get(ConversationOutcome.ENQUIRY_CREATED, 0),
         tokens=int(tokens),
-        turns_today=int(turns_today or 0),
         cap_hit_days=int(cap_hit_days),
     )

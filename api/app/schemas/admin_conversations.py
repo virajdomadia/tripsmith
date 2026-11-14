@@ -41,7 +41,10 @@ class ConversationRow(ApiModel):
     tokens_in: int
     tokens_out: int
     first_message: str
-    has_error: bool = Field(description="The latest turn recorded an error")
+    has_error: bool = Field(
+        description="A turn recorded an error (`last_error` keeps the latest; a clean turn does "
+        "not clear it)"
+    )
 
 
 class ConversationList(ApiModel):
@@ -64,7 +67,9 @@ class HandoffEnquiry(ApiModel):
 
 class AdminConversation(ConversationRow):
     model: str | None = Field(description="The model that answered the latest turn")
-    last_error: str | None = Field(description="The latest turn's errors (guardrail, model, tool)")
+    last_error: str | None = Field(
+        description="The most recent turn errors recorded (guardrail, model, tool)"
+    )
     signed_in: bool = Field(description="The visitor was signed in")
     enquiry: HandoffEnquiry | None
     transcript: list[TranscriptLine] = Field(
@@ -79,5 +84,4 @@ class ConciergeWeek(ApiModel):
     booking_started: int
     enquiry_created: int
     tokens: int = Field(description="Tokens in + out across this week's conversations")
-    turns_today: int = Field(description="Turns counted against today's site-wide cap")
     cap_hit_days: int = Field(description="Days this IST month the site-wide cap was reached")

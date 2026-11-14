@@ -1,9 +1,11 @@
+import { bounded, ID_MAX, MAX_PAGE, one, oneOf, type RawParams } from '@/lib/admin/enquiry-filters';
 import type { components } from '@/lib/api-types';
+
+export { pct } from '@/lib/admin/reports';
 
 export type ConversationRow = components['schemas']['ConversationRow'];
 export type AdminConversation = components['schemas']['AdminConversation'];
 export type Outcome = components['schemas']['ConversationOutcome'];
-type OutcomeFilter = 'open' | 'booking_started' | 'enquiry_created';
 
 export const LOG_PATH = '/admin/conversations';
 
@@ -15,8 +17,8 @@ export const OUTCOME_LABELS: Record<Outcome, string> = {
   enquiry_created: 'Handed off',
 };
 
-const FILTERS: readonly OutcomeFilter[] = ['open', 'booking_started', 'enquiry_created'];
-const ID = /^[A-Za-z0-9_-]{1,40}$/;
+const FILTERS = ['open', 'booking_started', 'enquiry_created'] as const;
+type OutcomeFilter = (typeof FILTERS)[number];
 
 export interface LogFilters {
   outcome?: OutcomeFilter;
@@ -24,18 +26,21 @@ export interface LogFilters {
   sel?: string;
 }
 
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-
-/** Anything unrecognised is dropped, so a hand-edited URL never 400s the api. */
-export function parseLogFilters(sp: Record<string, string | string[] | undefined>): LogFilters {
-  const outcome = one(sp.outcome);
+/** Anything unrecognised is dropped, so a hand-edited URL never 400s the api. Same parsing
+ *  rules as the enquiry inbox. */
+export function parseLogFilters(sp: RawParams): LogFilters {
   const page = Number(one(sp.page));
-  const sel = one(sp.sel);
   return {
-    outcome: FILTERS.includes(outcome as OutcomeFilter) ? (outcome as OutcomeFilter) : undefined,
-    page: Number.isInteger(page) && page > 1 && page <= 10_000 ? page : undefined,
-    sel: sel && ID.test(sel) ? sel : undefined,
+    outcome: oneOf(FILTERS, one(sp.outcome)),
+    page: Number.isInteger(page) && page > 1 && page <= MAX_PAGE ? page : undefined,
+    sel: bounded(one(sp.sel), ID_MAX),
   };
+}
+
+/** Past the last page (a bookmark, or a list that shrank) → the last page. */
+export function clampLogHref(f: LogFilters, totalPages: number): string | null {
+  const last = Math.max(1, totalPages);
+  return (f.page ?? 1) > last ? logHref(f, { page: last }) : null;
 }
 
 export function logHref(f: LogFilters, patch: Partial<LogFilters> = {}): string {
@@ -51,8 +56,4 @@ export function logHref(f: LogFilters, patch: Partial<LogFilters> = {}): string 
 /** "1.2k" — tokens are a cost signal, not an exact figure the owner reconciles. */
 export function tokens(n: number): string {
   return n < 1000 ? String(n) : `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
-}
-
-export function pct(part: number, whole: number): string {
-  return whole ? `${Math.round((part / whole) * 100)}%` : '–';
 }
