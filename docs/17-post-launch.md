@@ -1,4 +1,4 @@
-# Tripsmith — Post-launch review (v1, v2, v2.5, v2.6)
+# Tripsmith — Post-launch review (v1, v2, v2.5, v2.6, v3)
 
 **Lifecycle step:** 17 of 17 · **Milestones:** 1.4 Harden (v1), 2.3 (v2), 2.5.5 (v2.5), 2.6.2 (v2.6) · **Written:** 2026-09-24 (v1), 2026-09-27 (v2), 2026-10-14 (v2.5), 2026-10-27 (v2.6) · **Covers:** v1, the agency website, and the v1.0.1 hardening pass; v2, the booking engine; v2.5, Strengthen; v2.6, Hardening
 
@@ -374,3 +374,67 @@ being told which features stop. Gone: the Vercel crons `/cron/daily` and `/cron/
   Actions workflow (`keep-awake`, Mondays) opens `/health/ready`. It is the only schedule left.
 - **Watch:** a part-paid booking past its grace now stays part-paid;
   there is no owner "cancel" button for it yet.
+
+# v3 — AI concierge (Tripsmith complete)
+
+**Rows:** C1–C6 · **Written:** 2026-11-14 (C6) · **v3 is the last planned stage** (Viraj, 2026-11-12)
+
+v3 adds a concierge that plans a trip in a chat, using only Tripsmith's real catalogue. It searches live packages, checks dates and seats, opens the Book-now sheet pre-filled and hands off to a person. It runs on Google Gemini's free tier, so it costs ₹0. When the free turns run out, a no-AI finder takes its place. With C6 closed, Tripsmith is complete: v4 (an MCP server) and the add-ons are parked, not scheduled.
+
+## What shipped
+
+| Row | PR | What changed |
+| --- | --- | --- |
+| C1 Engine | #156 | `POST /chat` streamed as named SSE events, called by the browser on the api domain; our own tool loop (≤ 5 model calls) on the official `google-genai` SDK; `gemini-3.5-flash-lite` with a fallback model on a 429; `searchPackages` + `checkAvailability`; limits 500 chars · 30 messages a chat · 20 an IP a day · 100 turns a day and 1,500 a month site-wide, row-locked in Postgres; migration 0028 (`conversations`, `messages`, `chat_budget`, `departure_alerts`) |
+| C2 Ticket UI | #157 | Layout D "trip ticket": a launcher on every public page, a panel (full-screen on a phone) whose ticket stamps what the concierge actually searched; streaming text, package cards and departure lists; loaded on first use, so public pages pay nothing |
+| C3 Book, hand off, notify | #158 | `startBooking` → the package page with the Book-now sheet open and pre-filled; `createEnquiry` → the enquiry form inside the panel, transcript attached (`chat-handoff` in the inbox); "Email me when new dates are added", sent when the owner saves new departures, once per alert |
+| C4 Guardrails + evals | #159 | A streaming guardrail: the reply may only name packages and ₹ amounts a tool returned, and an invented one never reaches the browser; 23 real-model evals, run by hand on a second Google project's key |
+| C5 Owner log | #160 | `/admin/conversations` (outcome filter, transcript with raw tool calls and errors), a dashboard tile (this week, % booking started, % handed off, cap-hit days, tokens) |
+| C6 Close | this row | The no-AI quick finder; an error state for each way a turn can fail; the security pass (phone numbers and emails redacted before the model sees them); /privacy "AI concierge"; the final eval run; this review |
+
+## What worked
+
+- **Our own tool loop instead of a framework.** Dropping pydantic-ai at re-validation (decision 3) saved 0.5 s of cold start per chat. It also kept every step — fallback on a 429, the ≤ 5-call budget, the forced search after a guardrail hit — in about 250 lines that the fake-model tests drive directly.
+- **Every visible fact traces to a tool.** Cards come from tool results, and the ticket stamps tool arguments, not the visitor's words. The guardrail checks the model's prose against those same results, so the evals' "0 invented packages" is enforced at run time too, not just measured.
+- **Limits in Postgres, not only Upstash.** The site-wide cap holds even when the rate limiter fails open, and C6 pinned that with a test.
+- **Evals on a separate key, by hand.** The real-model runs (C1, C4, C6) never touched the live site's quota, and CI stays free of AI calls.
+
+## What did not
+
+- **The guardrail started with a false positive.** The visitor named a package the model then repeated. A package name the visitor typed now counts as known (C4).
+- **A phone number typed into the chat went to Google until C6.** The note asked people not to share one, but nothing enforced it. Phone numbers and emails are now redacted server-side. Names can't be detected by a pattern, so that risk is accepted (docs/12 v3, #5).
+- **Web preview builds failed from #156 to C6.** The cause was not the sitemap code: the Preview `API_URL` still pointed at `tripsmith-api.vercel.app`, which no longer exists. It was repointed to `tripsmith-api.virajdomadia.com` (non-sensitive, so it can be read back).
+
+## Accepted trade-offs
+
+- **Free tier, billing off.** Chats may be used by Google to improve its models; the panel and /privacy say so in the same words.
+- **100 turns a day, 1,500 a month.** After that, the quick finder (₹0) until midnight IST or the 1st.
+- **No chat history across reloads** (no cookie, no browser storage): a reload starts a new chat.
+- **Upstash down = no per-IP limit**, so one connection can use up the day's 100 turns; the cap still holds.
+- **The latest error stays on a conversation** after a clean turn; the log says "most recent error recorded".
+
+## Metrics at sign-off
+
+|  |  |
+| --- | --- |
+| Evals | 23/23 on `gemini-3.5-flash-lite`: 0 invented packages, 0 invented prices, both injections change nothing, guardrail fired 0×, 57 model calls ([docs/12](12-security-performance.md#v3-close--concierge-security-pass--final-evals-c6-2026-11-14)) |
+| Security pass | 11 checks: 1 P1 found and fixed (contact details), 1 P2 accepted (names), 0 P0 |
+| Tests | 1,154 pytest · 746 vitest, green; the evals sit outside CI |
+| Cost | ₹0: Gemini free tier, no new cron, no new service; the quick finder reuses the listing's cached search |
+
+## What's parked (out of plan)
+
+Viraj parked these on 2026-11-12: they are not scheduled.
+
+- **v4 "Tripsmith anywhere":** an MCP server over the same tools.
+- **The add-ons:**
+  - B best time to go
+  - A owner AI drafting
+  - MCP OAuth tools
+  - D split pay
+  - C trip hub
+  - E storyboard
+  - departure city
+- **The items v2.6 left before a Razorpay go-live:**
+  - external monitors
+  - a decision on backups

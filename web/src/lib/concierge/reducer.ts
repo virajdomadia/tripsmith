@@ -11,6 +11,7 @@
  */
 
 import { inr, MONTHS } from '@/lib/format';
+import type { FinderQuery } from './finder';
 import type {
   AlertOffer,
   AvailabilityArgs,
@@ -45,11 +46,37 @@ export type Part =
   | { kind: 'booking'; id: string; booking: ChatBooking }
   | { kind: 'alert'; id: string; offer: AlertOffer };
 
+/**
+ * Why a turn ended early (C6), which decides what the panel offers next:
+ * - `busy` — every model is rate-limited or timed out (api `error` event, reason `busy`)
+ * - `server` — the api failed: a 5xx, or `error` with reason `internal`
+ * - `cut` — the stream closed before `done`/`error` (a dropped connection, the function's limit)
+ * - `slow` — nothing arrived for a while; the panel gave up waiting
+ * - `offline` — the request never left: no connection, or the network refused it
+ */
+export type ErrorKind = 'busy' | 'server' | 'cut' | 'slow' | 'offline';
+export type TurnError = { kind: ErrorKind; message: string };
+
+/** Limits the visitor can't fix by starting a new chat: the panel switches to the finder. */
+export const FINDER_REASONS: readonly LimitReason[] = [
+  'ip_limit',
+  'daily_cap',
+  'monthly_cap',
+  'ai_off',
+];
+
 export type Item =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'assistant'; id: string; parts: Part[]; streaming: boolean; error?: string }
+  | { kind: 'assistant'; id: string; parts: Part[]; streaming: boolean; error?: TurnError }
   | { kind: 'limit'; id: string; reason: LimitReason; message: string }
-  | { kind: 'handed-off'; id: string; ref: string; firstName: string; emailed: boolean };
+  | { kind: 'handed-off'; id: string; ref: string; firstName: string; emailed: boolean }
+  | {
+      kind: 'finder';
+      id: string;
+      query: FinderQuery;
+      packages: ChatPackage[];
+      total: number;
+    };
 
 export type Ticket = {
   where: string | null;
@@ -73,6 +100,9 @@ export type State = {
   go: ChatBooking | null;
   /** C3: the party the concierge last booked for, so a list's "Book" keeps it. */
   party: { adults: number; children: number } | null;
+  /** C6: the no-AI quick finder in place of the message box. `locked` when the concierge is out
+   * of turns (no way back to the chat); otherwise the visitor chose it after an error. */
+  finder: { locked: boolean } | null;
 };
 
 export type Action =
@@ -80,7 +110,10 @@ export type Action =
   | { type: 'started'; conversationId: string }
   | { type: 'event'; event: string; data: unknown }
   | { type: 'refused'; reason: LimitReason; message: string }
-  | { type: 'failed'; message: string }
+  | { type: 'failed'; kind: ErrorKind; message: string }
+  | { type: 'open-finder' }
+  | { type: 'close-finder' }
+  | { type: 'found'; query: FinderQuery; packages: ChatPackage[]; total: number }
   | { type: 'reset' }
   | { type: 'open-form'; prefill?: HandoffPrefill }
   | { type: 'close-form' }
@@ -100,7 +133,10 @@ export const initialState: State = {
   form: null,
   go: null,
   party: null,
+  finder: null,
 };
+
+export const FINDER_LINE = 'Quick finder · no AI, just our live trips';
 
 export const EMPTY_PREFILL: HandoffPrefill = {
   summary: '',
@@ -456,8 +492,11 @@ export function reducer(state: State, action: Action): State {
         case 'error': {
           const next = patchTurn(state, (turn) => {
             turn.streaming = false;
-            turn.error =
-              str(data.message) ?? 'Something went wrong on our side. Try again in a moment.';
+            turn.error = {
+              kind: data.reason === 'busy' ? 'busy' : 'server',
+              message:
+                str(data.message) ?? 'Something went wrong on our side. Try again in a moment.',
+            };
           });
           return { ...next, busy: false, ticket: { ...next.ticket, line: 'Something went wrong' } };
         }
@@ -470,6 +509,7 @@ export function reducer(state: State, action: Action): State {
       const items = state.items.filter(
         (it, i) => !(i === state.items.length - 1 && it.kind === 'assistant' && !it.parts.length),
       );
+      const locked = FINDER_REASONS.includes(action.reason);
       return {
         ...state,
         busy: false,
@@ -479,18 +519,57 @@ export function reducer(state: State, action: Action): State {
           ...items,
           { kind: 'limit', id: `l${state.seq}`, reason: action.reason, message: action.message },
         ],
-        ticket: { ...state.ticket, line: 'Paused — the quick links below still work' },
+        finder: locked ? { locked: true } : state.finder,
+        form: locked ? null : state.form,
+        ticket: {
+          ...state.ticket,
+          line: locked ? FINDER_LINE : 'Paused — the quick links below still work',
+        },
       };
     }
     case 'failed': {
       const next = patchTurn(state, (turn) => {
         turn.streaming = false;
-        turn.error = action.message;
+        turn.error = { kind: action.kind, message: action.message };
       });
-      return { ...next, busy: false, ticket: { ...next.ticket, line: 'Something went wrong' } };
+      const line = action.kind === 'offline' ? 'You’re offline' : 'Something went wrong';
+      return { ...next, busy: false, ticket: { ...next.ticket, line } };
     }
     case 'reset':
       return { ...initialState, seq: state.seq };
+    case 'open-finder':
+      return {
+        ...state,
+        form: null,
+        finder: state.finder ?? { locked: false },
+        ticket: { ...state.ticket, line: FINDER_LINE },
+      };
+    case 'close-finder':
+      // Only a finder the visitor chose closes; a locked one is all the concierge has left.
+      return state.finder?.locked
+        ? state
+        : { ...state, finder: null, ticket: { ...state.ticket, line: 'Ask me anything' } };
+    case 'found': {
+      const { query, packages, total } = action;
+      const known = { ...state.known };
+      for (const p of packages) known[p.slug] = { name: p.name, coverUrl: p.coverUrl };
+      return {
+        ...state,
+        known,
+        seq: state.seq + 1,
+        items: [...state.items, { kind: 'finder', id: `f${state.seq}`, query, packages, total }],
+        // The ticket stamps what the finder searched, the way it stamps a concierge search.
+        ticket: {
+          where: query.destination?.name ?? 'Anywhere',
+          when: query.month ? monthLabel(query.month.value) : null,
+          nights: null,
+          budget: query.maxBudget ? inr(query.maxBudget * 100) : null,
+          line: total
+            ? `Quick finder · found ${plural(total, 'trip')}`
+            : 'Quick finder · nothing matched — loosen one thing',
+        },
+      };
+    }
     case 'open-form':
       return { ...state, form: action.prefill ?? state.form ?? EMPTY_PREFILL };
     case 'close-form':

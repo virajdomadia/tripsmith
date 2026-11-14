@@ -29,6 +29,7 @@ from app.schemas.catalog import MONTH_PATTERN, PackageCard, SearchParams
 from app.schemas.meta import MAX_TRAVELLERS
 from app.services.ai.handoff import start_booking
 from app.services.ai.model import ToolSpec
+from app.services.ai.pii import redact
 from app.services.catalog.reads import get_departures_for_month
 from app.services.catalog.search import search_packages
 from app.services.format import inr
@@ -284,7 +285,7 @@ async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict
             package = {"slug": args.package_slug, "name": name}
     return {
         "form": "enquiry",
-        "summary": args.summary,
+        "summary": redact(args.summary),  # C6: the model writes it; no contact details
         "package": package,
         "adults": args.adults,
         "children": args.children,

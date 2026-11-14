@@ -21,7 +21,9 @@ const BTN =
 
 /**
  * R26's package card for the chat: cover, name, nights, from-price, badge, "View" / "Check dates".
- * The listing card's anatomy at panel width; no ♡ or compare tick in a conversation.
+ * The listing card's anatomy at panel width; no ♡ or compare tick in a conversation. The quick
+ * finder (C6) shows the same cards with no `onAsk`: there is no concierge to ask, so "View" is
+ * the one action, and "more" links to the same search on the trips page.
  */
 export function ChatPackageCards({
   packages,
@@ -29,12 +31,14 @@ export function ChatPackageCards({
   busy,
   onAsk,
   onNavigate,
+  moreHref = '/packages',
 }: {
   packages: ChatPackage[];
   total: number;
   busy: boolean;
-  onAsk: (text: string) => void;
+  onAsk?: (text: string) => void;
   onNavigate: () => void;
+  moreHref?: string;
 }) {
   return (
     <div className="grid gap-2.5">
@@ -90,19 +94,21 @@ export function ChatPackageCards({
                     href={p.url}
                     onClick={onNavigate}
                     aria-label={`View ${p.name}`}
-                    className={`${BTN} border-line bg-bg text-ink hover:border-ink`}
+                    className={`${BTN} ${onAsk ? 'border-line bg-bg text-ink hover:border-ink' : 'border-primary bg-primary text-white hover:bg-primary-ink'}`}
                   >
-                    View
+                    {onAsk ? 'View' : 'View dates'}
                   </Link>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onAsk(`Show dates for ${p.name}`)}
-                    aria-label={`Check dates for ${p.name}`}
-                    className={`${BTN} border-primary bg-primary text-white hover:bg-primary-ink`}
-                  >
-                    Check dates
-                  </button>
+                  {onAsk && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onAsk(`Show dates for ${p.name}`)}
+                      aria-label={`Check dates for ${p.name}`}
+                      className={`${BTN} border-primary bg-primary text-white hover:bg-primary-ink`}
+                    >
+                      Check dates
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -111,7 +117,7 @@ export function ChatPackageCards({
       </ul>
       {total > packages.length && (
         <Link
-          href="/packages"
+          href={moreHref}
           onClick={onNavigate}
           className="text-[13px] font-bold text-primary-ink"
         >

@@ -1,14 +1,14 @@
 # Tripsmith
 
-**Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, and — from v3 — have an AI concierge plan the itinerary and start the booking for you.
+**Trips planned in a chat.** A travel agency that runs on its own website: browse real packages, enquire in two taps, book and pay online, or let an AI concierge find the trip, check live dates and open the booking for you.
 
-> **Status: v2.5** (2026-10-14): the booking engine now holds up next to a real operator. On top of v2's checkout, accounts, deals, coupons and reviews: add-ons, early-bird tiers, a 25 % deposit with the balance paid in parts, a waitlist with 24-hour claim holds, self-serve date changes, real refunds through Razorpay with GST receipts, invoices and credit notes, traveller details, calendar links and a trip pack, saved trips and compare, honest urgency labels and trip-leader profiles. The owner gets a redesigned admin, counter booking with Razorpay Payment Links, a departure calendar, reports and automatic trip emails. Payments are in **Razorpay test mode** (use a test card) and emails are **real** (sent from a Tripsmith Gmail; addresses ending in `@example.com` are never mailed and get their sign-in code on screen). The owner sign-in is public for the demo, so what it sends goes to the demo owner's own inbox. The honest account of v1, v2 and v2.5 is in [docs/17-post-launch.md](docs/17-post-launch.md). Next: **v3**, an AI concierge. One of six portfolio projects by [Viraj Domadia](https://virajdomadia.com).
+> **Status: complete — v3** (2026-11-14). An AI concierge on every public page plans a trip from the real catalogue: it searches live packages, checks dates and seats, opens the Book-now sheet pre-filled, or hands the chat to a person. It runs on Google Gemini's free tier, so it costs ₹0. Every package and price it shows comes from a tool result, and a streaming guardrail stops anything else. When the free turns run out, a no-AI quick finder takes its place. Underneath is the booking engine from v2–v2.6: Razorpay checkout, deposits and balances, waitlists, refunds with GST documents, accounts, deals, coupons, reviews and an owner admin. Payments are in **Razorpay test mode** (use a test card) and emails are **real** (sent from a Tripsmith Gmail; addresses ending in `@example.com` are never mailed and get their sign-in code on screen). The owner sign-in is public for the demo, so what it sends goes to the demo owner's own inbox. The honest account of every version is in [docs/17-post-launch.md](docs/17-post-launch.md). One of six portfolio projects by [Viraj Domadia](https://virajdomadia.com).
 >
-> **Live:** [tripsmith.virajdomadia.com](https://tripsmith.virajdomadia.com) · api [tripsmith-api.vercel.app/docs](https://tripsmith-api.vercel.app/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
+> **Live:** [tripsmith.virajdomadia.com](https://tripsmith.virajdomadia.com) · api [tripsmith-api.virajdomadia.com/docs](https://tripsmith-api.virajdomadia.com/docs) · the owner demo sign-in is printed in the site footer; a demo traveller, `traveller.demo@example.com`, has a past and an upcoming trip.
 
 ## What it proves
 
-A real product, not a CRUD demo. It has a public catalog that is fast and indexable, and an enquiry path (enquiry → email → PDF) that works with JavaScript off. It has a payment path where every way money can arrive (Checkout's callback, a signed webhook, a sync, an offline mark-paid) settles through one locked function exactly once. And it has an admin that a non-technical owner could actually run. v3–v4 add an AI agent with tool calling and an MCP server.
+A real product, not a CRUD demo. It has a public catalog that is fast and indexable, and an enquiry path (enquiry → email → PDF) that works with JavaScript off. It has a payment path where every way money can arrive (Checkout's callback, a signed webhook, a sync, an offline mark-paid) settles through one locked function exactly once. And it has an admin that a non-technical owner could actually run. v3 adds an AI agent with tool calling that is held to the same rule as the rest of the site: it can only say what the database says.
 
 ## How it works
 
@@ -49,6 +49,37 @@ Four decisions carry most of the design:
 - **Every visitor-facing path works without JavaScript.** The enquiry form posts natively to `/enquire`, the listing's filters are a GET form, the admin inbox keeps all its state in the URL. JavaScript upgrades them; it is never required.
 - **The api is the authority.** The web middleware that gates `/admin/*` is a UX nicety; every admin route declares `require_owner` at router level, so a new route is protected by construction. The same goes for money: the browser describes a party, the api prices it to the paisa (deal and coupon included), and the Razorpay order is built from that server quote only.
 
+## How the agent works
+
+The concierge (v3) is a tool-calling agent with no framework: our own loop over the official `google-genai` SDK, about 250 lines in `api/app/services/ai/`.
+
+```mermaid
+flowchart LR
+  B["Browser<br/>concierge panel<br/>(state in React memory)"] -- "POST /chat (api domain, CORS)" --> L
+  L["Limits<br/>500 chars · 30 / chat<br/>20 / IP / day (Upstash)<br/>100 / day · 1,500 / month"] -- "turn allowed" --> R["Redact phones + emails"]
+  L -- "429 / 503" --> F["No-AI quick finder<br/>GET /packages (cached)"]
+  R --> T["Tool loop ≤ 5 model calls<br/>Gemini 3.5 Flash Lite<br/>fallback on 429"]
+  T <--> TO["Tools (pydantic, extra keys refused)<br/>searchPackages · checkAvailability<br/>startBooking · createEnquiry"]
+  T --> G["Guardrail<br/>packages + ₹ amounts ⊆ tool results"]
+  G -- "SSE: text-delta · tool-call · tool-result · replace · done / error" --> B
+  TO & G --> DB[("Postgres<br/>conversations · messages<br/>chat_budget")]
+  L --> DB
+  DB --> O["Owner log<br/>/admin/conversations"]
+  TO -. "startBooking" .-> S["Book-now sheet, pre-filled<br/>(Razorpay pays, never the chat)"]
+  TO -. "createEnquiry" .-> E["Enquiry form in the panel<br/>→ inbox with transcript"]
+```
+
+1. **The browser calls the api directly.** It posts to `POST /chat` on the api's domain, not through the web's `/api` rewrite, because the rewrite would hide the visitor's IP from the per-IP limit and could buffer the stream. CORS allows the web origin on `/chat` only, and the CSP's `connect-src` names the api origin.
+2. **Limits run before a model is called.** In order: the chat's own cap, the per-IP limit (Upstash), then the site-wide budget. The budget is a row-locked `chat_budget` row in Postgres, so it still holds if Upstash fails open. A refusal is an ordinary `429 { reason }`, and the panel swaps its message box for the **quick finder**: destination · month · budget, run on the listing's own cached search, with no AI and ₹0 cost.
+3. **Contact details are redacted.** Phone numbers and emails are removed before the message is stored or sent to the model. Names, phones and emails belong in the forms.
+4. **The tool loop.** The model sees a system prompt, the last 20 messages and four tools. Each tool's arguments are a pydantic model that refuses unknown keys, and a bad call goes back to the model as an error. The loop allows at most five model calls, and the last one may not call tools. A 429 or 5xx switches to the fallback model.
+5. **The guardrail checks the reply as it streams.** The reply may only name packages and ₹ amounts that a tool returned in this conversation. Prices derived from them (× travellers, a deal's saving) and the visitor's own numbers count as known. On a violation, a `replace` event swaps the text for "Let me check that for you" and the last search runs again, with no model call. An invented price never reaches the browser.
+6. **Nothing happens without a person.** `startBooking` opens the Book-now sheet pre-filled; payment stays in Razorpay. `createEnquiry` opens the enquiry form in the panel, and the transcript goes to the owner's inbox.
+7. **Everything is logged for the owner.** Each turn's messages, tool calls, results, tokens and errors are saved, even if the visitor closes the tab mid-answer. `/admin/conversations` shows them with each chat's outcome (booking started, enquiry created, no hand-off).
+8. **Evals run in two layers.**
+   - Fake-model tests run in CI.
+   - 23 real-model conversations (`api/evals/`) are run by hand on a second Google project's key: 23/23 at the close.
+
 ## Stack
 
 **web/** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui (+ charts, Recharts) · GSAP · react-hook-form + zod · Vitest + Testing Library · pnpm
@@ -56,6 +87,18 @@ Four decisions carry most of the design:
 **platform** Vercel (two projects) · Vercel Blob (photos, PDFs) · Upstash Redis (rate limits) · GitHub Actions (web · api · contract) · no crons: the upkeep a cron would do (prices, the bookings sweep, session pruning, PDF cleanup) runs on demand from the reads that need it (2026-11-04)
 
 After v1 shipped, a deep review led to the **v1.0.1 hardening** (PRs #50–#54): content-hashed PDF caching, a daily IST cron, optimistic concurrency in the admin, Sentry scrubbing, hashed sessions, and a lighter first load. It is written up in [docs/17](docs/17-post-launch.md#v101-hardening-2026-09-24). The v2 and v2.5 security passes and their PageSpeed Insights runs are in [docs/12](docs/12-security-performance.md#p19--v25-close-security--performance).
+
+## What is in v3
+
+The AI concierge (rows C1–C6, 2026-11-12 → 14):
+
+- **The panel.** A "trip ticket" panel that stamps what the concierge searched. It shows streaming answers with package cards and live departure lists, and replies in English, Hindi or Hinglish.
+- **Booking hand-off.** "Book" opens the package page with the Book-now sheet pre-filled.
+- **A person, any time.** "Talk to a person" opens the enquiry form inside the panel, with the transcript attached for the owner.
+- **Notify me.** "Email me when new dates are added" sends one email when the owner saves new departures.
+- **The quick finder.** It takes over when the free turns run out, and every error state offers a retry, the finder or a person.
+- **The owner log.** `/admin/conversations` and a dashboard tile: conversations this week, % booking started, % handed off, days the cap was hit, tokens.
+- **Security pass and evals.** Both are in [docs/12](docs/12-security-performance.md#v3-close--concierge-security-pass--final-evals-c6-2026-11-14).
 
 ## What is in v2.5
 
@@ -134,8 +177,8 @@ Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both
 
 ## Roadmap
 
-The 17-step project lifecycle (kept with the portfolio's planning notes, outside this repo) — steps 1–7 are done for all four versions, and v1, v2 and v2.5 have each closed steps 8–17 (v2 re-entered at step 3 with a re-validation).
+The 17-step project lifecycle (kept with the portfolio's planning notes, outside this repo) — v1, v2, v2.5, v2.6 and v3 have each closed steps 8–17 (each later version re-entered at step 3 with a re-validation).
 
-**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking and an admin redesign) ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) → **v4** "Tripsmith anywhere" (an MCP server, so the catalog and the booking flow are usable from any AI client).
+**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking and an admin redesign) ✅ → **v2.6** hardening ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) ✅ — **Tripsmith is complete.** v4 "Tripsmith anywhere" (an MCP server) and the add-ons are parked, out of plan.
 
 Each later version re-enters the lifecycle at step 3 with a short re-validation before any code.
