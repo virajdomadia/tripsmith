@@ -31,11 +31,18 @@ export function takeFrames(buffer: string): { frames: SseFrame[]; rest: string }
   return { frames, rest };
 }
 
-/** Yields every frame of a streamed body, however the network chunks it. */
-export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
+/** Yields every frame of a streamed body, however the network chunks it. An abort cancels the
+ * read in progress, so a stalled stream ends here even if the body itself never notices. */
+export async function* readSse(
+  body: ReadableStream<Uint8Array>,
+  signal?: AbortSignal,
+): AsyncGenerator<SseFrame> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  const cancel = () => void reader.cancel().catch(() => undefined);
+  if (signal?.aborted) cancel();
+  signal?.addEventListener('abort', cancel, { once: true });
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -46,6 +53,7 @@ export async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator
       if (done) return;
     }
   } finally {
+    signal?.removeEventListener('abort', cancel);
     reader.releaseLock();
   }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PRIVACY_NOTE } from '../src/lib/concierge/privacy';
 import { formatUpdated, POLICY_HEADS, POLICY_SLUGS, policies } from '../src/lib/policies';
 import { cancellationSchedule } from '../src/lib/rules';
 import { nth } from './nth';
@@ -89,6 +90,20 @@ describe('policy documents', () => {
     expect(said('terms')).toContain('by 45 days before departure');
     expect(said('privacy')).toContain('expires 14 days after sign-in');
     expect(nth(changed['cancellation-policy'].blocks, 0).list).toHaveLength(1);
+  });
+
+  it('says what the AI concierge does with a chat, in the panel’s own words (v3 C6, R28)', () => {
+    const block = POLICIES.privacy.blocks.find((b) => b.id === 'concierge');
+    expect(block?.h).toBe('AI concierge');
+    expect(block?.p?.[0]).toBe(PRIVACY_NOTE);
+    const said = (block?.p ?? []).join(' ');
+    for (const fact of [
+      'removed before the message is stored',
+      'not linked to your account',
+      'Upstash',
+    ])
+      expect(said).toContain(fact);
+    expect(text('privacy')).toContain('Google Gemini answers the AI concierge');
   });
 
   it('keeps the heads in step with the pages', () => {

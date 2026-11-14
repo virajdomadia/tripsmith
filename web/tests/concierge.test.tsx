@@ -18,6 +18,7 @@ import {
   type Action,
   type State,
 } from '../src/lib/concierge/reducer';
+import { CUT, NO_CONNECTION, SERVER, SLOW, streamChat } from '../src/lib/concierge/client';
 import { readSse, takeFrames } from '../src/lib/concierge/sse';
 
 const API = 'https://api.test';
@@ -221,6 +222,118 @@ describe('reducer', () => {
     ]);
     expect(s.items.map((i) => i.kind)).toEqual(['user', 'limit']);
     expect(s.busy).toBe(false);
+    expect(s.finder).toEqual({ locked: true }); // out of turns: the quick finder takes over
+  });
+
+  it('keeps the chat for a full conversation, and lets a chosen finder close again', () => {
+    const full = fold([
+      { type: 'send', text: 'hi' },
+      { type: 'refused', reason: 'conversation_full', message: 'Full' },
+    ]);
+    expect(full.finder).toBeNull();
+    const chosen = fold([{ type: 'open-finder' }], full);
+    expect(chosen.finder).toEqual({ locked: false });
+    expect(fold([{ type: 'close-finder' }], chosen).finder).toBeNull();
+    const locked = fold([
+      { type: 'send', text: 'hi' },
+      { type: 'refused', reason: 'ip_limit', message: 'Limit' },
+      { type: 'close-finder' },
+    ]);
+    expect(locked.finder).toEqual({ locked: true });
+  });
+
+  it('stamps a finder search on the ticket and adds its cards to the conversation', () => {
+    const s = fold([
+      {
+        type: 'found',
+        query: {
+          destination: { slug: 'goa', name: 'Goa' },
+          month: { value: '2026-12', label: 'December 2026' },
+          maxBudget: 15_000,
+        },
+        packages: [{ ...GOA, fromPricePaise: 6_499_00 } as never],
+        total: 3,
+      },
+    ]);
+    expect(s.ticket).toMatchObject({
+      where: 'Goa',
+      when: 'Dec 2026',
+      budget: '₹15,000',
+      line: 'Quick finder · found 3 trips',
+    });
+    expect(s.items.map((i) => i.kind)).toEqual(['finder']);
+  });
+
+  it('types each way a turn can end early', () => {
+    const busy = fold([
+      { type: 'send', text: 'hi' },
+      ...events(sse('error', { reason: 'busy', message: 'Busy' })),
+    ]);
+    const internal = fold([
+      { type: 'send', text: 'hi' },
+      ...events(sse('error', { reason: 'internal', message: 'Oops' })),
+    ]);
+    const last = (st: State) => st.items.at(-1);
+    expect(last(busy)).toMatchObject({ error: { kind: 'busy', message: 'Busy' } });
+    expect(last(internal)).toMatchObject({ error: { kind: 'server', message: 'Oops' } });
+  });
+});
+
+describe('streamChat failures', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const run = async (opts: { stallMs?: number } = {}) => {
+    const actions: Action[] = [];
+    await streamChat({
+      apiUrl: API,
+      conversationId: null,
+      message: 'hi',
+      dispatch: (a) => actions.push(a),
+      ...opts,
+    });
+    return actions;
+  };
+
+  it('does not send while the browser is offline', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', { onLine: false });
+    expect(await run()).toEqual([{ type: 'failed', kind: 'offline', message: NO_CONNECTION }]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('says a 5xx is on our side, whatever page the platform sent', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 502 })));
+    expect(await run()).toEqual([{ type: 'failed', kind: 'server', message: SERVER }]);
+  });
+
+  it('gives up on a stream that goes quiet', async () => {
+    const silent = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(sse('text-delta', { text: 'Let me ' })));
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(silent, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+        ),
+    );
+    const actions = await run({ stallMs: 30 });
+    expect(actions.at(-1)).toEqual({ type: 'failed', kind: 'slow', message: SLOW });
+    expect(actions.some((a) => a.type === 'event' && a.event === 'text-delta')).toBe(true);
+  });
+
+  it('reports a stream that closes before done as cut off', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(streamed([sse('text-delta', { text: 'Hal' })])),
+    );
+    expect((await run()).at(-1)).toEqual({ type: 'failed', kind: 'cut', message: CUT });
   });
 });
 
@@ -326,9 +439,111 @@ describe('ConciergePanel', () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: PROMPTS[1] }));
     await screen.findByText('The concierge has answered all it can');
-    expect(screen.getByRole('link', { name: 'Browse all trips' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'WhatsApp us' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Send an enquiry' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start a new chat' })).toBeNull();
+    // The message box gives way to the quick finder (C6).
+    expect(screen.getByRole('form', { name: 'Quick finder' })).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Message the concierge' })).toBeNull();
+  });
+
+  it('runs the quick finder on the listing search with no model call (C6)', async () => {
+    const list = (items: unknown[], total: number) =>
+      new Response(
+        JSON.stringify({
+          items,
+          total,
+          facets: {
+            budget: { min: 5_000, max: 60_000 },
+            destinations: [
+              { value: 'goa', label: 'Goa', count: 3 },
+              { value: 'kerala', label: 'Kerala', count: 2 },
+            ],
+            months: [{ value: '2026-12', label: 'December 2026', count: 4 }],
+            nights: { min: 2, max: 6 },
+            themes: [],
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    const card = {
+      slug: GOA.slug,
+      name: GOA.name,
+      destination: 'Goa',
+      nights: 2,
+      days: 3,
+      startingPricePaise: 6_499_00,
+      deal: null,
+      themes: ['heritage'],
+      highlights: [],
+      coverUrl: null,
+      badge: null,
+      earlyBird: false,
+      rating: null,
+    };
+    const fetchMock = mockFetch(
+      new Response(
+        JSON.stringify({
+          error: { code: 'rate_limited', message: 'That’s today’s limit', reason: 'ip_limit' },
+        }),
+        { status: 429 },
+      ),
+      list([], 9),
+      list([card], 6),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: PROMPTS[0] }));
+    const finder = await screen.findByRole('form', { name: 'Quick finder' });
+    const where = within(finder).getByRole('combobox', { name: 'Where' });
+    await waitFor(() => expect(within(where).getByRole('option', { name: 'Kerala' })).toBeTruthy());
+    fireEvent.change(where, { target: { value: 'goa' } });
+    fireEvent.change(within(finder).getByRole('combobox', { name: 'When' }), {
+      target: { value: '2026-12' },
+    });
+    fireEvent.change(within(finder).getByRole('combobox', { name: 'Budget pp' }), {
+      target: { value: '15000' },
+    });
+    fireEvent.click(within(finder).getByRole('button', { name: 'Find trips' }));
+
+    const view = await screen.findByRole('link', { name: `View ${GOA.name}` });
+    expect(view.textContent).toBe('View dates');
+    expect(screen.queryByRole('button', { name: `Check dates for ${GOA.name}` })).toBeNull();
+    expect(String(fetchMock.mock.calls[2]![0])).toBe(
+      '/api/packages?destination=goa&maxBudget=15000&month=2026-12',
+    );
+    expect(
+      screen.getByRole('link', { name: '5 more on the trips page →' }).getAttribute('href'),
+    ).toBe('/packages?destination=goa&maxBudget=15000&month=2026-12');
+    const ticket = screen.getByRole('region', { name: 'Your trip so far' });
+    expect(within(ticket).getByText('Quick finder · found 6 trips')).toBeTruthy();
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/chat'))).toHaveLength(1);
+  });
+
+  it('offers the finder and a person when the model is busy, and the chat back after', async () => {
+    mockFetch(
+      streamed([sse('error', { reason: 'busy', message: 'The concierge is busy right now.' })]),
+      new Response('{}', { status: 500 }),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: PROMPTS[0] }));
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(within(alert).getByRole('button', { name: 'Talk to a person' })).toBeTruthy();
+    fireEvent.click(within(alert).getByRole('button', { name: 'Use the quick finder' }));
+    expect(screen.getByRole('form', { name: 'Quick finder' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the chat' }));
+    expect(screen.getByRole('textbox', { name: 'Message the concierge' })).toBeTruthy();
+  });
+
+  it('offers only a retry when the answer was cut off', async () => {
+    mockFetch(streamed([sse('text-delta', { text: 'Here are ' })]));
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: PROMPTS[0] }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(CUT);
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(within(alert).queryByRole('button', { name: 'Use the quick finder' })).toBeNull();
+    expect(screen.getByText('Here are')).toBeTruthy(); // what arrived stays
   });
 
   it('starts over when a full chat is refused', async () => {

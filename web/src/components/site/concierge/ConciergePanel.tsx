@@ -4,11 +4,17 @@ import Link from 'next/link';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { NotifyMe } from '@/components/site/alerts/NotifyMe';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
-import { EMPTY_PREFILL, type Item, type Part } from '@/lib/concierge/reducer';
+import { inr } from '@/lib/format';
+import { finderHref } from '@/lib/concierge/finder';
+import { PRIVACY_NOTE } from '@/lib/concierge/privacy';
+import { EMPTY_PREFILL, type Item, type Part, type TurnError } from '@/lib/concierge/reducer';
 import type { ConciergeApi } from './Concierge';
 import { ChatBookingCard, ChatDepartures, ChatPackageCards } from './ChatCards';
 import { HandoffForm } from './HandoffForm';
+import { QuickFinder } from './QuickFinder';
 import { Ticket } from './Ticket';
+
+export { PRIVACY_NOTE };
 
 export const MAX_CHARS = 500; // R28, api/app/schemas/chat.py MAX_MESSAGE_CHARS
 
@@ -18,12 +24,6 @@ export const PROMPTS = [
   'Honeymoon in November',
   'Something for parents, easy pace',
 ];
-
-/** R28, word for word. */
-export const PRIVACY_NOTE =
-  'Chats are answered by Google Gemini and may be used by Google to improve its models. ' +
-  'Don’t share your name, phone or other personal details here — we’ll ask for them in a form ' +
-  'when needed. Tripsmith keeps chats to improve the service.';
 
 const GREETING =
   'Hi! I can find you a trip from Tripsmith’s real packages, with live dates and seats. ' +
@@ -83,6 +83,17 @@ function ToolChip({ part }: { part: Extract<Part, { kind: 'tool' }> }) {
   );
 }
 
+/** C6: what each way a turn can fail offers next. Retrying is always there; the finder when the
+ * model or the api is the problem (it needs neither); a person unless it's the visitor's own
+ * connection. Never a dead end. */
+const FALLBACKS: Record<TurnError['kind'], { finder: boolean; person: boolean }> = {
+  busy: { finder: true, person: true },
+  server: { finder: true, person: true },
+  slow: { finder: true, person: true },
+  cut: { finder: false, person: true },
+  offline: { finder: false, person: false },
+};
+
 const LINK_BTN =
   'inline-flex h-9 items-center rounded-[10px] border border-line bg-bg px-3 text-[13px] font-bold whitespace-nowrap text-ink no-underline hover:border-ink';
 
@@ -124,6 +135,12 @@ export default function ConciergePanel({
   const lastUser = state.items.findLast((it) => it.kind === 'user');
   // "Talk to a person": the form the concierge pre-filled, if it did, else a blank one.
   const talk = () => dispatch({ type: 'open-form', prefill: state.form ?? EMPTY_PREFILL });
+  const finder = () => {
+    pinned.current = true;
+    dispatch({ type: 'open-finder' });
+  };
+  // Out of turns: earlier cards can't ask the concierge for dates any more.
+  const ask = state.finder?.locked ? undefined : submit;
 
   const renderItem = (item: Item): ReactNode => {
     switch (item.kind) {
@@ -162,7 +179,7 @@ export default function ConciergePanel({
                       packages={part.packages}
                       total={part.total}
                       busy={state.busy}
-                      onAsk={submit}
+                      onAsk={ask}
                       onNavigate={closeIfCovering}
                     />
                   );
@@ -201,16 +218,34 @@ export default function ConciergePanel({
               </p>
             )}
             {item.error && (
-              <div className="grid gap-2 self-start rounded-card bg-warn-soft px-3.5 py-2.5 text-[14px] text-warn">
-                <p className="font-semibold">{item.error}</p>
-                {lastUser && !state.busy && item === state.items.at(-1) && (
-                  <button
-                    type="button"
-                    onClick={() => submit(lastUser.text)}
-                    className="justify-self-start font-bold text-ink underline underline-offset-2"
-                  >
-                    Try again
-                  </button>
+              <div
+                role="alert"
+                data-error-kind={item.error.kind}
+                className="grid gap-2.5 self-start rounded-card bg-warn-soft px-3.5 py-2.5 text-[14px] text-warn"
+              >
+                <p className="font-semibold">{item.error.message}</p>
+                {item === state.items.at(-1) && !state.busy && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lastUser && !state.finder && (
+                      <button
+                        type="button"
+                        onClick={() => submit(lastUser.text)}
+                        className={`${LINK_BTN} border-ink bg-ink text-white hover:bg-ink`}
+                      >
+                        Try again
+                      </button>
+                    )}
+                    {FALLBACKS[item.error.kind].finder && !state.finder && (
+                      <button type="button" onClick={finder} className={LINK_BTN}>
+                        Use the quick finder
+                      </button>
+                    )}
+                    {FALLBACKS[item.error.kind].person && (
+                      <button type="button" onClick={talk} className={LINK_BTN}>
+                        Talk to a person
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -233,9 +268,11 @@ export default function ConciergePanel({
                   Start a new chat
                 </button>
               )}
-              <Link href="/packages" onClick={closeIfCovering} className={LINK_BTN}>
-                Browse all trips
-              </Link>
+              {!state.finder?.locked && (
+                <Link href="/packages" onClick={closeIfCovering} className={LINK_BTN}>
+                  Browse all trips
+                </Link>
+              )}
               <button type="button" onClick={talk} className={LINK_BTN}>
                 Send an enquiry
               </button>
@@ -248,6 +285,45 @@ export default function ConciergePanel({
                 WhatsApp us
               </a>
             </div>
+          </div>
+        );
+      case 'finder':
+        return (
+          <div key={item.id} className="grid gap-2.5" data-finder-results>
+            <p className="inline-flex max-w-full items-center gap-2 self-start rounded-chip bg-bg2 px-3 py-1.5 text-[12.5px] font-semibold text-ink2">
+              <i aria-hidden className="size-[7px] shrink-0 rounded-full bg-ok" />
+              <span className="truncate">
+                Quick finder:{' '}
+                {[
+                  item.query.destination?.name ?? 'anywhere',
+                  item.query.month?.label,
+                  item.query.maxBudget ? `under ${inr(item.query.maxBudget * 100)}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </p>
+            {item.packages.length ? (
+              <ChatPackageCards
+                packages={item.packages}
+                total={item.total}
+                busy={false}
+                onNavigate={closeIfCovering}
+                moreHref={finderHref(item.query)}
+              />
+            ) : (
+              <p className="text-ink">
+                Nothing matches all three. Try “Anywhere” or a bigger budget, or{' '}
+                <button
+                  type="button"
+                  onClick={talk}
+                  className="font-bold text-primary-ink underline underline-offset-2"
+                >
+                  ask a person
+                </button>{' '}
+                to plan a trip that isn’t on the site.
+              </p>
+            )}
           </div>
         );
       case 'handed-off':
@@ -339,7 +415,7 @@ export default function ConciergePanel({
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0"
       >
         <p className="max-w-[94%] text-ink">{GREETING}</p>
-        {state.items.length === 0 && (
+        {state.items.length === 0 && !state.finder && (
           <div className="grid gap-1.5" aria-label="Try asking">
             {PROMPTS.map((p) => (
               <button
@@ -356,8 +432,23 @@ export default function ConciergePanel({
         {state.items.map(renderItem)}
       </div>
 
+      {state.finder && state.form === null && (
+        <QuickFinder
+          locked={state.finder.locked}
+          onFound={(query, packages, total) => {
+            pinned.current = true;
+            dispatch({ type: 'found', query, packages, total });
+          }}
+          onBack={() => {
+            dispatch({ type: 'close-finder' });
+            requestAnimationFrame(() => input.current?.focus());
+          }}
+          onNavigate={closeIfCovering}
+        />
+      )}
+
       <form
-        hidden={state.form !== null}
+        hidden={state.form !== null || state.finder !== null}
         onSubmit={(e) => {
           e.preventDefault();
           submit(draft);

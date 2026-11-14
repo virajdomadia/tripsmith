@@ -27,6 +27,7 @@ from app.services.ai.budget import take_turn
 from app.services.ai.loop import ChatUnavailable, Turn, run_turn
 from app.services.ai.model import ChatModel
 from app.services.ai.model import Message as HistoryMessage
+from app.services.ai.pii import redact
 from app.services.ai.tools import ToolContext
 from app.services.analytics import ist_today
 from app.services.enquiries import hash_ip
@@ -67,6 +68,9 @@ async def open_turn(
     """Check every limit, store the visitor's message, return the conversation and its history.
     Raises the 404 / 429 envelopes."""
     today = ist_today(now)
+    # C6: a phone number or email typed into the chat never reaches the model, the database or
+    # the owner's log (R28) — the enquiry form is where contact details go.
+    message = redact(payload.message)
     conversation = None
     if payload.conversation_id:
         conversation = await db.get(Conversation, payload.conversation_id)
@@ -103,9 +107,7 @@ async def open_turn(
 
     if conversation is None:
         secret = settings.session_secret.get_secret_value() if settings.session_secret else None
-        conversation = Conversation(
-            ip_hash=hash_ip(ip, secret=secret), first_user_message=payload.message
-        )
+        conversation = Conversation(ip_hash=hash_ip(ip, secret=secret), first_user_message=message)
         db.add(conversation)
         await db.flush()
     conversation.message_count += 1
@@ -113,7 +115,7 @@ async def open_turn(
         Message(
             conversation_id=conversation.id,
             role=MessageRole.USER,
-            parts=[{"type": "text", "text": payload.message}],
+            parts=[{"type": "text", "text": message}],
         )
     )
     await db.commit()

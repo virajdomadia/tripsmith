@@ -8,6 +8,7 @@
  * number a page promises comes from `GET /meta` (`rules`, `retention`), so the pages are built per
  * request from those, never from a copy.
  */
+import { PRIVACY_NOTE } from './concierge/privacy';
 import { BUSINESS } from './business';
 import { DRAFT_COOKIE_OPTIONS } from './enquiry-form-state';
 import { inr } from './format';
@@ -40,6 +41,8 @@ export const POLICY_SLUGS = [
 const V5 = '2026-10-23';
 /** The scheduled jobs (reminders, nightly deletes) went: terms and privacy changed. */
 const LEAN = '2026-11-04';
+/** v3 close: the AI concierge section on /privacy. */
+const CONCIERGE = '2026-11-14';
 
 /** The title, switcher label, summary and date of each page — what metadata needs, no rules. */
 export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>> = {
@@ -52,8 +55,9 @@ export const POLICY_HEADS: Record<PolicySlug, Omit<PolicyDoc, 'slug' | 'blocks'>
   privacy: {
     title: 'Privacy policy',
     short: 'Privacy',
-    summary: 'What we collect when you enquire or book, why, who sees it, and how to delete it.',
-    updated: LEAN,
+    summary:
+      'What we collect when you enquire, book or chat, why, who sees it, and how to delete it.',
+    updated: CONCIERGE,
   },
   'cancellation-policy': {
     title: 'Cancellation & refunds',
@@ -159,6 +163,15 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         ],
       },
       {
+        id: 'concierge',
+        h: 'AI concierge',
+        p: [
+          PRIVACY_NOTE,
+          'What we keep from a chat: what you wrote, the concierge’s replies and the trips it looked up, and a keyed hash of your internet address, like the one kept with an enquiry. Phone numbers and email addresses typed into a chat are removed before the message is stored or sent to Google. A chat is not linked to your account, and on this demo anyone using the public owner login can read it. To count the 20 messages a day each connection may send, your internet address is held for a day by Upstash, our rate-limit service.',
+          'Chats stay until you ask us to delete them. Nothing you type in the chat books or pays for anything: bookings and enquiries happen in the same forms as the rest of the site.',
+        ],
+      },
+      {
         h: 'What we do with it',
         p: [
           'We use it to respond to your enquiry and, if you book, to run your trip. We do not sell it, we do not add you to a newsletter, and we do not run advertising that follows you around the internet.',
@@ -168,7 +181,7 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         h: 'Who sees it',
         p: [
           'On this demo: anyone who signs in with the public demo login can see every enquiry and booking, as described above.',
-          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, and Gmail sends our emails. Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
+          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Google Gemini answers the AI concierge (see above). Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
           'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
         ],
       },
