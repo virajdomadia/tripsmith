@@ -7,12 +7,17 @@ import { whatsappHref, whatsappInterest } from '@/lib/business';
 import { inr } from '@/lib/format';
 import { finderHref } from '@/lib/concierge/finder';
 import { PRIVACY_NOTE } from '@/lib/concierge/privacy';
-import { EMPTY_PREFILL, type Item, type Part, type TurnError } from '@/lib/concierge/reducer';
+import {
+  EMPTY_PREFILL,
+  IDLE_LINE,
+  type Item,
+  type Part,
+  type TurnError,
+} from '@/lib/concierge/reducer';
 import type { ConciergeApi } from './Concierge';
 import { ChatBookingCard, ChatDepartures, ChatPackageCards } from './ChatCards';
 import { HandoffForm } from './HandoffForm';
 import { QuickFinder } from './QuickFinder';
-import { Ticket } from './Ticket';
 
 export { PRIVACY_NOTE };
 
@@ -166,7 +171,10 @@ export default function ConciergePanel({
               switch (part.kind) {
                 case 'text':
                   return (
-                    <div key={i} className="max-w-[94%] break-words">
+                    <div
+                      key={i}
+                      className="max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg2 px-3.5 py-2.5 break-words text-ink"
+                    >
                       <RichText text={part.text} />
                     </div>
                   );
@@ -355,18 +363,24 @@ export default function ConciergePanel({
         if (e.key === 'Escape') onClose();
       }}
       data-concierge-panel
-      className="fixed inset-0 z-40 flex animate-panel-in flex-col bg-bg lg:inset-auto lg:top-0 lg:right-0 lg:bottom-0 lg:w-[440px] lg:border-l lg:border-line lg:shadow-[-24px_0_50px_-30px_rgb(20_32_42/0.55)]"
+      className="fixed inset-0 z-40 flex animate-panel-in flex-col bg-bg lg:inset-auto lg:right-6 lg:bottom-6 lg:h-[min(660px,calc(100dvh-48px))] lg:w-[400px] lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:shadow-[0_24px_60px_-20px_rgb(20_32_42/0.45)]"
     >
       <header className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3 pt-[max(12px,env(safe-area-inset-top))]">
         <Mark />
         <div className="min-w-0 leading-tight">
           <h2 className="text-[15.5px] font-extrabold whitespace-nowrap">
-            <span className="max-sm:sr-only">Tripsmith trip planner</span>
-            <span aria-hidden className="sm:hidden">
-              Trip planner
-            </span>
+            <span className="sr-only">Tripsmith </span>Trip planner
           </h2>
-          <small className="text-[12px] font-semibold text-ok">Real trips only</small>
+          {/* A chatbot's status line: online, or what it is doing right now. */}
+          <small
+            aria-live="polite"
+            className="flex max-w-[46vw] items-center gap-1.5 truncate text-[12px] font-semibold text-mute lg:max-w-[180px]"
+          >
+            <i aria-hidden className="size-[7px] shrink-0 rounded-full bg-ok" />
+            <span className="truncate">
+              {state.ticket.line === IDLE_LINE ? 'Online · real trips only' : state.ticket.line}
+            </span>
+          </small>
         </div>
         <button
           type="button"
@@ -385,8 +399,6 @@ export default function ConciergePanel({
           ×
         </button>
       </header>
-
-      <Ticket ticket={state.ticket} />
 
       {state.form && (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
@@ -417,7 +429,9 @@ export default function ConciergePanel({
         }}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0"
       >
-        <p className="max-w-[94%] text-ink">{GREETING}</p>
+        <p className="max-w-[88%] self-start rounded-[16px_16px_16px_4px] bg-bg2 px-3.5 py-2.5 break-words text-ink">
+          {GREETING}
+        </p>
         {state.items.length === 0 && !state.finder && (
           <div className="grid gap-1.5" aria-label="Try asking">
             {PROMPTS.map((p) => (
