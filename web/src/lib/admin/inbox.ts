@@ -34,7 +34,7 @@ export const isOpen = (s: string) => OPEN.has(s);
 /** Where it came from, read off its type: A2's Form / Callback / Concierge chip. */
 export function source(type: string): { label: string; icon: 'form' | 'phone' | 'chat' } {
   if (type === 'callback') return { label: 'Callback', icon: 'phone' };
-  if (type === 'chat-handoff') return { label: 'Concierge', icon: 'chat' };
+  if (type === 'chat-handoff') return { label: 'Trip planner', icon: 'chat' };
   return { label: 'Form', icon: 'form' };
 }
 

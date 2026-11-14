@@ -241,7 +241,7 @@ describe('ConciergePanel (C3)', () => {
       json(201, { ref: 'TS-ABC234', firstName: 'Asha', package: null, emailed: true }),
     );
     render(<Harness />);
-    fireEvent.change(screen.getByRole('textbox', { name: 'Message the concierge' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message the trip planner' }), {
       target: { value: 'Goa dates?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -249,7 +249,7 @@ describe('ConciergePanel (C3)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Talk to a person' }));
     const form = screen.getByRole('form', { name: 'Talk to a person' });
-    expect(screen.queryByRole('textbox', { name: 'Message the concierge' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Message the trip planner' })).toBeNull();
     fireEvent.change(within(form).getByLabelText('Your name'), { target: { value: 'Asha Rao' } });
     fireEvent.change(within(form).getByLabelText('Mobile number'), {
       target: { value: '98765 43210' },
@@ -276,7 +276,7 @@ describe('ConciergePanel (C3)', () => {
   it('books a date from the list through /api/chat/booking without a turn', async () => {
     const fetchMock = mockFetch(streamed(DATES_TURN), json(200, BOOKING));
     render(<Harness />);
-    fireEvent.change(screen.getByRole('textbox', { name: 'Message the concierge' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message the trip planner' }), {
       target: { value: 'Goa dates?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -299,7 +299,7 @@ describe('ConciergePanel (C3)', () => {
       }),
     );
     render(<Harness />);
-    fireEvent.change(screen.getByRole('textbox', { name: 'Message the concierge' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message the trip planner' }), {
       target: { value: 'Goa dates?' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));

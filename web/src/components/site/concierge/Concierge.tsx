@@ -26,7 +26,7 @@ const ConciergePanel = dynamic(loadPanel, {
       role="status"
       className="fixed inset-0 z-40 grid place-items-center bg-bg font-semibold text-mute lg:inset-auto lg:top-0 lg:right-0 lg:bottom-0 lg:w-[440px] lg:shadow-[-24px_0_50px_-30px_rgb(20_32_42/0.55)]"
     >
-      Opening the concierge…
+      Opening the trip planner…
     </div>
   ),
 });

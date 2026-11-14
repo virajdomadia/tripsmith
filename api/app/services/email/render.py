@@ -20,7 +20,7 @@ TYPE_LABEL = {
     EnquiryType.STANDARD: "Standard",
     EnquiryType.CUSTOM: "Customise this trip",
     EnquiryType.CONTACT: "General enquiry",
-    EnquiryType.CHAT_HANDOFF: "From the concierge",  # v3 C3
+    EnquiryType.CHAT_HANDOFF: "From the trip planner",  # v3 C3
 }
 
 # A FileSystemLoader (not PackageLoader) so a missing templates dir cannot fail API boot at

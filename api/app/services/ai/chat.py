@@ -40,7 +40,7 @@ HISTORY_MESSAGES = 20  # 04 v3 §4: the model sees the last 20 stored messages
 ERROR_TEXT_MAX = 1_000
 
 BUSY = (
-    "The concierge is busy right now. Try again in a minute, or use the quick finder or "
+    "The trip planner is busy right now. Try again in a minute, or use the quick finder or "
     "“Talk to a person”."
 )
 FAILED = "Something went wrong on our side. Try again, or tap “Talk to a person”."
@@ -102,7 +102,7 @@ async def open_turn(
     if cap is not None:
         raise _limited(
             ChatLimitReason(cap.value),
-            "The concierge has answered all it can for now — the quick finder still works",
+            "The trip planner has answered all it can for now — the quick finder still works",
         )
 
     if conversation is None:

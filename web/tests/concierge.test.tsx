@@ -413,7 +413,7 @@ describe('ConciergePanel', () => {
   it('sends on Enter, not on Shift+Enter, and caps the message at 500', async () => {
     const fetchMock = mockFetch(streamed([sse('done', {})]));
     render(<Harness />);
-    const box = screen.getByRole('textbox', { name: 'Message the concierge' });
+    const box = screen.getByRole('textbox', { name: 'Message the trip planner' });
     expect(box.getAttribute('maxlength')).toBe('500');
     fireEvent.change(box, { target: { value: 'Kerala in December' } });
     fireEvent.keyDown(box, { key: 'Enter', shiftKey: true });
@@ -429,7 +429,7 @@ describe('ConciergePanel', () => {
         JSON.stringify({
           error: {
             code: 'rate_limited',
-            message: 'The concierge has answered all it can',
+            message: 'The trip planner has answered all it can',
             reason: 'daily_cap',
           },
         }),
@@ -438,13 +438,13 @@ describe('ConciergePanel', () => {
     );
     render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: PROMPTS[1] }));
-    await screen.findByText('The concierge has answered all it can');
+    await screen.findByText('The trip planner has answered all it can');
     expect(screen.getByRole('link', { name: 'WhatsApp us' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send an enquiry' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Start a new chat' })).toBeNull();
     // The message box gives way to the quick finder (C6).
     expect(screen.getByRole('form', { name: 'Quick finder' })).toBeTruthy();
-    expect(screen.queryByRole('textbox', { name: 'Message the concierge' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Message the trip planner' })).toBeNull();
   });
 
   it('runs the quick finder on the listing search with no model call (C6)', async () => {
@@ -521,7 +521,7 @@ describe('ConciergePanel', () => {
 
   it('offers the finder and a person when the model is busy, and the chat back after', async () => {
     mockFetch(
-      streamed([sse('error', { reason: 'busy', message: 'The concierge is busy right now.' })]),
+      streamed([sse('error', { reason: 'busy', message: 'The trip planner is busy right now.' })]),
       new Response('{}', { status: 500 }),
     );
     render(<Harness />);
@@ -532,7 +532,7 @@ describe('ConciergePanel', () => {
     fireEvent.click(within(alert).getByRole('button', { name: 'Use the quick finder' }));
     expect(screen.getByRole('form', { name: 'Quick finder' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to the chat' }));
-    expect(screen.getByRole('textbox', { name: 'Message the concierge' })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Message the trip planner' })).toBeTruthy();
   });
 
   it('offers only a retry when the answer was cut off', async () => {
@@ -567,12 +567,12 @@ describe('ConciergePanel', () => {
 
   it('shows a stream error with a retry', async () => {
     mockFetch(
-      streamed([sse('error', { reason: 'busy', message: 'The concierge is busy right now.' })]),
+      streamed([sse('error', { reason: 'busy', message: 'The trip planner is busy right now.' })]),
       streamed([sse('text-delta', { text: 'Back now.' }), sse('done', {})]),
     );
     render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: PROMPTS[0] }));
-    await screen.findByText('The concierge is busy right now.');
+    await screen.findByText('The trip planner is busy right now.');
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await screen.findByText('Back now.');
   });
@@ -581,8 +581,8 @@ describe('ConciergePanel', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
     render(<Harness />);
     fireEvent.click(screen.getByRole('button', { name: PROMPTS[0] }));
-    await screen.findByText(/Couldn’t reach the concierge/);
-    const dialog = screen.getByRole('dialog', { name: 'Tripsmith concierge' });
+    await screen.findByText(/Couldn’t reach the trip planner/);
+    const dialog = screen.getByRole('dialog', { name: 'Tripsmith trip planner' });
     act(() => {
       fireEvent.keyDown(dialog, { key: 'Escape' });
     });

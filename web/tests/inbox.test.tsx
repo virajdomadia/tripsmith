@@ -121,7 +121,7 @@ describe('inbox helpers', () => {
 
   it('reads the source off the type', () => {
     expect(source('callback').label).toBe('Callback');
-    expect(source('chat-handoff').label).toBe('Concierge');
+    expect(source('chat-handoff').label).toBe('Trip planner');
     expect(source('standard').label).toBe('Form');
   });
 

@@ -69,7 +69,7 @@ class Turn:
 
 
 def system_prompt(today: dt.date) -> str:
-    return f"""You are the Tripsmith concierge. Tripsmith is a small Indian tour operator \
+    return f"""You are the Tripsmith trip planner. Tripsmith is a small Indian tour operator \
 that sells fixed-departure group packages. Today is {today.isoformat()} (India time). \
 Prices are in Indian rupees, per person.
 

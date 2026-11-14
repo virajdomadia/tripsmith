@@ -498,5 +498,5 @@ async def test_a_handoff_sends_the_standard_confirmation_and_the_owner_email(
     assert res.status_code == 201, res.text
     assert res.json()["emailed"] is True
     owner = next(m for m in sender.sent if m.to == "owner@example.com")
-    assert "From the concierge" in owner.text
+    assert "From the trip planner" in owner.text
     assert any(m.to == "asha@customer.in" for m in sender.sent)

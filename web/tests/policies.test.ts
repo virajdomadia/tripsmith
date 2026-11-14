@@ -94,7 +94,7 @@ describe('policy documents', () => {
 
   it('says what the AI concierge does with a chat, in the panel’s own words (v3 C6, R28)', () => {
     const block = POLICIES.privacy.blocks.find((b) => b.id === 'concierge');
-    expect(block?.h).toBe('AI concierge');
+    expect(block?.h).toBe('AI trip planner');
     expect(block?.p?.[0]).toBe(PRIVACY_NOTE);
     const said = (block?.p ?? []).join(' ');
     for (const fact of [
@@ -103,7 +103,7 @@ describe('policy documents', () => {
       'Upstash',
     ])
       expect(said).toContain(fact);
-    expect(text('privacy')).toContain('Google Gemini answers the AI concierge');
+    expect(text('privacy')).toContain('Google Gemini answers the AI trip planner');
   });
 
   it('keeps the heads in step with the pages', () => {

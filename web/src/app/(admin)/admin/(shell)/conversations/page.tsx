@@ -16,7 +16,7 @@ import {
 import { api, ApiRequestError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-export const metadata = { title: 'Concierge log' };
+export const metadata = { title: 'Trip planner chats' };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -67,7 +67,7 @@ export default async function ConversationsPage({
     <>
       <div className={cn('grid gap-5', selected && 'max-lg:hidden')}>
         <PageHead
-          title="Concierge log"
+          title="Trip planner chats"
           subtitle={`${counts.all} conversations · ${pct(counts.bookingStarted, counts.all)} started a booking · ${pct(counts.enquiryCreated, counts.all)} handed off to you`}
         />
         <nav
@@ -107,7 +107,7 @@ export default async function ConversationsPage({
               <p className="p-6 text-center text-sm text-mute">
                 {counts.all
                   ? 'No conversation ended this way yet.'
-                  : 'No one has chatted with the concierge yet. Chats appear here as they happen.'}
+                  : 'No one has chatted with the trip planner yet. Chats appear here as they happen.'}
               </p>
             ) : (
               <ul className="divide-y divide-line">

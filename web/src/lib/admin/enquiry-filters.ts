@@ -32,7 +32,7 @@ export const TYPE_LABELS: Record<EnquiryType, string> = {
   contact: 'Contact',
   callback: 'Callback request',
   group: 'Group enquiry',
-  'chat-handoff': 'From concierge',
+  'chat-handoff': 'From trip planner',
 };
 
 /** A type's label, or the raw value for one this build doesn't know yet — a newer api must not

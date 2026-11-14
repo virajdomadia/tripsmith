@@ -217,7 +217,7 @@ export function InboxPanel({
       {transcript.length > 0 && (
         <section className="grid gap-3 border-b border-line p-4">
           <h3 className={H3}>
-            From the concierge
+            From the trip planner
             <span className="ml-auto tracking-normal normal-case">
               {transcript.filter((l) => l.role === 'visitor').length} messages from{' '}
               {e.name.split(' ')[0]}
@@ -229,7 +229,7 @@ export function InboxPanel({
               href={`/admin/conversations?sel=${e.conversationId}`}
               className="justify-self-start text-[12.5px] font-bold"
             >
-              Open in the concierge log, with every lookup
+              Open in Trip planner chats, with every lookup
             </Link>
           )}
         </section>
