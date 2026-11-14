@@ -147,6 +147,12 @@ def card(c: PackageCard) -> dict[str, Any]:
     }
 
 
+async def package_names(db: AsyncSession) -> list[tuple[str, str]]:
+    """Every package we have ever listed (slug, name), live or not: the names a reply may only
+    use once a tool returned them (the guardrail)."""
+    return [(slug, name) for slug, name in await db.execute(select(Package.slug, Package.name))]
+
+
 async def _live_destinations(db: AsyncSession) -> list[tuple[str, str]]:
     rows = await db.execute(
         select(Destination.slug, Destination.name)

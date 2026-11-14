@@ -43,6 +43,7 @@ select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
 # S101: pytest asserts are the tests. S105-S107: the tests' secrets are fixed throwaway strings
 # for fakes and test settings, never a real credential.
 "tests/**" = ["S101", "S105", "S106", "S107"]
+"evals/**" = ["S101"]
 
 [tool.ruff.lint.isort]
 # The api/alembic/ folder is the migrations dir, not the `alembic` package.
@@ -60,3 +61,7 @@ venv = ".venv"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Real-model evals live in evals/ (outside testpaths) and are deselected by default as well:
+# run them by hand with `uv run pytest -m evals evals/` — never in CI (04 v3 §5).
+markers = ["evals: real-model conversations on GEMINI_EVALS_API_KEY, run by hand only"]
+addopts = ["-m", "not evals"]

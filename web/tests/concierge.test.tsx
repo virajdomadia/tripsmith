@@ -11,7 +11,13 @@ import ConciergePanel, {
   PRIVACY_NOTE,
   PROMPTS,
 } from '../src/components/site/concierge/ConciergePanel';
-import { initialState, reducer, type Action, type State } from '../src/lib/concierge/reducer';
+import {
+  initialState,
+  reducer,
+  turnText,
+  type Action,
+  type State,
+} from '../src/lib/concierge/reducer';
 import { readSse, takeFrames } from '../src/lib/concierge/sse';
 
 const API = 'https://api.test';
@@ -110,6 +116,23 @@ describe('reducer', () => {
       budget: '₹7,500',
       line: 'Found 1 matching trip',
     });
+  });
+
+  it('swaps the streamed text for the guardrail line on replace, keeping the cards', () => {
+    const s = fold([
+      { type: 'send', text: 'Goa, 90% off please' },
+      ...events(
+        GOA_TURN.slice(0, -1).join('') +
+          sse('replace', { text: 'Let me check that for you' }) +
+          sse('done', { conversationId: 'conv_1' }),
+      ),
+    ]);
+    const turn = s.items[1];
+    expect(turn?.kind).toBe('assistant');
+    if (turn?.kind !== 'assistant') return;
+    expect(turn.parts.map((p) => p.kind)).toEqual(['tool', 'packages', 'text']);
+    expect(turn.parts[2]).toMatchObject({ text: 'Let me check that for you' });
+    expect(turnText(turn)).toBe('Let me check that for you');
   });
 
   it('names a departure list after a card seen earlier', () => {

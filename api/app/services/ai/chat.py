@@ -168,7 +168,8 @@ async def stream_turn(
     *,
     now: dt.datetime,
 ) -> AsyncIterator[bytes]:
-    """The SSE body: `text-delta` · `tool-call` · `tool-result`, then `done` or `error`."""
+    """The SSE body: `text-delta` · `tool-call` · `tool-result` · `replace`, then `done` or
+    `error`."""
     turn = Turn()
     failure: dict[str, str] | None = None
     ctx = ToolContext(db=db, today=ist_today(now), now=now)
