@@ -371,6 +371,15 @@ async def editor_body(db: AsyncSession, id: str, **over: object) -> dict[str, An
     return (await as_payload(db, id, **over)).model_dump(by_alias=True, mode="json")
 
 
+def free_day(body: dict[str, Any], day: dt.date) -> dt.date:
+    """`day`, or the first later day the package has no departure on: the seed's dates are fixed,
+    so a date counted from today can land on one of them (the editor rejects a duplicate)."""
+    taken = {d["date"] for d in body["departures"]}
+    while day.isoformat() in taken:
+        day += dt.timedelta(days=1)
+    return day
+
+
 @pytest.mark.db
 async def test_editor_saves_send_only_for_new_rows_of_a_live_package(
     catalog: None, db_app: FastAPI, db_client: AsyncClient, db: AsyncSession
@@ -390,7 +399,7 @@ async def test_editor_saves_send_only_for_new_rows_of_a_live_package(
 
     # A new row in the editor does.
     body = await editor_body(db, pkg.id)
-    body["departures"].append(new_date(SOON + dt.timedelta(days=21)))
+    body["departures"].append(new_date(free_day(body, SOON + dt.timedelta(days=21))))
     added = await db_client.put(path, json=body, headers=owner)
     assert added.status_code == 200, added.text
     assert sorted(m.to for m in sender.sent) == ["dest@customer.in", "pkg@customer.in"]
@@ -410,7 +419,7 @@ async def test_a_draft_sends_nothing_until_it_goes_live_with_dates(
     path = f"/admin/packages/{pkg.id}"
 
     body = await editor_body(db, pkg.id)
-    body["departures"].append(new_date(SOON + dt.timedelta(days=60)))
+    body["departures"].append(new_date(free_day(body, SOON + dt.timedelta(days=60))))
     draft = await db_client.put(path, json=body, headers=owner)
     assert draft.status_code == 200, draft.text
     assert sender.sent == []
