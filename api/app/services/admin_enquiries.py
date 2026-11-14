@@ -516,7 +516,7 @@ TYPE_LABELS: dict[OrmEnquiryType, str] = {
     OrmEnquiryType.CONTACT: "Contact",
     OrmEnquiryType.CALLBACK: "Callback request",
     OrmEnquiryType.GROUP: "Group enquiry",
-    OrmEnquiryType.CHAT_HANDOFF: "From concierge",
+    OrmEnquiryType.CHAT_HANDOFF: "From trip planner",
 }
 EMAIL_STATUS_LABELS: dict[EmailStatus, str] = {
     EmailStatus.SENT: "Sent",

@@ -25,13 +25,13 @@ const LIMIT_REASONS: readonly LimitReason[] = [
 ];
 
 export const OFFLINE =
-  'Couldn’t reach the concierge. Check your connection and try again, or tap “Talk to a person”.';
+  'Couldn’t reach the trip planner. Check your connection and try again, or tap “Talk to a person”.';
 export const NO_CONNECTION =
   'You’re offline. Your message is still here — try again once you’re back online.';
 export const SERVER =
   'Something went wrong on our side. Try again in a moment, or use the quick finder.';
 export const SLOW =
-  'The concierge is taking too long to answer. Try again, or use the quick finder.';
+  'The trip planner is taking too long to answer. Try again, or use the quick finder.';
 export const CUT = 'The answer was cut off. Try asking again.';
 
 /** No frame for this long and the panel stops waiting. A turn's model calls stream within

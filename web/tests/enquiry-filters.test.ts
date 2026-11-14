@@ -151,7 +151,7 @@ describe('type labels', () => {
       'Contact',
       'Callback request',
       'Group enquiry',
-      'From concierge',
+      'From trip planner',
     ]);
     expect(typeLabel('booking')).toBe('booking');
     expect(typeLabel('toString')).toBe('toString'); // own keys only, never the prototype

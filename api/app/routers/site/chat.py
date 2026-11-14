@@ -33,7 +33,7 @@ def chat_models(request: Request) -> list[ChatModel]:
     if not models:
         raise ApiError(
             "internal",
-            "The concierge is off right now — the quick finder still works",
+            "The trip planner is off right now — the quick finder still works",
             reason=ChatLimitReason.AI_OFF,
             status=503,
         )

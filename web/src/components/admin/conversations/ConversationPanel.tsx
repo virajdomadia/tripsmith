@@ -66,7 +66,7 @@ export function ConversationPanel({
 
       <section className="grid gap-3 p-4">
         <h3 className={H3}>Transcript</h3>
-        <ol aria-label="Concierge chat" className="grid content-start gap-2 p-0.5 text-[13.5px]">
+        <ol aria-label="Trip planner chat" className="grid content-start gap-2 p-0.5 text-[13.5px]">
           {c.transcript.map((line, i) => {
             if (line.role === 'lookup')
               return (
@@ -105,7 +105,7 @@ export function ConversationPanel({
                 className={cn('grid max-w-[92%] gap-0.5', !visitor && 'justify-self-end')}
               >
                 <span className={cn('text-[11.5px] font-bold text-mute', !visitor && 'text-right')}>
-                  {visitor ? 'Visitor' : 'Concierge'} · {istTime(line.at)}
+                  {visitor ? 'Visitor' : 'Trip planner'} · {istTime(line.at)}
                 </span>
                 <p
                   className={cn(

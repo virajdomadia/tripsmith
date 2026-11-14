@@ -58,7 +58,7 @@ export default async function AdminHome() {
           {data.upcomingDeparturesTotal === 1 ? 'departure' : 'departures'} in the next 30 days
         </Waiting>
         <Waiting href="/admin/conversations" n={ai.conversations}>
-          concierge {ai.conversations === 1 ? 'chat' : 'chats'} this week
+          trip planner {ai.conversations === 1 ? 'chat' : 'chats'} this week
           {ai.conversations > 0 &&
             ` · ${pct(ai.bookingStarted, ai.conversations)} started a booking · ${pct(ai.enquiryCreated, ai.conversations)} handed off · ${tokens(ai.tokens)} tokens`}
           {` · cap hit ${ai.capHitDays === 1 ? '1 day' : `${ai.capHitDays} days`} this month`}

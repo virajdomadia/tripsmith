@@ -161,7 +161,7 @@ export default function ConciergePanel({
             aria-busy={item.streaming}
             className="flex max-w-full flex-col gap-2.5 text-ink"
           >
-            <span className="sr-only">Concierge:</span>
+            <span className="sr-only">Trip planner:</span>
             {item.parts.map((part, i) => {
               switch (part.kind) {
                 case 'text':
@@ -349,7 +349,7 @@ export default function ConciergePanel({
   return (
     <section
       role="dialog"
-      aria-label="Tripsmith concierge"
+      aria-label="Tripsmith trip planner"
       hidden={!open}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose();
@@ -360,8 +360,11 @@ export default function ConciergePanel({
       <header className="flex shrink-0 items-center gap-2.5 border-b border-line px-4 py-3 pt-[max(12px,env(safe-area-inset-top))]">
         <Mark />
         <div className="min-w-0 leading-tight">
-          <h2 className="text-[15.5px] font-extrabold whitespace-nowrap max-sm:capitalize">
-            <span className="max-sm:sr-only">Tripsmith </span>concierge
+          <h2 className="text-[15.5px] font-extrabold whitespace-nowrap">
+            <span className="max-sm:sr-only">Tripsmith trip planner</span>
+            <span aria-hidden className="sm:hidden">
+              Trip planner
+            </span>
           </h2>
           <small className="text-[12px] font-semibold text-ok">Real trips only</small>
         </div>
@@ -376,7 +379,7 @@ export default function ConciergePanel({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close the concierge"
+          aria-label="Close the trip planner"
           className="grid size-9 shrink-0 place-items-center rounded-[9px] text-[22px] leading-none text-mute hover:bg-bg2 hover:text-ink"
         >
           ×
@@ -457,7 +460,7 @@ export default function ConciergePanel({
       >
         <div className="flex items-end gap-2 rounded-[14px] border border-line py-1.5 pr-1.5 pl-3.5 focus-within:border-primary">
           <label htmlFor="concierge-input" className="sr-only">
-            Message the concierge
+            Message the trip planner
           </label>
           <textarea
             id="concierge-input"

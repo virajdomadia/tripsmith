@@ -13,7 +13,7 @@ type Line = components['schemas']['TranscriptLine'];
 export function ConciergeTranscript({ lines, firstName }: { lines: Line[]; firstName: string }) {
   return (
     <ol
-      aria-label="Concierge chat"
+      aria-label="Trip planner chat"
       className="grid max-h-[360px] content-start gap-2 overflow-y-auto p-0.5 text-[13.5px] max-lg:max-h-none"
     >
       {lines.map((line, i) => {
@@ -34,7 +34,7 @@ export function ConciergeTranscript({ lines, firstName }: { lines: Line[]; first
         return (
           <li key={i} className={`grid max-w-[92%] gap-0.5 ${visitor ? '' : 'justify-self-end'}`}>
             <span className={`text-[11.5px] font-bold text-mute ${visitor ? '' : 'text-right'}`}>
-              {visitor ? firstName : 'Concierge'} · {istTime(line.at)}
+              {visitor ? firstName : 'Trip planner'} · {istTime(line.at)}
             </span>
             <p
               className={`rounded-xl border px-3 py-2 leading-relaxed break-words whitespace-pre-line ${

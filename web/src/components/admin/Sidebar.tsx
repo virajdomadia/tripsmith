@@ -27,7 +27,7 @@ export const NAV = [
   { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/admin/reports', label: 'Reports', icon: ChartColumn },
   { href: '/admin/enquiries', label: 'Enquiries', icon: Inbox },
-  { href: '/admin/conversations', label: 'Concierge log', icon: MessagesSquare },
+  { href: '/admin/conversations', label: 'Trip planner chats', icon: MessagesSquare },
   { href: '/admin/reviews', label: 'Reviews', icon: MessageSquareQuote },
   { href: '/admin/coupons', label: 'Coupons', icon: TicketPercent },
 ] as const;

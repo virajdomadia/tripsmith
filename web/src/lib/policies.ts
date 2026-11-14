@@ -164,10 +164,10 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
       },
       {
         id: 'concierge',
-        h: 'AI concierge',
+        h: 'AI trip planner',
         p: [
           PRIVACY_NOTE,
-          'What we keep from a chat: what you wrote, the concierge’s replies and the trips it looked up, and a keyed hash of your internet address, like the one kept with an enquiry. Phone numbers and email addresses typed into a chat are removed before the message is stored or sent to Google. A chat is not linked to your account, and on this demo anyone using the public owner login can read it. To count the 20 messages a day each connection may send, your internet address is held for a day by Upstash, our rate-limit service.',
+          'What we keep from a chat: what you wrote, the trip planner’s replies and the trips it looked up, and a keyed hash of your internet address, like the one kept with an enquiry. Phone numbers and email addresses typed into a chat are removed before the message is stored or sent to Google. A chat is not linked to your account, and on this demo anyone using the public owner login can read it. To count the 20 messages a day each connection may send, your internet address is held for a day by Upstash, our rate-limit service.',
           'Chats stay until you ask us to delete them. Nothing you type in the chat books or pays for anything: bookings and enquiries happen in the same forms as the rest of the site.',
         ],
       },
@@ -181,7 +181,7 @@ export function policies(rules: Rules): Record<PolicySlug, PolicyDoc> {
         h: 'Who sees it',
         p: [
           'On this demo: anyone who signs in with the public demo login can see every enquiry and booking, as described above.',
-          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Google Gemini answers the AI concierge (see above). Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
+          'The services that run the site for us, each under its own privacy terms: Supabase stores the database (in Mumbai), Vercel hosts the site, Razorpay takes payments, Gmail sends our emails, and Google Gemini answers the AI trip planner (see above). Copies of the emails we send — including the note each enquiry sends us — stay in that Gmail mailbox; on this demo nothing clears them automatically.',
           'In a real agency it would be the four of us at Tripsmith, and the hotels, transport partners and permit offices that need travellers’ names for a booking.',
         ],
       },
