@@ -20,7 +20,7 @@ The spec was written before v2.5, v2.6 and the lean cleanup. These decisions rep
 | — | `startBooking` opens the v2 **Book-now side sheet** pre-filled, not a `/book` page (v2 built the sheet) | checkout URL to `/packages/[slug]/book` |
 | — | The browser calls the api domain directly for `/chat` (the `/api` rewrite hides the visitor's IP and buffers streams) | chat through the rewrite |
 | — | Owner AI drafting (R32) is parked with the add-ons (v4 was parked with it until its un-parking on 2026-11-19) | v3 stretch |
-| — | **v3 is the last planned stage**; v4 (MCP) and the add-ons are parked, out of plan — *v4 un-parked 2026-11-19 (Viraj) as the final version; the add-ons stay parked* | v4 after v3 |
+| — | *Historical (2026-11-12, superseded):* v3 was declared the last planned stage, with v4 (MCP) and the add-ons parked. **Current (2026-11-19, Viraj):** v4 is un-parked as the final version; the add-ons stay parked | v4 after v3 |
 
 ## Actors
 - **Visitor** — chats anonymously; may become a customer via `startBooking`.

@@ -3,7 +3,7 @@
 **Status:** **v1 shipped 2026-09-24** (milestones 1.0–1.4, then v1.0.1 hardening, PRs #50–#54) · **v2 booking engine closed 2026-09-27** (#80) · **v2.5 strengthen closed 2026-10-14** (#122) · **v2.6 hardening closed 2026-10-27** (V8) · **v3 AI concierge closed 2026-11-14** (#161, evals 23/23) — each closed lifecycle steps 8–17 (reviews in [docs/17-post-launch.md](docs/17-post-launch.md)). Since then: user-facing "concierge" renamed to **"trip planner"** (#162), chat UI restyle (#163), deploys moved to a new Vercel account built on GitHub Actions (#164/#165). Steps 1–7 were completed for v1–v4 on 2026-09-12 (revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/). Next: **v4 MCP server** (parked 2026-11-12, **un-parked 2026-11-19** as the final version), re-entering at step 3.
 **Name:** Tripsmith · _trips planned in a chat_
 **URL:** https://tripsmith.virajdomadia.com
-**Slot:** #1 · Budget ~60 h (v1–v3, as planned) + ~6 h v4 (prototype target, re-estimated at step 3) · Build first
+**Slot:** #1 · Budget: v1–v3 ≈ 162 h as executed per [docs/07-plan.md](docs/07-plan.md) (35 + 20.5 + 62.5 + 23 + 21; the original estimate was ~60 h, before v2.5 and v2.6 were added) + ~6 h v4 (prototype target, re-estimated at step 3) · Build first
 
 ## One-liner
 
