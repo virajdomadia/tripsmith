@@ -332,7 +332,7 @@ async def test_the_dashboard_route_answers_no_store_and_the_camelcase_contract(
     headers = await owner_headers(db, db_client)
     pkg = await make_package(db)
     await make_enquiry(db, ref="TS-DASH11", package_id=pkg.id)
-    await seed_departure(db, pkg.id, date=dt.date.today() + dt.timedelta(days=5))
+    ours = await seed_departure(db, pkg.id, date=dt.date.today() + dt.timedelta(days=5))
     db.add(PackageView(package_id=pkg.id, day=dt.date.today(), count=3))
     await db.commit()
 
@@ -345,9 +345,12 @@ async def test_the_dashboard_route_answers_no_store_and_the_camelcase_contract(
     assert body["byStatus"]["new"] >= 1
     assert body["topByEnquiries"][0]["slug"] == "test-goa-beaches"
     assert body["topByViews"][0]["count"] == 3
-    assert body["upcomingDepartures"][0]["seatsLeft"] == 20
-    assert body["upcomingDepartures"][0]["packageName"] == "North Goa Beaches"
-    assert body["upcomingDepartures"][0]["badge"] is None  # 20 seats, not guaranteed
+    # Look ours up by id: the package's fixture content has its own dated departures, which sort
+    # ahead of "today + 5" once the calendar reaches them (2026-11-20 has 16 seats).
+    dep = next(d for d in body["upcomingDepartures"] if d["id"] == ours.id)
+    assert dep["seatsLeft"] == 20
+    assert dep["packageName"] == "North Goa Beaches"
+    assert dep["badge"] is None  # 20 seats, not guaranteed
 
 
 @pytest.mark.db
