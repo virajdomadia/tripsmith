@@ -84,8 +84,14 @@ const nextConfig: NextConfig = {
     // new bytes: bundled images are content-hashed imports, owner uploads mint a new path, and
     // scripts/seed.py's fixed paths are renamed, never overwritten (docs/12, Known risk).
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    // Vercel Hobby allows 5,000 transformations a month; each source × width × quality is one.
+    // Close the set: the one quality the app uses, eight widths, and only our own Blob store
+    // (a `*` host would let anyone push any Vercel Blob file through our optimizer).
+    qualities: [75],
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [128, 256, 384],
     remotePatterns: [
-      { protocol: 'https', hostname: '*.public.blob.vercel-storage.com' },
+      { protocol: 'https', hostname: 'qa4fjgb7n4mzmz5g.public.blob.vercel-storage.com' },
       // scripts/seed.py --local (any port: `--local-base-url` lets a worktree api run beside
       // :8000) — dev-only: never allow a `localhost` image source in the prod allow-list.
       ...(process.env.VERCEL ? [] : [{ protocol: 'http' as const, hostname: 'localhost' }]),
