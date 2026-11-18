@@ -179,6 +179,6 @@ Checks: `pnpm lint` · `pnpm typecheck` · `pnpm test` — each fans out to both
 
 The 17-step project lifecycle (kept with the portfolio's planning notes, outside this repo) — v1, v2, v2.5, v2.6 and v3 have each closed steps 8–17 (each later version re-entered at step 3 with a re-validation).
 
-**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking and an admin redesign) ✅ → **v2.6** hardening ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) ✅ — **Tripsmith is complete.** v4 "Tripsmith anywhere" (an MCP server) and the add-ons are parked, out of plan.
+**v1** agency website ✅ → **v2** booking engine (Razorpay checkout, accounts, deals, reviews, coupons) ✅ → **v2.5** strengthen (17 features from live operators, plus counter booking and an admin redesign) ✅ → **v2.6** hardening ✅ → **v3** AI concierge (chat that searches the real catalog, books, and hands off to a human) ✅ → **v4** "Tripsmith anywhere" (an MCP server over the same tools; parked 2026-11-12, **un-parked 2026-11-19** as the final version) — next. The add-ons stay parked, out of plan.
 
 Each later version re-enters the lifecycle at step 3 with a short re-validation before any code.

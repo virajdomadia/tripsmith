@@ -140,7 +140,7 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 ---
 
-## v2.5 — Strengthen (≈ 56 h) — requirements: [03-requirements-v2-5.md](03-requirements-v2-5.md)
+## v2.5 — Strengthen (≈ 62.5 h; 56 at planning + P20) — requirements: [03-requirements-v2-5.md](03-requirements-v2-5.md)
 **Locked 2026-09-27.** After v2 closed, Tripsmith was compared with 14 live package sites and 8 operator tools. Viraj approved 17 items plus a full admin counter-booking screen, each agreed one by one in chat. The full scope of each row is in 03-requirements-v2-5 (R(38+n) = row Pn). Everything is built **before v3**. Rows are listed in **build order**: each row depends on the ones above it.
 
 **Rules for every row:**
@@ -247,18 +247,30 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 **✅ v3 done 2026-11-14 — Tripsmith complete.** C1–C6 merged (#156–#160 and the C6 PR); final evals 23/23; security pass and sign-off in [docs/12](12-security-performance.md#v3-close--concierge-security-pass--final-evals-c6-2026-11-14) and [docs/17](17-post-launch.md#v3--ai-concierge-tripsmith-complete).
 
-**v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. **v3 is the last planned stage (Viraj, 2026-11-12):** v4 and the add-ons below are parked — out of plan, not scheduled.
+**v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. ~~**v3 is the last planned stage (Viraj, 2026-11-12):** v4 and the add-ons below are parked — out of plan, not scheduled.~~ **v4 un-parked (Viraj, 2026-11-19):** v4 is the next — and final — stage; the add-ons stay parked, out of plan.
 
-## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — ⏸ **parked 2026-11-12, out of plan** — requirements: [03-requirements-v4.md](03-requirements-v4.md)
-Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape.
+## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — ▶ **next: un-parked 2026-11-19** (parked 2026-11-12) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
+Starts now that v3 is closed (C6, #161), with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape, the api domain after the Vercel account move (#164/#165), and **re-estimate the ≈ 6 h prototype target**. Boundaries (2026-11-19) are in 03-requirements-v4: public-catalogue tools only, no payment through MCP, the MCP layer is an adapter over the v3 tool functions, `createEnquiry` the only write, no tenancy, OAuth tools stretch.
+
+**Step-3 re-validation checklist (20 min, 2026-11-19)** — exit condition: we know exactly which functions MCP calls, which SDK/transport we use, and that production can serve the endpoint. **If any row reveals an architectural mismatch, stop and re-plan before 4.0.1.**
+
+| Min | Check |
+|---|---|
+| 0–4 | Read `services/ai/tools.py` (`TOOLS`, `run_tool`) and `loop.py`: list the four functions MCP will call and what `ToolContext` needs (db session, IP for limits, conversation id → none for MCP) |
+| 4–8 | Current `mcp` Python SDK version; `FastMCP` Streamable HTTP in stateless mode mounts on FastAPI; spec version Claude Desktop expects |
+| 8–12 | `/mcp` on the api under Vercel after the account move: function duration, no long-lived sessions needed, the real production domain (docs/06 C8 and 04 §v4 disagree — record the one that resolves) |
+| 12–16 | Limits and boundaries: per-client rate limit, `createEnquiry` gets the web form's limiter + `pii.redact()`, pydantic validation on every tool, no payment / booking-management tool exposed |
+| 16–20 | Update 04-technical-design-v2-v3 §v4 and docs/06 C8 with what was found; record blockers; re-estimate the 6 h |
+
+**Shipped only when (on production, not local):** the deployment succeeds · `/mcp` initialises and lists 4 tools · each tool returns the same result as the chat tool for the same args · `createEnquiry` hits its rate limit and stores redacted text · no payment/authenticated tool is listed · Claude Desktop connects to the production URL and completes a real catalogue query (recorded for the README). The public MCP URL is marked confirmed only after this.
 
 ### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| 4.0.1 | Alembic `0006_v4` (`mcp_requests`); confirm the v3 tools in `services/ai/tools.py` are plain typed functions registrable by both the chat agent and MCP | 1 h | chat unchanged; unit tests still green |
-| 4.0.2 | `services/mcp` with the official **`mcp` Python SDK** (`FastMCP`, Streamable HTTP, stateless) mounted at `/mcp` by `routers/mcp.py`: register 4 tools, rate limits, request logging, error mapping; MCP Inspector smoke test script | 1.5 h | Inspector lists and calls all tools against local |
+| 4.0.1 | Alembic migration (`mcp_requests`; next free revision after `0028_v3`, not the old `0006_v4` name); confirm the v3 tools in `services/ai/tools.py` are plain typed functions callable by both the chat tool loop and MCP | 1 h | chat unchanged; unit tests still green |
+| 4.0.2 | `services/mcp` with the official **`mcp` Python SDK** (`FastMCP`, Streamable HTTP, stateless) mounted at `/mcp` by `routers/mcp.py`: register 4 tools as thin adapters, pydantic validation, rate limits, request logging, error mapping; MCP Inspector smoke test script | 1.5 h | Inspector lists and calls all tools against local; **a test per MCP tool asserts it delegates to the same service function as the chat tool (no duplicated logic)**; **a rate-limit test: `createEnquiry` via MCP is refused past the enquiry limiter / 5-a-day cap with a clear MCP error** |
 | 4.0.3 | Resources (`packages`, `packages/{slug}`, `destinations/{slug}`) via `services/catalog/markdown.py`; `plan-a-trip` prompt | 1 h | a client reads a package and quotes its price |
-| 4.0.4 | Dashboard tile "trips planned via MCP" + top tools; evals MCP driver running the 20 conversations against preview; Inspector smoke test in CI | 1 h | evals pass via MCP |
+| 4.0.4 | Dashboard tile "trips planned via MCP" + top tools; evals MCP driver running the v3 eval conversations (23) against preview; Inspector smoke test in CI | 1 h | evals pass via MCP |
 | 4.0.5 | `/developers` page with install configs; README section + 30 s GIF from Claude Desktop; post-launch review; case study final | 1.5 h | a stranger installs it in < 1 min |
 | Stretch | R38 authenticated tools via MCP OAuth (own OAuth 2.1 server over `users`/`sessions`) — `myBookings`, `getVoucher` | 3 h | |
 
@@ -269,10 +281,10 @@ Starts after 3.3 with a step-3 re-validation (20 min): confirm the MCP SDK/spec 
 |---|---|---|---|
 | v1 | 1.0 – 1.4 | 35 | 35 |
 | v2 | 2.0 – 2.3 | 20.5 | 55.5 |
-| v2.5 | 2.5.0 – 2.5.5 | 56 | 111.5 |
-| v2.6 | 2.6.0 – 2.6.2 | 23 | 134.5 |
-| v3 ✅ | C1 – C6 | 21 | 155.5 |
-| v4 *(parked)* | 4.0 | — | — |
+| v2.5 | 2.5.0 – 2.5.5 | 62.5 (56 at planning + P20 admin redesign) | 118 |
+| v2.6 | 2.6.0 – 2.6.2 | 23 | 141 |
+| v3 ✅ | C1 – C6 | 21 | 162 |
+| v4 *(next, un-parked 2026-11-19)* | 4.0 | ≈ 6 (prototype target; re-estimated at step 3) | ≈ 168 |
 | Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | parked | — |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.

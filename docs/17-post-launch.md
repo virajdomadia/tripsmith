@@ -379,7 +379,7 @@ being told which features stop. Gone: the Vercel crons `/cron/daily` and `/cron/
 
 **Rows:** C1–C6 · **Written:** 2026-11-14 (C6) · **v3 is the last planned stage** (Viraj, 2026-11-12)
 
-v3 adds a concierge that plans a trip in a chat, using only Tripsmith's real catalogue. It searches live packages, checks dates and seats, opens the Book-now sheet pre-filled and hands off to a person. It runs on Google Gemini's free tier, so it costs ₹0. When the free turns run out, a no-AI finder takes its place. With C6 closed, Tripsmith is complete: v4 (an MCP server) and the add-ons are parked, not scheduled.
+v3 adds a concierge that plans a trip in a chat, using only Tripsmith's real catalogue. It searches live packages, checks dates and seats, opens the Book-now sheet pre-filled and hands off to a person. It runs on Google Gemini's free tier, so it costs ₹0. When the free turns run out, a no-AI finder takes its place. With C6 closed, Tripsmith is complete: v4 (an MCP server) and the add-ons are parked, not scheduled. *Update 2026-11-19 (Viraj): v4 is un-parked as the final version; the add-ons stay parked.*
 
 ## What shipped
 
@@ -426,7 +426,7 @@ v3 adds a concierge that plans a trip in a chat, using only Tripsmith's real cat
 
 Viraj parked these on 2026-11-12: they are not scheduled.
 
-- **v4 "Tripsmith anywhere":** an MCP server over the same tools.
+- ~~**v4 "Tripsmith anywhere":** an MCP server over the same tools.~~ **Un-parked 2026-11-19** — the next and final version (v4 section of [07-plan.md](07-plan.md)).
 - **The add-ons:**
   - B best time to go
   - A owner AI drafting

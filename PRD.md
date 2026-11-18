@@ -1,9 +1,9 @@
 # PRD — Tripsmith: Travel site + AI concierge
 
-**Status:** **v1 shipped 2026-09-24** — the agency website is live at [tripsmith.vercel.app](https://tripsmith.vercel.app) with milestones 1.0–1.4 closed (lifecycle steps 8–17; review in [docs/17-post-launch.md](docs/17-post-launch.md)); **v1.0.1** hardening (PRs #50–#54) followed the same day. Steps 1–7 were completed for v1–v4 on 2026-09-12 (revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/). Next: **v2 booking engine**, re-entering at step 3.
+**Status:** **v1 shipped 2026-09-24** (milestones 1.0–1.4, then v1.0.1 hardening, PRs #50–#54) · **v2 booking engine closed 2026-09-27** (#80) · **v2.5 strengthen closed 2026-10-14** (#122) · **v2.6 hardening closed 2026-10-27** (V8) · **v3 AI concierge closed 2026-11-14** (#161, evals 23/23) — each closed lifecycle steps 8–17 (reviews in [docs/17-post-launch.md](docs/17-post-launch.md)). Since then: user-facing "concierge" renamed to **"trip planner"** (#162), chat UI restyle (#163), deploys moved to a new Vercel account built on GitHub Actions (#164/#165). Steps 1–7 were completed for v1–v4 on 2026-09-12 (revised 2026-09-13 — backend switched from Hono to FastAPI) — see [docs/](docs/). Next: **v4 MCP server** (parked 2026-11-12, **un-parked 2026-11-19** as the final version), re-entering at step 3.
 **Name:** Tripsmith · _trips planned in a chat_
 **URL:** https://tripsmith.virajdomadia.com
-**Slot:** #1 · Budget ~60 h (v1–v3) + ~6 h v4 · Build first
+**Slot:** #1 · Budget ~60 h (v1–v3, as planned) + ~6 h v4 (prototype target, re-estimated at step 3) · Build first
 
 ## One-liner
 
@@ -163,13 +163,23 @@ The wow. Feature list locked 2026-09-12; acceptance criteria in [docs/03-require
 | **"Notify me" for new departures**    | Email capture the concierge can offer when nothing fits                                                                               |
 | **Admin: conversation log**           | Owner sees chats, which packages were suggested, and drop-offs                                                                        |
 
-## v4 — "Tripsmith anywhere": MCP server (~6 h) — added 2026-09-12, the capstone
+## v4 — "Tripsmith anywhere": MCP server (~6 h) — added 2026-09-12, the capstone · parked 2026-11-12 · **un-parked 2026-11-19 (Viraj) — the final version**
 
 The agency lives inside the customer's own assistant. Feature list locked; acceptance criteria in [docs/03-requirements-v4.md](docs/03-requirements-v4.md).
 
+**Boundaries (Viraj, 2026-11-19):**
+
+- **Public-catalogue tools only** in the initial release: `searchPackages`, `checkAvailability`, `startBooking` (returns a checkout URL), `createEnquiry`. **No payment execution through MCP, ever** — payment stays in the Razorpay checkout on the site.
+- **The MCP layer is an adapter:** it calls the existing domain services — the same functions the v3 chat tool loop calls (`services/ai/tools.py`) — and contains no business logic of its own.
+- Pydantic validation on every tool, per-client rate limits, structured `mcp_requests` logging, error mapping (MCP tool errors, never stack traces).
+- `createEnquiry` is the only tool that writes; it gets the same abuse protection as the web enquiry form and the chat handoff (see [docs/03-requirements-v4.md](docs/03-requirements-v4.md) R36).
+- **No tenancy:** Tripsmith is a single agency.
+- MCP OAuth + `myBookings` / `getVoucher` stay a **stretch goal**.
+- **~6 h is a prototype target**; re-estimated at the step-3 re-validation.
+
 | Feature                          | What it is                                                                                                                           |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Remote MCP server**            | `POST /api/mcp` (Streamable HTTP) — add it to Claude Desktop, ChatGPT, Cursor or any MCP client                                      |
+| **Remote MCP server**            | `POST /mcp` on the api (Streamable HTTP, mounted in FastAPI) — add it to Claude Desktop, ChatGPT, Cursor or any MCP client           |
 | **Tools**                        | the v3 tools re-exposed unchanged: `searchPackages`, `checkAvailability`, `startBooking` (checkout URL, never pays), `createEnquiry` |
 | **Resources**                    | `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` as markdown — read a package without a tool call                    |
 | **Prompt**                       | `plan-a-trip` guided planning prompt                                                                                                 |
