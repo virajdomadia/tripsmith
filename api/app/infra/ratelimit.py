@@ -7,6 +7,9 @@ and `retry_after` is when the oldest recorded hit leaves the window, not the who
 Upstash being down never blocks a visitor — the limiter fails open and reports. When the
 Upstash env is unset (dev, CI) `NullRateLimiter` allows everything and says so once (and on a
 Vercel deployment `build_rate_limiter` logs an ERROR at startup).
+
+Either way the result says it is `degraded`: the site ignores that (fail open), while MCP
+(v4 R36) refuses the call (fail closed), because an anonymous API must not run unlimited.
 """
 
 import logging
@@ -28,6 +31,7 @@ log = logging.getLogger(__name__)
 class RateLimitResult:
     allowed: bool
     retry_after: int = 0  # seconds; 0 when allowed
+    degraded: bool = False  # no real limiter answered: Upstash down, or none on a deployment
 
 
 class RateLimiter(Protocol):
@@ -37,11 +41,14 @@ class RateLimiter(Protocol):
 class NullRateLimiter:
     _warned = False
 
+    def __init__(self, *, degraded: bool = False) -> None:
+        self.degraded = degraded  # True on a deployment, where its absence is a misconfiguration
+
     async def hit(self, key: str, *, limit: int, window_seconds: int) -> RateLimitResult:
         if not NullRateLimiter._warned:
             NullRateLimiter._warned = True
             log.warning("UPSTASH_REDIS_REST_URL/TOKEN unset — rate limiting is off")
-        return RateLimitResult(allowed=True)
+        return RateLimitResult(allowed=True, degraded=self.degraded)
 
 
 # KEYS[1] the log · ARGV now_ms, cutoff_ms, limit, member, window_ms → {1, ""} allowed, or
@@ -79,7 +86,7 @@ class UpstashRateLimiter:
             oldest_ms = int(float(oldest))
         except Exception as exc:  # noqa: BLE001 — any failure fails open, by design
             log.error("Rate limiter unavailable, allowing request: %s", exc)
-            return RateLimitResult(allowed=True)
+            return RateLimitResult(allowed=True, degraded=True)
         wait_ms = oldest_ms + window_ms - now_ms
         return RateLimitResult(allowed=False, retry_after=max(1, math.ceil(wait_ms / 1000)))
 
@@ -94,6 +101,8 @@ def build_rate_limiter(settings: Settings) -> RateLimiter:
         # NullRateLimiter WARNING only shows on the first hit. ERROR so it stands out.
         log.error(
             "UPSTASH_REDIS_REST_URL/TOKEN unset on a deployment: rate limiting is OFF for "
-            "enquiries, sign-in and page views. Set both on this project."
+            "enquiries, sign-in and page views, and MCP refuses every call. Set both on this "
+            "project."
         )
+        return NullRateLimiter(degraded=True)
     return NullRateLimiter()

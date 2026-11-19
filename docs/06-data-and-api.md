@@ -243,7 +243,7 @@ erDiagram
 | `0001_v1`      | enums (all v1 + ⏩ values), `users` / `sessions` / `verification`, catalog, enquiries, notes, views, `departure_availability` v1 view (raw SQL in the revision) |
 | `0004_v2`      | drop `sessions.token` (after B1 stops mapping it); booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view (same columns). Run on prod before the B2 code merges |
 | `0028_v3`      | conversations, messages, chat_budget, departure_alerts; FK `enquiries.conversation_id` becomes enforced (`ai_generations` waits for add-on A). Planned as `0005_v3`; renumbered 2026-11-12 (prod is at `0027`) |
-| next after `0028_v3` | `mcp_requests`                                                                                                                                                  |
+| `0029_mcp_requests` | `mcp_requests` (v4 4.0.4). Expand-only: one new table                                                                                                       |
 | `0007+_addons` | one migration per add-on table group, only when built                                                                                                           |
 
 As built, v1.0.1 added two expand-only revisions, so the v2+ revisions above are numbered from `0004` (the next free number when each is built): `0002_first_published_at` (`packages.first_published_at`, `packages.edited_at`, `destinations.first_published_at`, backfilled from live/enquired packages) and `0003_hash_session_tokens` (`sessions.token_hash`, backfilled; `token` made nullable). Both run before the api deploy; prod is at `0003`. v2 then added `0005_otp_attempts`, `0006_traveller_position`, `0007_resolve_and_reply` and `0008_review_moderation` (`reviews.moderated_at`, B13), each add-only and run on prod before its code merged.
@@ -457,16 +457,16 @@ package = define_package(
 | tool | `searchPackages` | `run_tool("searchPackages")` (C6), unchanged |
 | tool | `checkAvailability` | `run_tool("checkAvailability")`, unchanged |
 | tool | `startBooking` | `run_tool("startBooking")` with `url` made absolute (`WEB_URL` + path). A handoff link: no hold, no payment |
-| tool | `startEnquiry` | builds a pre-filled enquiry-form link (`enquire`, `month`, `adults`, `children`, `note`). A handoff link: **creates no enquiry** |
+| tool | `startEnquiry` | runs `createEnquiry`, returns a link to the site's enquiry form (`/packages/{slug}/enquire` or `/contact#enquire`, with `travelMonth`, `adults`, `children`) and the redacted `summary`. A handoff link: **creates no enquiry** |
 | tool (stretch, auth) | `myBookings`, `getVoucher` | v2 `listMyBookings`, voucher URL (signed, 10 min) |
-| prompt | `plan-a-trip` | args destination?, month?, budget?, party? (core if about 0.5 h) |
+| prompt | `plan-a-trip` | args destination?, month?, budget?, party? (strings, each ≤ 120 chars after redaction; unknown args refused). One user message. Counts against the limit; logged as `prompts/get` |
 | resource (optional) | `tripsmith://packages`, `.../packages/{slug}`, `.../destinations/{slug}` | needs the new `catalog/markdown.py` renderer; live packages only |
 
 Never exposed: payment, seat holds, lead creation, catalogue writes.
 
-Every call is logged to `mcp_requests`. Rate limit: `mcp:{ip}` at most 60 / hour on the server-derived IP, failing closed if Redis is down. Errors: MCP tool error content with a short message; pydantic issues summarised, never raw.
+Every served call is logged to `mcp_requests` (a refused one is not). Rate limit: `mcp:{ip}` at most 60 / hour on the server-derived IP, failing closed if Redis is down. Errors: MCP tool error content with a short message; pydantic issues summarised, never raw.
 
-**web pre-fill params** (package page enquiry form, `/contact`): `enquire=1`, `month` (YYYY-MM), `adults` (1–20), `children` (0–20), `note` (at most 300 chars). Anything else, including `name`/`phone`/`email`, is ignored.
+**web pre-fill params** (the existing `PUBLIC_FIELDS` of `/packages/{slug}/enquire` and `/contact`): `travelMonth` (YYYY-MM), `adults`, `children` (plus `type`, `budget`). Anything a person types (`name`, `phone`, `email`, `message`, …) is never read from a URL.
 
 ### C7. Add-on endpoints
 

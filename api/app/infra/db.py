@@ -64,9 +64,9 @@ def make_engine(url: str) -> AsyncEngine:
 
 
 def get_engine(settings: Settings) -> AsyncEngine:
-    if settings.database_url is None:
+    url = settings.database_url.get_secret_value().strip() if settings.database_url else ""
+    if not url:  # unset, or set to "" (an empty env var is not a database)
         raise DatabaseNotConfigured("DATABASE_URL is not set")
-    url = settings.database_url.get_secret_value()
     engine = _engines.get(url)
     if engine is None:
         engine = _engines[url] = make_engine(url)

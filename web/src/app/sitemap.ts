@@ -70,6 +70,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absolute('/leaders'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absolute('/about'), changeFrequency: 'yearly', priority: 0.5 },
     { url: absolute('/contact'), changeFrequency: 'yearly', priority: 0.5 },
+    { url: absolute('/developers'), changeFrequency: 'yearly', priority: 0.3 },
     ...POLICY_SLUGS.map((slug) => ({
       url: absolute(`/${slug}`),
       changeFrequency: 'yearly' as const,

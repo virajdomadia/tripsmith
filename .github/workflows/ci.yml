@@ -74,3 +74,18 @@ jobs:
       - run: uv run --directory api ruff format --check .
       - run: uv run --directory api pyright
       - run: uv run --directory api pytest
+      # v4 4.0.5: the MCP server under a real ASGI server and real sockets, driven by the SDK's own
+      # client (legacy and 2026-07-28 modes), on its own freshly migrated and seeded database.
+      # Catches SDK transport/client changes the in-process tests can't. The same script runs
+      # against preview and production at 4.0.6.
+      - name: MCP smoke test (uvicorn + SDK client)
+        working-directory: api
+        env:
+          SMOKE_DATABASE_URL: postgresql+asyncpg://tripsmith@localhost:5432/tripsmith_smoke
+        run: |
+          psql -h localhost -U tripsmith -d tripsmith_test -c 'CREATE DATABASE tripsmith_smoke'
+          ALEMBIC_URL="$SMOKE_DATABASE_URL" uv run alembic upgrade head
+          uv run python scripts/seed.py --local --database-url "$SMOKE_DATABASE_URL"
+          DATABASE_URL="$SMOKE_DATABASE_URL" uv run uvicorn app.main:app --port 8000 > uvicorn.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health > /dev/null && break; sleep 1; done
+          uv run python scripts/mcp_smoke.py http://127.0.0.1:8000/mcp || { cat uvicorn.log; exit 1; }

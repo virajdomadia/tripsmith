@@ -155,7 +155,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 | `searchPackages` | `run_tool("searchPackages", ...)` | nothing |
 | `checkAvailability` | `run_tool("checkAvailability", ...)` | nothing |
 | `startBooking` | `run_tool("startBooking", ...)` (existing booking quote; returns `/packages/{slug}?...#book`) | absolute URL: `WEB_URL` + path |
-| `startEnquiry` | the same live-package lookup `create_enquiry_tool` uses | builds `{WEB_URL}/packages/{slug}?enquire=1&month=...&adults=...&children=...&note=...` (or `/contact?...` without a package), `urlencode`d, allowlisted fields only, note at most 300 chars after `pii.redact()`. **Creates nothing.** |
+| `startEnquiry` | the same live-package lookup `create_enquiry_tool` uses | runs `createEnquiry` and builds `/packages/{slug}/enquire?travelMonth=…&adults=…&children=…`, or `/contact?…#enquire` without a live package, `urlencode`d; the redacted summary is returned, never put in the link. **Creates nothing.** |
 
 - `ToolContext` for MCP: DB session, `now`, the server-derived client IP; no conversation id.
 - `ToolArgs` reused as-is (`extra="forbid"`). `startEnquiry` gets its own small args model with the same bounds as the v3 enquiry args, minus contact fields.
@@ -163,16 +163,16 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 - Tool errors become MCP tool-error content (`isError: true`) with a short message; validation errors are summarised; nothing is raised to the transport.
 
 ### 3. Web: enquiry pre-fill
-- The package page's enquiry form (and `/contact`) read `enquire`, `month`, `adults`, `children`, `note` from the query string through one zod schema: allowlisted keys, `month` YYYY-MM within 18 months, counts bounded, note at most 300 chars, rendered as text. Unknown keys are ignored; `name`/`phone`/`email` are never read from the URL. `enquire=1` scrolls to and opens the form.
+- No new web code (4.0.3, 2026-11-19): the enquiry pages already pre-fill from the query through `formStateFrom` (`web/src/lib/enquiry-form-state.ts`), which reads only `PUBLIC_FIELDS` (choices) and never the private fields (anything typed). The adapter links to those pages with those field names; a web test pins the contract (`tests/enquiry-schema.test.ts`).
 
 ### 4. Limits, identity, logging
 - **Caller IP** from `infra/client_ip.py` (Vercel forwarded header / the signed internal header; never a client-supplied IP header).
-- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 60 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters.
-- One `mcp_requests` row per call (`services/mcp/log.py`, written after the response is built): method, name, args with `pii.redact()` on free-text fields, latency ms, ok/error, `ip_hash` (the existing keyed hash), and client name/version/User-Agent **as reported**. These are diagnostic only, never used for limits or trust.
+- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 60 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters. As built: `RateLimitResult.degraded` is set when Upstash fails and by the `NullRateLimiter` built on a deployment without Upstash; `services/mcp/server._refusal` refuses on it. Only `tools/call` is counted (`tools/list` is free).
+- One `mcp_requests` row per call (`services/mcp/log.py`, written after the response is built): method, name, args with `pii.redact()` on free-text fields, latency ms, ok/error, `ip_hash` (the existing keyed hash), and client name/version/User-Agent **as reported**. These are diagnostic only, never used for limits or trust. As built: `log.clean_args` redacts and bounds every string (300 chars, 20 items, 4 levels deep); the row is written in its own session after the tool's read-only one closes, and a write failure is logged, never raised. Refused calls write no row.
 
 ### 5. Optional (not core)
 - Resources `tripsmith://packages`, `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` need a **new** `services/catalog/markdown.py` renderer (it does not exist yet) over **live** packages only, with a test that a draft is never listed or readable.
-- Prompt `plan-a-trip` is core only if it stays about 0.5 h.
+- Prompt `plan-a-trip` is core only if it stays about 0.5 h. **Built in 4.0.5 (core):** `TripsmithServer.list_prompts`/`get_prompt` over `services/mcp/prompts.py`, through the same limit and log as tools. `scripts/mcp_smoke.py` drives a real server with the SDK client (legacy and 2026-07-28 modes) and runs in CI on uvicorn over a migrated, seeded database.
 - Dashboard tile reading `mcp_requests` (7 / 30 days, top tools, `startBooking` count).
 
 ### 6. Auth (stretch R38)
@@ -189,8 +189,8 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 | Gate | How it's checked |
 |---|---|
 | Vercel project: plan, Fluid Compute, root dir, resolved Python entrypoint | Vercel dashboard / CLI on the new account. The function timeout is the api project's **default function timeout of 60 s** (set in the Vercel project, `resourceConfig.functionDefaultTimeout`, since #165; not in `api/vercel.json`), which is ample for request/response MCP calls. Deploys are GitHub Actions prebuilt deploys only; Vercel's own Git deployments are off (`git.deploymentEnabled: false`, #167). Confirm both on the new account |
-| Lifespan + session manager in the deployed function | the first `/mcp` call on preview succeeds |
-| Host/Origin allowlist | preview and production hosts accepted, an unlisted Origin refused |
+| Lifespan + session manager in the deployed function | the first `/mcp` call on production succeeds: the `mcp` job in `.github/workflows/vercel.yml` runs `scripts/mcp_smoke.py` after every api deploy (there are no preview deploys; Vercel deploys only from `main`) |
+| Host/Origin allowlist | the production host accepted (the same smoke job; if it gets 421, set `MCP_HOSTS=tripsmith-api.virajdomadia.com` on the api project), an unlisted Origin refused (a `curl` with `Origin: https://evil.example` gets 403) |
 | Production URL | candidate `https://tripsmith-api.virajdomadia.com/mcp` resolves to the new project and a real client completes a catalogue query. Only then is it marked confirmed |
 
 ### 9. Risks

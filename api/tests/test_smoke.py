@@ -36,6 +36,7 @@ EXPECTED_ENV_KEYS = {
     "WEB_URL",
     "REVALIDATE_SECRET",
     "SITE_URL",
+    "MCP_HOSTS",
     "GEMINI_API_KEY",
     "AI_MODEL",
     "AI_MODEL_FALLBACK",
@@ -61,7 +62,7 @@ def test_python_is_3_12() -> None:
     assert sys.version_info[:2] == (3, 12)
 
 
-def test_env_example_has_the_32_documented_keys() -> None:
+def test_env_example_has_the_33_documented_keys() -> None:
     keys = parse_env_example(API_ROOT / ".env.example")
-    assert len(keys) == 32
+    assert len(keys) == 33
     assert set(keys) == EXPECTED_ENV_KEYS
