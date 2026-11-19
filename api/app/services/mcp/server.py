@@ -6,16 +6,33 @@ is request/response, so no session store and no server-to-client stream.
 
 The SDK's session manager must run for the endpoint to work, and a sub-app's lifespan never runs,
 so `app.main.lifespan` enters it (`app.state.mcp_session_manager`).
+
+4.0.2: the tools come from `services/mcp/adapter.py` (over the chat's tool registry). Each call
+gets its own database session that is never committed: MCP reads, it never writes.
 """
 
+import datetime as dt
+import json
+import logging
 from collections.abc import Mapping
+from typing import Any
 
 from fastapi import FastAPI
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Context
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import CallToolResult, TextContent
+from mcp.types import Tool as MCPTool
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
+from app.infra.db import DatabaseNotConfigured, session_factory
+from app.services.ai.tools import ToolContext
+from app.services.analytics import ist_today
+from app.services.mcp import adapter
+
+log = logging.getLogger(__name__)
 
 SERVER_NAME = "tripsmith"
 PATH = "/mcp"
@@ -48,15 +65,57 @@ def allowed_origins(environ: Mapping[str, str]) -> list[str]:
     return [] if environ.get("VERCEL") else list(_LOCAL_ORIGINS)
 
 
-def build_server(settings: Settings) -> MCPServer:
-    return MCPServer(name=SERVER_NAME, version=_version())
+UNAVAILABLE = "Tripsmith's catalogue is unavailable right now. Try again shortly."
+
+
+class TripsmithServer(MCPServer):
+    """The SDK server with Tripsmith's four tools, served from `adapter` rather than registered
+    one by one, so their schemas are the chat's and every call goes through `run_tool`."""
+
+    def __init__(self, app: FastAPI) -> None:
+        super().__init__(name=SERVER_NAME, version=_version())
+        self._app = app
+
+    async def list_tools(self) -> list[MCPTool]:
+        return [
+            MCPTool(name=t.name, description=t.description, input_schema=t.input_schema)
+            for t in adapter.tool_list()
+        ]
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any], context: Context[Any, Any] | None = None
+    ) -> CallToolResult:
+        settings: Settings = self._app.state.settings
+        now = dt.datetime.now(dt.UTC)
+        try:
+            sessions = self._sessions(settings)
+        except DatabaseNotConfigured:
+            log.error("MCP %s: DATABASE_URL is not set", name)
+            return _result({"error": UNAVAILABLE})
+        async with sessions() as db:  # never committed: MCP only reads
+            ctx = ToolContext(db=db, today=ist_today(now), now=now)
+            return _result(await adapter.call(ctx, settings.site_url, name, arguments))
+
+    def _sessions(self, settings: Settings) -> async_sessionmaker[AsyncSession]:
+        """Tests point MCP at their database with `app.state.mcp_sessions` (MCP calls don't go
+        through FastAPI's dependencies, so `get_session` overrides don't reach them)."""
+        return getattr(self._app.state, "mcp_sessions", None) or session_factory(settings)
+
+
+def _result(payload: dict[str, Any]) -> CallToolResult:
+    """A tool result as text (for any client) and structured content; `error` → isError."""
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))],
+        structured_content=payload,
+        is_error="error" in payload,
+    )
 
 
 def mount(
     app: FastAPI, settings: Settings, environ: Mapping[str, str]
 ) -> StreamableHTTPSessionManager:
     """Add POST/GET/DELETE /mcp to `app`; return the session manager the lifespan must run."""
-    server = build_server(settings)
+    server = TripsmithServer(app)
     sub = server.streamable_http_app(
         streamable_http_path=PATH,
         stateless_http=True,
