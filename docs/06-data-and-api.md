@@ -450,7 +450,7 @@ package = define_package(
 
 *Re-validated 2026-11-19; see 04-technical-design-v2-v3 section v4.*
 
-**api `/mcp`**: Streamable HTTP via the official MCP Python SDK **v2** (`MCPServer`), mounted in the FastAPI app, stateless, JSON responses. Production URL **candidate** `https://tripsmith-api.virajdomadia.com/mcp`, unconfirmed until the production gate in 04 section v4.8 passes. `GET /mcp` from a browser returns a short hint to `/developers`.
+**api `/mcp`**: Streamable HTTP via the official MCP Python SDK **v2** (`MCPServer`), mounted in the FastAPI app, stateless, JSON responses. Production URL `https://tripsmith-api.virajdomadia.com/mcp` (**confirmed 2026-11-19**, 04 section v4.8) passes. `GET /mcp` from a browser returns a short hint to `/developers`.
 
 | MCP surface | Name | Maps to |
 |---|---|---|
