@@ -195,7 +195,7 @@ Indexes: `(departure_id, status)`, `(user_id, created_at desc)`, `(status, hold_
 
 ### A7b. MCP — v4
 
-**`mcp_requests`** — id, client_name text null, client_version text null, method text (`tools/call` | `resources/read` | `prompts/get`), name text (tool/resource/prompt), args jsonb (PII-stripped), latency_ms integer, ok boolean, error text null, ip_hash text, created_at. Index `(created_at desc)`, `(name, created_at)`.
+**`mcp_requests`** — id, client_name text null, client_version text null, user_agent text null (these three as reported by the caller: diagnostic only, never trusted), method text (`tools/call` | `resources/read` | `prompts/get`), name text (tool/resource/prompt), args jsonb (PII-stripped), latency_ms integer, ok boolean, error text null, ip_hash text, created_at. Index `(created_at desc)`, `(name, created_at)`.
 
 ### A8. Add-on tables
 
@@ -243,7 +243,7 @@ erDiagram
 | `0001_v1`      | enums (all v1 + ⏩ values), `users` / `sessions` / `verification`, catalog, enquiries, notes, views, `departure_availability` v1 view (raw SQL in the revision) |
 | `0004_v2`      | drop `sessions.token` (after B1 stops mapping it); booking enums, bookings, travellers, payments, cancellations, reviews, enquiry_messages; **replace** `departure_availability` view (same columns). Run on prod before the B2 code merges |
 | `0028_v3`      | conversations, messages, chat_budget, departure_alerts; FK `enquiries.conversation_id` becomes enforced (`ai_generations` waits for add-on A). Planned as `0005_v3`; renumbered 2026-11-12 (prod is at `0027`) |
-| `0006_v4`      | `mcp_requests`                                                                                                                                                  |
+| next after `0028_v3` | `mcp_requests`                                                                                                                                                  |
 | `0007+_addons` | one migration per add-on table group, only when built                                                                                                           |
 
 As built, v1.0.1 added two expand-only revisions, so the v2+ revisions above are numbered from `0004` (the next free number when each is built): `0002_first_published_at` (`packages.first_published_at`, `packages.edited_at`, `destinations.first_published_at`, backfilled from live/enquired packages) and `0003_hash_session_tokens` (`sessions.token_hash`, backfilled; `token` made nullable). Both run before the api deploy; prod is at `0003`. v2 then added `0005_otp_attempts`, `0006_traveller_position`, `0007_resolve_and_reply` and `0008_review_moderation` (`reviews.moderated_at`, B13), each add-only and run on prod before its code merged.
@@ -448,23 +448,25 @@ package = define_package(
 
 ### C8. v4 — MCP server
 
-**api `POST /mcp`** (Streamable HTTP via the official `mcp` Python SDK's `FastMCP`, mounted in the FastAPI app, stateless) at `https://tripsmith-api.vercel.app/mcp`. `GET /mcp` returns 405 with a hint to the developer page; `DELETE` not supported (stateless).
+*Re-validated 2026-11-19; see 04-technical-design-v2-v3 section v4.*
 
-| MCP surface          | Name                              | Maps to                                                       |
-| -------------------- | --------------------------------- | ------------------------------------------------------------- |
-| tool                 | `searchPackages`                  | same definition as C6 (shared `services/ai/tools.py`)         |
-| tool                 | `checkAvailability`               | same                                                          |
-| tool                 | `startBooking`                    | same — returns `{ checkoutUrl, totalPaise }`                  |
-| tool                 | `createEnquiry`                   | same — `type: 'chat-handoff'`, `summary` required, ≤ 5/day/IP |
-| tool (stretch, auth) | `myBookings`, `getVoucher`        | v2 `listMyBookings`, voucher URL (signed, 10 min)             |
-| resource             | `tripsmith://packages`            | list of live packages (slug, name, from-price)                |
-| resource             | `tripsmith://packages/{slug}`     | `catalog.getPackage` → markdown                               |
-| resource             | `tripsmith://destinations/{slug}` | `catalog.getDestination` → markdown                           |
-| prompt               | `plan-a-trip`                     | args destination?, month?, budget?, party?                    |
+**api `/mcp`**: Streamable HTTP via the official MCP Python SDK **v2** (`MCPServer`), mounted in the FastAPI app, stateless, JSON responses. Production URL **candidate** `https://tripsmith-api.virajdomadia.com/mcp`, unconfirmed until the production gate in 04 section v4.8 passes. `GET /mcp` from a browser returns a short hint to `/developers`.
 
-Every call is logged to `mcp_requests`. Rate limits: `mcp:{ip}:{hour}` ≤ 60, `mcp-enquiry:{ip}:{day}` ≤ 5. Errors: MCP tool error content with a short message; pydantic issues are summarised, never raw.
+| MCP surface | Name | Maps to |
+|---|---|---|
+| tool | `searchPackages` | `run_tool("searchPackages")` (C6), unchanged |
+| tool | `checkAvailability` | `run_tool("checkAvailability")`, unchanged |
+| tool | `startBooking` | `run_tool("startBooking")` with `url` made absolute (`WEB_URL` + path). A handoff link: no hold, no payment |
+| tool | `startEnquiry` | builds a pre-filled enquiry-form link (`enquire`, `month`, `adults`, `children`, `note`). A handoff link: **creates no enquiry** |
+| tool (stretch, auth) | `myBookings`, `getVoucher` | v2 `listMyBookings`, voucher URL (signed, 10 min) |
+| prompt | `plan-a-trip` | args destination?, month?, budget?, party? (core if about 0.5 h) |
+| resource (optional) | `tripsmith://packages`, `.../packages/{slug}`, `.../destinations/{slug}` | needs the new `catalog/markdown.py` renderer; live packages only |
 
-**web `GET /developers`** — static page: what it is, install config blocks, tool list, limits, privacy.
+Never exposed: payment, seat holds, lead creation, catalogue writes.
+
+Every call is logged to `mcp_requests`. Rate limit: `mcp:{ip}` at most 60 / hour on the server-derived IP, failing closed if Redis is down. Errors: MCP tool error content with a short message; pydantic issues summarised, never raw.
+
+**web pre-fill params** (package page enquiry form, `/contact`): `enquire=1`, `month` (YYYY-MM), `adults` (1–20), `children` (0–20), `note` (at most 300 chars). Anything else, including `name`/`phone`/`email`, is ignored.
 
 ### C7. Add-on endpoints
 

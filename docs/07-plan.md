@@ -249,8 +249,8 @@ Goal: the owner runs the business from `/admin` without touching the database.
 
 **v3 total: ≈ 21 h.** Build order C1 → C2 → C3 → C4 → C5 → C6. ~~**v3 is the last planned stage (Viraj, 2026-11-12):** v4 and the add-ons below are parked — out of plan, not scheduled.~~ **v4 un-parked (Viraj, 2026-11-19):** v4 is the next — and final — stage; the add-ons stay parked, out of plan.
 
-## v4 — "Tripsmith anywhere": MCP server (≈ 6 h) — ▶ **next: un-parked 2026-11-19** (parked 2026-11-12) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
-Starts now that v3 is closed (C6, #161), with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape, the api domain after the Vercel account move (#164/#165), and **re-estimate the ≈ 6 h prototype target**. Boundaries (2026-11-19) are in 03-requirements-v4: public-catalogue tools only, no payment through MCP, the MCP layer is an adapter over the v3 tool functions, `createEnquiry` the only write, no tenancy, OAuth tools stretch.
+## v4 — "Tripsmith anywhere": MCP server (≈ 9 h core; was a 6 h prototype target) — ▶ **next: un-parked 2026-11-19** (parked 2026-11-12) — requirements: [03-requirements-v4.md](03-requirements-v4.md)
+Starts now that v3 is closed (C6, #161), with a step-3 re-validation (20 min): confirm the MCP SDK/spec version and client landscape, the api domain after the Vercel account move (#164/#165), and **re-estimate the ≈ 6 h prototype target**. Boundaries (2026-11-19) are in 03-requirements-v4: public-catalogue tools only, no payment through MCP, the MCP layer is an adapter over the v3 tool functions, `createEnquiry` the only write, no tenancy, OAuth tools stretch. **Step 3 done 2026-11-19. Outcome:** SDK v2 `MCPServer`; `createEnquiry` replaced by `startEnquiry` (a handoff link), so MCP writes nothing; resources moved to optional; ≈ 9 h core. Details in 03-requirements-v4 and 04 section v4. *(The boundary sentence before this one is superseded.)*
 
 **Step-3 re-validation checklist (20 min, 2026-11-19)** — exit condition: we know exactly which functions MCP calls, which SDK/transport we use, and that production can serve the endpoint. **If any row reveals an architectural mismatch, stop and re-plan before 4.0.1.**
 
@@ -262,19 +262,21 @@ Starts now that v3 is closed (C6, #161), with a step-3 re-validation (20 min): c
 | 12–16 | Limits and boundaries: per-client rate limit, `createEnquiry` gets the web form's limiter + `pii.redact()`, pydantic validation on every tool, no payment / booking-management tool exposed |
 | 16–20 | Update 04-technical-design-v2-v3 §v4 and docs/06 C8 with what was found; record blockers; re-estimate the 6 h |
 
-**Shipped only when (on production, not local):** the deployment succeeds · `/mcp` initialises and lists 4 tools · each tool returns the same result as the chat tool for the same args · `createEnquiry` hits its rate limit and stores redacted text · no payment/authenticated tool is listed · Claude Desktop connects to the production URL and completes a real catalogue query (recorded for the README). The public MCP URL is marked confirmed only after this.
+**Shipped only when (on production, not local):** the deployment succeeds · `/mcp` initialises and lists 4 tools · each tool returns the same result as the chat tool for the same args · the 61st call in an hour is refused and stored args contain no contact details · `startEnquiry` opens a pre-filled form and creates no enquiry · no payment/authenticated tool is listed · Claude Desktop connects to the production URL and completes a real catalogue query (recorded for the README). The public MCP URL is marked confirmed only after this.
 
-### Milestone 4.0 — MCP server (≈ 6 h) — the final portfolio version
+### Milestone 4.0 — MCP server (≈ 9 h core, re-estimated at step 3 on 2026-11-19; a planning estimate, not a commitment) — the final portfolio version
 | # | Task | Est. | Done when |
 |---|---|---|---|
-| 4.0.1 | Alembic migration (`mcp_requests`; next free revision after `0028_v3`, not the old `0006_v4` name); confirm the v3 tools in `services/ai/tools.py` are plain typed functions callable by both the chat tool loop and MCP | 1 h | chat unchanged; unit tests still green |
-| 4.0.2 | `services/mcp` with the official **`mcp` Python SDK** (`FastMCP`, Streamable HTTP, stateless) mounted at `/mcp` by `routers/mcp.py`: register 4 tools as thin adapters, pydantic validation, rate limits, request logging, error mapping; MCP Inspector smoke test script | 1.5 h | Inspector lists and calls all tools against local; **a test per MCP tool asserts it delegates to the same service function as the chat tool (no duplicated logic)**; **a rate-limit test: `createEnquiry` via MCP is refused past the enquiry limiter / 5-a-day cap with a clear MCP error** |
-| 4.0.3 | Resources (`packages`, `packages/{slug}`, `destinations/{slug}`) via `services/catalog/markdown.py`; `plan-a-trip` prompt | 1 h | a client reads a package and quotes its price |
-| 4.0.4 | Dashboard tile "trips planned via MCP" + top tools; evals MCP driver running the v3 eval conversations (23) against preview; Inspector smoke test in CI | 1 h | evals pass via MCP |
-| 4.0.5 | `/developers` page with install configs; README section + 30 s GIF from Claude Desktop; post-launch review; case study final | 1.5 h | a stranger installs it in < 1 min |
-| Stretch | R38 authenticated tools via MCP OAuth (own OAuth 2.1 server over `users`/`sessions`) — `myBookings`, `getVoucher` | 3 h | |
+| 4.0.1 | Add the MCP Python SDK **v2** (pin it; confirm the `MCPServer` import path); `services/mcp/server.py`; mount Streamable HTTP (stateless, JSON) at `/mcp`; compose the SDK session manager into FastAPI's `lifespan`; Host/Origin allowlist for preview + production | 2 h | a lifespan-boot test makes one MCP call; an unlisted Origin is refused |
+| 4.0.2 | `services/mcp/adapter.py`: 4 tools over `run_tool`. `searchPackages`, `checkAvailability` unchanged; `startBooking` with an absolute URL; **`startEnquiry` returning a pre-filled form link (creates nothing)**; MCP tool errors | 1.5 h | **a parity test per tool** (same payload as the chat tool, URL absolute); exactly 4 tools listed, none pays, reserves or creates a lead; `startEnquiry` writes no `enquiries` row |
+| 4.0.3 | Web: enquiry form pre-fill from allowlisted query params (`enquire`, `month`, `adults`, `children`, `note`), validated and bounded; contact fields never read from the URL | 1 h | pre-fill unit tests: valid fills, unknown/invalid ignored, `phone` ignored, long note cut |
+| 4.0.4 | Migration (`mcp_requests`, next revision after `0028_v3`); `mcp:{ip}` 60/h limiter on the server-derived IP, **failing closed** on a Redis outage; sanitised logging (diagnostic client info, `pii.redact()` on free text) | 1.5 h | the 61st call is refused; Redis down means refused; no phone/email in stored args |
+| 4.0.5 | `plan-a-trip` prompt (core only if it stays within 0.5 h, otherwise optional); remaining tests; SDK-client smoke test in CI | 1.5 h | CI green; a client gets the prompt |
+| 4.0.6 | **Deployment gates** (04 section v4.8): Vercel plan / Fluid Compute / entrypoint, lifespan on preview, Host/Origin on production, domain pointing at the new project; a current-spec and a legacy client; Claude Desktop GIF; `/developers` page; README; post-launch review | 1.5 h | the production checklist above passes and the MCP URL is marked confirmed |
+| Optional | Resources + the new `catalog/markdown.py` renderer (live packages only) 2 h · dashboard tile 0.5 h | 2.5 h | |
+| Stretch | R38 authenticated tools via MCP OAuth (own OAuth 2.1 server over `users`/`sessions`): `myBookings`, `getVoucher` | 3 h | |
 
-**v4 total: ≈ 6 h.**
+**v4 total: ≈ 9 h core** (+ ≈ 2.5 h optional, + 3 h stretch).
 
 ## Whole-product summary
 | Version | Milestones | Hours | Cumulative |
@@ -284,7 +286,7 @@ Starts now that v3 is closed (C6, #161), with a step-3 re-validation (20 min): c
 | v2.5 | 2.5.0 – 2.5.5 | 62.5 (56 at planning + P20 admin redesign) | 118 |
 | v2.6 | 2.6.0 – 2.6.2 | 23 | 141 |
 | v3 ✅ | C1 – C6 | 21 | 162 |
-| v4 *(next, un-parked 2026-11-19)* | 4.0 | ≈ 6 (prototype target; re-estimated at step 3) | ≈ 168 |
+| v4 *(next, un-parked 2026-11-19)* | 4.0 | ≈ 9 core (re-estimated at step 3, 2026-11-19) | ≈ 171 |
 | Add-ons (in priority order) | B best-time (2) · A AI drafting (4) · MCP OAuth tools (3) · D split pay (8) · C trip hub (6) · E storyboard (6) · departure-city (3) | parked | — |
 
 The PRD budget is ~60 h for v1–v3 plus ~6 h for v4 (71 h with the two-package setup, two toolchains and the walking skeleton). **Add-ons are nice-to-have, not priority** (Viraj, 2026-09-17): they are considered only after v4 is fully done (docs and case study included), in the order above, from time saved — and skipping all of them is a fine outcome.
