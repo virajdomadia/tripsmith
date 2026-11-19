@@ -78,6 +78,7 @@ export function PhotoUploader({ ref, value, onChange, slug, name, id, ...rest }:
         </small>
       </div>
       <input
+        name="photo"
         ref={input}
         type="file"
         accept={ACCEPT}

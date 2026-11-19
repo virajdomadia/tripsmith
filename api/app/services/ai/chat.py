@@ -39,9 +39,10 @@ IP_DAILY_LIMIT = 20  # per IP per IST day (R28)
 HISTORY_MESSAGES = 20  # 04 v3 §4: the model sees the last 20 stored messages
 ERROR_TEXT_MAX = 1_000
 
+# QA 2026-11-19: what the visitor reads after every retry failed (the panel adds "Try again").
 BUSY = (
-    "The trip planner is busy right now. Try again in a minute, or use the quick finder or "
-    "“Talk to a person”."
+    "The trip planner couldn't get an answer just now — please try again in a moment, or use "
+    "the quick finder or “Talk to a person”."
 )
 FAILED = "Something went wrong on our side. Try again, or tap “Talk to a person”."
 
@@ -179,10 +180,11 @@ async def stream_turn(
         async for name, data in run_turn(models, history, ctx, turn):
             yield sse(name, data)
     except ChatUnavailable as exc:
-        log.warning("Concierge unavailable: %s", exc)
+        # Every failed try with its model and status/exception type (loop.py) — no secrets.
+        log.warning("Concierge unavailable for %s: %s", conversation_id, exc)
         failure = {"reason": "busy", "message": BUSY}
     except Exception as exc:  # noqa: BLE001 — the stream is open; report it as an event
-        log.exception("Concierge turn failed")
+        log.exception("Concierge turn failed for %s: %s", conversation_id, type(exc).__name__)
         turn.errors.append(f"turn: {type(exc).__name__}")
         failure = {"reason": "internal", "message": FAILED}
     finally:

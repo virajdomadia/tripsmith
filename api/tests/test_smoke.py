@@ -7,7 +7,7 @@ from pathlib import Path
 API_ROOT = Path(__file__).resolve().parent.parent
 
 # docs/04-technical-design.md §12 — api/ keys + the dev/CI-only TEST_DATABASE_URL; the four
-# SMTP_* keys arrived with Gmail SMTP (v2.5 P0).
+# SMTP_* keys arrived with Gmail SMTP (v2.5 P0); DEMO_READ_ONLY_EMAILS with the QA of 2026-11-19.
 EXPECTED_ENV_KEYS = {
     "DATABASE_URL",
     "TEST_DATABASE_URL",
@@ -32,6 +32,7 @@ EXPECTED_ENV_KEYS = {
     "ID_NUMBER_KEY",
     "PDF_RENDER_TIMEOUT",
     "PUBLIC_DEMO_OWNER",
+    "DEMO_READ_ONLY_EMAILS",
     "WEB_URL",
     "REVALIDATE_SECRET",
     "SITE_URL",
@@ -60,7 +61,7 @@ def test_python_is_3_12() -> None:
     assert sys.version_info[:2] == (3, 12)
 
 
-def test_env_example_has_the_31_documented_keys() -> None:
+def test_env_example_has_the_32_documented_keys() -> None:
     keys = parse_env_example(API_ROOT / ".env.example")
-    assert len(keys) == 31
+    assert len(keys) == 32
     assert set(keys) == EXPECTED_ENV_KEYS

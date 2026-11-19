@@ -182,7 +182,11 @@ export function TripStep({
         </div>
         <label className={field}>
           <span className="sr-only">Package</span>
-          <NativeSelect value={packageId ?? ''} onChange={(e) => onPackage(e.target.value)}>
+          <NativeSelect
+            name="packageId"
+            value={packageId ?? ''}
+            onChange={(e) => onPackage(e.target.value)}
+          >
             {packages.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -315,6 +319,7 @@ export function PartyStep({
               <label key={s.key} className={field}>
                 <span className={labelCls}>Child {i + 1} · age</span>
                 <Input
+                  name={`child-${i}-age`}
                   inputMode="numeric"
                   value={age}
                   aria-invalid={!!err}
@@ -846,6 +851,7 @@ export function TravellersStep({
                   {i === 0 ? ' · lead' : ''}
                 </span>
                 <Input
+                  name={`traveller-${i}-name`}
                   value={t.name}
                   maxLength={80}
                   placeholder={i === 0 ? `${first} (lead)` : 'Full name as on ID'}
@@ -853,6 +859,7 @@ export function TravellersStep({
                   onChange={(e) => onNames({ ...names, [s.key]: { ...t, name: e.target.value } })}
                 />
                 <Input
+                  name={`traveller-${i}-age`}
                   className="num"
                   inputMode="numeric"
                   value={t.age}

@@ -13,10 +13,17 @@ from tests.settings import fixture_content, make_settings
 
 
 class D:  # a departure-like duck for the pure helpers
-    def __init__(self, seats_left: int, guaranteed: bool = False, price_double_paise: int = 0):
+    def __init__(
+        self,
+        seats_left: int,
+        guaranteed: bool = False,
+        price_double_paise: int = 0,
+        seats_total: int | None = None,
+    ):
         self.seats_left = seats_left
         self.guaranteed = guaranteed
         self.price_double_paise = price_double_paise
+        self.seats_total = seats_total
 
 
 def test_badge_rules_sold_out_beats_filling_fast_beats_guaranteed() -> None:
@@ -25,6 +32,9 @@ def test_badge_rules_sold_out_beats_filling_fast_beats_guaranteed() -> None:
     assert badge_for(D(4, guaranteed=True)) is Badge.FILLING_FAST
     assert badge_for(D(5, guaranteed=True)) is Badge.GUARANTEED
     assert badge_for(D(12)) is None
+    # QA 2026-11-19: nothing sold yet is not "filling" — however small the departure.
+    assert badge_for(D(4, seats_total=4)) is None
+    assert badge_for(D(3, seats_total=4)) is Badge.FILLING_FAST
 
 
 def test_starting_price_is_the_cheapest_double_sharing_departure() -> None:

@@ -269,10 +269,21 @@ function searchArgs(raw: unknown): SearchArgs {
   return {
     destination: str(a.destination),
     maxBudget: num(a.maxBudget),
+    travellers: num(a.travellers),
     nights: num(a.nights),
     theme: str(a.theme),
     month: str(a.month),
   };
+}
+
+/** "up to ₹15,000 a person", or for a group budget (api `travellers`, QA 2026-11-19)
+ * "up to ₹15,000 for 2 (₹7,500 a person)" — the per-person share the cards were filtered by. */
+function budgetLabel(a: SearchArgs): string | null {
+  if (!a.maxBudget) return null;
+  const group = a.travellers && a.travellers > 1 ? a.travellers : null;
+  if (!group) return `up to ${inr(a.maxBudget * 100)} a person`;
+  const each = inr(Math.floor(a.maxBudget / group) * 100);
+  return `up to ${inr(a.maxBudget * 100)} for ${group} (${each} a person)`;
 }
 
 function searchSummary(a: SearchArgs): string {
@@ -281,7 +292,7 @@ function searchSummary(a: SearchArgs): string {
     a.nights ? plural(a.nights, 'night') : null,
     monthLabel(a.month),
     a.theme ? a.theme.replace(/-/g, ' ') : null,
-    a.maxBudget ? `up to ${inr(a.maxBudget * 100)} a person` : null,
+    budgetLabel(a),
   ];
   return bits.filter(Boolean).join(' · ');
 }
@@ -312,7 +323,9 @@ function onToolCall(state: State, data: Obj): State {
       where: a.destination ? titleCase(a.destination) : 'Anywhere',
       when: monthLabel(a.month),
       nights: a.nights ? String(a.nights) : null,
-      budget: a.maxBudget ? inr(a.maxBudget * 100) : null,
+      budget: a.maxBudget
+        ? `${inr(a.maxBudget * 100)}${a.travellers && a.travellers > 1 ? ` for ${a.travellers}` : ''}`
+        : null,
       line: 'Searching live trips…',
     };
   } else if (name === 'checkAvailability') {

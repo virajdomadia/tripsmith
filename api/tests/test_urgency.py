@@ -111,6 +111,9 @@ def test_one_badge_per_place_in_priority_order() -> None:
 
     assert badge(0) is Badge.SOLD_OUT
     assert badge(4) is Badge.FILLING_FAST
+    # QA 2026-11-19: "Filling fast" needs a seat sold — 4 of 4 free is not filling.
+    assert badge_for(Availability(4, True, 1, seats_total=4)) is Badge.GUARANTEED
+    assert badge_for(Availability(4, False, 1, seats_total=6)) is Badge.FILLING_FAST
     assert badge(5) is Badge.LIKELY_TO_SELL_OUT  # wins over Guaranteed
     assert badge(5, likely=False) is Badge.GUARANTEED
     assert badge(5, guaranteed=False, likely=False) is None

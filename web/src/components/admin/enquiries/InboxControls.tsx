@@ -216,6 +216,7 @@ export function FollowUpControl({ e, today }: { e: AdminEnquiry; today: string }
         </button>
       ))}
       <Input
+        name="followUpOn"
         // Keyed on the saved day, so a quick pick or Clear shows in the box too.
         key={e.followUpOn ?? ''}
         type="date"
@@ -419,6 +420,7 @@ export function Composer({
         </div>
         {mode === 'reply' && (
           <NativeSelect
+            name="template"
             aria-label="Insert a template"
             value=""
             onChange={(ev) => {
@@ -479,6 +481,7 @@ export function Composer({
         {mode === 'reply' && canAttach && (
           <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] font-bold">
             <input
+              name="attach"
               type="checkbox"
               checked={attach}
               onChange={(ev) => setAttach(ev.target.checked)}

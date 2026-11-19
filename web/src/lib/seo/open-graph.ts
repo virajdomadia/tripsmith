@@ -22,6 +22,24 @@ export const OPEN_GRAPH = {
   type: 'website',
 } as const satisfies NonNullable<Metadata['openGraph']>;
 
+/** The site card's alt text — mirrors `alt` in app/opengraph-image.tsx (kept a literal there). */
+export const SITE_CARD_ALT = 'Tripsmith — short Indian holidays with real departure dates';
+
+/**
+ * QA 2026-11-19: `openGraph` with an `og:url` for a page that uses the site card (home,
+ * /contact). Setting `openGraph` at all drops the root card (see above), so the card is listed
+ * by its route instead — without Next's content-hash query, which only matters when the card
+ * changes. Width/height mirror `OG_SIZE` (lib/og/card), not imported so the layout's metadata
+ * doesn't pull in `next/og`.
+ */
+export function siteCardOpenGraph(path: string): NonNullable<Metadata['openGraph']> {
+  return {
+    ...OPEN_GRAPH,
+    url: absolute(path),
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: SITE_CARD_ALT }],
+  };
+}
+
 /** `openGraph` for a page that ships its own `opengraph-image` (see above). */
 export function pageOpenGraph({
   title,

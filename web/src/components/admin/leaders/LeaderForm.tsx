@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { adminRequest } from '@/lib/admin/client';
 import { reportAdminError } from '@/lib/admin/errors';
+import { READ_ONLY_TITLE, useReadOnly } from '@/lib/admin/read-only';
 import {
   EMPTY_LEADER,
   leaderSchema,
@@ -47,6 +48,8 @@ const h3 = 'text-base font-extrabold';
 /** A trip leader (R41): face, who they are, what travellers read, and the trip-pack phone. */
 export function LeaderForm(props: Props) {
   const router = useRouter();
+  // QA 2026-11-19: a read-only (demo) owner sees the save button switched off, with the reason.
+  const readOnly = useReadOnly();
   const pathname = usePathname();
   const editing = props.mode === 'edit';
   const inPanel = props.layout === 'panel';
@@ -248,7 +251,11 @@ export function LeaderForm(props: Props) {
         </section>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy}>
+          <Button
+            type="submit"
+            disabled={busy || readOnly}
+            title={readOnly ? READ_ONLY_TITLE : undefined}
+          >
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Add leader'}
           </Button>
           <Button

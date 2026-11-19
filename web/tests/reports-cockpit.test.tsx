@@ -254,6 +254,19 @@ describe('ReportsCockpit', () => {
     );
   });
 
+  // QA 2026-11-19: collected above booked is a basis difference (cancelled bookings' payments),
+  // not a bug — the KPI note and the Money story say so.
+  it('explains collected running above booked', () => {
+    const over: Reports = {
+      ...DATA,
+      kpis: { ...DATA.kpis, collectedPaise: 11 * L },
+      money: { ...DATA.money, collectedPaise: 11 * L },
+    };
+    render(<ReportsCockpit data={over} params={params} />);
+    expect(screen.getByText('every payment in, cancelled bookings too')).toBeTruthy();
+    expect(screen.getByText(/includes payments on bookings since cancelled/)).toBeTruthy();
+  });
+
   it('opens a section from its tile, rewrites the URL and keeps the panel numbers', async () => {
     render(<ReportsCockpit data={DATA} params={params} />);
     const tiles = within(screen.getByRole('group', { name: 'Report sections' })).getAllByRole(

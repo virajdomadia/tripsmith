@@ -20,10 +20,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-/** `/compare?p=a,b,c` (R39, P1b, mockup Compare A · Sticky table): rendered from the URL alone. */
+/** `/compare?p=a,b,c` (R39, P1b, mockup Compare A · Sticky table): rendered from the URL alone.
+ *  QA 2026-11-19: `?slugs=a,b` — the api's own name for the list (`GET /compare?slugs=`), which
+ *  people hand-typing a link reach for — is read as an alias when `p` is absent. The tray and
+ *  every link the site makes still write `p`. */
 export default async function ComparePage({ searchParams }: { searchParams: Promise<Search> }) {
+  const search = await searchParams;
   // At most three: an over-long `p` would otherwise trip the api's length cap (422).
-  const asked = slugsFromParam((await searchParams).p).slice(0, MAX_COMPARE);
+  const asked = slugsFromParam(search.p ?? search.slugs).slice(0, MAX_COMPARE);
   let result: Awaited<ReturnType<typeof load>> = null;
   if (asked.length) result = await load(asked);
 

@@ -14,6 +14,7 @@ export function ActiveToggle({ id, code, active }: { id: string; code: string; a
   const [pending, start] = useTransition();
   return (
     <Switch
+      name="active"
       checked={active}
       disabled={pending}
       aria-label={`${code} on`}

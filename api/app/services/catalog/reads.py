@@ -80,7 +80,9 @@ def _image_out(image: PackageImage) -> ImageOut:
 
 
 def _departure_out(d: Departure, seats_left: int, *, likely: bool = False) -> DepartureOut:
-    availability = Availability(seats_left, d.guaranteed, d.price_double_paise)
+    availability = Availability(
+        seats_left, d.guaranteed, d.price_double_paise, seats_total=d.seats_total
+    )
     return DepartureOut(
         id=d.id,
         date=d.date,

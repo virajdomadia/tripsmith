@@ -28,6 +28,7 @@ import {
   toInput,
 } from '@/lib/admin/coupon-schema';
 import { reportAdminError } from '@/lib/admin/errors';
+import { READ_ONLY_TITLE, useReadOnly } from '@/lib/admin/read-only';
 import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
 import { ApiRequestError } from '@/lib/api-errors';
 import { DeleteCoupon } from './DeleteCoupon';
@@ -47,6 +48,8 @@ const h3 = 'text-base font-extrabold';
  */
 export function CouponForm(props: Props) {
   const router = useRouter();
+  // QA 2026-11-19: a read-only (demo) owner sees the save button switched off, with the reason.
+  const readOnly = useReadOnly();
   const pathname = usePathname();
   const editing = props.mode === 'edit';
   const locked = editing && props.coupon.locked;
@@ -311,6 +314,7 @@ export function CouponForm(props: Props) {
               <FormItem className="flex flex-row items-center gap-2.5">
                 <FormControl>
                   <NativeCheckbox
+                    name={field.name}
                     checked={field.value}
                     onChange={(e) => field.onChange(e.target.checked)}
                   />
@@ -330,6 +334,7 @@ export function CouponForm(props: Props) {
                     {props.packages.map((p) => (
                       <label key={p.id} className="flex items-center gap-2.5 text-sm">
                         <NativeCheckbox
+                          name={`${field.name}.${p.id}`}
                           checked={field.value.includes(p.id)}
                           onChange={(e) =>
                             field.onChange(
@@ -355,6 +360,7 @@ export function CouponForm(props: Props) {
               <FormItem className="flex flex-row items-center gap-2.5 border-t border-line pt-4">
                 <FormControl>
                   <NativeCheckbox
+                    name={field.name}
                     checked={field.value}
                     onChange={(e) => field.onChange(e.target.checked)}
                   />
@@ -368,7 +374,11 @@ export function CouponForm(props: Props) {
         </section>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy}>
+          <Button
+            type="submit"
+            disabled={busy || readOnly}
+            title={readOnly ? READ_ONLY_TITLE : undefined}
+          >
             {busy ? 'Saving…' : editing ? 'Save coupon' : 'Create coupon'}
           </Button>
           <Button

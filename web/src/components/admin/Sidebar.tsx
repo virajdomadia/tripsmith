@@ -40,7 +40,10 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join('');
 
-/** Mockup `.adm .sb`: ink background, cobalt active item, marigold count, owner card, sign out. */
+/** Mockup `.adm .sb`: ink background, cobalt active item, marigold count, owner card, sign out.
+ *  QA 2026-11-19: below `lg` the eleven items used to wrap into a block that filled the whole
+ *  first screen of a phone. There it is now two short rows — brand, View site and Sign out, then
+ *  the nav as one horizontal scroller (the active item scrolls itself into view, NavLink). */
 export function Sidebar({ session }: { session: SessionInfo }) {
   const { user, newEnquiries, bookingsAttention, reviewsPending } = session;
   // Owner-only counts from `GET /auth/session`: new enquiries, and bookings with a refund to
@@ -51,7 +54,7 @@ export function Sidebar({ session }: { session: SessionInfo }) {
     '/admin/reviews': reviewsPending ?? undefined,
   };
   return (
-    <aside className="focus-ring-light flex flex-row flex-wrap items-center gap-1 bg-ink p-3 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
+    <aside className="focus-ring-light flex flex-row flex-wrap items-center gap-1 bg-ink px-3 pt-2 pb-1.5 text-ink-soft lg:sticky lg:top-0 lg:h-dvh lg:flex-col lg:items-stretch lg:px-3.5 lg:py-[18px]">
       <Link
         href="/admin"
         className="mb-0 flex items-center gap-2 px-2 text-lg font-extrabold text-white lg:mb-4"
@@ -59,7 +62,10 @@ export function Sidebar({ session }: { session: SessionInfo }) {
         <BrandMark size={24} />
         Tripsmith
       </Link>
-      <nav className="flex flex-row flex-wrap gap-1 lg:flex-col" aria-label="Admin">
+      <nav
+        className="order-last -mx-3 flex w-[calc(100%+1.5rem)] flex-row flex-nowrap gap-1 overflow-x-auto px-3 pb-1 [scrollbar-width:none] lg:order-none lg:mx-0 lg:w-auto lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
+        aria-label="Admin"
+      >
         {NAV.map(({ href, label, icon: Icon, ...rest }) => (
           <NavLink
             key={href}
@@ -75,7 +81,7 @@ export function Sidebar({ session }: { session: SessionInfo }) {
       <span className="hidden flex-1 lg:block" />
       <Link
         href="/"
-        className="flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors hover:bg-white/[.06] hover:text-white"
+        className="ml-auto flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 lg:ml-0 text-sm font-semibold transition-colors hover:bg-white/[.06] hover:text-white"
       >
         <Eye className="size-4" aria-hidden />
         View site

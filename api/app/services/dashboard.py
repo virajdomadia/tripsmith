@@ -111,6 +111,7 @@ class _Seats:
     seats_left: int
     guaranteed: bool
     price_double_paise: int = 0
+    seats_total: int | None = None
 
 
 async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]:
@@ -151,7 +152,7 @@ async def _upcoming(db: AsyncSession, today: dt.date) -> list[UpcomingDeparture]
             seats_total=seats_total,
             seats_left=int(seats_left),
             guaranteed=guaranteed,
-            badge=badge_for(_Seats(int(seats_left), guaranteed)),
+            badge=badge_for(_Seats(int(seats_left), guaranteed, seats_total=seats_total)),
         )
         for id, date, seats_total, guaranteed, seats_left, package_id, slug, name in rows
     ]

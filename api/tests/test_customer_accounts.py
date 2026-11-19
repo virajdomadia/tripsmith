@@ -167,6 +167,19 @@ async def test_live_mode_emails_the_code_and_never_returns_it(
 
 
 @pytest.mark.db
+async def test_a_real_address_under_the_test_sender_is_refused_not_shown_its_code(
+    db: AsyncSession, db_client: AsyncClient
+) -> None:
+    # QA 2026-11-19: with EMAIL_FROM @resend.dev (the test settings' default) a real address
+    # used to get its code on screen — anyone could sign in as anyone. Now: 503, nothing issued.
+    res = await ask(db_client, "someone@gmail.com")
+    assert res.status_code == 503
+    assert res.json()["error"]["reason"] == "email_unavailable"
+    assert "demoCode" not in res.text
+    assert (await count(db, Verification)) == 0
+
+
+@pytest.mark.db
 async def test_a_demo_address_shows_its_code_even_with_a_live_sender(
     db_app: FastAPI, db_client: AsyncClient
 ) -> None:

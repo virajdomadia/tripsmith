@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # reach a real inbox. V2 (SA-3): unset on production (VERCEL_ENV=production) means on; only
     # an explicit 'false' turns it off there, and while on, a live Razorpay key is refused.
     public_demo_owner: bool = False
+    # QA 2026-11-19: owner logins that may look but not touch — comma-separated emails. Every
+    # POST/PUT/PATCH/DELETE under /admin/* from one of them answers 403 (services/auth/deps.py),
+    # GETs still work. Production lists the published demo login, so nobody holding it can change
+    # live data; a real owner (scripts/create_owner.py) is not listed. Blank = no read-only owner.
+    demo_read_only_emails: str = ""
 
     # --- Email: SMTP when host, user and password are all set (v2.5 P0: Gmail), else Resend ---
     smtp_host: str | None = None
@@ -96,6 +101,12 @@ class Settings(BaseSettings):
         if isinstance(data, dict) and data.get("public_demo_owner") in (None, ""):
             data = {**data, "public_demo_owner": os.environ.get("VERCEL_ENV") == "production"}
         return data
+
+    def read_only_emails(self) -> frozenset[str]:
+        """`DEMO_READ_ONLY_EMAILS`, trimmed and lower-cased (emails are stored lower-cased)."""
+        return frozenset(
+            e.strip().lower() for e in self.demo_read_only_emails.split(",") if e.strip()
+        )
 
     def verify_secrets(self) -> tuple[str, ...]:
         """What a signed link or sign-in code is checked against: SESSION_SECRET, then

@@ -6,7 +6,12 @@ min — so one address cannot be flooded with codes and one connection cannot sp
 Guessing is capped per code (5 wrong tries, services/auth/otp.py) and only the newest code for
 an email is live, so at most 25 guesses per email per 15 minutes reach a million-code space.
 The owner signs in with a password only: an owner email is refused here, since for a demo
-address the code is printed on screen and would otherwise hand anyone the admin."""
+address the code is printed on screen and would otherwise hand anyone the admin.
+
+QA 2026-11-19: only a demo address (@example.com/.org/.net, `is_demo_address`) ever gets its code
+on screen. While EMAIL_FROM is Resend's test sender a real address can't be emailed, and printing
+its code would let anyone sign in as anyone (and see their bookings) — so that ask is refused with
+`503 { reason: "email_unavailable" }` instead."""
 
 import logging
 from typing import Annotated
@@ -23,7 +28,7 @@ from app.models import Session
 from app.models.enums import UserRole
 from app.schemas.auth import LoginRequest, OtpRequest, OtpSent, OtpVerify, SessionInfo
 from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_session_cookie
-from app.services.auth.deps import current_session
+from app.services.auth.deps import current_session, is_read_only
 from app.services.auth.otp import (
     TooManyCodes,
     check_code,
@@ -33,7 +38,7 @@ from app.services.auth.otp import (
 )
 from app.services.auth.sessions import delete_session, login, session_info
 from app.services.booking.desk import count_needing_attention
-from app.services.email.send import held_back
+from app.services.email.send import is_demo_address, is_test_mode
 from app.services.email.signin import render_signin_code
 from app.services.enquiries import count_new_enquiries
 from app.services.reviews import count_pending
@@ -48,6 +53,9 @@ OTP_IP_LIMIT = 20
 OWNER_USES_PASSWORD = "This email signs in with a password — use the owner sign-in"  # noqa: S105
 TOO_MANY_CODES = "Too many codes asked for — wait a few minutes and try again"
 CODES_PAUSED = "Sign-in codes are paused for now — try again later, or book without signing in"
+EMAIL_UNAVAILABLE = (
+    "Sign-in email is unavailable right now — try again later, or book without signing in"
+)
 
 
 async def login_rate_limit(request: Request) -> None:
@@ -79,9 +87,10 @@ def _secret(request: Request) -> str | None:
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-async def _session_info(db: AsyncSession, session: Session) -> SessionInfo:
+async def _session_info(db: AsyncSession, session: Session, request: Request) -> SessionInfo:
     """The sidebar counts are owner-only data (R18): a customer session never runs the queries
-    and gets `newEnquiries: null`, `bookingsAttention: null`."""
+    and gets `newEnquiries: null`, `bookingsAttention: null`. `readOnly` marks a listed demo
+    owner (DEMO_READ_ONLY_EMAILS) so the admin can say so up front."""
     if session.user.role != UserRole.OWNER:
         return session_info(session, new_enquiries=None)
     return session_info(
@@ -89,6 +98,7 @@ async def _session_info(db: AsyncSession, session: Session) -> SessionInfo:
         new_enquiries=await count_new_enquiries(db),
         bookings_attention=await count_needing_attention(db),
         reviews_pending=await count_pending(db),
+        read_only=is_read_only(request, session.user),
     )
 
 
@@ -116,7 +126,7 @@ async def post_login(
         raise ApiError("unauthorized", "Wrong email or password")
     session, token = opened
     set_session_cookie(response, token, session.expires_at, request.app.state.settings)
-    return await _session_info(db, session)
+    return await _session_info(db, session, request)
 
 
 @router.post(
@@ -138,6 +148,7 @@ async def post_logout(
 
 @router.get("/session", operation_id="getSession", response_model_by_alias=True)
 async def get_session_route(
+    request: Request,
     response: Response,
     session: Annotated[Session | None, Depends(current_session)],
     db: Annotated[AsyncSession, Depends(get_session)],
@@ -145,7 +156,7 @@ async def get_session_route(
     response.headers.update(NO_STORE)
     if session is None:
         raise ApiError("unauthorized", "Sign in to continue")
-    return await _session_info(db, session)
+    return await _session_info(db, session, request)
 
 
 @router.post(
@@ -171,7 +182,10 @@ async def post_otp_request(
         raise RateLimited(limited.retry_after, TOO_MANY_CODES)
 
     settings = request.app.state.settings
-    shown = held_back(settings, payload.email)
+    shown = is_demo_address(payload.email)
+    if not shown and is_test_mode(settings.email_from):
+        log.warning("sign-in code refused: EMAIL_FROM is a test sender")
+        raise ApiError("internal", EMAIL_UNAVAILABLE, status=503, reason="email_unavailable")
     try:
         issued = await issue_code(db, payload.email, secret=_secret(request), emailed=not shown)
     except TooManyCodes as capped:
@@ -225,4 +239,4 @@ async def post_otp_verify(
         db, payload.email, ip=client_ip(request), user_agent=request.headers.get("user-agent")
     )
     set_session_cookie(response, token, session.expires_at, request.app.state.settings)
-    return await _session_info(db, session)
+    return await _session_info(db, session, request)

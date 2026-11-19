@@ -60,6 +60,12 @@ function money(r: Reports): Section {
     `${inr(m.bookedPaise)} booked on ${plural(r.kpis.bookings, 'booking')} departing in this range.`,
     `${inr(m.collectedPaise)} collected and ${inr(m.refundedPaise)} refunded, so ${inr(m.netPaise)} stayed — ${inr(m.gstPaise)} of it GST.`,
   ];
+  // QA 2026-11-19: booked counts live bookings only; collected counts payments on cancelled ones
+  // too (until refunded), so it can run above booked — say why when it does.
+  if (m.collectedPaise > m.bookedPaise)
+    story.push(
+      'Collected is above booked because it includes payments on bookings since cancelled; booked counts only bookings still holding seats. Net after refunds is the like-for-like figure.',
+    );
   if (m.balancePaise)
     story.push(
       `${inr(m.balancePaise)} is still due on ${plural(m.balanceBookings, 'deposit booking')}.`,

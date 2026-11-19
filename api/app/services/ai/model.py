@@ -54,7 +54,19 @@ ModelEvent = TextChunk | FunctionCall | Usage
 
 
 class ModelUnavailable(Exception):  # noqa: N818 — reads as a state, like the other ApiErrors
-    """The provider refused or failed (429 burst, 5xx, timeout): try the fallback model."""
+    """The provider refused or failed: try the next model in the chain.
+
+    `transient` (the default): a 408/429/499 or 5xx, a timeout or a dropped connection — worth
+    another try after a short pause (loop.py `RETRY_BACKOFF_SECONDS`). False: any other 4xx (QA
+    2026-11-19 found a bare `ClientError` ending a turn) — the next model gets one immediate try,
+    since a refusal can be model-specific (a retired model, a signature it won't accept).
+    The message names the model and the status or exception type only — never the request, the
+    response body or the key — because it is logged and stored in `conversations.last_error`.
+    """
+
+    def __init__(self, message: str, *, transient: bool = True) -> None:
+        super().__init__(message)
+        self.transient = transient
 
 
 class ChatModel(Protocol):

@@ -32,6 +32,8 @@ export type ChatDeparture = {
 export type SearchArgs = {
   destination?: string;
   maxBudget?: number;
+  /** QA 2026-11-19: how many people `maxBudget` covers ("under 15k for 2"); absent = per person. */
+  travellers?: number;
   nights?: number;
   theme?: string;
   month?: string;

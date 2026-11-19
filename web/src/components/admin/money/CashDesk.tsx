@@ -40,6 +40,7 @@ export function CashDesk({ money }: { money: MoneyDesk }) {
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3.5">
       <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] font-bold">
         <input
+          name="holds"
           type="checkbox"
           checked={holds}
           onChange={(e) => setHolds(e.target.checked)}

@@ -185,6 +185,7 @@ export function BasicsPanel({
               {/* Radix renders a <button role="switch">, which <label for> cannot point at;
                   aria-labelledby is the correct association. */}
               <Switch
+                name={field.name}
                 checked={field.value}
                 onCheckedChange={field.onChange}
                 aria-labelledby={featuredLabelId}

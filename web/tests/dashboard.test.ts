@@ -11,8 +11,12 @@ describe('greeting', () => {
     expect(greeting(at('2026-09-22T13:00:00Z'))).toBe('Good evening'); // 6:30 pm IST
   });
 
-  it('calls the small hours morning rather than yesterday evening', () => {
-    expect(greeting(at('2026-09-21T19:00:00Z'))).toBe('Good morning'); // 12:30 am IST
+  // QA 2026-11-19: "Good morning" at 00:15 IST read wrong — the small hours are still the night.
+  it('calls the small hours evening, and morning from 5 am IST', () => {
+    expect(greeting(at('2026-11-18T18:45:00Z'))).toBe('Good evening'); // 00:15 am IST
+    expect(greeting(at('2026-09-21T19:00:00Z'))).toBe('Good evening'); // 12:30 am IST
+    expect(greeting(at('2026-09-21T23:29:00Z'))).toBe('Good evening'); // 4:59 am IST
+    expect(greeting(at('2026-09-21T23:30:00Z'))).toBe('Good morning'); // 5:00 am IST
   });
 });
 

@@ -5,7 +5,14 @@ import { useState } from 'react';
 import { istFullDate, istTime } from '@/components/admin/enquiries/ist-date';
 import { Button } from '@/components/ui/button';
 import type { AdminBooking } from '@/lib/admin/booking-filters';
-import { blocked, lifecycle, moves, type Move, type Step } from '@/lib/admin/lifecycle';
+import {
+  blocked,
+  lifecycle,
+  moves,
+  stepCaption,
+  type Move,
+  type Step,
+} from '@/lib/admin/lifecycle';
 import { BookedAddons } from '@/components/site/booking/BookedAddons';
 import { lineLabel, OCCUPANCY_LABEL } from '@/lib/booking';
 import { formatDate, inr } from '@/lib/format';
@@ -90,10 +97,7 @@ export function Lifecycle({ b }: { b: AdminBooking }) {
               </span>
               <b className="text-[12.5px] leading-tight">{s.name}</b>
               <small className="text-[11.5px] text-mute">
-                {s.state === 'now' ? 'Now' : s.state === 'todo' ? 'Not yet' : ''}
-                {s.at && s.state !== 'todo'
-                  ? `${s.state === 'now' ? ' · ' : ''}${istFullDate(s.at).slice(0, -5)}`
-                  : ''}
+                {stepCaption(s, (iso) => istFullDate(iso).slice(0, -5))}
               </small>
             </button>
           </li>

@@ -6,8 +6,12 @@ last one may not call tools, so a turn always ends in words.
 
 A call that fails with `ModelUnavailable` before it produced anything is retried on the next
 model in the chain (AI_MODEL → AI_MODEL_FALLBACK → AI_MODEL again), which then answers the rest
-of the turn; at most `MAX_ATTEMPTS` tries per call. A failure after output has streamed, or with
-every try used, ends the turn with `ChatUnavailable`.
+of the turn; at most `MAX_ATTEMPTS` tries per call. QA 2026-11-19: a transient failure (timeout,
+429, 5xx) waits `RETRY_BACKOFF_SECONDS` first — production lost turns to three back-to-back
+ReadTimeouts/503s fired within the same burst — and no retry starts that could not finish inside
+`TURN_DEADLINE_SECONDS` (api/vercel.json maxDuration is 60 s). Each failed try is logged with the
+model and the status or exception type. A failure after output has streamed, or with every try
+used, ends the turn with `ChatUnavailable`; chat.py turns that into the friendly `busy` event.
 
 Text streams through the guardrail's `Gate` (row C4): a reply may only quote packages and ₹
 amounts the tools returned. On a violation the text stops, a `replace` event swaps what was shown
@@ -16,10 +20,14 @@ sit under it. The violation goes into `turn.errors` (→ `conversations.last_err
 """
 
 import datetime as dt
+import logging
+import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
+
+import anyio
 
 from app.models.enums import ConversationOutcome
 from app.services.ai.guardrail import CHECKING, Gate, known_from
@@ -36,6 +44,12 @@ from app.services.ai.tools import TOOL_SPECS, ToolContext, package_names, run_to
 
 MAX_MODEL_CALLS = 5  # R28 / 03 decision 2: 100 turns × 5 calls fits one model's 500 RPD
 MAX_ATTEMPTS = 3  # per call: primary, fallback, primary (free-tier models 503 under load)
+# Pause before the 2nd and 3rd try of a call after a transient failure (none after a hard 4xx).
+RETRY_BACKOFF_SECONDS = (0.5, 1.5)
+# No retry starts later than this into the turn, leaving one model call's timeout
+# (gemini.TIMEOUT_MS) plus the save inside the function's 60 s.
+TURN_DEADLINE_SECONDS = 45.0
+RETRY_CALL_SECONDS = 12.0  # what a retry may take (gemini.TIMEOUT_MS)
 FORCED = "guardrail"  # the `model` of a call the server made itself (replayed as a foreign call)
 EMPTY_REPLY = (
     "Sorry — I couldn't put an answer together. Try asking another way, or tap "
@@ -43,6 +57,11 @@ EMPTY_REPLY = (
 )
 
 Event = tuple[str, dict[str, Any]]
+
+log = logging.getLogger(__name__)
+# Swapped by tests, so a retry doesn't really wait.
+sleep = anyio.sleep
+clock = time.monotonic
 
 
 class ChatUnavailable(Exception):  # noqa: N818
@@ -81,6 +100,9 @@ results, or suggest the enquiry form ("Talk to a person"). When a result has `al
 site can email them once when new dates are added (the panel shows that form).
 - Ask at most two short clarifying questions in total before searching; when unsure, search \
 with what you have.
+- Prices are per person. When the customer gives one budget for several people ("under 15k \
+for 2"), search with maxBudget and travellers, and judge every result against the per-person \
+budget.
 - Months: turn "November" or "Diwali" into YYYY-MM for the next such month from today. \
 "3 days" means 2 nights.
 - Keep replies short: one or two sentences around the results. The site shows each package \
@@ -111,6 +133,7 @@ async def run_turn(
     system = system_prompt(ctx.today)
     gate = Gate(known_from(history), await package_names(ctx.db))
     active = 0
+    started = clock()
     for call in range(max_calls):
         allow_tools = call < max_calls - 1
         convo = [*history, {"role": "assistant", "parts": turn.parts}] if turn.parts else history
@@ -162,10 +185,23 @@ async def run_turn(
             except ModelUnavailable as exc:
                 turn.errors.append(str(exc))
                 turn.model_calls += 1
-                if produced or attempts >= min(MAX_ATTEMPTS, len(models) + 1):
-                    raise ChatUnavailable(str(exc)) from exc
+                log.warning(
+                    "Concierge model call failed (try %d, %s): %s",
+                    attempts,
+                    "transient" if exc.transient else "refused",
+                    exc,
+                )
+                wait = RETRY_BACKOFF_SECONDS[min(attempts, len(RETRY_BACKOFF_SECONDS)) - 1]
+                wait = wait if exc.transient else 0.0
+                late = clock() - started + wait + RETRY_CALL_SECONDS > TURN_DEADLINE_SECONDS
+                if produced or late or attempts >= min(MAX_ATTEMPTS, len(models) + 1):
+                    if late and not produced:
+                        turn.errors.append("no time left to retry")
+                    raise ChatUnavailable("; ".join(turn.errors)) from exc
                 del turn.parts[kept:]  # an empty, signature-only part from the failed call
                 active += 1  # the next model answers the rest of this turn
+                if wait:
+                    await sleep(wait)
         turn.model = model.name
         if shown := gate.pause():
             yield "text-delta", {"text": shown}

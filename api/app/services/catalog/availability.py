@@ -19,6 +19,7 @@ class Availability:
     guaranteed: bool
     price_double_paise: int
     likely: bool = False  # P2: passes "Likely to sell out" (urgency.likely_to_sell_out)
+    seats_total: int | None = None  # QA 2026-11-19: "Filling fast" needs a seat sold
 
 
 async def next_departures(db: AsyncSession, today: dt.date) -> dict[str, Availability]:
@@ -31,6 +32,7 @@ async def next_departures(db: AsyncSession, today: dt.date) -> dict[str, Availab
             Departure.package_id,
             Departure.guaranteed,
             Departure.price_double_paise,
+            Departure.seats_total,
             departure_availability.c.seats_left,
         )
         .join(departure_availability, departure_availability.c.departure_id == Departure.id)
@@ -39,14 +41,16 @@ async def next_departures(db: AsyncSession, today: dt.date) -> dict[str, Availab
     )
     open_: dict[str, tuple[str, Availability]] = {}
     earliest: dict[str, tuple[str, Availability]] = {}
-    for departure_id, package_id, guaranteed, price, seats_left in rows:
-        availability = Availability(seats_left, guaranteed, price)
+    for departure_id, package_id, guaranteed, price, seats_total, seats_left in rows:
+        availability = Availability(seats_left, guaranteed, price, seats_total=seats_total)
         earliest.setdefault(package_id, (departure_id, availability))
         if seats_left > 0:
             open_.setdefault(package_id, (departure_id, availability))
     chosen = earliest | open_
     likely = await urgency.likely_to_sell_out(db, [id for id, _ in chosen.values()], today)
     return {
-        package_id: Availability(a.seats_left, a.guaranteed, a.price_double_paise, id in likely)
+        package_id: Availability(
+            a.seats_left, a.guaranteed, a.price_double_paise, id in likely, a.seats_total
+        )
         for package_id, (id, a) in chosen.items()
     }

@@ -13,6 +13,7 @@ import { WhyUs } from '@/components/site/home/WhyUs';
 import { PackageCard } from '@/components/site/PackageCard';
 import { api } from '@/lib/api';
 import { siteJsonLd } from '@/lib/seo/site-jsonld';
+import { siteCardOpenGraph } from '@/lib/seo/open-graph';
 import { absolute, SITE_URL } from '@/lib/seo/site-url';
 
 // ISR: served from Vercel's CDN, rebuilt at most hourly or when the api purges a tag — a visit
@@ -26,6 +27,8 @@ export const metadata: Metadata = {
   description:
     'Short Indian holidays with real departure dates, hotels we have stayed in and per-person prices. Goa, Kerala, Himachal and more — a person calls you back within two hours.',
   alternates: { canonical: absolute('/') },
+  // QA 2026-11-19: og:url (the site card stays — siteCardOpenGraph lists it).
+  openGraph: siteCardOpenGraph('/'),
 };
 
 const GRID = 'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3';

@@ -104,7 +104,8 @@ export function BookingSheet({
   const extras = flow.offered.length > 0;
   const picked = quote.status === 'ok' ? (quote.quote.addons ?? []).length : 0;
   const done = {
-    date: !!departure && !flow.reason,
+    // QA 2026-11-19: only once the visitor chose it — the pre-selected first date isn't "done".
+    date: flow.dateChosen && !!departure && !flow.reason,
     party:
       !!departure && !flow.reason && !Object.keys(errs).some((k) => k.startsWith('travellers.')),
     extras: picked > 0,

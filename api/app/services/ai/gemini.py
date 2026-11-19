@@ -6,7 +6,13 @@ provider = rewriting this file against `model.ChatModel`.
 
 Free tier, billing off: each model allows 15 RPM · 250K TPM · 500 RPD. The SDK's own retries are
 off (one attempt): a 429 is a per-minute burst, and the loop answers it by switching to
-`AI_MODEL_FALLBACK`, which has its own quota, instead of sleeping on a Vercel function's clock.
+`AI_MODEL_FALLBACK`, which has its own quota, after a short pause (loop.py) rather than sleeping
+on a Vercel function's clock.
+
+Every provider failure leaves here as `ModelUnavailable` (`unavailable()`), so the loop — not a
+generic `except Exception` in chat.py — decides about retries, and the logged reason carries the
+HTTP status or exception type (QA 2026-11-19: three turns ended as "turn: ClientError" or a run of
+ReadTimeouts with nothing saying which status).
 """
 
 import base64
@@ -37,6 +43,27 @@ TIMEOUT_MS = 12_000
 TEMPERATURE = 0.4
 # Tool choice needs little reasoning; `minimal` shaved ~1 s off the first chunk (measured).
 THINKING_LEVEL = "MINIMAL"  # types.ThinkingLevel.MINIMAL
+# Worth another try: request timeout, the per-minute 429 burst, Google's 499 CANCELLED (its front
+# end dropping a stream) — and every 5xx.
+TRANSIENT_STATUSES = frozenset({408, 429, 499})
+
+
+def unavailable(model: str, exc: Exception) -> ModelUnavailable | None:
+    """A provider failure → `ModelUnavailable` naming the model and the status or exception type
+    (no message text: an SDK error can echo the request). None = not a provider failure (a bug
+    of ours), which the caller re-raises."""
+    from google.genai import errors
+
+    if isinstance(exc, errors.APIError):
+        code = exc.code or 0
+        transient = code in TRANSIENT_STATUSES or code >= 500
+        return ModelUnavailable(f"{model}: {code} {exc.status or ''}".rstrip(), transient=transient)
+    if isinstance(exc, TimeoutError):
+        return ModelUnavailable(f"{model}: timeout")
+    # httpx transport errors (connect/read timeouts, resets) come through unwrapped.
+    if type(exc).__module__.startswith(("httpx", "httpcore")):
+        return ModelUnavailable(f"{model}: {type(exc).__name__}")
+    return None
 
 
 def _b64(raw: bytes | None) -> str | None:
@@ -110,7 +137,7 @@ class GeminiModel:
         allow_tools: bool,
     ) -> AsyncIterator[ModelEvent]:
         from google import genai
-        from google.genai import errors, types
+        from google.genai import types
 
         client = genai.Client(
             api_key=self._api_key,
@@ -168,17 +195,11 @@ class GeminiModel:
                         continue  # thought summaries are not shown (none are requested)
                     elif part.text or sig:
                         yield TextChunk(part.text or "", signature=sig)
-        except errors.APIError as exc:
-            if exc.code == 429 or exc.code >= 500:
-                raise ModelUnavailable(f"{self.name}: {exc.code} {exc.status}") from exc
-            raise
-        except TimeoutError as exc:
-            raise ModelUnavailable(f"{self.name}: timeout") from exc
         except Exception as exc:
-            # httpx transport errors (connect/read timeouts) come through unwrapped.
-            if type(exc).__module__.startswith(("httpx", "httpcore")):
-                raise ModelUnavailable(f"{self.name}: {type(exc).__name__}") from exc
-            raise
+            failure = unavailable(self.name, exc)
+            if failure is None:
+                raise
+            raise failure from exc
         finally:
             await client.aio.aclose()
         if usage is not None:

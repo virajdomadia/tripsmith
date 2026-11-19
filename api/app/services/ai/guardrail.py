@@ -122,6 +122,9 @@ def _learn_args(known: Known, args: Any) -> None:
         for key, value in d.items():
             if key == "maxBudget" and isinstance(value, int | float):
                 known.amounts.add(round(value))
+                group = d.get("travellers")
+                if isinstance(group, int) and not isinstance(group, bool) and group > 1:
+                    known.amounts.add(round(value) // group)  # QA 2026-11-19: the per-person cap
             elif isinstance(value, str):
                 known.amounts.update(r for _, r in amounts(value))
 

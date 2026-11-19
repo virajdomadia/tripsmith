@@ -64,7 +64,17 @@ class SearchPackagesArgs(ToolArgs):
         default=None,
         gt=0,
         le=10_000_000,
-        description="Maximum price per person in whole rupees, e.g. 15000.",
+        description="Budget in whole rupees, e.g. 15000: per person, or for the whole group when "
+        "travellers is given.",
+    )
+    # QA 2026-11-19: "under ₹15k for 2" came in as maxBudget 15000 per person, so the cards showed
+    # a ₹14,499-a-person trip the reply itself called over budget. The group's size now divides it.
+    travellers: int | None = Field(
+        default=None,
+        ge=1,
+        le=MAX_TRAVELLERS,
+        description="How many people maxBudget covers when the customer gives one budget for the "
+        "group ('under 15k for 2' → maxBudget 15000, travellers 2). Omit for a per-person budget.",
     )
     nights: int | None = Field(
         default=None,
@@ -178,6 +188,13 @@ def match_destination(query: str, destinations: list[tuple[str, str]]) -> list[s
     ]
 
 
+def budget_per_person(max_budget: int | None, travellers: int | None) -> int | None:
+    """The per-person ceiling every card must fit: a group budget split evenly (rounded down)."""
+    if max_budget is None:
+        return None
+    return max(1, max_budget // (travellers or 1))
+
+
 async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> dict[str, Any]:
     """Search the live catalog. Returns up to 5 packages, cheapest first."""
     destinations = await _live_destinations(ctx.db)
@@ -187,9 +204,10 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
         slugs = match_destination(args.destination, destinations)
         if not slugs:
             return {"packages": [], "unknownDestination": args.destination, "weOffer": offered}
+    per_person = budget_per_person(args.max_budget, args.travellers)
     params = SearchParams(
         destination=slugs,
-        max_budget=args.max_budget,
+        max_budget=per_person,
         nights_min=max(1, args.nights - NIGHTS_SLACK) if args.nights else None,
         nights_max=args.nights + NIGHTS_SLACK if args.nights else None,
         themes=[args.theme] if args.theme else [],
@@ -200,6 +218,9 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
         "packages": [card(c) for c in found.items[:MAX_PACKAGES]],
         "totalMatches": found.total,
     }
+    if per_person is not None and (args.travellers or 1) > 1:
+        # What the cards were filtered by, so the reply compares prices with the same figure.
+        result["budgetPerPerson"] = inr(per_person)
     if not found.items:
         result["weOffer"] = offered
         if len(slugs) == 1:  # one known destination, nothing open: offer its new-dates alert
