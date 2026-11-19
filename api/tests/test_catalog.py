@@ -110,14 +110,24 @@ async def test_badge_uses_the_next_upcoming_departure(
     from app.models import Departure
 
     await seed(db, fixture_content(), RecordingStore(), make_settings())
-    # Make the earliest North Goa departure (2026-11-20) a 3-seat one → filling fast.
+    # Every departure guaranteed except the earliest North Goa one (2026-11-20): the card shows
+    # no badge, so it reads the next departure, not any later one. (Seat counts can't tell
+    # them apart without a booking: QA 2026-11-19, "Filling fast" needs a seat sold.)
+    await db.execute(update(Departure).values(guaranteed=True))
     await db.execute(
-        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(seats_total=3)
+        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=False)
     )
     await db.commit()
 
     cards = {c["slug"]: c for c in (await db_client.get("/packages")).json()["items"]}
-    assert cards["north-goa-beaches"]["badge"] == "filling-fast"
+    assert cards["north-goa-beaches"]["badge"] is None
+
+    await db.execute(
+        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=True)
+    )
+    await db.commit()
+    cards = {c["slug"]: c for c in (await db_client.get("/packages")).json()["items"]}
+    assert cards["north-goa-beaches"]["badge"] == "guaranteed"
 
 
 async def test_get_packages_without_a_database_is_a_500_envelope(client: AsyncClient) -> None:

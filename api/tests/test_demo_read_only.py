@@ -8,7 +8,6 @@ POST/PUT/PATCH/DELETE there answers `403 forbidden` (`reason: demo_read_only`) f
 
 import pytest
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,15 +63,17 @@ async def test_a_listed_owner_reads_but_cannot_write(
 async def test_every_admin_write_route_is_refused(
     db: AsyncSession, db_app: FastAPI, db_client: AsyncClient
 ) -> None:
-    """Swept from the app's own routes, so a route added later is covered too."""
+    """Swept from the app's own OpenAPI paths, so a route added later is covered too.
+    (Not `app.routes`: FastAPI keeps included routers there as wrappers, not their routes.)"""
     await seeded_with_owner(db)
     read_only(db_app)
     headers = await owner_cookie(db_client)
     writes = [
-        (method, route.path)
-        for route in db_app.routes
-        if isinstance(route, APIRoute) and route.path.startswith("/admin")
-        for method in sorted((route.methods or set()) & UNSAFE)
+        (method.upper(), path)
+        for path, item in db_app.openapi()["paths"].items()
+        if path.startswith("/admin")
+        for method in sorted(item)
+        if method.upper() in UNSAFE
     ]
     assert len(writes) > 30  # packages, coupons, destinations, refunds, mark-paid, …
 

@@ -3,12 +3,14 @@ bookings a customer owns (attached at verify, and by verified email afterwards),
 voucher, and the daily pruning. The db tests need TEST_DATABASE_URL."""
 
 import datetime as dt
-from typing import Any
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any, cast
 
 import httpx
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient, Response
+from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,11 +37,13 @@ from tests.test_auth import COOKIE, with_cookie
 from tests.test_booking_orders import seeded
 from tests.test_booking_payments import booking_body, rzp
 from tests.test_booking_webhook import deliver, event, mailing, with_webhook_secret
+from tests.test_email_send import FakeSender
 from tests.test_enquiries import CountingLimiter
 
 __all__ = ["rzp"]
 
 EMAIL = "asha@example.test"
+DEMO_EMAIL = "asha@example.com"  # a reserved example domain: code shown on screen
 
 
 # --- units -------------------------------------------------------------------------------------
@@ -83,8 +87,39 @@ async def count(db: AsyncSession, model: Any) -> int:
     return (await db.execute(select(func.count()).select_from(model))).scalar_one()
 
 
+LIVE_FROM = "Tripsmith <hello@tripsmith.in>"
+
+
+@contextmanager
+def live_email(client: AsyncClient) -> Iterator[FakeSender]:
+    """The app behind `client`, briefly with a real (non-test) sender and a recording fake.
+
+    QA 2026-11-19: under the test sender (the test settings' default) a real address is refused
+    its code (503) instead of being shown it, so a customer signs in the way they do in
+    production: the code arrives by email. Settings and sender are put back afterwards, so a
+    test's own `mailing()` setup is unaffected."""
+    app = cast(ASGITransport, client._transport).app  # the app this client serves
+    state = app.state  # type: ignore[attr-defined]
+    saved = (state.settings, state.email_sender)
+    sender = FakeSender()
+    state.email_sender = sender
+    state.settings = saved[0].model_copy(update={"email_from": LIVE_FROM})
+    try:
+        yield sender
+    finally:
+        state.settings, state.email_sender = saved
+
+
+async def code_for(client: AsyncClient, email: str = EMAIL) -> str:
+    """The sign-in code a customer at `email` gets: on screen for a demo address, else emailed."""
+    with live_email(client) as sender:
+        res = await ask(client, email)
+        assert res.status_code == 200, res.text
+        return res.json()["demoCode"] or sender.sent[-1].subject.split(" ")[0]
+
+
 async def signed_in(client: AsyncClient, email: str = EMAIL) -> str:
-    code = (await ask(client, email)).json()["demoCode"]
+    code = await code_for(client, email)
     res = await verify(client, code, email)
     assert res.status_code == 200, res.text
     return cookie_of(res)
@@ -111,12 +146,14 @@ async def paid_booking(
 async def test_demo_mode_returns_the_code_and_verify_signs_a_new_customer_in(
     db: AsyncSession, db_client: AsyncClient
 ) -> None:
+    # QA 2026-11-19: only a demo address gets its code on screen (a real one is emailed it,
+    # or refused under the test sender), so this is the demo traveller's path.
     before = dt.datetime.now(dt.UTC)
-    res = await ask(db_client, "  Asha@Example.TEST ")
+    res = await ask(db_client, "  Asha@Example.COM ")
     assert res.status_code == 200, res.text
     assert res.headers["cache-control"].startswith("no-store")
     body = res.json()
-    assert body["email"] == EMAIL and len(body["demoCode"]) == 6
+    assert body["email"] == DEMO_EMAIL and len(body["demoCode"]) == 6
     expires = dt.datetime.fromisoformat(body["expiresAt"])
     assert (
         before + CODE_TTL - dt.timedelta(seconds=5)
@@ -125,12 +162,12 @@ async def test_demo_mode_returns_the_code_and_verify_signs_a_new_customer_in(
     )
     # Only the HMAC is stored.
     row = (await db.execute(select(Verification))).scalar_one()
-    assert row.identifier == EMAIL and body["demoCode"] not in row.code_hash
+    assert row.identifier == DEMO_EMAIL and body["demoCode"] not in row.code_hash
 
-    res = await verify(db_client, body["demoCode"][:3] + " " + body["demoCode"][3:])
+    res = await verify(db_client, body["demoCode"][:3] + " " + body["demoCode"][3:], DEMO_EMAIL)
     assert res.status_code == 200, res.text
     info = res.json()
-    assert info["user"]["email"] == EMAIL and info["user"]["role"] == "customer"
+    assert info["user"]["email"] == DEMO_EMAIL and info["user"]["role"] == "customer"
     assert info["newEnquiries"] is None
     assert "HttpOnly" in res.headers["set-cookie"] and "SameSite=lax" in res.headers["set-cookie"]
     exp = dt.datetime.fromisoformat(info["expiresAt"])
@@ -139,11 +176,11 @@ async def test_demo_mode_returns_the_code_and_verify_signs_a_new_customer_in(
     token = cookie_of(res)
     session = await db_client.get("/auth/session", headers=with_cookie(token))
     assert session.status_code == 200 and session.json()["user"]["role"] == "customer"
-    user = (await db.execute(select(User).where(User.email == EMAIL))).scalar_one()
+    user = (await db.execute(select(User).where(User.email == DEMO_EMAIL))).scalar_one()
     assert user.role == UserRole.CUSTOMER and user.password_hash is None
 
     # The code opened one session and is spent.
-    again = await verify(db_client, body["demoCode"])
+    again = await verify(db_client, body["demoCode"], DEMO_EMAIL)
     assert again.status_code == 400 and again.json()["error"]["reason"] == "code_dead"
 
     # Logout ends it.
@@ -204,7 +241,7 @@ async def test_a_failed_send_is_a_502_the_visitor_can_retry(
 
 @pytest.mark.db
 async def test_five_wrong_tries_kill_the_code(db: AsyncSession, db_client: AsyncClient) -> None:
-    code = (await ask(db_client)).json()["demoCode"]
+    code = await code_for(db_client)
     for left in range(MAX_ATTEMPTS - 1, 0, -1):
         res = await verify(db_client, wrong(code))
         assert res.status_code == 400
@@ -218,7 +255,7 @@ async def test_five_wrong_tries_kill_the_code(db: AsyncSession, db_client: Async
     assert res.status_code == 400 and res.json()["error"]["reason"] == "code_dead"
     assert await count(db, Session) == 0
     # A new code works.
-    assert (await verify(db_client, (await ask(db_client)).json()["demoCode"])).status_code == 200
+    assert (await verify(db_client, await code_for(db_client))).status_code == 200
 
 
 @pytest.mark.db
@@ -242,18 +279,19 @@ async def test_limits_five_codes_per_email_and_twenty_per_connection(
 ) -> None:
     limiter = CountingLimiter(limit=5)
     db_app.state.rate_limiter = limiter
-    for _ in range(5):
-        assert (await ask(db_client)).status_code == 200
-    res = await ask(db_client)
-    assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
-    assert "otp:asha@example.test" in limiter.hits
-    assert any(k.startswith("otp-ip:") for k in limiter.hits)
+    with live_email(db_client):  # real addresses get their codes by email (QA 2026-11-19)
+        for _ in range(5):
+            assert (await ask(db_client)).status_code == 200
+        res = await ask(db_client)
+        assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+        assert "otp:asha@example.test" in limiter.hits
+        assert any(k.startswith("otp-ip:") for k in limiter.hits)
 
-    per_ip = CountingLimiter(limit=20)
-    db_app.state.rate_limiter = per_ip
-    for i in range(20):
-        assert (await ask(db_client, f"p{i}@example.test")).status_code == 200
-    assert (await ask(db_client, "p99@example.test")).status_code == 429
+        per_ip = CountingLimiter(limit=20)
+        db_app.state.rate_limiter = per_ip
+        for i in range(20):
+            assert (await ask(db_client, f"p{i}@example.test")).status_code == 200
+        assert (await ask(db_client, "p99@example.test")).status_code == 429
 
 
 def upstash_down() -> UpstashRateLimiter:
@@ -289,14 +327,15 @@ async def test_with_upstash_down_the_sixth_code_in_15_minutes_is_refused(
 ) -> None:
     # v2.6 SA-2: the database cap holds when the limiter fails open.
     db_app.state.rate_limiter = upstash_down()
-    for _ in range(OTP_EMAIL_CAPS[0][1]):
-        assert (await ask(db_client)).status_code == 200
-    res = await ask(db_client)
-    assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
-    assert 0 < int(res.headers["Retry-After"]) <= 15 * 60
-    assert await count(db, Verification) == 5  # the refused ask wrote nothing
-    # Another email is unaffected.
-    assert (await ask(db_client, "other@example.test")).status_code == 200
+    with live_email(db_client):  # real addresses get their codes by email (QA 2026-11-19)
+        for _ in range(OTP_EMAIL_CAPS[0][1]):
+            assert (await ask(db_client)).status_code == 200
+        res = await ask(db_client)
+        assert res.status_code == 429 and res.json()["error"]["code"] == "rate_limited"
+        assert 0 < int(res.headers["Retry-After"]) <= 15 * 60
+        assert await count(db, Verification) == 5  # the refused ask wrote nothing
+        # Another email is unaffected.
+        assert (await ask(db_client, "other@example.test")).status_code == 200
 
 
 @pytest.mark.db

@@ -115,7 +115,9 @@ async def test_get_package_returns_the_full_detail(
     assert p["images"][0]["url"].endswith("/packages/north-goa-beaches/vagator-palms-1.jpg")
     assert p["images"][0]["width"] > 0 and p["images"][0]["alt"]
     # Departures: all four are upcoming (seeded 2026-11 to 2027-02), soonest first, seats from the
-    # view, badges by the pricing rules (16 guaranteed / 4 seats / 16 plain / 12 plain).
+    # view, badges by the pricing rules (16 guaranteed / 4 seats, none sold, guaranteed / 16
+    # plain / 12 plain). QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is
+    # not filling.
     assert [d["date"] for d in p["departures"]] == [
         "2026-11-20",
         "2026-12-18",
@@ -123,7 +125,7 @@ async def test_get_package_returns_the_full_detail(
         "2027-02-12",
     ]
     assert [d["seatsLeft"] for d in p["departures"]] == [16, 4, 16, 12]
-    assert [d["badge"] for d in p["departures"]] == ["guaranteed", "filling-fast", None, None]
+    assert [d["badge"] for d in p["departures"]] == ["guaranteed", "guaranteed", None, None]
     first = p["departures"][0]
     assert (first["priceDoublePaise"], first["priceTriplePaise"]) == (14_999_00, 13_499_00)
     assert (first["priceChildPaise"], first["singleSupplementPaise"]) == (8_999_00, 6_000_00)
@@ -147,7 +149,8 @@ async def test_get_package_hides_past_departures(db: AsyncSession, db_client: As
     p = (await db_client.get("/packages/north-goa-beaches")).json()
 
     assert [d["date"] for d in p["departures"]] == ["2026-12-18", "2027-01-15", "2027-02-12"]
-    assert p["departures"][0]["badge"] == "filling-fast"
+    assert p["departures"][0]["badge"] == "guaranteed"  # 18 Dec: 4 of 4 free
+    # QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is not filling.
 
 
 @pytest.mark.db
@@ -180,7 +183,8 @@ async def test_departures_filter_by_month(db: AsyncSession, db_client: AsyncClie
     assert res.headers["cache-control"] == CACHE
     items = res.json()["items"]
     assert [d["date"] for d in items] == ["2026-12-18"]
-    assert items[0]["seatsLeft"] == 4 and items[0]["badge"] == "filling-fast"
+    # QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is not filling.
+    assert items[0]["seatsLeft"] == 4 and items[0]["badge"] == "guaranteed"
 
     empty = await db_client.get(
         "/packages/north-goa-beaches/departures", params={"month": "2027-06"}
@@ -312,11 +316,12 @@ async def test_card_badge_skips_a_sold_out_first_departure(
     every upcoming date is full."""
     await seeded(db)
     first = dt.date(2026, 11, 20)  # north-goa-beaches: guaranteed, 16 seats; then 18 Dec, 4 seats
+    # (guaranteed, none sold: "Guaranteed", not "Filling fast", since QA 2026-11-19)
     await db.execute(update(Departure).where(Departure.date == first).values(seats_total=0))
     await db.commit()
 
     cards = {p["slug"]: p for p in (await db_client.get("/destinations/goa")).json()["packages"]}
-    assert cards["north-goa-beaches"]["badge"] == "filling-fast"
+    assert cards["north-goa-beaches"]["badge"] == "guaranteed"  # from 18 Dec, not the sold-out
 
     pid = (
         await db.execute(select(Package.id).where(Package.slug == "north-goa-beaches"))
