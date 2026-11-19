@@ -457,7 +457,7 @@ package = define_package(
 | tool | `searchPackages` | `run_tool("searchPackages")` (C6), unchanged |
 | tool | `checkAvailability` | `run_tool("checkAvailability")`, unchanged |
 | tool | `startBooking` | `run_tool("startBooking")` with `url` made absolute (`WEB_URL` + path). A handoff link: no hold, no payment |
-| tool | `startEnquiry` | builds a pre-filled enquiry-form link (`enquire`, `month`, `adults`, `children`, `note`). A handoff link: **creates no enquiry** |
+| tool | `startEnquiry` | runs `createEnquiry`, returns a link to the site's enquiry form (`/packages/{slug}/enquire` or `/contact#enquire`, with `travelMonth`, `adults`, `children`) and the redacted `summary`. A handoff link: **creates no enquiry** |
 | tool (stretch, auth) | `myBookings`, `getVoucher` | v2 `listMyBookings`, voucher URL (signed, 10 min) |
 | prompt | `plan-a-trip` | args destination?, month?, budget?, party? (core if about 0.5 h) |
 | resource (optional) | `tripsmith://packages`, `.../packages/{slug}`, `.../destinations/{slug}` | needs the new `catalog/markdown.py` renderer; live packages only |
@@ -466,7 +466,7 @@ Never exposed: payment, seat holds, lead creation, catalogue writes.
 
 Every call is logged to `mcp_requests`. Rate limit: `mcp:{ip}` at most 60 / hour on the server-derived IP, failing closed if Redis is down. Errors: MCP tool error content with a short message; pydantic issues summarised, never raw.
 
-**web pre-fill params** (package page enquiry form, `/contact`): `enquire=1`, `month` (YYYY-MM), `adults` (1–20), `children` (0–20), `note` (at most 300 chars). Anything else, including `name`/`phone`/`email`, is ignored.
+**web pre-fill params** (the existing `PUBLIC_FIELDS` of `/packages/{slug}/enquire` and `/contact`): `travelMonth` (YYYY-MM), `adults`, `children` (plus `type`, `budget`). Anything a person types (`name`, `phone`, `email`, `message`, …) is never read from a URL.
 
 ### C7. Add-on endpoints
 

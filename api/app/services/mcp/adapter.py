@@ -6,9 +6,12 @@ the chat's. This module only does what a remote client needs and the chat doesn'
 - `startBooking` returns the chat handoff with its link made absolute (the chat opens a relative
   path on the site it is already on).
 - `startEnquiry` runs the chat's `createEnquiry` (live-package check, the summary with contact
-  details redacted) and turns its form instruction into a link to the site's enquiry form,
-  pre-filled with trip details. It creates nothing: the lead is made only when the customer
-  submits that form (`POST /enquiries`, with its own limits and emails).
+  details redacted) and turns its form instruction into a link to the site's own enquiry form
+  (`/packages/<slug>/enquire`, else `/contact#enquire`) with the trip choices the site already
+  pre-fills from a URL (web `formStateFrom`, PUBLIC_FIELDS). The summary goes back to the
+  assistant to suggest, never into the link: what a person writes stays out of URLs, the site's
+  rule. It creates nothing: the lead is made only when the customer sends that form
+  (`POST /enquiries`, with its own limits and emails).
 
 Nothing here pays, holds seats or writes to the database (03-requirements-v4, the boundary).
 """
@@ -18,8 +21,6 @@ from typing import Any
 from urllib.parse import urlencode
 
 from app.services.ai.tools import TOOLS, ToolContext, run_tool
-
-NOTE_MAX = 300  # the web form's limit for a pre-filled note (R34a)
 
 SEARCH, AVAILABILITY, BOOKING, ENQUIRY = (
     "searchPackages",
@@ -33,9 +34,13 @@ BOOKING_NEXT = (
     "filled in, and they pay there. Nothing is booked or held until they do."
 )
 ENQUIRY_NEXT = (
-    "Give the customer this link: Tripsmith's enquiry form opens with these trip details filled "
-    "in, and they add their name and phone there. Nothing has been sent yet."
+    "Give the customer this link: Tripsmith's enquiry form opens with the month and party filled "
+    "in, and they add their name, phone and a message there (suggest `summary` as the message). "
+    "Nothing has been sent yet."
 )
+# Query fields the site's enquiry form already pre-fills (web enquiry-form-state PUBLIC_FIELDS),
+# from the chat handoff's keys. Choices only: nothing a person typed.
+_PREFILL = (("month", "travelMonth"), ("adults", "adults"), ("children", "children"))
 
 
 @dataclass(frozen=True)
@@ -63,10 +68,11 @@ def tool_list() -> list[McpTool]:
         ),
         McpTool(
             ENQUIRY,
-            "Hand the customer to a person: returns a link to Tripsmith's enquiry form, filled in "
-            "with your summary and the trip details, where the customer adds their name and phone "
-            "and sends it. Nothing is sent by this tool. Use when they want to talk to someone, "
-            "want something that cannot be booked online, or you cannot help. Never put names, "
+            "Hand the customer to a person: returns a link to Tripsmith's enquiry form with the "
+            "month and party filled in, where the customer adds their name, phone and a message "
+            "and sends it; your summary comes back for them to use as the message. Nothing is "
+            "sent by this tool. Use when they want to talk to someone, want something that "
+            "cannot be booked online, or you cannot help. Never put names, "
             "phone numbers or emails in the summary.",
             TOOLS["createEnquiry"].spec.parameters,
         ),
@@ -78,18 +84,14 @@ def absolute_url(site_url: str, path: str) -> str:
 
 
 def enquiry_url(site_url: str, handoff: dict[str, Any]) -> str:
-    """The site's enquiry form for the chat's `createEnquiry` result: the package page's form when
-    a live package was named, else /contact. Only trip details travel in the link (R34a)."""
+    """The site's enquiry form for the chat's `createEnquiry` result: the package's own enquiry
+    page when a live package was named, else the contact page's form. Trip choices only (R34a)."""
     package = handoff.get("package")
-    path = f"/packages/{package['slug']}" if package else "/contact"
-    params: dict[str, str] = {"enquire": "1"}
-    for key in ("month", "adults", "children"):
-        if handoff.get(key) is not None:
-            params[key] = str(handoff[key])
-    note = str(handoff.get("summary") or "").strip()[:NOTE_MAX].strip()
-    if note:
-        params["note"] = note
-    return absolute_url(site_url, f"{path}?{urlencode(params)}")
+    params = {field: str(handoff[key]) for key, field in _PREFILL if handoff.get(key) is not None}
+    query = f"?{urlencode(params)}" if params else ""
+    if package:
+        return absolute_url(site_url, f"/packages/{package['slug']}/enquire{query}")
+    return absolute_url(site_url, f"/contact{query}#enquire")
 
 
 async def call(ctx: ToolContext, site_url: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -109,6 +111,7 @@ async def call(ctx: ToolContext, site_url: str, name: str, args: dict[str, Any])
         return {
             "url": enquiry_url(site_url, handoff),
             "package": handoff.get("package"),
+            "summary": handoff.get("summary"),
             "next": ENQUIRY_NEXT,
         }
     return {"error": f"There is no tool called {name!r}."}

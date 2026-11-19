@@ -152,6 +152,22 @@ describe('formStateFrom', () => {
     });
   });
 
+  it('pre-fills the trip choices from an MCP startEnquiry link, and nothing typed (v4 R34a)', () => {
+    // The api's adapter (services/mcp/adapter.enquiry_url) links here with these fields; a
+    // message, note or contact detail in a URL is ignored, whoever wrote the link.
+    const state = formStateFrom({
+      travelMonth: '2026-12',
+      adults: '2',
+      children: '1',
+      message: 'From the URL',
+      note: 'From the URL',
+      email: 'a@b.c',
+    });
+    expect(state.defaultValues).toEqual({ travelMonth: '2026-12', adults: '2', children: '1' });
+    expect(state.fieldErrors).toEqual({});
+    expect(state.error).toBeUndefined();
+  });
+
   it('takes typed details from the draft cookie, never from the query', () => {
     const state = formStateFrom(
       { name: 'From the URL', phone: '9845022110', type: 'custom' },

@@ -155,7 +155,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 | `searchPackages` | `run_tool("searchPackages", ...)` | nothing |
 | `checkAvailability` | `run_tool("checkAvailability", ...)` | nothing |
 | `startBooking` | `run_tool("startBooking", ...)` (existing booking quote; returns `/packages/{slug}?...#book`) | absolute URL: `WEB_URL` + path |
-| `startEnquiry` | the same live-package lookup `create_enquiry_tool` uses | builds `{WEB_URL}/packages/{slug}?enquire=1&month=...&adults=...&children=...&note=...` (or `/contact?...` without a package), `urlencode`d, allowlisted fields only, note at most 300 chars after `pii.redact()`. **Creates nothing.** |
+| `startEnquiry` | the same live-package lookup `create_enquiry_tool` uses | runs `createEnquiry` and builds `/packages/{slug}/enquire?travelMonth=…&adults=…&children=…`, or `/contact?…#enquire` without a live package, `urlencode`d; the redacted summary is returned, never put in the link. **Creates nothing.** |
 
 - `ToolContext` for MCP: DB session, `now`, the server-derived client IP; no conversation id.
 - `ToolArgs` reused as-is (`extra="forbid"`). `startEnquiry` gets its own small args model with the same bounds as the v3 enquiry args, minus contact fields.
@@ -163,7 +163,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 - Tool errors become MCP tool-error content (`isError: true`) with a short message; validation errors are summarised; nothing is raised to the transport.
 
 ### 3. Web: enquiry pre-fill
-- The package page's enquiry form (and `/contact`) read `enquire`, `month`, `adults`, `children`, `note` from the query string through one zod schema: allowlisted keys, `month` YYYY-MM within 18 months, counts bounded, note at most 300 chars, rendered as text. Unknown keys are ignored; `name`/`phone`/`email` are never read from the URL. `enquire=1` scrolls to and opens the form.
+- No new web code (4.0.3, 2026-11-19): the enquiry pages already pre-fill from the query through `formStateFrom` (`web/src/lib/enquiry-form-state.ts`), which reads only `PUBLIC_FIELDS` (choices) and never the private fields (anything typed). The adapter links to those pages with those field names; a web test pins the contract (`tests/enquiry-schema.test.ts`).
 
 ### 4. Limits, identity, logging
 - **Caller IP** from `infra/client_ip.py` (Vercel forwarded header / the signed internal header; never a client-supplied IP header).

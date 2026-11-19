@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.models import Enquiry
 from app.services.ai.tools import TOOLS, ToolContext, run_tool
 from app.services.analytics import ist_today
-from app.services.mcp.adapter import NOTE_MAX, absolute_url, enquiry_url
+from app.services.mcp.adapter import absolute_url, enquiry_url
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
@@ -62,26 +62,34 @@ def test_a_booking_path_becomes_an_absolute_site_link() -> None:
     assert absolute_url(SITE, path) == f"{SITE}{path}"
 
 
-def test_the_enquiry_link_carries_trip_details_only_and_a_bounded_note() -> None:
+def test_the_enquiry_link_is_the_sites_own_form_with_trip_choices_only() -> None:
+    """The site pre-fills its enquiry form from these query fields already (web
+    `formStateFrom`, PUBLIC_FIELDS). What a person writes, the summary included, never goes in a
+    URL (history, logs, Referer): the site's own rule, so no message or note travels here."""
     handoff = {
         "form": "enquiry",
-        "summary": "Two adults, a quiet beach week in December. " * 20,
+        "summary": "Two adults, a quiet beach week in December.",
         "package": {"slug": "north-goa-beaches", "name": "North Goa"},
         "adults": 2,
         "children": None,
         "month": "2026-12",
     }
-    url = enquiry_url(SITE, handoff)
-    parts = urlsplit(url)
-    assert f"{parts.scheme}://{parts.netloc}{parts.path}" == f"{SITE}/packages/north-goa-beaches"
-    query = parse_qs(parts.query)
-    assert set(query) == {"enquire", "month", "adults", "note"}  # no children: none given
-    assert query["enquire"] == ["1"] and query["month"] == ["2026-12"] and query["adults"] == ["2"]
-    assert len(query["note"][0]) <= NOTE_MAX
+    parts = urlsplit(enquiry_url(SITE, handoff))
+    assert f"{parts.scheme}://{parts.netloc}{parts.path}" == (
+        f"{SITE}/packages/north-goa-beaches/enquire"
+    )
+    assert parse_qs(parts.query) == {"travelMonth": ["2026-12"], "adults": ["2"]}  # no children
 
-    general = urlsplit(enquiry_url(SITE, {**handoff, "package": None, "summary": "Hills in May"}))
-    assert general.path == "/contact"
-    assert not {"name", "phone", "email"} & set(parse_qs(general.query))
+    general = urlsplit(enquiry_url(SITE, {**handoff, "package": None, "children": 1}))
+    assert general.path == "/contact" and general.fragment == "enquire"
+    assert parse_qs(general.query) == {
+        "travelMonth": ["2026-12"],
+        "adults": ["2"],
+        "children": ["1"],
+    }
+
+    bare = urlsplit(enquiry_url(SITE, {"form": "enquiry", "summary": "Hills", "package": None}))
+    assert (bare.path, bare.query, bare.fragment) == ("/contact", "", "enquire")
 
 
 # --- with the catalogue: parity with the chat's tools ---------------------------------------------
@@ -161,10 +169,14 @@ async def test_start_enquiry_returns_a_form_link_and_creates_no_enquiry(
         "month": "2026-12",
     }
     got, is_error = await mcp_result(mcp_db_app, "startEnquiry", args)
+    handoff = await chat_result(db, "createEnquiry", args)
 
     assert not is_error
-    assert got["url"] == enquiry_url(SITE, await chat_result(db, "createEnquiry", args))
-    assert urlsplit(str(got["url"])).path == "/packages/north-goa-beaches"
+    assert got["url"] == enquiry_url(SITE, handoff)
+    assert urlsplit(str(got["url"])).path == "/packages/north-goa-beaches/enquire"
+    # The chat's redacted summary goes back to the assistant to suggest, never into the link.
+    assert got["summary"] == handoff["summary"]
+    assert "summary" not in str(got["url"]) and "quiet" not in str(got["url"])
     assert (await db.execute(select(func.count()).select_from(Enquiry))).scalar_one() == 0
 
 
