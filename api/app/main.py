@@ -58,6 +58,7 @@ from app.routers.site import (
 from app.routers.site import alerts as site_alerts
 from app.routers.site import leaders as site_leaders
 from app.services.ai.gemini import models_from_settings
+from app.services.mcp import server as mcp_server
 from app.services.pdf.service import PdfService
 
 log = logging.getLogger(__name__)
@@ -94,10 +95,13 @@ class TripsmithApi(FastAPI):
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # The engine is created lazily by the first session (infra/db.py); only disposal lives here.
+    # v4: /mcp needs the MCP SDK's session manager running, and the SDK's own (sub-app) lifespan
+    # never runs inside FastAPI, so it is entered here.
     try:
-        yield
+        async with app.state.mcp_session_manager.run():
+            yield
     finally:
         await dispose_engine()
 
@@ -165,6 +169,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(waitlist.router)
     app.include_router(chat.router)
     app.include_router(site_alerts.router)
+    app.state.mcp_session_manager = mcp_server.mount(app, settings, os.environ)  # v4: /mcp
 
     # Dev only: `scripts/seed.py --local` mirrors photos to api/.seed-photos (gitignored, never
     # deployed) and points image URLs here; on Vercel photos come from Blob. `check_dir=False`

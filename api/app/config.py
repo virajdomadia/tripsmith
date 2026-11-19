@@ -93,6 +93,11 @@ class Settings(BaseSettings):
     revalidate_secret: SecretStr | None = None
     site_url: str = "http://localhost:3000"
 
+    # --- v4 MCP server ---
+    # Extra Host values /mcp accepts, comma-separated, on top of Vercel's own deployment hosts
+    # (services/mcp/server.allowed_hosts). Unset is fine on Vercel; tests set it.
+    mcp_hosts: str = ""
+
     @model_validator(mode="before")
     @classmethod
     def _demo_owner_on_in_production(cls, data: Any) -> Any:
