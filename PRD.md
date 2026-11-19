@@ -181,7 +181,7 @@ The agency lives inside the customer's own assistant. Acceptance criteria in [do
 | **Remote MCP server** | `/mcp` on the api: MCP Python SDK v2 (`MCPServer`), Streamable HTTP, stateless, mounted in FastAPI. Add it to Claude Desktop, ChatGPT, Cursor or any MCP client |
 | **Tools** | `searchPackages`, `checkAvailability` (v3, unchanged) · `startBooking` (absolute link to the pre-filled Book-now sheet; never pays or holds seats) · `startEnquiry` (link to a pre-filled enquiry form; creates nothing) |
 | **Enquiry pre-fill (web)** | the existing enquiry pages pre-fill their choice fields (month, party) from the link; nothing typed ever travels in a URL |
-| **Prompt** | `plan-a-trip` guided planning prompt (core if it stays ~0.5 h) |
+| **Prompt** | `plan-a-trip` guided planning prompt (built, core) |
 | **Limits & logging** | catalogue-only rules, 60/h/IP, `mcp_requests` log |
 | **Developer page + proof** | `/developers` with one-line install config; README GIF of Claude Desktop planning a Goa trip on the production endpoint |
 | *Optional* | resources `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` (needs a new markdown renderer) · dashboard tile "trips planned via MCP" |

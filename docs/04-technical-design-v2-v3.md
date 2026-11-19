@@ -172,7 +172,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 
 ### 5. Optional (not core)
 - Resources `tripsmith://packages`, `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` need a **new** `services/catalog/markdown.py` renderer (it does not exist yet) over **live** packages only, with a test that a draft is never listed or readable.
-- Prompt `plan-a-trip` is core only if it stays about 0.5 h.
+- Prompt `plan-a-trip` is core only if it stays about 0.5 h. **Built in 4.0.5 (core):** `TripsmithServer.list_prompts`/`get_prompt` over `services/mcp/prompts.py`, through the same limit and log as tools. `scripts/mcp_smoke.py` drives a real server with the SDK client (legacy and 2026-07-28 modes) and runs in CI on uvicorn over a migrated, seeded database.
 - Dashboard tile reading `mcp_requests` (7 / 30 days, top tools, `startBooking` count).
 
 ### 6. Auth (stretch R38)

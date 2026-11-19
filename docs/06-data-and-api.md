@@ -459,7 +459,7 @@ package = define_package(
 | tool | `startBooking` | `run_tool("startBooking")` with `url` made absolute (`WEB_URL` + path). A handoff link: no hold, no payment |
 | tool | `startEnquiry` | runs `createEnquiry`, returns a link to the site's enquiry form (`/packages/{slug}/enquire` or `/contact#enquire`, with `travelMonth`, `adults`, `children`) and the redacted `summary`. A handoff link: **creates no enquiry** |
 | tool (stretch, auth) | `myBookings`, `getVoucher` | v2 `listMyBookings`, voucher URL (signed, 10 min) |
-| prompt | `plan-a-trip` | args destination?, month?, budget?, party? (core if about 0.5 h) |
+| prompt | `plan-a-trip` | args destination?, month?, budget?, party? (strings, each ≤ 120 chars after redaction; unknown args refused). One user message. Counts against the limit; logged as `prompts/get` |
 | resource (optional) | `tripsmith://packages`, `.../packages/{slug}`, `.../destinations/{slug}` | needs the new `catalog/markdown.py` renderer; live packages only |
 
 Never exposed: payment, seat holds, lead creation, catalogue writes.

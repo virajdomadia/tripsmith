@@ -46,7 +46,7 @@ Tripsmith exposes itself as a **remote MCP server**, so any MCP client (Claude D
 - **Accept:** a `startEnquiry` link opens the right page with the month and party filled (web unit test); `message`/`note`/`email` in the URL have no effect; the submitted enquiry is identical to one typed by hand.
 
 ### R35. Prompt (core if it stays ≈ 0.5 h) and resources (optional)
-- Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns one guided planning message. Core only if it fits ≈ 0.5 h; otherwise it moves to optional.
+- Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns one guided planning message. Core only if it fits ≈ 0.5 h; otherwise it moves to optional. *Built (4.0.5), core: `services/mcp/prompts.py`. One user message: what the customer knows so far, then how to use the four tools (only quote what they return; never ask for name, phone or email). Arguments are trimmed, redacted (`pii.redact()`) and cut to 120 chars; an unknown argument or prompt name is an `INVALID_PARAMS` error. `prompts/get` counts against the same `mcp:{ip}` limit, fails closed the same way, and is logged as `prompts/get`.*
 - *Optional add-on:* resources `tripsmith://packages`, `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` as markdown. This needs a **new** catalogue markdown renderer (`services/catalog/markdown.py` does not exist yet), tested on published data only, so drafts are never exposed.
 
 ### R36. Limits, logging, errors (core)

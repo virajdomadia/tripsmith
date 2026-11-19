@@ -15,6 +15,9 @@ The limiter fails **closed** here: a `degraded` result (Upstash down, or no Upst
 deployment) refuses the call, unlike the site. A served call then writes one `mcp_requests` row
 (`services/mcp/log.py`); a refused one only reaches the function log, so a flood can't fill the
 table.
+
+4.0.5: the `plan-a-trip` prompt (`services/mcp/prompts.py`). `prompts/get` goes through the same
+limit and log as a tool call; listing tools or prompts is free.
 """
 
 import datetime as dt
@@ -30,7 +33,15 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, TextContent
+from mcp.shared.exceptions import MCPError
+from mcp.types import (
+    CallToolResult,
+    GetPromptResult,
+    Prompt,
+    PromptArgument,
+    PromptMessage,
+    TextContent,
+)
 from mcp.types import Tool as MCPTool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.requests import Request
@@ -42,7 +53,7 @@ from app.infra.ratelimit import RateLimiter
 from app.services.ai.tools import ToolContext
 from app.services.analytics import ist_today
 from app.services.enquiries import hash_ip
-from app.services.mcp import adapter
+from app.services.mcp import adapter, prompts
 from app.services.mcp import log as mcp_log
 
 log = logging.getLogger(__name__)
@@ -80,6 +91,7 @@ def allowed_origins(environ: Mapping[str, str]) -> list[str]:
 
 UNAVAILABLE = "Tripsmith's catalogue is unavailable right now. Try again shortly."
 LIMITER_DOWN = "Tripsmith can't take requests right now. Try again shortly."
+REFUSED = -32000  # JSON-RPC server error: a refused prompts/get (tools answer with isError)
 MCP_LIMIT = 60  # tool calls per address per hour (R36)
 HOUR = 3600
 
@@ -129,21 +141,79 @@ class TripsmithServer(MCPServer):
             ctx = ToolContext(db=db, today=ist_today(now), now=now)
             payload = await adapter.call(ctx, settings.site_url, name, arguments)
 
+        error = str(payload["error"]) if "error" in payload else None
+        await self._record(sessions, context, ip, "tools/call", name, arguments, started, error)
+        return _result(payload)
+
+    async def list_prompts(self) -> list[Prompt]:
+        return [
+            Prompt(
+                name=prompts.PLAN_A_TRIP,
+                title=prompts.TITLE,
+                description=prompts.DESCRIPTION,
+                arguments=[
+                    PromptArgument(name=a.name, description=a.description, required=False)
+                    for a in prompts.ARGS
+                ],
+            )
+        ]
+
+    async def get_prompt(  # type: ignore[override]  # never asks for input, so never InputRequired
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+        context: Context[Any, Any] | None = None,
+    ) -> GetPromptResult:
+        started = time.perf_counter()
+        if name != prompts.PLAN_A_TRIP:
+            raise prompts.unknown(name)
+        request = _http_request(context)
+        ip = client_ip(request) if request is not None else "unknown"
+        refusal = await _refusal(self._app.state.rate_limiter, ip)
+        if refusal is not None:
+            log.warning("MCP prompt %s refused for an address: %s", name, refusal)
+            raise MCPError(REFUSED, refusal)
+
+        args = arguments or {}
+        text = prompts.render(args)  # refuses unknown arguments
+        try:
+            sessions = self._sessions(self._app.state.settings)
+        except DatabaseNotConfigured:
+            pass  # the prompt needs no database; there is just nowhere to log it
+        else:
+            await self._record(sessions, context, ip, "prompts/get", name, args, started, None)
+        return GetPromptResult(
+            description=prompts.DESCRIPTION,
+            messages=[PromptMessage(role="user", content=TextContent(type="text", text=text))],
+        )
+
+    async def _record(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        context: Context[Any, Any] | None,
+        ip: str,
+        method: str,
+        name: str,
+        args: dict[str, Any],
+        started: float,
+        error: str | None,
+    ) -> None:
+        settings: Settings = self._app.state.settings
+        request = _http_request(context)
         client_name, client_version = _client_info(context)
         secret = settings.session_secret.get_secret_value() if settings.session_secret else None
         await mcp_log.record(
             sessions,
-            method="tools/call",
+            method=method,
             name=name,
-            args=arguments,
+            args=args,
             latency_ms=round((time.perf_counter() - started) * 1000),
-            error=str(payload["error"]) if "error" in payload else None,
+            error=error,
             ip_hash=hash_ip(ip, secret=secret),
             client_name=client_name,
             client_version=client_version,
             user_agent=request.headers.get("user-agent") if request is not None else None,
         )
-        return _result(payload)
 
     def _sessions(self, settings: Settings) -> async_sessionmaker[AsyncSession]:
         """Tests point MCP at their database with `app.state.mcp_sessions` (MCP calls don't go
