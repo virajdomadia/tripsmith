@@ -134,13 +134,16 @@ async def test_start_booking_is_the_chat_handoff_with_an_absolute_link(
     catalog: None, db: AsyncSession, mcp_db_app: FastAPI
 ) -> None:
     dates = await chat_result(db, "checkAvailability", {"packageSlug": "north-goa-beaches"})
-    departure_id = dates["departures"][0]["departureId"]  # type: ignore[index]
+    # The last date: the first ones fall inside the booking cut-off (MIN_DAYS_AHEAD) as the real
+    # clock nears the fixture's November departures.
+    departure_id = dates["departures"][-1]["departureId"]  # type: ignore[index]
     args = {"departureId": departure_id, "adults": 2}
 
     got, is_error = await mcp_result(mcp_db_app, "startBooking", args)
     chat = await chat_result(db, "startBooking", args)
 
-    assert not is_error
+    assert "error" not in chat, chat  # the date itself is bookable
+    assert not is_error, got
     assert got["url"] == f"{SITE}{chat['url']}"
     assert {k: v for k, v in got.items() if k not in ("url", "next")} == {
         k: v for k, v in chat.items() if k not in ("url", "next")
