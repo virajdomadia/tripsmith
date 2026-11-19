@@ -143,7 +143,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 - Server metadata: name `tripsmith`, version from `pyproject.toml`, instructions string = the v3 system prompt's catalog-only rules.
 
 ### 2. Tools, resources, prompts
-- Tools are registered from the **same tool definitions as v3** (`api/app/services/ai/tools.py` exports the typed functions; the chat agent registers them with `@agent.tool`, the MCP server with `@mcp.tool()`). One definition, two transports.
+- Tools are registered from the **same tool definitions as v3** (as built in v3: `api/app/services/ai/tools.py` holds the `TOOLS` registry — pydantic `ToolArgs` models + async `*_tool(ctx, args)` functions — driven by Tripsmith's own Gemini tool loop in `services/ai/loop.py`, no pydantic-ai; the MCP server registers thin `@mcp.tool()` wrappers that build a `ToolContext` and call `run_tool` / the same functions). One definition, two transports. *(Updated 2026-11-19 to match the v3 implementation.)*
 - Resources: `tripsmith://packages` (list), `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` rendered to markdown by `api/app/services/catalog/markdown.py` (also reusable for the PDF text and the concierge context).
 - Prompt `plan-a-trip(destination?, month?, budget?, party?)` returns a single user message that steers the client into the two-question flow.
 
