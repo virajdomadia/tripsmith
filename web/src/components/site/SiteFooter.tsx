@@ -13,6 +13,7 @@ const COMPANY: Links = [
   ['/leaders', 'Trip leaders'],
   ['/about', 'About'],
   ['/contact', 'Contact'],
+  ['/developers', 'For AI assistants'],
 ];
 
 const POLICIES: Links = [

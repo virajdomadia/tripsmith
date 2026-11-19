@@ -57,7 +57,7 @@ Tripsmith exposes itself as a **remote MCP server**, so any MCP client (Claude D
 - **Accept:** call 61 in an hour returns a clear MCP error; with Redis down, calls are refused, not unlimited; every served call is logged; no phone number or email appears in stored args.
 
 ### R37. Developer page & proof (core)
-- `/developers`: what the server does, one-line client config (Claude Desktop / Cursor / ChatGPT), the tool list, limits, and a privacy note ("no contact details or payments go through MCP").
+- `/developers`: what the server does, one-line client config (Claude Desktop / Cursor / ChatGPT), the tool list, limits, and a privacy note ("no contact details or payments go through MCP"). *Built (4.0.6): static page from `web/src/lib/mcp.ts`; `tests/developers.test.tsx` reads the api's source so the tools, prompt and limit can't drift. Linked from the footer and the sitemap.*
 - README section with a 30-second GIF: Claude Desktop → "plan 3 days in Goa" → real packages → a booking link that opens Tripsmith.
 - *Optional:* owner dashboard tile "trips planned via MCP" (7 / 30 days, top tools).
 

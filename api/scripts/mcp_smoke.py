@@ -10,7 +10,8 @@ seeded database (.github/workflows/ci.yml); 4.0.6 runs it against a preview and 
 
 Each mode (`legacy`: the `initialize` handshake; `auto`: the 2026-07-28 flow when the server
 offers it) lists the tools and the prompt, gets the prompt, and calls the two read-only tools.
-Four calls a mode, so eight against the 60-an-hour limit; each is logged in `mcp_requests`.
+Four calls a mode, so eight against the 60-an-hour limit; each is logged in `mcp_requests` with
+the User-Agent `tripsmith-mcp-smoke`, so reports can leave the smoke runs out.
 Nothing books, holds or sends. Exits 1 on the first failed check.
 """
 
@@ -20,11 +21,13 @@ import json
 import sys
 from typing import Any
 
+import httpx2
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
 
 TOOLS = {"searchPackages", "checkAvailability", "startBooking", "startEnquiry"}
 PROMPT = "plan-a-trip"
+USER_AGENT = "tripsmith-mcp-smoke/1"
 
 
 class SmokeFailed(Exception):
@@ -52,7 +55,9 @@ def payload(result: Any) -> dict[str, Any]:
 
 async def run_mode(url: str, mode: str) -> None:
     print(f"{mode}:")
-    async with Client(streamable_http_client(url), mode=mode) as client:  # type: ignore[arg-type]
+    http = httpx2.AsyncClient(headers={"user-agent": USER_AGENT}, timeout=30.0)
+    transport = streamable_http_client(url, http_client=http)
+    async with http, Client(transport, mode=mode) as client:  # type: ignore[arg-type]
         info = client.server_info
         check(info is not None and info.name == "tripsmith", "server is tripsmith", info)
 

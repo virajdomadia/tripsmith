@@ -44,6 +44,22 @@ jobs:
       - name: Smoke test (api + database)
         run: $SMOKE https://tripsmith-api.virajdomadia.com/health/ready
 
+  # v4 deployment gates (04 §v4.8), on every production deploy: the SDK's own client, legacy and
+  # 2026-07-28 modes, lists the tools and the prompt and runs a catalogue query on the live api.
+  # Proves the lifespan entered the session manager on Vercel and the production Host is allowed.
+  # Its own job, so an MCP failure turns the run red without holding back the web deploy.
+  mcp:
+    needs: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.SHA }}' }
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --directory api
+      - name: MCP smoke test (production)
+        run: uv run --directory api python scripts/mcp_smoke.py https://tripsmith-api.virajdomadia.com/mcp
+
   web:
     needs: api
     runs-on: ubuntu-latest
