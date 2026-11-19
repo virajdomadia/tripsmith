@@ -167,8 +167,8 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 
 ### 4. Limits, identity, logging
 - **Caller IP** from `infra/client_ip.py` (Vercel forwarded header / the signed internal header; never a client-supplied IP header).
-- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 60 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters.
-- One `mcp_requests` row per call (`services/mcp/log.py`, written after the response is built): method, name, args with `pii.redact()` on free-text fields, latency ms, ok/error, `ip_hash` (the existing keyed hash), and client name/version/User-Agent **as reported**. These are diagnostic only, never used for limits or trust.
+- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 60 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters. As built: `RateLimitResult.degraded` is set when Upstash fails and by the `NullRateLimiter` built on a deployment without Upstash; `services/mcp/server._refusal` refuses on it. Only `tools/call` is counted (`tools/list` is free).
+- One `mcp_requests` row per call (`services/mcp/log.py`, written after the response is built): method, name, args with `pii.redact()` on free-text fields, latency ms, ok/error, `ip_hash` (the existing keyed hash), and client name/version/User-Agent **as reported**. These are diagnostic only, never used for limits or trust. As built: `log.clean_args` redacts and bounds every string (300 chars, 20 items, 4 levels deep); the row is written in its own session after the tool's read-only one closes, and a write failure is logged, never raised. Refused calls write no row.
 
 ### 5. Optional (not core)
 - Resources `tripsmith://packages`, `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` need a **new** `services/catalog/markdown.py` renderer (it does not exist yet) over **live** packages only, with a test that a draft is never listed or readable.

@@ -51,10 +51,10 @@ Tripsmith exposes itself as a **remote MCP server**, so any MCP client (Claude D
 
 ### R36. Limits, logging, errors (core)
 - Rate limit: `mcp:{ip}` ≤ 60 tool calls / hour (its own key in `infra/ratelimit.py`). No enquiry cap is needed in MCP, because MCP creates no enquiries; the site's form keeps its own limit.
-- **Limiter outage policy:** if Upstash is unreachable, the MCP limiter fails **closed** (it returns a clear "try again shortly" MCP error), unlike the site, which fails open. MCP is anonymous and read-heavy, so refusing briefly is safer than serving unlimited calls.
-- `mcp_requests` row per call: method, tool/prompt name, args with free text redacted (`pii.redact()` on the `summary` field), latency, outcome, `ip_hash`, and diagnostic client name/version/User-Agent as reported.
+- **Limiter outage policy:** if Upstash is unreachable, the MCP limiter fails **closed** (it returns a clear "try again shortly" MCP error), unlike the site, which fails open. MCP is anonymous and read-heavy, so refusing briefly is safer than serving unlimited calls. The same goes for a deployment with no Upstash configured at all (local dev and CI still work without it). *As built (4.0.4): the limiter result carries `degraded`; the site ignores it, MCP refuses on it.*
+- `mcp_requests` row per call: method, tool/prompt name, args with free text redacted (`pii.redact()` on the `summary` field), latency, outcome, `ip_hash`, and diagnostic client name/version/User-Agent as reported. *As built (4.0.4): every string in the args is redacted and bounded (a caller can send any keys), and a refused call (over the limit, limiter down) writes no row, only a function-log warning, so a flood cannot fill the table.*
 - Errors: MCP tool errors with a short message; pydantic issues summarised, never raw; no stack traces.
-- **Accept:** call 61 in an hour returns a clear MCP error; with Redis down, calls are refused, not unlimited; every call is logged; no phone number or email appears in stored args.
+- **Accept:** call 61 in an hour returns a clear MCP error; with Redis down, calls are refused, not unlimited; every served call is logged; no phone number or email appears in stored args.
 
 ### R37. Developer page & proof (core)
 - `/developers`: what the server does, one-line client config (Claude Desktop / Cursor / ChatGPT), the tool list, limits, and a privacy note ("no contact details or payments go through MCP").
