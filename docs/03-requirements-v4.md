@@ -64,7 +64,7 @@ Tripsmith exposes itself as a **remote MCP server**, so any MCP client (Claude D
 - MCP OAuth (an own OAuth 2.1 authorization server over the api's `users` / `sessions`) for `myBookings` and `getVoucher`. Unchanged; still stretch.
 
 ## Deployment gates (unverified until production; must pass before v4 is called shipped)
-- The api's Vercel project: plan, Fluid Compute on, root directory and the resolved Python entrypoint. Set `maxDuration` only if an application cap is wanted; it is **not** in `api/vercel.json` today.
+- The api's Vercel project: plan, Fluid Compute on, root directory and the resolved Python entrypoint. The function timeout is the api project's **default function timeout of 60 s** (set in the Vercel project, `resourceConfig.functionDefaultTimeout`, since #165; not in `api/vercel.json`), which is ample for request/response MCP calls. Deploys are GitHub Actions prebuilt deploys only; Vercel's own Git deployments are off (`git.deploymentEnabled: false`, #167). Confirm both on the new account.
 - The MCP SDK's session manager runs inside FastAPI's `lifespan`. A mounted app's own lifespan does not run, so `/mcp` would exist but fail on its first request.
 - The SDK's **Host/Origin allowlist** is configured for the production host. Its defaults are localhost-oriented and are expected to reject other hosts (e.g. `421 Misdirected Request`); confirm the behaviour on preview. Origin is validated as the Streamable HTTP spec requires.
 - **Production URL:** candidate `https://tripsmith-api.virajdomadia.com/mcp` (the README's api domain). Marked confirmed only after the domain resolves to the new Vercel project and a real client completes a catalogue query against it.

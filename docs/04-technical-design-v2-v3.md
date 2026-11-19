@@ -188,7 +188,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 ### 8. Deployment gates (unverified until production)
 | Gate | How it's checked |
 |---|---|
-| Vercel project: plan, Fluid Compute, root dir, resolved Python entrypoint | Vercel dashboard / CLI on the new account. `maxDuration` is not set in `api/vercel.json` today; add an app-level cap only if wanted |
+| Vercel project: plan, Fluid Compute, root dir, resolved Python entrypoint | Vercel dashboard / CLI on the new account. The function timeout is the api project's **default function timeout of 60 s** (set in the Vercel project, `resourceConfig.functionDefaultTimeout`, since #165; not in `api/vercel.json`), which is ample for request/response MCP calls. Deploys are GitHub Actions prebuilt deploys only; Vercel's own Git deployments are off (`git.deploymentEnabled: false`, #167). Confirm both on the new account |
 | Lifespan + session manager in the deployed function | the first `/mcp` call on preview succeeds |
 | Host/Origin allowlist | preview and production hosts accepted, an unlisted Origin refused |
 | Production URL | candidate `https://tripsmith-api.virajdomadia.com/mcp` resolves to the new project and a real client completes a catalogue query. Only then is it marked confirmed |
