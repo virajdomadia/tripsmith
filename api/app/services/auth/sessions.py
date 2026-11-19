@@ -116,6 +116,7 @@ def session_info(
     new_enquiries: int | None,
     bookings_attention: int | None = None,
     reviews_pending: int | None = None,
+    read_only: bool = False,
 ) -> SessionInfo:
     u = session.user
     return SessionInfo(
@@ -124,4 +125,5 @@ def session_info(
         new_enquiries=new_enquiries,
         bookings_attention=bookings_attention,
         reviews_pending=reviews_pending,
+        read_only=read_only,
     )

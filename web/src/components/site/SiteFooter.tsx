@@ -35,10 +35,11 @@ function Column({ title, links }: { title: string; links: Links }) {
   return (
     <div>
       <b className="mb-2.5 block font-bold text-white">{title}</b>
-      <ul className="grid gap-1.5">
+      {/* QA 2026-11-19: each link is a ≥24px tap target (WCAG 2.5.8) — 18px tall before. */}
+      <ul className="grid gap-0.5">
         {links.map(([href, label]) => (
           <li key={href}>
-            <Link href={href} className="hover:text-white">
+            <Link href={href} className="inline-block py-1 hover:text-white">
               {label}
             </Link>
           </li>
@@ -53,7 +54,11 @@ export async function SiteFooter() {
   const destinations = await destinationLinks();
   const demo = demoCredentials();
   return (
-    <footer className="focus-ring-light mt-20 bg-ink pt-12 pb-6 text-sm text-[#b7c0c8]">
+    <footer
+      // QA 2026-11-19: on phones the WhatsApp + trip-planner buttons stack in the bottom-right
+      // corner (≈124px tall with the safe area); pad the foot so the fine print scrolls clear.
+      className="focus-ring-light mt-20 bg-ink pt-12 pb-[calc(max(16px,env(safe-area-inset-bottom))+128px)] text-sm text-[#b7c0c8] lg:pb-6"
+    >
       <Container>
         <div className="grid gap-7 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
@@ -64,15 +69,15 @@ export async function SiteFooter() {
             <address className="leading-relaxed not-italic">
               {BUSINESS.address}, {BUSINESS.city}
               <br />
-              <a href={BUSINESS.phoneHref} className="hover:text-white">
+              <a href={BUSINESS.phoneHref} className="inline-block py-0.5 hover:text-white">
                 {BUSINESS.phoneDisplay}
               </a>
               {' · '}
-              <a href={whatsappHref()} className="hover:text-white">
+              <a href={whatsappHref()} className="inline-block py-0.5 hover:text-white">
                 WhatsApp
               </a>
               {' · '}
-              <a href={`mailto:${BUSINESS.email}`} className="hover:text-white">
+              <a href={`mailto:${BUSINESS.email}`} className="inline-block py-0.5 hover:text-white">
                 {BUSINESS.email}
               </a>
               <br />
@@ -86,7 +91,7 @@ export async function SiteFooter() {
         <div className="mt-8 flex flex-wrap justify-between gap-2.5 border-t border-[#2a3944] pt-4 text-xs">
           <span>
             © {BUSINESS.legalName} · a portfolio project by Viraj Domadia ·{' '}
-            <Link href="/admin/login" className="hover:text-white">
+            <Link href="/admin/login" className="inline-block py-1 hover:text-white">
               Owner sign in
             </Link>
             {demo && ` · Demo: ${demo.email} / ${demo.password}`}

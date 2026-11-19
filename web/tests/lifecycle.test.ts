@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deskHref, parseDeskFilters, type AdminBooking } from '@/lib/admin/booking-filters';
-import { blocked, lifecycle, moves, nextStep } from '@/lib/admin/lifecycle';
+import { blocked, lifecycle, moves, nextStep, stepCaption } from '@/lib/admin/lifecycle';
 
 type Entry = AdminBooking['history']['entries'][number];
 const entry = (kind: string, at: string, id = 1): Entry => ({
@@ -309,5 +309,31 @@ describe('P13 refunds', () => {
     const move = moves(b).find((m) => m.key === 'move');
     expect(move?.becomes).toBe('Confirmed · new date');
     expect(blocked(booking()).map(([what]) => what)).toContain('Move to another date');
+  });
+});
+
+// QA 2026-11-19: "Completed · Now · Sat 7 Nov" on 19 Nov read as if the trip ended today.
+describe('stepCaption', () => {
+  const date = (iso: string) => iso.slice(0, 10);
+  const now = Date.parse('2026-11-19T06:00:00Z');
+
+  it('says "Since" for a step the booking has rested in since a past day', () => {
+    expect(stepCaption({ state: 'now', at: '2026-11-07T04:00:00Z' }, date, now)).toBe(
+      'Since 2026-11-07',
+    );
+  });
+
+  it('keeps "Now · …" for a time still ahead, and "Now" with no time', () => {
+    expect(stepCaption({ state: 'now', at: '2026-11-20T00:00:00+05:30' }, date, now)).toBe(
+      'Now · 2026-11-20',
+    );
+    expect(stepCaption({ state: 'now', at: null }, date, now)).toBe('Now');
+  });
+
+  it('dates a finished step and leaves the future unnamed', () => {
+    expect(stepCaption({ state: 'done', at: '2026-11-07T04:00:00Z' }, date, now)).toBe(
+      '2026-11-07',
+    );
+    expect(stepCaption({ state: 'todo', at: '2026-12-01T00:00:00Z' }, date, now)).toBe('Not yet');
   });
 });

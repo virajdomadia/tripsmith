@@ -47,6 +47,24 @@ const at = (entries: readonly Entry[], ...kinds: string[]) =>
 const last = (entries: readonly Entry[], ...kinds: string[]) =>
   entries.findLast((e) => kinds.includes(e.kind))?.at ?? null;
 
+/**
+ * The small line under a step's name in the stepper. QA 2026-11-19: a booking that rests in a
+ * step reached in the past (Completed on 7 Nov, viewed on 19 Nov) read "Now · Sat 7 Nov", as if
+ * the trip were finishing today. A `now` step with a past time now reads "Since Sat 7 Nov"; one
+ * with a time still ahead (a checkout open until, a departure date) keeps "Now · …", and one
+ * with no time just "Now". `date` formats the instant (the component passes the IST one).
+ */
+export function stepCaption(
+  s: Pick<Step, 'state' | 'at'>,
+  date: (iso: string) => string,
+  now: number = Date.now(),
+): string {
+  if (s.state === 'todo') return 'Not yet';
+  if (!s.at) return s.state === 'now' ? 'Now' : '';
+  if (s.state !== 'now') return date(s.at);
+  return new Date(s.at).getTime() <= now ? `Since ${date(s.at)}` : `Now · ${date(s.at)}`;
+}
+
 export function lifecycle(b: AdminBooking): Step[] {
   const h = b.history.entries;
   const booked: Step = {

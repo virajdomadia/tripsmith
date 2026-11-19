@@ -8,6 +8,7 @@ import { BUSINESS } from '@/lib/business';
 import { readDraft } from '@/lib/enquiry-draft';
 import { formStateFrom } from '@/lib/enquiry-form-state';
 import { travelMonthOptions } from '@/lib/enquiry-schema';
+import { siteCardOpenGraph } from '@/lib/seo/open-graph';
 import { absolute } from '@/lib/seo/site-url';
 
 /** Reads searchParams (the no-JS enquiry round trip re-fills the form), so it renders per request. */
@@ -17,6 +18,8 @@ export const metadata: Metadata = {
   title: 'Contact',
   description: `Call ${BUSINESS.phoneDisplay}, WhatsApp, or send a message — a person replies within two hours, ${BUSINESS.hours}. ${BUSINESS.address}, ${BUSINESS.city}.`,
   alternates: { canonical: absolute('/contact') },
+  // QA 2026-11-19: og:url (the site card stays — siteCardOpenGraph lists it).
+  openGraph: siteCardOpenGraph('/contact'),
 };
 
 export default async function ContactPage({

@@ -207,3 +207,30 @@ Tripsmith runs Razorpay in test mode. Before taking real money, in this order:
    confirm the booking, the webhook delivery (dashboard), the receipt email, then refund it
    from the owner desk and see the refund land.
 8. Re-read the terms, cancellation and privacy pages (V5) — they now describe real money.
+
+## 9. The demo owner is read-only; the real owner's login
+
+_QA 2026-11-19._ The owner login printed on the site (`owner@tripsmith.demo`) can't change live
+data in production: `DEMO_READ_ONLY_EMAILS=owner@tripsmith.demo` on `tripsmith-api` Production
+makes every POST/PUT/PATCH/DELETE under `/admin/*` from it answer
+`403 { code: "forbidden", reason: "demo_read_only" }` (one check in `require_owner`), while every
+admin page still reads. The admin shows a "read-only" banner for that session.
+
+1. **Create the real owner's login** (once; again to reset its password). From `api/`, against the
+   Supabase **session pooler** (port 5432), never `DATABASE_URL`:
+
+   ```sh
+   uv run python scripts/create_owner.py --email you@yourdomain.com --name "Your Name" \
+       --database-url "postgresql+asyncpg://…:5432/postgres"
+   ```
+
+   It prompts for the password twice (≥ 12 characters; never an argument) and stores an argon2
+   hash. An existing user with that email becomes an owner with the new password. Don't list
+   this email in `DEMO_READ_ONLY_EMAILS`.
+2. **Set the variable** on `tripsmith-api` Production (comma-separated, case-insensitive) and
+   redeploy the api (GitHub Actions builds it — docs/17). Blank or unset = no read-only owner.
+3. **Check:** sign in as the demo owner → banner shows, a save answers "The demo owner account
+   is read-only…"; sign in with the private login → no banner, saves work.
+
+Nothing resets data the demo login changed before this was switched on — check packages, prices
+and coupons by hand once, signed in with the private login.

@@ -15,12 +15,25 @@ class DepartureLike(Protocol):
     price_double_paise: int
 
 
-def badge_for(departure: DepartureLike, *, likely: bool = False) -> Badge | None:
-    """*Sold out* 0 seats · *Filling fast* ≤ 4 · *Likely to sell out* (P2: `likely`, from
-    `urgency.likely_to_sell_out`) · *Guaranteed* flag · else none. One badge per place."""
+class SeatsLike(DepartureLike, Protocol):
+    """What the badge reads. `seats_total` None = not known to the caller (treated as sold)."""
+
+    seats_total: int | None
+
+
+def badge_for(departure: SeatsLike, *, likely: bool = False) -> Badge | None:
+    """*Sold out* 0 seats · *Filling fast* ≤ 4 left and at least one sold · *Likely to sell out*
+    (P2: `likely`, from `urgency.likely_to_sell_out`) · *Guaranteed* flag · else none. One badge
+    per place.
+
+    QA 2026-11-19: a small departure with every seat still free (4 of 4) is not filling — it was
+    badged so in production. "Filling fast" now needs a seat actually gone, which keeps its
+    intent for small groups: a 6-seat date with 2 sold still reads "Filling fast"."""
     if departure.seats_left <= 0:
         return Badge.SOLD_OUT
-    if departure.seats_left <= FILLING_FAST_MAX_SEATS:
+    total = departure.seats_total
+    sold_some = total is None or departure.seats_left < total
+    if departure.seats_left <= FILLING_FAST_MAX_SEATS and sold_some:
         return Badge.FILLING_FAST
     if likely:
         return Badge.LIKELY_TO_SELL_OUT

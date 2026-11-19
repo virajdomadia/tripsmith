@@ -51,7 +51,12 @@ def _search(args: dict[str, Any], result: dict[str, Any]) -> str:
     if args.get("theme"):
         bits.append(str(args["theme"]))
     if isinstance(args.get("maxBudget"), int):
-        bits.append(f"up to {inr(args['maxBudget'])} a person")
+        group = args.get("travellers")
+        if isinstance(group, int) and group > 1:
+            per = inr(args["maxBudget"] // group)
+            bits.append(f"up to {inr(args['maxBudget'])} for {group} ({per} a person)")
+        else:
+            bits.append(f"up to {inr(args['maxBudget'])} a person")
     what = "Searched " + " · ".join(bits)
     if result.get("unknownDestination"):
         return f"{what} → not a destination we offer"

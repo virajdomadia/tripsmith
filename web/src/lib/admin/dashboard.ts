@@ -18,10 +18,13 @@ const IST_HOUR = new Intl.DateTimeFormat('en-GB', {
   hour12: false,
 });
 
-/** `Good morning` until noon, `Good afternoon` until 5 pm, `Good evening` after (A2). */
+/** `Good morning` from 5 am to noon, `Good afternoon` until 5 pm, `Good evening` after (A2).
+ *  QA 2026-11-19: the small hours (midnight to 5 am IST) are still the night before — "Good
+ *  morning" at 00:15 read wrong — so they get `Good evening` too. */
 export function greeting(now: Date = new Date()): string {
   // `en-GB` + hour12:false renders midnight as `24` on some ICU builds; `% 24` normalises it.
   const hour = Number(IST_HOUR.format(now)) % 24;
+  if (hour < 5) return 'Good evening';
   if (hour < 12) return 'Good morning';
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';

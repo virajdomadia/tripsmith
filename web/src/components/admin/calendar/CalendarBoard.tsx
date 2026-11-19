@@ -307,6 +307,7 @@ export function CalendarBoard({
       <div className="flex flex-wrap items-center gap-2 rounded-card border border-line bg-bg p-3">
         <Filter className="size-4 text-mute" aria-hidden />
         <NativeSelect
+          name="dest"
           aria-label="Destination"
           value={filters.dest}
           onChange={(e) => setFilter('dest', e.target.value)}
@@ -320,6 +321,7 @@ export function CalendarBoard({
           ))}
         </NativeSelect>
         <NativeSelect
+          name="pkg"
           aria-label="Package"
           value={filters.pkg}
           onChange={(e) => setFilter('pkg', e.target.value)}
@@ -333,6 +335,7 @@ export function CalendarBoard({
           ))}
         </NativeSelect>
         <NativeSelect
+          name="leader"
           aria-label="Trip leader"
           value={filters.leader}
           onChange={(e) => setFilter('leader', e.target.value)}

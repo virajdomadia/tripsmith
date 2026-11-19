@@ -38,6 +38,7 @@ export function LeaderActive({ leader }: { leader: AdminLeader }) {
 
   return (
     <Switch
+      name="active"
       checked={on}
       disabled={busy}
       onCheckedChange={flip}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { Sidebar } from '@/components/admin/Sidebar';
 import { RulesProvider } from '@/components/rules/RulesProvider';
 import { Toaster } from '@/components/ui/sonner';
+import { ReadOnlyBanner, ReadOnlyProvider } from '@/lib/admin/read-only';
 import { UnsavedChangesProvider } from '@/lib/admin/unsaved';
 import { ACCOUNT_PATH, LOGIN_PATH } from '@/lib/auth/gate';
 import { getSession } from '@/lib/auth/session';
@@ -12,6 +13,8 @@ import { loadRules } from '@/lib/meta';
  * group so `/admin/login` stays chrome-free. The middleware already gates `/admin/*`; the redirect
  * here covers a session that expires mid-visit (and, like the middleware, sends a non-owner to
  * `/account`). `newEnquiries` comes with the session payload — owner sessions only.
+ * QA 2026-11-19: `readOnly` (the published demo owner, api `DEMO_READ_ONLY_EMAILS`) puts a
+ * banner on top of every page and lets write buttons explain themselves (lib/admin/read-only).
  */
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
   const [session, rules] = await Promise.all([getSession(), loadRules()]);
@@ -19,15 +22,18 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   if (session.user.role !== 'owner') redirect(ACCOUNT_PATH);
   return (
     <RulesProvider rules={rules}>
-      <UnsavedChangesProvider>
-        <div className="grid min-h-dvh bg-bg2 lg:grid-cols-[240px_1fr]">
-          <Sidebar session={session} />
-          <div className="grid min-w-0 content-start gap-5 px-4 py-5 sm:px-7 sm:py-6 [&>*]:min-w-0">
-            {children}
+      <ReadOnlyProvider readOnly={session.readOnly ?? false}>
+        <UnsavedChangesProvider>
+          <div className="grid min-h-dvh bg-bg2 lg:grid-cols-[240px_1fr]">
+            <Sidebar session={session} />
+            <div className="grid min-w-0 content-start gap-5 px-4 py-5 sm:px-7 sm:py-6 [&>*]:min-w-0">
+              <ReadOnlyBanner />
+              {children}
+            </div>
+            <Toaster position="bottom-right" richColors />
           </div>
-          <Toaster position="bottom-right" richColors />
-        </div>
-      </UnsavedChangesProvider>
+        </UnsavedChangesProvider>
+      </ReadOnlyProvider>
     </RulesProvider>
   );
 }

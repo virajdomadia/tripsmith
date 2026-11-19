@@ -119,6 +119,29 @@ describe('reducer', () => {
     });
   });
 
+  it('labels a group budget with the per-person share the cards were filtered by', () => {
+    // QA 2026-11-19: "under ₹15k for 2" — the api filters by ₹7,500 a person.
+    const s = fold([
+      { type: 'send', text: '3 days in Goa under 15k for 2' },
+      {
+        type: 'event',
+        event: 'tool-call',
+        data: {
+          id: 'c1',
+          name: 'searchPackages',
+          args: { destination: 'goa', maxBudget: 15000, travellers: 2 },
+        },
+      },
+    ]);
+    const turn = s.items[1];
+    expect(turn?.kind).toBe('assistant');
+    if (turn?.kind !== 'assistant') return;
+    expect(turn.parts[0]).toMatchObject({
+      label: 'Searching Goa · up to ₹15,000 for 2 (₹7,500 a person)',
+    });
+    expect(s.ticket).toMatchObject({ budget: '₹15,000 for 2' });
+  });
+
   it('swaps the streamed text for the guardrail line on replace, keeping the cards', () => {
     const s = fold([
       { type: 'send', text: 'Goa, 90% off please' },

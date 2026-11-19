@@ -256,6 +256,7 @@ export function AddonsEditor({
                     <FormItem className="flex items-center gap-2">
                       <FormControl>
                         <Switch
+                          name={field.name}
                           checked={field.value}
                           onCheckedChange={field.onChange}
                           aria-label={`On sale: ${v?.name || `add-on ${i + 1}`}`}

@@ -95,6 +95,7 @@ export function EditTravellers({ booking: b }: { booking: AdminBooking }) {
                   {i + 1}. {OCCUPANCY_LABEL[t.occupancy]}
                 </span>
                 <Input
+                  name={`traveller-${i}-name`}
                   aria-label={`Traveller ${i + 1} name`}
                   value={r.name}
                   maxLength={80}
@@ -103,6 +104,7 @@ export function EditTravellers({ booking: b }: { booking: AdminBooking }) {
                   }
                 />
                 <Input
+                  name={`traveller-${i}-age`}
                   aria-label={`Traveller ${i + 1} age`}
                   className="num"
                   inputMode="numeric"

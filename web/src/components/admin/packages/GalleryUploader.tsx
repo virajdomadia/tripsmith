@@ -322,6 +322,7 @@ export function GalleryUploader({ packageId, images, coverImageId, disabled }: P
       </AlertDialog>
 
       <input
+        name="images"
         ref={input}
         type="file"
         multiple

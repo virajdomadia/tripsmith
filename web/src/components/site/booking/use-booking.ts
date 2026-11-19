@@ -137,6 +137,10 @@ export function useBooking(
     );
     return match?.id ?? null;
   });
+  // QA 2026-11-19: whether the visitor (or their still-thinking link, or a waitlist claim) chose
+  // the date. The sheet pre-selects the first bookable date for them below, and that alone must
+  // not tick "Pick a date" as done before they have looked at the dates.
+  const [dateChosen, setDateChosen] = useState(() => departureId !== null);
   const [rooms, setRooms] = useState<Rooms>(
     () => start?.rooms ?? { double: 1, triple: 0, single: 0, children: 0 },
   );
@@ -268,6 +272,7 @@ export function useBooking(
   useEffect(() => {
     if (!claim || !claimDeparture) return;
     setDepartureId(claimDeparture);
+    setDateChosen(claimDeparture !== null);
     setGone(null);
     setContact((c) => ({
       ...c,
@@ -422,6 +427,7 @@ export function useBooking(
   const chooseDeparture = (id: string) => {
     if (claimDeparture && id !== claimDeparture) return; // the offer is for its own date
     setDepartureId(id);
+    setDateChosen(true);
     setGone(null);
   };
 
@@ -704,6 +710,7 @@ export function useBooking(
     today,
     departure,
     departureId,
+    dateChosen,
     reason,
     chooseDeparture,
     rooms,

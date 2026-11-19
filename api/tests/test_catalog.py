@@ -13,10 +13,17 @@ from tests.settings import fixture_content, make_settings
 
 
 class D:  # a departure-like duck for the pure helpers
-    def __init__(self, seats_left: int, guaranteed: bool = False, price_double_paise: int = 0):
+    def __init__(
+        self,
+        seats_left: int,
+        guaranteed: bool = False,
+        price_double_paise: int = 0,
+        seats_total: int | None = None,
+    ):
         self.seats_left = seats_left
         self.guaranteed = guaranteed
         self.price_double_paise = price_double_paise
+        self.seats_total = seats_total
 
 
 def test_badge_rules_sold_out_beats_filling_fast_beats_guaranteed() -> None:
@@ -25,6 +32,9 @@ def test_badge_rules_sold_out_beats_filling_fast_beats_guaranteed() -> None:
     assert badge_for(D(4, guaranteed=True)) is Badge.FILLING_FAST
     assert badge_for(D(5, guaranteed=True)) is Badge.GUARANTEED
     assert badge_for(D(12)) is None
+    # QA 2026-11-19: nothing sold yet is not "filling" — however small the departure.
+    assert badge_for(D(4, seats_total=4)) is None
+    assert badge_for(D(3, seats_total=4)) is Badge.FILLING_FAST
 
 
 def test_starting_price_is_the_cheapest_double_sharing_departure() -> None:
@@ -100,14 +110,24 @@ async def test_badge_uses_the_next_upcoming_departure(
     from app.models import Departure
 
     await seed(db, fixture_content(), RecordingStore(), make_settings())
-    # Make the earliest North Goa departure (2026-11-20) a 3-seat one → filling fast.
+    # Every departure guaranteed except the earliest North Goa one (2026-11-20): the card shows
+    # no badge, so it reads the next departure, not any later one. (Seat counts can't tell
+    # them apart without a booking: QA 2026-11-19, "Filling fast" needs a seat sold.)
+    await db.execute(update(Departure).values(guaranteed=True))
     await db.execute(
-        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(seats_total=3)
+        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=False)
     )
     await db.commit()
 
     cards = {c["slug"]: c for c in (await db_client.get("/packages")).json()["items"]}
-    assert cards["north-goa-beaches"]["badge"] == "filling-fast"
+    assert cards["north-goa-beaches"]["badge"] is None
+
+    await db.execute(
+        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=True)
+    )
+    await db.commit()
+    cards = {c["slug"]: c for c in (await db_client.get("/packages")).json()["items"]}
+    assert cards["north-goa-beaches"]["badge"] == "guaranteed"
 
 
 async def test_get_packages_without_a_database_is_a_500_envelope(client: AsyncClient) -> None:

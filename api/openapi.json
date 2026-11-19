@@ -11226,7 +11226,7 @@
         "type": "object"
       },
       "OtpSent": {
-        "description": "`POST /auth/otp/request`. `demoCode` is set only when the code is not emailed: for a\ndemo address (@example.com/.org/.net, e.g. the seeded demo traveller) or while EMAIL_FROM is\nstill Resend's test sender. The sign-in screen prints it, labelled, instead.",
+        "description": "`POST /auth/otp/request`. `demoCode` is set only for a demo address (@example.com/.org/\n.net, e.g. the seeded demo traveller), whose code is never emailed; the sign-in screen prints\nit, labelled, instead. QA 2026-11-19: never for a real address — while EMAIL_FROM is Resend's\ntest sender a real address is refused with 503 `email_unavailable`.",
         "properties": {
           "demoCode": {
             "anyOf": [
@@ -14781,6 +14781,12 @@
             ],
             "description": "Enquiries still in status `new`; owner sessions only",
             "title": "Newenquiries"
+          },
+          "readOnly": {
+            "default": false,
+            "description": "An owner listed in DEMO_READ_ONLY_EMAILS: every /admin/* write answers 403 (QA 2026-11-19); the admin shows a banner",
+            "title": "Readonly",
+            "type": "boolean"
           },
           "reviewsPending": {
             "anyOf": [

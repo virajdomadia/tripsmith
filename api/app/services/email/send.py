@@ -10,6 +10,9 @@ thanks page does not claim otherwise. It applies (`held_back`) in two cases:
 - always for the reserved demo domains (example.com/.org/.net, RFC 2606): the seeded demo
   traveller and made-up addresses never produce a real send, and their sign-in code shows on
   screen.
+
+The sign-in code is not a `held_back` case (QA 2026-11-19): only a demo address gets it on screen.
+A real address under the test sender is refused (routers/auth.py), never shown its code.
 """
 
 import asyncio

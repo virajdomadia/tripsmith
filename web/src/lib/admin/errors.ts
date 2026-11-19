@@ -2,6 +2,7 @@ import type { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { loginHref, safeNext } from '@/lib/auth/gate';
 import { ApiRequestError } from '@/lib/api-errors';
+import { READ_ONLY_REASON } from './read-only';
 
 type Router = ReturnType<typeof useRouter>;
 
@@ -33,6 +34,12 @@ export function reportAdminError(
     opts.onSessionExpired?.();
     toast.error('Your session expired — sign in again');
     opts.router.push(loginHref({ next: safeNext(currentPath(opts.pathname)) }));
+    return;
+  }
+  if (e instanceof ApiRequestError && e.body.reason === READ_ONLY_REASON) {
+    // QA 2026-11-19: the demo owner login is read-only (api `DEMO_READ_ONLY_EMAILS`). One toast
+    // with a stable id, so clicking around doesn't stack a pile of identical ones.
+    toast.error(e.body.message, { id: READ_ONLY_REASON });
     return;
   }
   if (e instanceof ApiRequestError) {

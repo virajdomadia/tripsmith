@@ -166,6 +166,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
 
       <label className="flex items-center gap-2 font-semibold">
         <input
+          name="editParty"
           type="checkbox"
           checked={editParty}
           onChange={(e) => {
@@ -183,6 +184,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
           {party.map((t, i) => (
             <div key={i} className="grid grid-cols-[minmax(0,1fr)_64px_96px_32px] gap-1.5">
               <Input
+                name={`traveller-${i}-name`}
                 aria-label={`Traveller ${i + 1} name`}
                 value={t.name ?? ''}
                 placeholder={`Traveller ${i + 1}`}
@@ -191,6 +193,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
                 }
               />
               <Input
+                name={`traveller-${i}-age`}
                 aria-label={`Traveller ${i + 1} age`}
                 inputMode="numeric"
                 value={t.age ?? ''}
@@ -202,6 +205,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
                 }}
               />
               <select
+                name={`traveller-${i}-room`}
                 aria-label={`Traveller ${i + 1} room`}
                 value={t.occupancy}
                 onChange={(e) => setRoom(i, e.target.value as Occupancy)}
@@ -322,6 +326,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
           {settle === 'offline' && (
             <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-1.5 pl-6">
               <select
+                name="method"
                 aria-label="How it was paid"
                 value={method}
                 onChange={(e) => setMethod(e.target.value as 'cash' | 'upi' | 'bank')}
@@ -332,6 +337,7 @@ export function MoveBooking({ bookingRef }: { bookingRef: string }) {
                 <option value="bank">Bank transfer</option>
               </select>
               <Input
+                name="reference"
                 aria-label="Reference"
                 placeholder="Reference (optional)"
                 value={reference}

@@ -26,6 +26,7 @@ import {
   toInput,
 } from '@/lib/admin/destination-schema';
 import { reportAdminError } from '@/lib/admin/errors';
+import { READ_ONLY_TITLE, useReadOnly } from '@/lib/admin/read-only';
 import { useConfirmLeave, useUnsavedChangesGuard } from '@/lib/admin/unsaved';
 import { cn } from '@/lib/utils';
 import { ApiRequestError } from '@/lib/api-errors';
@@ -65,6 +66,8 @@ const h3 = 'text-base font-extrabold';
 /** Mockup A5's edit panel as a page: basics, cover, best months, danger zone. Server-side errors land on their field. */
 export function DestinationForm(props: Props) {
   const router = useRouter();
+  // QA 2026-11-19: a read-only (demo) owner sees the save button switched off, with the reason.
+  const readOnly = useReadOnly();
   const pathname = usePathname();
   const monthsLabelId = useId();
   const editing = props.mode === 'edit';
@@ -267,7 +270,11 @@ export function DestinationForm(props: Props) {
         {!inPanel && cover}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy}>
+          <Button
+            type="submit"
+            disabled={busy || readOnly}
+            title={readOnly ? READ_ONLY_TITLE : undefined}
+          >
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create destination'}
           </Button>
           <Button

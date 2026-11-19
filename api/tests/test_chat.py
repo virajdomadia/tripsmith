@@ -11,6 +11,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
@@ -19,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.infra.ratelimit import RateLimitResult
 from app.models import ChatBudget, Conversation, Message
-from app.services.ai import gemini
+from app.services.ai import gemini, loop
 from app.services.ai.budget import CapReason, take_turn
 from app.services.ai.loop import EMPTY_REPLY, MAX_MODEL_CALLS
 from app.services.ai.model import (
@@ -31,6 +32,7 @@ from app.services.ai.model import (
     Usage,
 )
 from app.services.ai.tools import TOOL_SPECS, ToolContext, match_destination, run_tool
+from app.services.format import inr
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
@@ -106,6 +108,18 @@ async def catalog(db: AsyncSession) -> None:
 
 def use(app: FastAPI, *models: ScriptedModel) -> None:
     app.state.chat_models = list(models)
+
+
+@pytest.fixture(autouse=True)
+def slept(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """The loop's retry pauses, recorded instead of waited (QA 2026-11-19 backoff)."""
+    waits: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        waits.append(seconds)
+
+    monkeypatch.setattr(loop, "sleep", fake_sleep)
+    return waits
 
 
 # --- the stream, the loop, persistence ---------------------------------------------------------
@@ -285,6 +299,118 @@ async def test_a_failure_after_text_streamed_does_not_retry_on_the_fallback(
     assert fallback.calls == []
 
 
+# --- QA 2026-11-19: transient provider failures retry after a short pause ----------------------
+
+
+@pytest.mark.db
+async def test_a_timeout_waits_briefly_then_the_fallback_answers(
+    catalog: None,
+    db_app: FastAPI,
+    db_client: AsyncClient,
+    slept: list[float],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    primary = ScriptedModel("primary", [ModelUnavailable("primary: ReadTimeout")])
+    fallback = ScriptedModel("fallback", [[TextChunk("Hello!"), Usage(10, 2)]])
+    use(db_app, primary, fallback)
+
+    with caplog.at_level("WARNING", logger="app.services.ai.loop"):
+        events = parse((await say(db_client, "hi")).text)
+
+    assert events[-1][0] == "done" and events[-1][1]["model"] == "fallback"
+    assert slept == [loop.RETRY_BACKOFF_SECONDS[0]]
+    assert "primary: ReadTimeout" in caplog.text and "transient" in caplog.text
+
+
+@pytest.mark.db
+async def test_every_try_failing_waits_between_tries_and_ends_with_a_friendly_retry_message(
+    catalog: None,
+    db_app: FastAPI,
+    db_client: AsyncClient,
+    slept: list[float],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    use(
+        db_app,
+        ScriptedModel("primary", [ModelUnavailable("primary: ReadTimeout")] * 2),
+        ScriptedModel("fallback", [ModelUnavailable("fallback: 503 UNAVAILABLE")]),
+    )
+
+    with caplog.at_level("WARNING"):
+        ((name, data),) = parse((await say(db_client, "goa")).text)
+
+    assert name == "error" and data["reason"] == "busy"
+    assert "try again" in data["message"]
+    assert slept == list(loop.RETRY_BACKOFF_SECONDS)
+    # The reason is logged — model and status/exception type, every try.
+    assert "primary: ReadTimeout; fallback: 503 UNAVAILABLE; primary: ReadTimeout" in caplog.text
+
+
+@pytest.mark.db
+async def test_a_refused_request_tries_the_fallback_once_without_waiting(
+    catalog: None,
+    db_app: FastAPI,
+    db_client: AsyncClient,
+    db: AsyncSession,
+    slept: list[float],
+) -> None:
+    primary = ScriptedModel(
+        "primary", [ModelUnavailable("primary: 400 INVALID_ARGUMENT", transient=False)]
+    )
+    fallback = ScriptedModel("fallback", [[TextChunk("Hello!")]])
+    use(db_app, primary, fallback)
+
+    events = parse((await say(db_client, "hi")).text)
+
+    assert events[-1][0] == "done" and events[-1][1]["model"] == "fallback"
+    assert slept == []
+    conversation = (await db.execute(select(Conversation))).scalar_one()
+    assert conversation.last_error == "primary: 400 INVALID_ARGUMENT"
+
+
+@pytest.mark.db
+async def test_no_retry_starts_that_could_not_finish_before_the_deadline(
+    catalog: None,
+    db_app: FastAPI,
+    db_client: AsyncClient,
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    slept: list[float],
+) -> None:
+    ticks = iter([0.0, loop.TURN_DEADLINE_SECONDS - 5])  # turn start, then the failure
+    monkeypatch.setattr(loop, "clock", lambda: next(ticks))
+    fallback = ScriptedModel("fallback", [[TextChunk("never")]])
+    use(db_app, ScriptedModel("primary", [ModelUnavailable("primary: ReadTimeout")]), fallback)
+
+    ((name, data),) = parse((await say(db_client, "goa")).text)
+
+    assert name == "error" and data["reason"] == "busy"
+    assert fallback.calls == [] and slept == []
+    conversation = (await db.execute(select(Conversation))).scalar_one()
+    assert conversation.last_error == "primary: ReadTimeout; no time left to retry"
+
+
+def test_gemini_failures_map_to_model_unavailable_with_status_and_no_text() -> None:
+    from google.genai import errors
+
+    def api(cls: type[errors.APIError], code: int, status: str) -> errors.APIError:
+        return cls(code, {"error": {"code": code, "status": status, "message": "secret-ish"}})
+
+    cases: list[tuple[Exception, str, bool]] = [
+        (api(errors.ServerError, 503, "UNAVAILABLE"), "m: 503 UNAVAILABLE", True),
+        (api(errors.ClientError, 429, "RESOURCE_EXHAUSTED"), "m: 429 RESOURCE_EXHAUSTED", True),
+        (api(errors.ClientError, 499, "CANCELLED"), "m: 499 CANCELLED", True),
+        (api(errors.ClientError, 400, "INVALID_ARGUMENT"), "m: 400 INVALID_ARGUMENT", False),
+        (httpx.ReadTimeout("read"), "m: ReadTimeout", True),
+        (TimeoutError(), "m: timeout", True),
+    ]
+    for exc, message, transient in cases:
+        failure = gemini.unavailable("m", exc)
+        assert failure is not None and str(failure) == message
+        assert failure.transient is transient
+    assert gemini.unavailable("m", ValueError("ours")) is None  # a bug, re-raised as is
+
+
 @pytest.mark.db
 async def test_bad_tool_arguments_go_back_to_the_model_and_are_recorded(
     catalog: None, db_app: FastAPI, db_client: AsyncClient, db: AsyncSession
@@ -338,6 +464,24 @@ async def test_search_filters_by_nights_theme_and_month(catalog: None, db: Async
 
 
 @pytest.mark.db
+async def test_a_group_budget_filters_cards_by_the_per_person_share(
+    catalog: None, db: AsyncSession
+) -> None:
+    """QA 2026-11-19: "under ₹15k for 2" showed a ₹14,499-a-person card the reply called over
+    budget. With `travellers` the cards are filtered by the share each person can spend."""
+    ctx = ToolContext(db, TODAY, NOW)
+    each, _ = await run_tool(ctx, "searchPackages", {"maxBudget": 20000})
+    prices = sorted(p["fromPricePaise"] // 100 for p in each["packages"])
+    assert prices and "budgetPerPerson" not in each
+    group = prices[0] * 2  # enough for two people on the cheapest trip only
+    split, error = await run_tool(ctx, "searchPackages", {"maxBudget": group, "travellers": 2})
+    assert error is None
+    assert all(p["fromPricePaise"] // 100 * 2 <= group for p in split["packages"])
+    assert len(split["packages"]) == prices.count(prices[0])
+    assert split["budgetPerPerson"] == inr(prices[0])
+
+
+@pytest.mark.db
 async def test_check_availability_lists_real_departures(catalog: None, db: AsyncSession) -> None:
     ctx = ToolContext(db, TODAY, NOW)
     result, error = await run_tool(
@@ -363,7 +507,14 @@ def test_tool_schemas_are_flat_for_the_model() -> None:
     by_name = {t.name: t for t in TOOL_SPECS}
     assert set(by_name) == {"searchPackages", "checkAvailability", "startBooking", "createEnquiry"}
     search = by_name["searchPackages"].parameters
-    assert set(search["properties"]) == {"destination", "maxBudget", "nights", "theme", "month"}
+    assert set(search["properties"]) == {
+        "destination",
+        "maxBudget",
+        "travellers",
+        "nights",
+        "theme",
+        "month",
+    }
     assert "required" not in search
     assert search["properties"]["theme"]["enum"][0] == "beach"
     assert "anyOf" not in json.dumps(search) and "null" not in json.dumps(search)

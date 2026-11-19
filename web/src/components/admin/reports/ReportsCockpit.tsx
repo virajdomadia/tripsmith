@@ -199,9 +199,13 @@ function Kpis({ data }: { data: Reports }) {
       <span>nothing to compare before</span>
     );
   };
+  // QA 2026-11-19: Collected (₹65.6 L) above Booked (₹60.5 L) looked like a bug. It is a basis
+  // difference (api services/reports.py): Booked sums the totals of bookings still holding seats,
+  // Collected every payment on the range's bookings — cancelled ones too, before their refunds.
+  // Net after refunds is the figure to set against Booked. The notes now say so.
   const tiles: [string, string, React.ReactNode][] = [
     ['Booked', lakh(k.bookedPaise), delta(k.bookedPaise, k.previous.bookedPaise)],
-    ['Collected', lakh(k.collectedPaise), 'payments in, online and offline'],
+    ['Collected', lakh(k.collectedPaise), 'every payment in, cancelled bookings too'],
     ['Net after refunds', lakh(k.netPaise), `${inr(k.refundedPaise)} refunded`],
     ['Bookings', k.bookings.toLocaleString('en-IN'), delta(k.bookings, k.previous.bookings)],
     ['Seats filled', pct(k.seatsSold, k.seatsTotal), `${k.departures} departures`],

@@ -46,6 +46,11 @@ class SessionInfo(ApiModel):
     reviews_pending: int | None = Field(
         default=None, ge=0, description="Reviews waiting to be published or hidden (B13); owner"
     )
+    read_only: bool = Field(
+        default=False,
+        description="An owner listed in DEMO_READ_ONLY_EMAILS: every /admin/* write answers 403 "
+        "(QA 2026-11-19); the admin shows a banner",
+    )
 
 
 class OtpRequest(ApiModel):
@@ -61,9 +66,10 @@ class OtpRequest(ApiModel):
 
 
 class OtpSent(ApiModel):
-    """`POST /auth/otp/request`. `demoCode` is set only when the code is not emailed: for a
-    demo address (@example.com/.org/.net, e.g. the seeded demo traveller) or while EMAIL_FROM is
-    still Resend's test sender. The sign-in screen prints it, labelled, instead."""
+    """`POST /auth/otp/request`. `demoCode` is set only for a demo address (@example.com/.org/
+    .net, e.g. the seeded demo traveller), whose code is never emailed; the sign-in screen prints
+    it, labelled, instead. QA 2026-11-19: never for a real address — while EMAIL_FROM is Resend's
+    test sender a real address is refused with 503 `email_unavailable`."""
 
     email: str
     expires_at: datetime

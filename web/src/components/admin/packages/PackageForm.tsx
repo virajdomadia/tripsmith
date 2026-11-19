@@ -11,6 +11,7 @@ import { Form } from '@/components/ui/form';
 import { adminRequest } from '@/lib/admin/client';
 import { saveDraft, takeDraft } from '@/lib/admin/drafts';
 import { reportAdminError } from '@/lib/admin/errors';
+import { READ_ONLY_TITLE, useReadOnly } from '@/lib/admin/read-only';
 import { focusFirstError } from '@/lib/admin/form-errors';
 import {
   emptyPackage,
@@ -409,6 +410,8 @@ function toFieldValues(pkg: AdminPackage): PackageFieldValues {
  */
 export function PackageForm(props: Props) {
   const router = useRouter();
+  // QA 2026-11-19: a read-only (demo) owner sees the save button switched off, with the reason.
+  const readOnly = useReadOnly();
   const pathname = usePathname();
   const confirmLeave = useConfirmLeave();
   const pkg = props.mode === 'edit' ? props.pkg : null;
@@ -758,7 +761,12 @@ export function PackageForm(props: Props) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={busy}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={busy || readOnly}
+                  title={readOnly ? READ_ONLY_TITLE : undefined}
+                >
                   {busy ? 'Saving…' : editing ? 'Save changes' : 'Create draft'}
                 </Button>
               </span>

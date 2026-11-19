@@ -69,6 +69,7 @@ export function CoverUploader({ value, onChange, id, 'aria-describedby': describ
         </span>
       </button>
       <input
+        name="cover"
         ref={input}
         type="file"
         accept={ACCEPT}

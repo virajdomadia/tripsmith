@@ -27,6 +27,7 @@ export function DepositPanel() {
             </span>
             <FormControl>
               <Switch
+                name={field.name}
                 checked={field.value}
                 onCheckedChange={field.onChange}
                 aria-labelledby={label}

@@ -46,6 +46,7 @@ export function DetailsPanel() {
             className="flex items-start gap-2.5 rounded-md border border-line p-2.5"
           >
             <NativeCheckbox
+              name={`required.${f.id}`}
               className="mt-0.5"
               checked={required.includes(f.id)}
               onChange={(e) => toggle(f.id, e.target.checked)}

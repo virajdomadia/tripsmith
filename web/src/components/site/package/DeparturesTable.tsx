@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/site/Badge';
 import { LeaderAvatar } from '@/components/site/LeaderAvatar';
 import type { components } from '@/lib/api-types';
-import { istToday } from '@/lib/booking';
+import { useOptionalRules } from '@/components/rules/RulesProvider';
+import { istToday, UNBOOKABLE_LABEL, unbookableReason } from '@/lib/booking';
 import type { Deal } from '@/lib/deal';
 import { afterDiscounts, type EarlyBird, tierFor, tierLabel } from '@/lib/early-bird';
 import { formatDate, inr, isPriced, priceOrOnRequest } from '@/lib/format';
@@ -17,6 +18,11 @@ type Departure = components['schemas']['DepartureOut'];
  * it can still carry yesterday's build for up to an hour; the table hydrates with the day it was built (`builtOn`, no
  * mismatch) and then re-reads the IST day: a tier or deal that ended at midnight leaves the
  * table at once, as it leaves the quote.
+ *
+ * QA 2026-11-19: a date inside the online-booking cutoff (`leadDays` from `GET /meta`, the same
+ * rule the booking sheet's "Departs too soon" uses — `unbookableReason`) no longer looks bookable:
+ * its status reads "Departs too soon · call to book", and its seat bar is greyed. The seat bar
+ * turns warn-coloured only once seats have actually sold (a 4-seat date with 4 free isn't low).
  */
 export function DeparturesTable({
   departures,
@@ -30,6 +36,7 @@ export function DeparturesTable({
   /** `istToday()` where the page was rendered. */
   builtOn?: string;
 }) {
+  const rules = useOptionalRules();
   const [today, setToday] = useState(() => builtOn ?? istToday());
   useEffect(() => setToday(istToday()), []);
   const running = deal && deal.endsOn >= today ? deal : null;
@@ -54,11 +61,17 @@ export function DeparturesTable({
         <tbody>
           {departures.map((d) => {
             const fill = Math.max(0, Math.min(1, d.seatsLeft / d.seatsTotal));
-            const low = d.seatsLeft > 0 && d.seatsLeft <= 4;
+            const low = d.seatsLeft > 0 && d.seatsLeft <= 4 && d.seatsLeft < d.seatsTotal;
+            const tooSoon =
+              rules !== null && unbookableReason(d, 1, today, rules.leadDays) === 'too_soon';
             const tier = tierFor(earlyBird, d.date, today);
             const price = afterDiscounts(d.priceDoublePaise, running, tier);
             return (
-              <tr key={d.id} className="border-t border-line hover:bg-bg2/60">
+              <tr
+                key={d.id}
+                data-too-soon={tooSoon || undefined}
+                className="border-t border-line hover:bg-bg2/60"
+              >
                 <td className="px-3.5 py-3 font-bold">
                   {formatDate(d.date)}
                   {tier && isPriced(d.priceDoublePaise) && (
@@ -96,7 +109,7 @@ export function DeparturesTable({
                       className="inline-block h-1.5 w-14 overflow-hidden rounded-chip bg-line"
                     >
                       <b
-                        className={`block h-full rounded-chip ${low ? 'bg-warn' : 'bg-primary'}`}
+                        className={`block h-full rounded-chip ${tooSoon ? 'bg-mute' : low ? 'bg-warn' : 'bg-primary'}`}
                         style={{ width: `${fill * 100}%` }}
                       />
                     </i>
@@ -104,7 +117,16 @@ export function DeparturesTable({
                   </span>
                 </td>
                 <td className="px-3.5 py-3">
-                  <Badge value={d.badge} seatsLeft={d.seatsLeft} />
+                  {tooSoon ? (
+                    <span
+                      title={`Online booking closes ${rules?.leadDays} days before departure`}
+                      className="inline-flex items-center rounded-chip bg-line px-2.5 py-1 text-xs leading-tight font-bold whitespace-nowrap text-ink2"
+                    >
+                      {UNBOOKABLE_LABEL.too_soon} · call to book
+                    </span>
+                  ) : (
+                    <Badge value={d.badge} seatsLeft={d.seatsLeft} />
+                  )}
                 </td>
               </tr>
             );
