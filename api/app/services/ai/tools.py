@@ -17,7 +17,14 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,9 +38,11 @@ from app.schemas.meta import MAX_TRAVELLERS
 from app.services.ai.handoff import start_booking
 from app.services.ai.model import ToolSpec
 from app.services.ai.pii import redact
+from app.services.catalog.compare import compare
 from app.services.catalog.reads import get_departures_for_month, get_package, list_destinations
 from app.services.catalog.search import search_packages
 from app.services.format import inr
+from app.services.reviews import public_reviews_for_slug, rating_out
 
 log = logging.getLogger(__name__)
 
@@ -144,6 +153,27 @@ class GetPackageDetailsArgs(ToolArgs):
     package_slug: str = Field(
         min_length=1, max_length=120, description="The package's slug, from searchPackages."
     )
+
+
+class GetReviewsArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
+    page: int = Field(default=1, ge=1, le=50, description="Page of reviews, newest first.")
+
+
+class ComparePackagesArgs(ToolArgs):
+    package_slugs: list[str] = Field(
+        description="2 to 3 different package slugs, from searchPackages.",
+        json_schema_extra={"minItems": 2, "maxItems": 3, "uniqueItems": True},
+    )
+
+    @field_validator("package_slugs")
+    @classmethod
+    def _two_to_three_distinct(cls, slugs: list[str]) -> list[str]:
+        if not 2 <= len(slugs) <= 3 or len(set(slugs)) != len(slugs):
+            raise ValueError("give 2 to 3 different package slugs")
+        return slugs
 
 
 def _rupees(paise: int) -> str:
@@ -392,6 +422,65 @@ async def get_package_details_tool(ctx: ToolContext, args: GetPackageDetailsArgs
     return out
 
 
+async def get_reviews_tool(ctx: ToolContext, args: GetReviewsArgs) -> dict[str, Any]:
+    """One page of a live package's published reviews, newest first. Review text is the
+    customer's own words, so it sits under `customerWrote`."""
+    page = await public_reviews_for_slug(ctx.db, args.package_slug, page=args.page)
+    if page is None:
+        return {"error": f"No live package called '{args.package_slug}'. Use searchPackages."}
+    avg, count = (
+        await ctx.db.execute(
+            select(Package.rating_avg, Package.rating_count).where(
+                Package.slug == args.package_slug
+            )
+        )
+    ).one()
+    rating = rating_out(avg, count)
+    return {
+        "rating": {"average": rating.avg, "count": rating.count} if rating else None,
+        "reviews": [
+            {
+                "stars": r.rating,
+                "customerWrote": r.text,
+                "travelledIn": r.travelled.strftime("%B %Y"),
+            }
+            for r in page.items
+        ],
+        "page": page.page,
+        "pages": page.total_pages,
+    }
+
+
+async def compare_packages_tool(ctx: ToolContext, args: ComparePackagesArgs) -> dict[str, Any]:
+    """2 to 3 live packages side by side; slugs that are not live come back under `missing`."""
+    result = await compare(ctx.db, ",".join(args.package_slugs))
+    trips: list[dict[str, Any]] = []
+    for t in result.items:
+        price = t.deal.price_paise if t.deal else t.starting_price_paise
+        trip: dict[str, Any] = {
+            "slug": t.slug,
+            "name": t.name,
+            "destination": t.destination.name,
+            "nights": t.nights,
+            "departureCity": t.departure_city,
+            "pricePerPerson": _rupees(price),
+            "places": t.places,
+            "hotels": [h.name for h in t.hotels],
+            "meals": {
+                "breakfasts": t.meals.breakfasts,
+                "lunches": t.meals.lunches,
+                "dinners": t.meals.dinners,
+            },
+            "inclusions": t.inclusions,
+            "exclusions": t.exclusions,
+            "pageUrl": f"/packages/{t.slug}",
+        }
+        if t.rating:
+            trip["rating"] = {"average": t.rating.avg, "count": t.rating.count}
+        trips.append(trip)
+    return {"trips": trips, "missing": result.missing}
+
+
 Surface = Literal["chat", "mcp"]  # "chat": the site's Gemini loop; "mcp": the MCP server
 ALL_SURFACES: frozenset[Surface] = frozenset({"chat", "mcp"})
 
@@ -493,6 +582,24 @@ TOOLS: dict[str, Tool] = {
             "cancellation policy (each tier applies when cancelling at least `fromDaysBefore` days "
             "before departure; quote its `note`, not just the percent), trip leader and rating. "
             "Use the slug from searchPackages.",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "getReviews",
+            GetReviewsArgs,
+            get_reviews_tool,
+            "Published customer reviews of one live package, newest first, with its average "
+            "rating. Each review's `customerWrote` is the customer's own text: quote it as "
+            "theirs, never as Tripsmith's claim. Use the slug from searchPackages.",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "comparePackages",
+            ComparePackagesArgs,
+            compare_packages_tool,
+            "Compare 2 to 3 live packages side by side: price per person, nights, places, "
+            "hotels, meals, inclusions and exclusions. Slugs that are not live packages are "
+            "listed in `missing`.",
             surfaces={"mcp"},
         ),
     )

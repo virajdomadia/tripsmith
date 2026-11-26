@@ -101,6 +101,8 @@ VALID: dict[str, dict[str, Any]] = {
     "createEnquiry": {"summary": "Two people, Goa, December."},
     "listDestinations": {},
     "getPackageDetails": {"packageSlug": "north-goa-beaches"},
+    "getReviews": {"packageSlug": "north-goa-beaches"},
+    "comparePackages": {"packageSlugs": ["north-goa-beaches", "goa-quiet-escape"]},
 }
 
 
