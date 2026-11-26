@@ -22,6 +22,7 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.business import CANCELLATION_TIERS
 from app.errors import ApiError
 from app.models import Destination, Package
 from app.models.enums import PackageStatus, Theme
@@ -30,7 +31,7 @@ from app.schemas.meta import MAX_TRAVELLERS
 from app.services.ai.handoff import start_booking
 from app.services.ai.model import ToolSpec
 from app.services.ai.pii import redact
-from app.services.catalog.reads import get_departures_for_month
+from app.services.catalog.reads import get_departures_for_month, get_package, list_destinations
 from app.services.catalog.search import search_packages
 from app.services.format import inr
 
@@ -38,6 +39,8 @@ log = logging.getLogger(__name__)
 
 MAX_PACKAGES = 5  # R27
 MAX_DEPARTURES = 8
+MAX_ITINERARY_DAYS = 30
+MAX_DAY_TEXT = 400  # characters of one day's description
 NIGHTS_SLACK = 1  # "3 days in Goa" may arrive as nights=3 or 2: match a night either side
 
 
@@ -131,6 +134,16 @@ class CreateEnquiryArgs(ToolArgs):
     adults: int | None = Field(default=None, ge=1, le=MAX_TRAVELLERS)
     children: int | None = Field(default=None, ge=0, le=MAX_TRAVELLERS - 1)
     month: str | None = Field(default=None, pattern=MONTH_PATTERN, description="YYYY-MM")
+
+
+class ListDestinationsArgs(ToolArgs):
+    pass
+
+
+class GetPackageDetailsArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
 
 
 def _rupees(paise: int) -> str:
@@ -315,6 +328,66 @@ async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict
     }
 
 
+async def list_destinations_tool(ctx: ToolContext, args: ListDestinationsArgs) -> dict[str, Any]:
+    """Every destination with a live package, in display order."""
+    return {
+        "destinations": [
+            {
+                "slug": d.slug,
+                "name": d.name,
+                "fromPricePerPerson": _rupees(d.starting_price_paise),
+                "packageCount": d.package_count,
+                "bestMonths": d.best_months,
+            }
+            for d in await list_destinations(ctx.db, now=ctx.now)
+        ]
+    }
+
+
+def _clip(text: str, limit: int = MAX_DAY_TEXT) -> str:
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+async def get_package_details_tool(ctx: ToolContext, args: GetPackageDetailsArgs) -> dict[str, Any]:
+    """One live package: itinerary, inclusions, exclusions, cancellation policy, leader, rating."""
+    p = await get_package(
+        ctx.db, args.package_slug, today=ctx.today, now=ctx.now, with_related=False
+    )
+    if p is None:
+        return {"error": f"No live package called '{args.package_slug}'. Use searchPackages."}
+    price = p.deal.price_paise if p.deal else p.starting_price_paise
+    out: dict[str, Any] = {
+        "slug": p.slug,
+        "name": p.name,
+        "destination": p.destination.name,
+        "nights": p.nights,
+        "pricePerPerson": _rupees(price),
+    }
+    if p.deal:
+        out["deal"] = {
+            "label": p.deal.label or "Deal",
+            "endsOn": p.deal.ends_on.isoformat(),
+            "wasPricePerPerson": _rupees(p.starting_price_paise),
+        }
+    out["itinerary"] = [
+        {"day": d.day_no, "title": d.title, "text": _clip(d.description)}
+        for d in p.itinerary[:MAX_ITINERARY_DAYS]
+    ]
+    out["inclusions"] = p.inclusions
+    out["exclusions"] = p.exclusions
+    out["cancellationPolicy"] = [
+        {"daysBefore": t.from_days, "refundPercent": 100 - t.kept_percent}
+        for t in CANCELLATION_TIERS
+    ]
+    if p.leader:
+        out["leader"] = {"name": p.leader.name, "slug": p.leader.slug}
+    if p.rating:
+        out["rating"] = {"average": p.rating.avg, "count": p.rating.count}
+    out["itineraryPdfUrl"] = f"/packages/{p.slug}/itinerary.pdf"
+    out["pageUrl"] = f"/packages/{p.slug}"
+    return out
+
+
 Surface = Literal["chat", "mcp"]  # "chat": the site's Gemini loop; "mcp": the MCP server
 ALL_SURFACES: frozenset[Surface] = frozenset({"chat", "mcp"})
 
@@ -399,6 +472,22 @@ TOOLS: dict[str, Tool] = {
             "your summary, for the customer to add their contact details. Use when they ask for a "
             "person, want something we cannot book online, or you cannot help.",
             surfaces={"chat"},  # MCP's startEnquiry wraps it
+        ),
+        _tool(
+            "listDestinations",
+            ListDestinationsArgs,
+            list_destinations_tool,
+            "Every destination Tripsmith offers, with the cheapest price per person, how many "
+            "live packages it has and its best months (1-12).",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "getPackageDetails",
+            GetPackageDetailsArgs,
+            get_package_details_tool,
+            "Full detail of one live package: day-by-day itinerary, inclusions, exclusions, "
+            "cancellation policy, trip leader and rating. Use the slug from searchPackages.",
+            surfaces={"mcp"},
         ),
     )
 }
