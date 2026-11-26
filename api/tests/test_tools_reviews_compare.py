@@ -91,7 +91,7 @@ async def test_compare_two_live_packages(catalog: None, db: AsyncSession) -> Non
 
 
 async def test_compare_rejects_one_and_four_slugs_and_duplicates(db: AsyncSession) -> None:
-    for slugs in (["a"], ["a", "b", "c", "d"], ["a", "a"], []):
+    for slugs in (["a"], ["a", "b", "c", "d"], ["a", "a"], [], ["A", "a"], ["a", ""], ["a", " "]):
         got = await run(db, "comparePackages", {"packageSlugs": slugs})
         assert "2 to 3" in str(got["error"]), slugs
 
@@ -100,3 +100,20 @@ async def test_compare_lists_unknown_slugs_as_missing(catalog: None, db: AsyncSe
     got = await run(db, "comparePackages", {"packageSlugs": [A, "no-such-trip"]})
     assert [t["slug"] for t in got["trips"]] == [A]  # type: ignore[index, union-attr]
     assert got["missing"] == ["no-such-trip"]
+
+
+async def test_review_text_has_contact_details_redacted(db: AsyncSession) -> None:
+    pkg, departure = await seeded(db, seats=40)
+    slug = pkg.slug
+    review = await extra_review(
+        db, pkg, departure.id, 7, 5, at=dt.datetime(2026, 9, 1, tzinfo=dt.UTC)
+    )
+    review.text = "Lovely trip, mail asha@example.test or call 9876543210 anytime."
+    await db.commit()
+    await svc.moderate(db, review.id, publish=True)
+
+    got = await run(db, "getReviews", {"packageSlug": slug})
+
+    wrote = str(got["reviews"][0]["customerWrote"])  # type: ignore[index]
+    assert "asha@example.test" not in wrote and "9876543210" not in wrote
+    assert wrote.startswith("Lovely trip")

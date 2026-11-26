@@ -15,7 +15,7 @@ import datetime as dt
 import logging
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -163,7 +163,7 @@ class GetReviewsArgs(ToolArgs):
 
 
 class ComparePackagesArgs(ToolArgs):
-    package_slugs: list[str] = Field(
+    package_slugs: list[Annotated[str, Field(max_length=120)]] = Field(
         description="2 to 3 different package slugs, from searchPackages.",
         json_schema_extra={"minItems": 2, "maxItems": 3, "uniqueItems": True},
     )
@@ -171,9 +171,11 @@ class ComparePackagesArgs(ToolArgs):
     @field_validator("package_slugs")
     @classmethod
     def _two_to_three_distinct(cls, slugs: list[str]) -> list[str]:
-        if not 2 <= len(slugs) <= 3 or len(set(slugs)) != len(slugs):
+        # As compare() reads them: trimmed, lower-cased, blanks dropped.
+        clean = [s.strip().lower() for s in slugs if s.strip()]
+        if not 2 <= len(clean) <= 3 or len(set(clean)) != len(clean):
             raise ValueError("give 2 to 3 different package slugs")
-        return slugs
+        return clean
 
 
 def _rupees(paise: int) -> str:
@@ -374,6 +376,10 @@ async def list_destinations_tool(ctx: ToolContext, args: ListDestinationsArgs) -
     }
 
 
+def _no_live_package(slug: str) -> dict[str, Any]:
+    return {"error": f"No live package called '{slug}'. Use searchPackages."}
+
+
 def _clip(text: str, limit: int = MAX_DAY_TEXT) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
@@ -384,7 +390,7 @@ async def get_package_details_tool(ctx: ToolContext, args: GetPackageDetailsArgs
         ctx.db, args.package_slug, today=ctx.today, now=ctx.now, with_related=False
     )
     if p is None:
-        return {"error": f"No live package called '{args.package_slug}'. Use searchPackages."}
+        return _no_live_package(args.package_slug)
     price = p.deal.price_paise if p.deal else p.starting_price_paise
     out: dict[str, Any] = {
         "slug": p.slug,
@@ -427,7 +433,7 @@ async def get_reviews_tool(ctx: ToolContext, args: GetReviewsArgs) -> dict[str, 
     customer's own words, so it sits under `customerWrote`."""
     page = await public_reviews_for_slug(ctx.db, args.package_slug, page=args.page)
     if page is None:
-        return {"error": f"No live package called '{args.package_slug}'. Use searchPackages."}
+        return _no_live_package(args.package_slug)
     avg, count = (
         await ctx.db.execute(
             select(Package.rating_avg, Package.rating_count).where(
@@ -441,7 +447,7 @@ async def get_reviews_tool(ctx: ToolContext, args: GetReviewsArgs) -> dict[str, 
         "reviews": [
             {
                 "stars": r.rating,
-                "customerWrote": r.text,
+                "customerWrote": redact(r.text),
                 "travelledIn": r.travelled.strftime("%B %Y"),
             }
             for r in page.items
