@@ -45,7 +45,7 @@ ENQUIRY_NEXT = (
 _PREFILL = (("month", "travelMonth"), ("adults", "adults"), ("children", "children"))
 
 
-# MCP names whose registry tool is named differently: `startEnquiry` wraps chat-only `createEnquiry`.
+# MCP names whose registry tool is named differently: `startEnquiry` wraps `createEnquiry`.
 _WRAPPED = {ENQUIRY: "createEnquiry"}
 # Descriptions written for a remote client (a link, not a panel), replacing the chat's.
 _MCP_DESCRIPTIONS = {
