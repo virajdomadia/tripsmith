@@ -45,6 +45,28 @@ ENQUIRY_NEXT = (
 _PREFILL = (("month", "travelMonth"), ("adults", "adults"), ("children", "children"))
 
 
+# MCP names whose registry tool is named differently: `startEnquiry` wraps chat-only `createEnquiry`.
+_WRAPPED = {ENQUIRY: "createEnquiry"}
+# Descriptions written for a remote client (a link, not a panel), replacing the chat's.
+_MCP_DESCRIPTIONS = {
+    BOOKING: (
+        "When the customer wants to book a specific date: checks it can be booked for the "
+        "party and returns a link to Tripsmith's booking sheet with the date and party filled "
+        "in. Payment happens on the site, never here, and nothing is held until they pay. Ask "
+        "how many adults and children first if you do not know. Use a departureId from "
+        "checkAvailability."
+    ),
+    ENQUIRY: (
+        "Hand the customer to a person: returns a link to Tripsmith's enquiry form with the "
+        "month and party filled in, where the customer adds their name, phone and a message "
+        "and sends it; your summary comes back for them to use as the message. Nothing is "
+        "sent by this tool. Use when they want to talk to someone, want something that "
+        "cannot be booked online, or you cannot help. Never put names, "
+        "phone numbers or emails in the summary."
+    ),
+}
+
+
 @dataclass(frozen=True)
 class McpTool:
     name: str
@@ -53,32 +75,17 @@ class McpTool:
 
 
 def tool_list() -> list[McpTool]:
-    """The four tools, with the chat's own input schemas."""
-    return [
-        McpTool(SEARCH, TOOLS[SEARCH].spec.description, TOOLS[SEARCH].spec.parameters),
-        McpTool(
-            AVAILABILITY, TOOLS[AVAILABILITY].spec.description, TOOLS[AVAILABILITY].spec.parameters
-        ),
-        McpTool(
-            BOOKING,
-            "When the customer wants to book a specific date: checks it can be booked for the "
-            "party and returns a link to Tripsmith's booking sheet with the date and party filled "
-            "in. Payment happens on the site, never here, and nothing is held until they pay. Ask "
-            "how many adults and children first if you do not know. Use a departureId from "
-            "checkAvailability.",
-            TOOLS[BOOKING].spec.parameters,
-        ),
-        McpTool(
-            ENQUIRY,
-            "Hand the customer to a person: returns a link to Tripsmith's enquiry form with the "
-            "month and party filled in, where the customer adds their name, phone and a message "
-            "and sends it; your summary comes back for them to use as the message. Nothing is "
-            "sent by this tool. Use when they want to talk to someone, want something that "
-            "cannot be booked online, or you cannot help. Never put names, "
-            "phone numbers or emails in the summary.",
-            TOOLS["createEnquiry"].spec.parameters,
-        ),
-    ]
+    """The MCP tools in `MCP_TOOL_NAMES` order, with the registry's input schemas. A registry tool
+    is listed only if it carries the "mcp" surface; a wrapped one (`startEnquiry`) is listed
+    because the adapter itself wraps its chat-only tool."""
+    listed: list[McpTool] = []
+    for name in MCP_TOOL_NAMES:
+        tool = TOOLS[_WRAPPED.get(name, name)]
+        if name not in _WRAPPED and "mcp" not in tool.surfaces:
+            continue
+        description = _MCP_DESCRIPTIONS.get(name, tool.spec.description)
+        listed.append(McpTool(name, description, tool.spec.parameters))
+    return listed
 
 
 def absolute_url(site_url: str, path: str) -> str:
