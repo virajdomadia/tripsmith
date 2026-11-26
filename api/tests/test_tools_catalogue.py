@@ -61,10 +61,10 @@ async def test_package_details_has_itinerary_inclusions_and_policy(
     assert len(got["itinerary"]) == len(detail.itinerary)  # type: ignore[arg-type]
     assert got["itinerary"][0]["day"] == 1  # type: ignore[index]
     assert got["inclusions"] == detail.inclusions and got["exclusions"] == detail.exclusions
-    assert got["cancellationPolicy"] == [
-        {"daysBefore": t.from_days, "refundPercent": 100 - t.kept_percent}
-        for t in CANCELLATION_TIERS
-    ]
+    policy = got["cancellationPolicy"]
+    assert [t["fromDaysBefore"] for t in policy] == [t.from_days for t in CANCELLATION_TIERS]  # type: ignore[union-attr]
+    assert [t["note"] for t in policy] == [t.refund for t in CANCELLATION_TIERS]  # type: ignore[union-attr]
+    assert "non-refundable" in policy[0]["note"]  # type: ignore[index]  # the caveat travels
     assert got["pageUrl"] == f"/packages/{SLUG}"
     assert got["itineraryPdfUrl"] == f"/packages/{SLUG}/itinerary.pdf"
     assert str(got["pricePerPerson"]).startswith("₹")
@@ -91,4 +91,16 @@ async def test_package_details_caps_long_itinerary_text(catalog: None, db: Async
     row.description = "x" * 2000
     await db.flush()
     got = await run(db, "getPackageDetails", {"packageSlug": SLUG})
-    assert len(got["itinerary"][0]["text"]) <= 400  # type: ignore[index]
+    text = got["itinerary"][0]["text"]  # type: ignore[index]
+    assert len(text) <= 400 and text.endswith("…") and text.startswith("xxx")
+
+
+async def test_package_details_omits_leader_and_rating_when_there_are_none(
+    catalog: None, db: AsyncSession
+) -> None:
+    await db.execute(
+        update(Package).where(Package.slug == SLUG).values(leader_id=None, rating_count=0)
+    )
+    await db.flush()
+    got = await run(db, "getPackageDetails", {"packageSlug": SLUG})
+    assert "leader" not in got and "rating" not in got

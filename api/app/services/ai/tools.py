@@ -376,7 +376,11 @@ async def get_package_details_tool(ctx: ToolContext, args: GetPackageDetailsArgs
     out["inclusions"] = p.inclusions
     out["exclusions"] = p.exclusions
     out["cancellationPolicy"] = [
-        {"daysBefore": t.from_days, "refundPercent": 100 - t.kept_percent}
+        {
+            "fromDaysBefore": t.from_days,
+            "refundPercent": 100 - t.kept_percent,
+            "note": t.refund,
+        }
         for t in CANCELLATION_TIERS
     ]
     if p.leader:
@@ -486,7 +490,9 @@ TOOLS: dict[str, Tool] = {
             GetPackageDetailsArgs,
             get_package_details_tool,
             "Full detail of one live package: day-by-day itinerary, inclusions, exclusions, "
-            "cancellation policy, trip leader and rating. Use the slug from searchPackages.",
+            "cancellation policy (each tier applies when cancelling at least `fromDaysBefore` days "
+            "before departure; quote its `note`, not just the percent), trip leader and rating. "
+            "Use the slug from searchPackages.",
             surfaces={"mcp"},
         ),
     )
