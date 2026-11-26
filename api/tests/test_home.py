@@ -11,6 +11,7 @@ from app.models import Package
 from app.models.enums import PackageStatus
 from app.services.catalog.home import HOME_LIMIT, get_home_data
 from scripts.seed import seed
+from tests.fixture_dates import GQE_DATES
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
@@ -86,9 +87,9 @@ async def test_home_hides_draft_packages_and_unlinks_their_testimonials(
 async def test_home_counts_only_upcoming_departures(db: AsyncSession) -> None:
     await seeded(db)
 
-    home = await get_home_data(db, today=dt.date(2026, 12, 1))
+    home = await get_home_data(db, today=GQE_DATES[0] + dt.timedelta(days=1))
 
-    # 2026-11-20 and 2026-11-27 have passed; five dates remain.
+    # The first North Goa and first Quiet Escape dates have passed; five dates remain.
     assert home.stats.departures == 5
 
 

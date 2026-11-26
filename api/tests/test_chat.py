@@ -32,14 +32,16 @@ from app.services.ai.model import (
     Usage,
 )
 from app.services.ai.tools import TOOL_SPECS, ToolContext, match_destination, run_tool
+from app.services.analytics import ist_today
 from app.services.format import inr
 from scripts.seed import seed
+from tests.fixture_dates import NGB_DATES, month_key
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
 NGB, GQE = "north-goa-beaches", "goa-quiet-escape"
 SITE = "http://localhost:3000"
-TODAY = dt.date(2026, 11, 12)  # the fixture's departures start 2026-11-20
+TODAY = ist_today()  # every fixture departure is later (tests/fixture_dates.py)
 NOW = dt.datetime(2026, 11, 12, 6, 30, tzinfo=dt.UTC)
 
 Step = list[ModelEvent] | Exception
@@ -458,7 +460,7 @@ async def test_search_filters_by_nights_theme_and_month(catalog: None, db: Async
     assert await slugs(nights=2) == [NGB]  # 3 nights is within a night of 2
     assert await slugs(theme="honeymoon") == [GQE]
     assert await slugs(destination="north goa beaches") == [NGB, GQE]  # "goa" ⊂ the phrase
-    assert await slugs(month="2026-11", maxBudget=20000) == [NGB]
+    assert await slugs(month=month_key(NGB_DATES[0]), maxBudget=20000) == [NGB]
     nothing, _ = await run_tool(ctx, "searchPackages", {"maxBudget": 1000})
     assert nothing["packages"] == [] and nothing["weOffer"] == ["Goa"]
 
@@ -485,11 +487,11 @@ async def test_a_group_budget_filters_cards_by_the_per_person_share(
 async def test_check_availability_lists_real_departures(catalog: None, db: AsyncSession) -> None:
     ctx = ToolContext(db, TODAY, NOW)
     result, error = await run_tool(
-        ctx, "checkAvailability", {"packageSlug": NGB, "month": "2026-11"}
+        ctx, "checkAvailability", {"packageSlug": NGB, "month": month_key(NGB_DATES[0])}
     )
     assert error is None
     (only,) = result["departures"]
-    assert only["date"] == "2026-11-20" and only["seatsLeft"] == 16
+    assert only["date"] == NGB_DATES[0].isoformat() and only["seatsLeft"] == 16
     assert only["pricePerPerson"].startswith("₹") and only["departureId"]
 
     missing, error = await run_tool(ctx, "checkAvailability", {"packageSlug": "maldives-luxe"})

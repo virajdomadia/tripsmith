@@ -26,6 +26,7 @@ from app.services.ai.guardrail import (
 )
 from app.services.ai.loop import FORCED
 from app.services.ai.model import FunctionCall, TextChunk, Usage
+from tests.fixture_dates import NGB_DATES, month_key
 from tests.test_chat import NGB, ScriptedModel, catalog, parse, say, use
 
 __all__ = ["catalog"]  # the fixture, shared with test_chat
@@ -251,7 +252,11 @@ async def test_derived_prices_and_the_visitors_own_budget_pass(
         "primary",
         [
             [TextChunk("Under ₹20,000 a person works. Which month?"), Usage(1, 1)],
-            [FunctionCall("searchPackages", {"destination": "goa", "month": "2026-11"})],
+            [
+                FunctionCall(
+                    "searchPackages", {"destination": "goa", "month": month_key(NGB_DATES[0])}
+                )
+            ],
             [TextChunk("North Goa Beaches: ₹14,499 each, so ₹28,998 for the two of you.")],
         ],
     )

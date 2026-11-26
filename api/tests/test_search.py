@@ -13,6 +13,7 @@ from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import RangeFacet, SearchParams, SortOrder
 from app.services.catalog.search import budget_range, month_label, search_packages
 from scripts.seed import seed
+from tests.fixture_dates import KER_DATES, M1, M2, M3, M4, M5, month_key
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
@@ -51,7 +52,8 @@ def test_search_params_validates_the_nights_range_and_reads_camel_case() -> None
 # GQE  Goa Quiet Escape    4N  ₹21,499  beach+honeymoon   Nov 27 (12) · Dec 24 (10) · Jan 22 (12)
 # KER  Kerala Backwaters   5N  ₹24,999  honeymoon+heritage  Dec 5 (8) · Jan 9 (0 — sold out)
 #
-# Like F1's tests these assume today < 2026-11-20 (the seed content moves forward in F4+F5).
+# Dates here are the original calendar days; tests/fixture_dates.py anchors them to the next
+# four months (M1..M4) so they are always upcoming.
 
 
 @pytest.fixture
@@ -83,7 +85,7 @@ async def catalog(db: AsyncSession) -> None:
     )
     db.add(package)
     await db.flush()
-    for date, seats in ((dt.date(2026, 12, 5), 8), (dt.date(2027, 1, 9), 0)):
+    for date, seats in ((KER_DATES[0], 8), (KER_DATES[1], 0)):
         db.add(
             Departure(
                 package_id=package.id,
@@ -183,17 +185,15 @@ async def test_themes_are_any_of(catalog: None, db_client: AsyncClient) -> None:
 async def test_month_needs_a_departure_with_seats_that_month(
     catalog: None, db: AsyncSession, db_client: AsyncClient
 ) -> None:
-    assert await slugs(db_client, "?month=2026-12") == [NGB, GQE, KER]
+    assert await slugs(db_client, f"?month={month_key(M2)}") == [NGB, GQE, KER]
     # KER's January date is sold out, so January is only the Goa trips.
-    assert await slugs(db_client, "?month=2027-01") == [NGB, GQE]
-    assert await slugs(db_client, "?month=2027-03") == []
+    assert await slugs(db_client, f"?month={month_key(M3)}") == [NGB, GQE]
+    assert await slugs(db_client, f"?month={month_key(M5)}") == []
 
     # Selling out KER's last December seats drops it from December.
-    await db.execute(
-        update(Departure).where(Departure.date == dt.date(2026, 12, 5)).values(seats_total=0)
-    )
+    await db.execute(update(Departure).where(Departure.date == KER_DATES[0]).values(seats_total=0))
     await db.commit()
-    assert await slugs(db_client, "?month=2026-12") == [NGB, GQE]
+    assert await slugs(db_client, f"?month={month_key(M2)}") == [NGB, GQE]
 
     assert await field_errors(db_client, "?month=2026-13") == ["month"]
     assert await field_errors(db_client, "?month=Dec") == ["month"]
@@ -203,7 +203,7 @@ async def test_month_needs_a_departure_with_seats_that_month(
 async def test_past_departures_never_count(catalog: None, db: AsyncSession) -> None:
     # A `today` after every seeded date: nothing departs "in December" any more, and the
     # months facet is empty too.
-    result = await search_packages(db, SearchParams(month="2026-12"), today=dt.date(2027, 6, 1))
+    result = await search_packages(db, SearchParams(month=month_key(M2)), today=M5)
     assert result.items == []
     assert result.total == 0
     assert result.facets.months == []
@@ -226,9 +226,13 @@ async def test_sort_orders(catalog: None, db: AsyncSession, db_client: AsyncClie
 
 @pytest.mark.db
 async def test_filters_and_together(catalog: None, db_client: AsyncClient) -> None:
-    assert await slugs(db_client, "?destination=goa&themes=honeymoon&month=2026-12") == [GQE]
+    assert await slugs(db_client, f"?destination=goa&themes=honeymoon&month={month_key(M2)}") == [
+        GQE
+    ]
     assert (
-        await slugs(db_client, "?destination=goa&themes=honeymoon&month=2026-12&maxBudget=20000")
+        await slugs(
+            db_client, f"?destination=goa&themes=honeymoon&month={month_key(M2)}&maxBudget=20000"
+        )
         == []
     )
 
@@ -271,10 +275,10 @@ async def test_facets_describe_the_whole_live_catalog(
         {"value": "heritage", "label": "Heritage", "count": 1},
     ]
     assert facets["months"] == [
-        {"value": "2026-11", "label": "November 2026", "count": 2},
-        {"value": "2026-12", "label": "December 2026", "count": 3},
-        {"value": "2027-01", "label": "January 2027", "count": 2},  # KER's Jan date is sold out
-        {"value": "2027-02", "label": "February 2027", "count": 1},
+        {"value": month_key(M1), "label": f"{M1:%B %Y}", "count": 2},
+        {"value": month_key(M2), "label": f"{M2:%B %Y}", "count": 3},
+        {"value": month_key(M3), "label": f"{M3:%B %Y}", "count": 2},  # KER's date is sold out
+        {"value": month_key(M4), "label": f"{M4:%B %Y}", "count": 1},
     ]
     assert facets["nights"] == {"min": 3, "max": 5}
     assert facets["budget"] == {"min": 14_000, "max": 25_000}

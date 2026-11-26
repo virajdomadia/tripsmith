@@ -1,6 +1,5 @@
-import datetime as dt
-
 from content._schema import define_package
+from tests.fixture_dates import GQE_DATES
 
 PACKAGE = define_package(
     slug="goa-quiet-escape",
@@ -114,7 +113,7 @@ PACKAGE = define_package(
     ],
     departures=[
         {
-            "date": dt.date(2026, 11, 27),
+            "date": GQE_DATES[0],
             "seats_total": 12,
             "guaranteed": True,
             "price_double_inr": 21_499,
@@ -123,7 +122,7 @@ PACKAGE = define_package(
             "single_supplement_inr": 9_000,
         },
         {
-            "date": dt.date(2026, 12, 24),
+            "date": GQE_DATES[1],
             "seats_total": 10,
             "price_double_inr": 25_999,
             "price_triple_inr": 23_999,
@@ -131,7 +130,7 @@ PACKAGE = define_package(
             "single_supplement_inr": 11_000,
         },
         {
-            "date": dt.date(2027, 1, 22),
+            "date": GQE_DATES[2],
             "seats_total": 12,
             "guaranteed": True,
             "price_double_inr": 21_999,

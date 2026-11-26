@@ -1,7 +1,5 @@
 """services/catalog — pricing + badge helpers (pure) and GET /packages (S10/S11 slice of F1–F3)."""
 
-import datetime as dt
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.meta import Badge
 from app.services.catalog.pricing import badge_for, starting_price
 from scripts.seed import seed
+from tests.fixture_dates import NGB_DATES
 from tests.settings import fixture_content, make_settings
 
 
@@ -75,7 +74,7 @@ async def test_get_packages_lists_live_packages_as_cards(
     assert ngb["themes"] == ["beach", "family"]
     assert ngb["coverUrl"] == "https://blob.test/packages/north-goa-beaches/vagator-palms-1.jpg"
     assert len(ngb["highlights"]) == 4
-    # Next departure on 2026-11-20 has 16 seats and is guaranteed → "guaranteed".
+    # Next departure (NGB_DATES[0]) has 16 seats and is guaranteed → "guaranteed".
     assert ngb["badge"] == "guaranteed"
     assert [c["slug"] for c in body["items"]] == [
         "north-goa-beaches",
@@ -110,12 +109,12 @@ async def test_badge_uses_the_next_upcoming_departure(
     from app.models import Departure
 
     await seed(db, fixture_content(), RecordingStore(), make_settings())
-    # Every departure guaranteed except the earliest North Goa one (2026-11-20): the card shows
+    # Every departure guaranteed except the earliest North Goa one (NGB_DATES[0]): the card shows
     # no badge, so it reads the next departure, not any later one. (Seat counts can't tell
     # them apart without a booking: QA 2026-11-19, "Filling fast" needs a seat sold.)
     await db.execute(update(Departure).values(guaranteed=True))
     await db.execute(
-        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=False)
+        update(Departure).where(Departure.date == NGB_DATES[0]).values(guaranteed=False)
     )
     await db.commit()
 
@@ -123,7 +122,7 @@ async def test_badge_uses_the_next_upcoming_departure(
     assert cards["north-goa-beaches"]["badge"] is None
 
     await db.execute(
-        update(Departure).where(Departure.date == dt.date(2026, 11, 20)).values(guaranteed=True)
+        update(Departure).where(Departure.date == NGB_DATES[0]).values(guaranteed=True)
     )
     await db.commit()
     cards = {c["slug"]: c for c in (await db_client.get("/packages")).json()["items"]}

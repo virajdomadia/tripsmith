@@ -22,6 +22,7 @@ from app.services.catalog import admin_packages as packages
 from app.services.pdf.voucher import render_voucher
 from content._schema import LeaderContent, LeaderOverride
 from scripts.seed import seed, seed_leaders
+from tests.fixture_dates import NGB_DATES
 from tests.razorpay_fake import FakeRazorpay
 from tests.settings import fixture_content, make_settings
 from tests.test_admin_destinations import RecordingBlobStore, small_jpeg
@@ -394,7 +395,7 @@ def demo_content():  # noqa: ANN201 — the content dataclass
             bio=BIO,
             fun_fact="",
             packages=[],
-            overrides=[LeaderOverride(package="north-goa-beaches", date=dt.date(2026, 12, 18))],
+            overrides=[LeaderOverride(package="north-goa-beaches", date=NGB_DATES[1])],
         ),
     ]
     return dataclasses.replace(content, leaders=leaders)
