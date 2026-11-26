@@ -13,9 +13,9 @@ name or phone; it only writes the summary). When nothing can be booked, a result
 
 import datetime as dt
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic.alias_generators import to_camel
@@ -315,11 +315,16 @@ async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict
     }
 
 
+Surface = Literal["chat", "mcp"]  # "chat": the site's Gemini loop; "mcp": the MCP server
+ALL_SURFACES: frozenset[Surface] = frozenset({"chat", "mcp"})
+
+
 @dataclass(frozen=True)
 class Tool:
     spec: ToolSpec
     args: type[ToolArgs]
     run: Callable[[ToolContext, Any], Awaitable[dict[str, Any]]]
+    surfaces: frozenset[Surface]
 
 
 def _schema(model: type[BaseModel]) -> dict[str, Any]:
@@ -347,8 +352,15 @@ def _schema(model: type[BaseModel]) -> dict[str, Any]:
     return cleaned
 
 
-def _tool(name: str, args: type[ToolArgs], run: Any, description: str) -> Tool:
-    return Tool(ToolSpec(name, description, _schema(args)), args, run)
+def _tool(
+    name: str,
+    args: type[ToolArgs],
+    run: Any,
+    description: str,
+    *,
+    surfaces: Iterable[Surface] = ALL_SURFACES,
+) -> Tool:
+    return Tool(ToolSpec(name, description, _schema(args)), args, run, frozenset(surfaces))
 
 
 TOOLS: dict[str, Tool] = {
@@ -386,10 +398,11 @@ TOOLS: dict[str, Tool] = {
             "Hand the customer to a person: opens the enquiry form in the chat, pre-filled with "
             "your summary, for the customer to add their contact details. Use when they ask for a "
             "person, want something we cannot book online, or you cannot help.",
+            surfaces={"chat"},  # MCP's startEnquiry wraps it
         ),
     )
 }
-TOOL_SPECS: list[ToolSpec] = [t.spec for t in TOOLS.values()]
+TOOL_SPECS: list[ToolSpec] = [t.spec for t in TOOLS.values() if "chat" in t.surfaces]
 
 
 async def run_tool(

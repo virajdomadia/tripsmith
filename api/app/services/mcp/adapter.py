@@ -29,6 +29,8 @@ SEARCH, AVAILABILITY, BOOKING, ENQUIRY = (
     "startEnquiry",
 )
 
+MCP_TOOL_NAMES: tuple[str, ...] = (SEARCH, AVAILABILITY, BOOKING, ENQUIRY)  # the listing order
+
 BOOKING_NEXT = (
     "Give the customer this link: Tripsmith's booking sheet opens with the date and party "
     "filled in, and they pay there. Nothing is booked or held until they do."
