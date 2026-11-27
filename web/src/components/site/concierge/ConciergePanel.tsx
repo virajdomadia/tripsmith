@@ -354,9 +354,15 @@ export default function ConciergePanel({
     }
   };
 
+  const [fullScreen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023.98px)').matches,
+  );
+
   return (
     <section
       role="dialog"
+      // Review 2026-11-27 (L5): below `lg` the panel covers the whole screen, so it is modal there.
+      aria-modal={fullScreen || undefined}
       aria-label="Tripsmith trip planner"
       hidden={!open}
       onKeyDown={(e) => {
@@ -374,7 +380,7 @@ export default function ConciergePanel({
           {/* A chatbot's status line: online, or what it is doing right now. */}
           <small
             aria-live="polite"
-            className="flex max-w-[46vw] items-center gap-1.5 truncate text-[12px] font-semibold text-mute lg:max-w-[180px]"
+            className="flex max-w-[52vw] items-center gap-1.5 truncate text-[12px] font-semibold text-mute lg:max-w-[180px]"
           >
             <i aria-hidden className="size-[7px] shrink-0 rounded-full bg-ok" />
             <span className="truncate">

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { demoCredentials } from '@/lib/auth/demo';
 import { api } from '@/lib/api';
 import { BUSINESS, whatsappHref } from '@/lib/business';
 import { BrandMark } from './BrandMark';
@@ -36,11 +35,14 @@ function Column({ title, links }: { title: string; links: Links }) {
   return (
     <div>
       <b className="mb-2.5 block font-bold text-white">{title}</b>
-      {/* QA 2026-11-19: each link is a ≥24px tap target (WCAG 2.5.8) — 18px tall before. */}
-      <ul className="grid gap-0.5">
+      {/* Review 2026-11-27 (M8): 44px tap targets on touch sizes (24px from `lg`). */}
+      <ul className="grid lg:gap-0.5">
         {links.map(([href, label]) => (
           <li key={href}>
-            <Link href={href} className="inline-block py-1 hover:text-white">
+            <Link
+              href={href}
+              className="inline-flex min-h-11 items-center hover:text-white lg:min-h-0 lg:py-1"
+            >
               {label}
             </Link>
           </li>
@@ -53,12 +55,11 @@ function Column({ title, links }: { title: string; links: Links }) {
 /** Full footer (S1): contact block, destinations, company, policies, fine print. No year baked in. */
 export async function SiteFooter() {
   const destinations = await destinationLinks();
-  const demo = demoCredentials();
   return (
     <footer
-      // QA 2026-11-19: on phones the WhatsApp + trip-planner buttons stack in the bottom-right
-      // corner (≈124px tall with the safe area); pad the foot so the fine print scrolls clear.
-      className="focus-ring-light mt-20 bg-ink pt-12 pb-[calc(max(16px,env(safe-area-inset-bottom))+128px)] text-sm text-[#b7c0c8] lg:pb-6"
+      // Review 2026-11-27 (H1): nothing floats in the corner on a phone now (the chat button is in
+      // the header), so only the safe area is padded.
+      className="focus-ring-light mt-20 bg-ink pt-12 pb-[max(24px,env(safe-area-inset-bottom))] text-sm text-[#b7c0c8]"
     >
       <Container>
         <div className="grid gap-7 md:grid-cols-[2fr_1fr_1fr_1fr]">
@@ -70,15 +71,24 @@ export async function SiteFooter() {
             <address className="leading-relaxed not-italic">
               {BUSINESS.address}, {BUSINESS.city}
               <br />
-              <a href={BUSINESS.phoneHref} className="inline-block py-0.5 hover:text-white">
+              <a
+                href={BUSINESS.phoneHref}
+                className="inline-flex min-h-11 items-center hover:text-white lg:min-h-0 lg:py-0.5"
+              >
                 {BUSINESS.phoneDisplay}
               </a>
               {' · '}
-              <a href={whatsappHref()} className="inline-block py-0.5 hover:text-white">
+              <a
+                href={whatsappHref()}
+                className="inline-flex min-h-11 items-center hover:text-white lg:min-h-0 lg:py-0.5"
+              >
                 WhatsApp
               </a>
               {' · '}
-              <a href={`mailto:${BUSINESS.email}`} className="inline-block py-0.5 hover:text-white">
+              <a
+                href={`mailto:${BUSINESS.email}`}
+                className="inline-flex min-h-11 items-center hover:text-white lg:min-h-0 lg:py-0.5"
+              >
                 {BUSINESS.email}
               </a>
               <br />
@@ -90,12 +100,15 @@ export async function SiteFooter() {
           <Column title="Policies" links={POLICIES} />
         </div>
         <div className="mt-8 flex flex-wrap justify-between gap-2.5 border-t border-[#2a3944] pt-4 text-xs">
+          {/* Review 2026-11-27 (L3): the demo login stays on /admin/login (prefilled there). */}
           <span>
-            © {BUSINESS.legalName} · a portfolio project by Viraj Domadia ·{' '}
-            <Link href="/admin/login" className="inline-block py-1 hover:text-white">
-              Owner sign in
+            © {BUSINESS.legalName}. A portfolio demo by Viraj Domadia.{' '}
+            <Link
+              href="/admin/login"
+              className="inline-flex min-h-11 items-center hover:text-white"
+            >
+              Try the owner admin
             </Link>
-            {demo && ` · Demo: ${demo.email} / ${demo.password}`}
           </span>
           <span>Photos: Wikimedia Commons contributors (CC BY / CC BY-SA)</span>
         </div>

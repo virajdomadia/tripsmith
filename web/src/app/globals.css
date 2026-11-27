@@ -15,6 +15,9 @@
   --color-ink2: #3b4148;
   --color-mute: #5e6b76;
   --color-line: #e3e8ec;
+  /* Review 2026-11-27 (M2): form control borders, 3.53:1 on white (WCAG 1.4.11 asks 3:1);
+     --color-line (1.23:1) stays for dividers and cards. */
+  --color-field-border: #7d8a96;
   --color-primary: #1b4fd8; /* ocean: identity, links, icons, secondary buttons */
   --color-primary-ink: #143ead;
   --color-primary-soft: #e8eeff;
@@ -1364,4 +1367,10 @@
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+}
+
+/* Review 2026-11-27 (M4): while the compare tray floats at the foot, the page's last row (a
+ * card's price, the pager) can scroll clear of it. */
+body:has([data-compare-tray]) main {
+  padding-bottom: 88px;
 }

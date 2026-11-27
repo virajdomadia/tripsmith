@@ -10,6 +10,8 @@ import { useWhatsAppPage } from './WhatsAppContext';
  * the footer's photo credit at 1440px. It is the bottom of a compact stack on the right, with the
  * trip-planner launcher (Concierge.tsx) right above it; the footer pads its foot by the stack's
  * height on phones so the last lines scroll clear (SiteFooter).
+ * Review 2026-11-27 (H1): desktop only. On a phone it sat on the search card and every card's
+ * "View trip"; the header menu carries WhatsApp there (MobileMenu), the package bar its own.
  * Pre-filled with the page's message when one is registered, else the generic opener; hidden by
  * CSS on pages that mark themselves (see WhatsAppPageMessage).
  */
@@ -21,9 +23,9 @@ export function WhatsAppFab() {
       target="_blank"
       rel="noopener"
       title="WhatsApp us"
-      className="fixed right-4 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 grid size-12 place-items-center rounded-full bg-wa text-white no-underline shadow-[0_12px_28px_-10px_rgb(37_211_102/0.8)] transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 [main:has([data-whatsapp-fab=hidden])~&]:hidden lg:right-6 lg:bottom-6 lg:size-14"
+      className="fixed right-6 bottom-6 z-30 hidden size-14 place-items-center rounded-full bg-wa text-white no-underline shadow-[0_12px_28px_-10px_rgb(37_211_102/0.8)] transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 lg:grid lg:[main:has([data-whatsapp-fab=hidden])~&]:hidden"
     >
-      <WhatsApp className="size-6 lg:size-7" />
+      <WhatsApp className="size-7" />
       <span className="sr-only">WhatsApp</span>
     </a>
   );

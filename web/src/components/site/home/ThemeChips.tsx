@@ -24,7 +24,7 @@ export function ThemeChips() {
           <li key={t}>
             <Link
               href={searchHref({ ...EMPTY_QUERY, themes: [t] })}
-              className="inline-flex items-center gap-2 rounded-chip border-[1.5px] border-line bg-bg px-3.5 py-2 text-sm font-semibold text-ink no-underline transition-[border-color,color,transform] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:border-primary hover:text-primary"
+              className="inline-flex min-h-11 items-center gap-2 rounded-chip border-[1.5px] border-line bg-bg px-3.5 py-2 text-sm font-semibold text-ink no-underline transition-[border-color,color,transform] duration-300 ease-(--ease-out) hover:-translate-y-0.5 hover:border-primary hover:text-primary"
             >
               <Icon className="size-4 text-primary" />
               {label}

@@ -152,11 +152,13 @@ export function Concierge({ apiUrl }: { apiUrl: string }) {
         onFocus={() => void loadPanel()}
         aria-haspopup="dialog"
         data-concierge-launcher
+        // Review 2026-11-27 (H1): below `lg` it sits in the header's right corner (SiteHeader keeps
+        // the room), so nothing floats over a phone's Search, View trip or Book now buttons.
         aria-label="Chat with us"
         title="Chat with us"
-        className="fixed right-4 bottom-[calc(max(16px,env(safe-area-inset-bottom))+60px)] z-30 grid size-12 place-items-center rounded-full bg-primary text-white shadow-[0_16px_30px_-12px_rgb(20_32_42/0.7)] transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 [main:has([data-cta-bar])~&]:bottom-[calc(max(10px,env(safe-area-inset-bottom))+70px)] [[data-compare-tray]~&]:bottom-[calc(max(16px,env(safe-area-inset-bottom))+136px)] lg:right-6 lg:bottom-[92px] lg:size-14 lg:[main:has([data-cta-bar])~&]:bottom-[92px] lg:[[data-compare-tray]~&]:bottom-[92px] lg:[main:has([data-whatsapp-fab=hidden])~&]:bottom-6"
+        className="fixed top-2.5 right-3 z-30 grid size-11 place-items-center rounded-full bg-primary text-white transition-transform hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100 lg:top-auto lg:right-6 lg:bottom-[92px] lg:size-14 lg:shadow-[0_16px_30px_-12px_rgb(20_32_42/0.7)] lg:[[data-compare-tray]~&]:bottom-[92px] lg:[main:has([data-whatsapp-fab=hidden])~&]:bottom-6"
       >
-        <svg viewBox="0 0 24 24" aria-hidden className="size-6 lg:size-[26px]">
+        <svg viewBox="0 0 24 24" aria-hidden className="size-[22px] lg:size-[26px]">
           <path
             d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16.9A2.5 2.5 0 0 1 4 14.5z"
             fill="currentColor"
