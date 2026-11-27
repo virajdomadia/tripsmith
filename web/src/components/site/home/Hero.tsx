@@ -26,7 +26,7 @@ export function Hero({ facets, trips }: { facets: Facets; trips: number }) {
         />
         <div
           aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_bottom,rgb(10_30_40/0.78),rgb(10_30_40/0.62)_70%,rgb(10_30_40/0.45))] md:bg-[linear-gradient(to_right,rgb(10_30_40/0.82),rgb(10_30_40/0.72)_52%,rgb(10_30_40/0.12)_80%)]"
+          className="absolute inset-0 bg-[linear-gradient(to_bottom,rgb(10_30_40/0.78),rgb(10_30_40/0.62)_70%,rgb(10_30_40/0.45))] md:bg-[linear-gradient(to_right,rgb(10_30_40/0.82),rgb(10_30_40/0.72)_66%,rgb(10_30_40/0.12)_90%)]"
         />
         <div className="absolute inset-x-0 top-9 mx-auto w-[min(1220px,100%-32px)] text-white md:top-28">
           <h1

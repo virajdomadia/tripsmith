@@ -37,7 +37,18 @@ export function MobileMenu({ links }: { links: readonly (readonly [string, strin
 
   const item = 'flex min-h-11 items-center rounded-btn px-3 text-ink no-underline hover:bg-bg2';
   return (
-    <details ref={menu} className="group relative lg:hidden">
+    <details
+      ref={menu}
+      // Any choice closes it (a link to this page, WhatsApp, the phone), as does tabbing out.
+      onClick={(e) => {
+        if ((e.target as Element).closest('a') && menu.current) menu.current.open = false;
+      }}
+      onBlur={(e) => {
+        if (menu.current && !menu.current.contains(e.relatedTarget as Node | null))
+          menu.current.open = false;
+      }}
+      className="group relative lg:hidden"
+    >
       <summary
         aria-label="Menu"
         className="grid size-11 cursor-pointer list-none place-items-center rounded-full text-ink hover:bg-bg2 group-open:bg-bg2 [&::-webkit-details-marker]:hidden"

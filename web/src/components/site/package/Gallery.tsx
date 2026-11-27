@@ -57,7 +57,7 @@ export function Gallery({ images }: { images: ImageOut[] }) {
   return (
     <>
       {/* Review 2026-11-27 (H3): one strip of four from `lg`, so the mosaic no longer fills the fold. */}
-      <div className="mt-2 grid auto-rows-[110px] grid-cols-2 gap-2 sm:auto-rows-[150px] sm:grid-cols-[2fr_1fr_1fr] lg:auto-rows-[120px] lg:grid-cols-4">
+      <div className="mt-2 grid auto-rows-[110px] grid-cols-2 gap-2 sm:auto-rows-[150px] sm:grid-cols-[2fr_1fr_1fr] lg:auto-rows-[120px] lg:grid-flow-col lg:grid-cols-none lg:auto-cols-fr">
         {grid.map(({ img, index: i }, cell) => (
           /*
            * The cell, not the button, owns the grid span: the "+N photos" pill sits beside the
