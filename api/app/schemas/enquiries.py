@@ -22,6 +22,15 @@ PHONE_MESSAGE = "Enter a 10-digit Indian mobile number"
 # and it lands in the owner email's subject (services/email/render.py).
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 NAME_CONTROL_MESSAGE = "Enter your name on one line, without special characters"
+# Review 2026-11-27 (L3): our email greets the name, so it must not read as a link or address
+# ("evil.example/refund", "a@b.in", "www.x", "refund.support"). A title or initial joined by a
+# dot ("A.Rahman", "Dr.Sharma", "S.K. Sharma") still passes: a domain needs a 4+ character label
+# or a common TLD. shortcut: a short label on a rare TLD ("abc.ly") passes; drop the name from
+# the visitor email if that is ever abused.
+LINK_RE = re.compile(
+    r"[/:@]|www\.|[a-z0-9-]{4,}\.[a-z]{2,}|\.(?:com|net|org|in|co|io)(?![a-z])", re.IGNORECASE
+)
+NAME_LINK_MESSAGE = "Enter just your name, without a web or email address"
 
 
 def normalise_phone(raw: str) -> str:
@@ -74,6 +83,8 @@ class EnquiryCreate(ApiModel):
     def _one_line_name(cls, v: str) -> str:
         if CONTROL_RE.search(v):
             raise ValueError(NAME_CONTROL_MESSAGE)
+        if LINK_RE.search(v):
+            raise ValueError(NAME_LINK_MESSAGE)
         return v
 
     @field_validator("message", "preferred_dates", "changes", mode="before")

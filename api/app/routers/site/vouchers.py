@@ -25,7 +25,7 @@ from app.models.enums import UserRole
 from app.routers.site.bookings import BookingRef
 from app.services.account import owns_booking
 from app.services.analytics import ist_today
-from app.services.auth.deps import current_session
+from app.services.auth.deps import current_session, is_read_only
 from app.services.booking import trip_pack
 from app.services.booking.voucher import HAS_VOUCHER, link_is_valid, load_booking_facts
 from app.services.gst.files import document_pdf
@@ -170,6 +170,7 @@ async def get_trip_pack_pdf(
 async def get_gst_document(
     ref: BookingRef,
     key: DocumentKey,
+    request: Request,
     session: Annotated[Session | None, Depends(current_session)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
@@ -179,7 +180,9 @@ async def get_gst_document(
         raise ApiError("unauthorized", "Sign in to continue")
     if session.user.role != UserRole.OWNER and not await owns_booking(db, session.user, ref):
         raise ApiError("forbidden", "This booking is not on your account")
-    pdf, filename = await document_pdf(db, ref, key)
+    pdf, filename = await document_pdf(
+        db, ref, key, may_issue=not is_read_only(request, session.user)
+    )
     return Response(
         pdf,
         media_type="application/pdf",

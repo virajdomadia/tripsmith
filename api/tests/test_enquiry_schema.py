@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.enquiries import NAME_CONTROL_MESSAGE, EnquiryCreate, normalise_phone
+from app.schemas.enquiries import (
+    NAME_CONTROL_MESSAGE,
+    NAME_LINK_MESSAGE,
+    EnquiryCreate,
+    normalise_phone,
+)
 
 CASES = json.loads((Path(__file__).parent / "fixtures" / "enquiry_cases.json").read_text("utf-8"))
 
@@ -125,3 +130,24 @@ def test_a_concierge_handoff_keeps_its_conversation_and_an_optional_trip() -> No
     # Any other type drops a stray conversation id rather than linking a transcript.
     other = EnquiryCreate.model_validate({**expand(CASES["valid"][0]), "conversationId": "c1"})
     assert other.conversation_id is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["https://evil.example/refund", "evil.example", "a@b.in", "x:y", "www.x", "Ravi.In", "x.co"],
+)
+def test_a_name_cannot_carry_a_link_into_our_email(name: str) -> None:
+    """Review 2026-11-27 (L3): the visitor email greets the first word of the name, and mail
+    clients turn a URL there into a link sent from our own address."""
+    with pytest.raises(ValidationError) as exc:
+        EnquiryCreate.model_validate({**CASES["valid"][2], "name": name})
+    (err,) = exc.value.errors()
+    assert err["loc"] == ("name",) and NAME_LINK_MESSAGE in err["msg"]
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["S.K. Sharma", "Dr. Anil D'Souza", "Mary-Anne St. John", "A.Rahman", "Dr.Sharma", "Mrs.Iyer"],
+)
+def test_initials_and_titles_are_still_names(name: str) -> None:
+    assert EnquiryCreate.model_validate({**CASES["valid"][2], "name": name}).name == name

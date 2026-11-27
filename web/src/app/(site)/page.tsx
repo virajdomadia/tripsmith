@@ -31,7 +31,10 @@ export const metadata: Metadata = {
   openGraph: siteCardOpenGraph('/'),
 };
 
-const GRID = 'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3';
+// Review 2026-11-27 (M9): a swipeable rail on a phone (the page was ~10,000px tall), a grid
+// from `sm`. The rail bleeds to the screen edge and snaps card by card.
+const GRID =
+  'grid gap-4.5 sm:grid-cols-2 lg:grid-cols-3 max-sm:-mx-4 max-sm:flex max-sm:snap-x max-sm:snap-mandatory max-sm:overflow-x-auto max-sm:scroll-px-4 max-sm:px-4 max-sm:pb-2 max-sm:[&>li]:w-[82%] max-sm:[&>li]:shrink-0 max-sm:[&>li]:snap-start';
 
 export default async function Home() {
   const [home, { facets }] = await Promise.all([
@@ -89,7 +92,7 @@ export default async function Home() {
           <section className="mt-18">
             <SectionHead
               title="Deals"
-              sub="A flat amount off per traveller, on every date — until the day each one ends."
+              sub="A flat amount off per traveller, on every date, until the day each one ends."
               href="/packages"
               link="All packages"
             />

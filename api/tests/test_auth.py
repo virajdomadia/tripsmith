@@ -14,6 +14,7 @@ from app.services.auth.cookie import COOKIE_NAME, clear_session_cookie, set_sess
 from app.services.auth.deps import require_owner
 from app.services.auth.passwords import hash_password
 from app.services.auth.sessions import (
+    OWNER_SESSION_TTL,
     SESSION_TTL,
     delete_session,
     find_session,
@@ -68,7 +69,10 @@ async def test_login_creates_a_session_row(db: AsyncSession) -> None:
     session, token = opened
     assert session.user.email == OWNER_EMAIL and session.user.role == UserRole.OWNER
     assert session.ip == "1.2.3.4" and session.user_agent == "UA"
-    assert before + SESSION_TTL - dt.timedelta(seconds=5) <= session.expires_at
+    # Review 2026-11-27 (L6): an owner session lasts 7 days, not the customers' 30.
+    assert before + OWNER_SESSION_TTL - dt.timedelta(seconds=5) <= session.expires_at
+    assert session.expires_at <= dt.datetime.now(dt.UTC) + OWNER_SESSION_TTL
+    assert OWNER_SESSION_TTL == dt.timedelta(days=7) < SESSION_TTL
     assert await session_count(db) == 1
     # The row holds only the digest: the cookie value appears nowhere in the table.
     assert session.token_hash == hash_token(token)

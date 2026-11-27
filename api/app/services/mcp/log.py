@@ -9,9 +9,11 @@ What is stored is bounded and sanitised: every string in the args goes through `
 dicts and lists keep their first `MAX_ITEMS` entries, to `MAX_DEPTH` levels.
 """
 
+import datetime as dt
 import logging
 from typing import Any
 
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import McpRequest
@@ -23,6 +25,8 @@ MAX_TEXT = 300
 MAX_ITEMS = 20
 MAX_DEPTH = 4
 MAX_LABEL = 200  # tool names, client name/version, User-Agent, error text
+# Review 2026-11-27 (L4): no scheduled jobs, so each write prunes what is older (indexed).
+KEEP = dt.timedelta(days=30)
 
 
 def clean_args(value: dict[str, Any]) -> dict[str, Any]:
@@ -79,5 +83,8 @@ async def record(
         async with sessions() as db:
             db.add(row)
             await db.commit()
+            # After the row's own commit, so a failed prune can never lose it.
+            await db.execute(delete(McpRequest).where(McpRequest.created_at < func.now() - KEEP))
+            await db.commit()
     except Exception:  # noqa: BLE001 — the log must never cost the customer their answer
-        log.exception("Could not write the mcp_requests row for %s", row.name)
+        log.exception("Could not write or prune mcp_requests after %s", row.name)

@@ -120,6 +120,15 @@ export function FilterPanel({ facets }: Props) {
         action="/packages"
         className={`${open ? 'grid' : 'hidden'} mt-3 gap-5 rounded-card border border-line p-4.5 lg:mt-0 lg:grid`}
       >
+        {/* Review 2026-11-27 (M1): at the top, not below a rail taller than the window. */}
+        {isFiltered(draft) && (
+          <NavLink
+            href="/packages"
+            className="inline-flex min-h-11 items-center justify-self-start rounded-btn border border-line px-4 text-sm font-bold text-ink no-underline hover:bg-bg2"
+          >
+            Clear all filters
+          </NavLink>
+        )}
         <Group title="Destination">
           {facets.destinations.map((d) => (
             <Check
@@ -267,14 +276,6 @@ export function FilterPanel({ facets }: Props) {
             >
               Show trips
             </button>
-          )}
-          {isFiltered(draft) && (
-            <NavLink
-              href="/packages"
-              className="rounded-btn border border-line px-4 py-2.5 text-sm font-bold text-ink no-underline hover:bg-bg2"
-            >
-              Clear all
-            </NavLink>
           )}
         </div>
       </form>

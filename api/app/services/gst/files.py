@@ -117,10 +117,12 @@ async def document_pdf(
     key: str,
     *,
     timeout: float | None = None,  # noqa: ASYNC109
+    may_issue: bool = True,
 ) -> tuple[bytes, str]:
     """(PDF bytes, filename) for document `key` of booking `ref`, numbering it if the event
-    missed it. `timeout` bounds the render only — never the issue and its commit."""
-    doc = await issue(db, ref, key)
+    missed it (unless `may_issue` is False: a read-only owner). `timeout` bounds the render
+    only — never the issue and its commit."""
+    doc = await issue(db, ref, key, may_issue=may_issue)
     facts = await gst_facts(db, ref, doc)
     render = asyncio.to_thread(render_gst_document, facts)
     pdf = await (asyncio.wait_for(render, timeout) if timeout else render)

@@ -49,6 +49,7 @@ BOOKING_LIMIT = 5
 BOOKING_WINDOW_SECONDS = 600
 SYNC_LIMIT = 20  # the sheet syncs once per closed Checkout; a pending hold lives 10 minutes
 SYNC_WINDOW_SECONDS = 600
+SYNC_IP_LIMIT = 60  # review 2026-11-27 (L2): per address across refs, so refs can't be enumerated
 PAYMENTS_OFF = "Online booking is switched off right now — send an enquiry or WhatsApp us"
 BookingRef = Annotated[str, Path(pattern=r"^TB-[A-Z0-9]{6}$", examples=["TB-7F3K2Q"])]
 
@@ -78,11 +79,15 @@ async def booking_rate_limit(request: Request) -> None:
 async def sync_rate_limit(request: Request, ref: BookingRef) -> None:
     """Each sync of a pending booking is a Razorpay API call under the merchant key."""
     limiter: RateLimiter = request.app.state.rate_limiter
-    result = await limiter.hit(f"sync:{ref}", limit=SYNC_LIMIT, window_seconds=SYNC_WINDOW_SECONDS)
-    if not result.allowed:
-        raise RateLimited(
-            result.retry_after, "Too many checks on this booking — try again in a few minutes"
-        )
+    for key, limit in (
+        (f"sync:{ref}", SYNC_LIMIT),
+        (f"sync-ip:{client_ip(request)}", SYNC_IP_LIMIT),
+    ):
+        result = await limiter.hit(key, limit=limit, window_seconds=SYNC_WINDOW_SECONDS)
+        if not result.allowed:
+            raise RateLimited(
+                result.retry_after, "Too many checks on this booking — try again in a few minutes"
+            )
 
 
 EXTRAS_LIMIT = 10  # Add extras orders per booking; each is a Razorpay order under our key

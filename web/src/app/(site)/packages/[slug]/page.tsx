@@ -122,7 +122,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
         {faq && <JsonLd data={faq} />}
         <WhatsAppPageMessage message={whatsappInterest(pkg.name, url)} hidden />
         <ViewBeacon slug={pkg.slug} />
-        <PackageHero pkg={pkg} url={url} />
+        <PackageHero pkg={pkg} url={url} bookable={bookable} />
         <Gallery images={pkg.images} />
         <QuickFacts pkg={pkg} />
         <SectionNav

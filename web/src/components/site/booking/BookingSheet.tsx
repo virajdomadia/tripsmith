@@ -328,9 +328,14 @@ function Receipt({
       </div>
       <div className="grid gap-2 border-t border-line bg-bg px-4.5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] max-md:px-3.5">
         {estimate !== undefined && estimate > TEST_MODE_MAX_PAISE && (
-          <p className="rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
-            Demo limit: Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}, so this payment
-            will stop at Razorpay. For a full test payment, try{' '}
+          // Review 2026-11-27 (M3): one line that opens, so on a phone the footer stays total + Pay.
+          <details className="group rounded-[10px] bg-warn-soft px-2.5 py-1.5 text-center text-[12.5px] font-semibold text-warn">
+            <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+              Test payment: this one will stop at Razorpay{' '}
+              <span className="underline group-open:hidden">Why?</span>
+            </summary>
+            Razorpay’s test mode takes up to {inr(TEST_MODE_MAX_PAISE)}. For a full test payment,
+            try{' '}
             {TEST_MODE_TRIPS.filter((t) => t.slug !== pkg.slug).map((t, i, all) => (
               <span key={t.slug}>
                 <a href={`/packages/${t.slug}#book`} className="underline">
@@ -339,7 +344,7 @@ function Receipt({
                 {i < all.length - 1 ? ' or ' : '.'}
               </span>
             ))}
-          </p>
+          </details>
         )}
         <button
           type="button"

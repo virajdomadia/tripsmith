@@ -75,7 +75,7 @@ export default async function PackagesPage({ searchParams }: Props) {
         <h1 className="text-[clamp(30px,3.6vw,44px)]">Holiday packages</h1>
         <p className="num mt-1.5 max-w-[60ch] text-base text-mute">
           {plural(catalogSize, 'trip', 'trips')} across{' '}
-          {plural(facets.destinations.length, 'destination', 'destinations')} — every date a real
+          {plural(facets.destinations.length, 'destination', 'destinations')}. Every date is a real
           departure.
         </p>
       </header>

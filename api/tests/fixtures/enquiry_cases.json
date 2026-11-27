@@ -55,6 +55,15 @@
       "adults": 1,
       "children": 0,
       "website": ""
+    },
+    {
+      "type": "contact",
+      "name": "A.Rahman",
+      "phone": "9845022110",
+      "email": "rahman@example.com",
+      "adults": 1,
+      "children": 0,
+      "website": ""
     }
   ],
   "invalid": [
@@ -73,6 +82,9 @@
     { "field": "packageSlug", "body": { "type": "standard", "name": "No Package", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
     { "field": "type", "body": { "type": "group", "name": "Wrong Type", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
     { "field": "budget", "body": { "type": "custom", "packageSlug": "north-goa-beaches", "name": "Low Budget", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "budget": 500, "website": "" } },
-    { "field": "message", "body": { "type": "contact", "name": "Long Message", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "message": "@@LONG_1001@@", "website": "" } }
+    { "field": "message", "body": { "type": "contact", "name": "Long Message", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "message": "@@LONG_1001@@", "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "https://evil.example/refund", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "Refund.Support", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } },
+    { "field": "name", "body": { "type": "contact", "name": "Ravi tripsmith.com", "phone": "9845022110", "email": "a@b.co", "adults": 1, "children": 0, "website": "" } }
   ]
 }

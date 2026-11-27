@@ -94,7 +94,7 @@ async def test_the_prompt_counts_against_the_limit_and_fails_closed() -> None:
     async with booted(app) as http, client_for(http) as client:
         await client.list_prompts()  # free, like tools/list
         await client.get_prompt(PLAN_A_TRIP, {})
-    assert [k for k, _, _ in limiter.hits] == [f"mcp:{IP}"]
+    assert [k for k, _, _ in limiter.hits] == [f"mcp:{IP}", "mcp:all"]
 
     app = mcp_app()
     app.state.rate_limiter = down_upstash()

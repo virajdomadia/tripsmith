@@ -1,4 +1,4 @@
-"""Opaque 30-day sessions in the `sessions` table (06 §A2), for the owner and customers alike.
+"""Opaque sessions in the `sessions` table (06 §A2): 30 days for customers, 7 for an owner.
 
 The token is the cookie value; a row stores only its SHA-256 (`token_hash`), so a leaked
 backup or a read-only SQL hole yields no usable cookie. A plain hash is enough — the token is
@@ -17,10 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Session, User, Verification
+from app.models.enums import UserRole
 from app.schemas.auth import SessionInfo, SessionUser
 from app.services.auth.passwords import hash_password, needs_rehash, verify_password
 
 SESSION_TTL = dt.timedelta(days=30)
+# Review 2026-11-27 (L6): an owner cookie reaches every booking, so it lives a week.
+# shortcut: absolute only, no idle timeout; add a last-seen column if owners ever share devices.
+OWNER_SESSION_TTL = dt.timedelta(days=7)
 CODE_KEEP = dt.timedelta(days=1)  # an expired sign-in code stays this long for a support look
 USER_AGENT_MAX = 300
 
@@ -59,8 +63,8 @@ async def login(
 async def open_session(
     db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
 ) -> tuple[Session, str]:
-    """A new 30-day session for `user`, committed with whatever else the caller has pending —
-    the owner's password login and the customer's email code (B8) both end here.
+    """A new session for `user` (30 days, an owner's 7), committed with whatever else the caller
+    has pending — the owner's password login and the customer's email code (B8) both end here.
 
     Every sign-in also deletes the expired sessions (a cookie never sent again would otherwise
     stay forever; `find_session` only drops the ones still presented) and the sign-in codes
@@ -72,7 +76,7 @@ async def open_session(
     session = Session(
         user_id=user.id,
         token_hash=hash_token(token),
-        expires_at=now + SESSION_TTL,
+        expires_at=now + (OWNER_SESSION_TTL if user.role == UserRole.OWNER else SESSION_TTL),
         ip=ip,
         user_agent=(user_agent or "")[:USER_AGENT_MAX] or None,
     )

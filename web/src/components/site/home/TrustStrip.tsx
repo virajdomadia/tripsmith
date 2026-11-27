@@ -1,25 +1,20 @@
-import { Bed, Calendar, Phone, Rupee } from './icons';
+import { Calendar, Phone } from './icons';
 
-/** Four proof points under the chips; the departure count is live, the rest are promises. */
+/**
+ * Two proof points under the chips; the departure count is live. Review 2026-11-27 (M6): one
+ * line of text, not a third row of four cards repeating "Why book with Tripsmith" below.
+ */
 export function TrustStrip({ departures }: { departures: number }) {
   const items = [
-    [Calendar, `${departures} departures`, 'this season, live seats'],
-    [Phone, '2-hour callback', '10 am – 8 pm, every day'],
-    [Bed, 'Hotels we’ve stayed in', 'checked by us'],
-    [Rupee, 'Honest pricing', 'what you see is what you pay'],
+    [Calendar, `${departures} departures this season, with live seats`],
+    [Phone, 'A person calls back within 2 hours, 10 am to 8 pm'],
   ] as const;
   return (
-    <ul className="mt-11 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-      {items.map(([Icon, title, sub]) => (
-        <li
-          key={title}
-          className="flex items-center gap-3 rounded-[14px] bg-bg2 px-4 py-3.5 text-sm"
-        >
-          <Icon className="size-[22px] shrink-0 text-primary" />
-          <span>
-            <b className="num block font-extrabold">{title}</b>
-            <span className="text-mute">{sub}</span>
-          </span>
+    <ul className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm font-semibold text-ink2">
+      {items.map(([Icon, text]) => (
+        <li key={text} className="flex items-center gap-2">
+          <Icon className="size-[18px] shrink-0 text-primary" />
+          <span className="num">{text}</span>
         </li>
       ))}
     </ul>

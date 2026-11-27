@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Container } from '@/components/site/Container';
 import { CompareView } from '@/components/site/compare/CompareView';
+import { TrayCompareLink } from '@/components/site/compare/TrayCompareLink';
 import { api, ApiRequestError } from '@/lib/api';
 import { MAX_COMPARE, slugsFromParam } from '@/lib/compare';
 
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Compare trips',
   description:
-    'Up to three Tripsmith trips side by side — prices, dates, stays and what is included.',
+    'Up to three Tripsmith trips side by side: prices, dates, stays and what is included.',
   robots: { index: false, follow: true },
 };
 
@@ -38,11 +39,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         className="flex flex-wrap items-center gap-2 text-[13px] text-mute [&_a]:inline-flex [&_a]:min-h-6 [&_a]:items-center"
       >
         <Link href="/packages" className="hover:text-ink">
-          Trips
-        </Link>
-        <span aria-hidden>›</span>
-        <Link href="/account?tab=saved" className="hover:text-ink">
-          Saved
+          Packages
         </Link>
         <span aria-hidden>›</span>
         <span className="text-ink">Compare</span>
@@ -81,8 +78,9 @@ function Empty({ unavailable, gone }: { unavailable: boolean; gone: number }) {
           ? 'Try again in a minute.'
           : gone
             ? 'The trips in this link are no longer listed. Tick Compare on up to three trips to line them up side by side.'
-            : 'Tick Compare on up to three trips and they line up here side by side — prices, dates, stays and what is included.'}
+            : 'Tick Compare on up to three trips and they line up here side by side: prices, dates, stays and what is included.'}
       </p>
+      {!unavailable && <TrayCompareLink />}
       <Link
         href="/packages"
         className="mt-1 rounded-btn bg-action px-5 py-3 font-bold text-ink no-underline transition-colors hover:bg-action-ink"

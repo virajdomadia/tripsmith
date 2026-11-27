@@ -12,6 +12,9 @@ from typing import Any
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The owner login printed on /admin/login (web NEXT_PUBLIC_DEMO_EMAIL, seeded from OWNER_EMAIL).
+DEMO_OWNER_EMAIL = "owner@tripsmith.demo"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -40,7 +43,9 @@ class Settings(BaseSettings):
     # QA 2026-11-19: owner logins that may look but not touch — comma-separated emails. Every
     # POST/PUT/PATCH/DELETE under /admin/* from one of them answers 403 (services/auth/deps.py),
     # GETs still work. Production lists the published demo login, so nobody holding it can change
-    # live data; a real owner (scripts/create_owner.py) is not listed. Blank = no read-only owner.
+    # live data; a real owner (scripts/create_owner.py) is not listed. Review 2026-11-27 (C1):
+    # unset or blank on production while PUBLIC_DEMO_OWNER is on means DEMO_OWNER_EMAIL, so a
+    # lost variable fails safe; elsewhere blank = no read-only owner.
     demo_read_only_emails: str = ""
 
     # --- Email: SMTP when host, user and password are all set (v2.5 P0: Gmail), else Resend ---
@@ -106,6 +111,15 @@ class Settings(BaseSettings):
         if isinstance(data, dict) and data.get("public_demo_owner") in (None, ""):
             data = {**data, "public_demo_owner": os.environ.get("VERCEL_ENV") == "production"}
         return data
+
+    @model_validator(mode="after")
+    def _demo_login_read_only_in_production(self) -> "Settings":
+        """Review 2026-11-27 (C1): the same for the read-only list — while the published login
+        is on in production, a lost DEMO_READ_ONLY_EMAILS still leaves it read-only."""
+        production = os.environ.get("VERCEL_ENV") == "production"
+        if production and self.public_demo_owner and not self.demo_read_only_emails.strip():
+            self.demo_read_only_emails = DEMO_OWNER_EMAIL
+        return self
 
     def read_only_emails(self) -> frozenset[str]:
         """`DEMO_READ_ONLY_EMAILS`, trimmed and lower-cased (emails are stored lower-cased)."""

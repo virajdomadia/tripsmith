@@ -4,9 +4,10 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const replace = vi.fn();
+const path = { current: '/packages' };
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, refresh: vi.fn() }),
-  usePathname: () => '/packages',
+  usePathname: () => path.current,
 }));
 
 import { CompareTick } from '../src/components/site/compare/CompareTick';
@@ -184,6 +185,29 @@ describe('the tray', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Remove Trip a from compare' }));
     expect(screen.getByText('Tick one more trip to compare')).toBeTruthy();
+  });
+});
+
+describe('where the tray shows (review 2026-11-27, H1/M4)', () => {
+  afterEach(() => {
+    path.current = '/packages';
+  });
+
+  it.each([
+    ['/packages', true],
+    ['/packages/north-goa-beaches', true],
+    ['/destinations/goa', true],
+    ['/account', true],
+    ['/', false],
+    ['/packages/north-goa-beaches/enquire', false],
+    ['/compare', false],
+  ])('%s → %s', (at, shown) => {
+    path.current = at;
+    act(() => {
+      toggleCompare({ slug: 'a', name: 'Trip a', coverUrl: null });
+    });
+    render(<CompareTray />);
+    expect(screen.queryByRole('region', { name: 'Compare tray' }) !== null).toBe(shown);
   });
 });
 

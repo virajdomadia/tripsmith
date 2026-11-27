@@ -12,9 +12,13 @@ import { clearTray, removeFromTray, useCompareTray } from '@/lib/compare-tray';
  * the life of the tab (sessionStorage) so it follows the visitor across pages. Up to three
  * thumbnails, each removable, and "Compare (n)" → `/compare?p=…`. Hidden on `/compare` itself.
  *
- * Placement: centred from `lg`; on a phone it sits above the WhatsApp button, and above the
- * package page's sticky Book bar where there is one (`[data-cta-bar]`).
+ * Placement: centred from `lg`; on a phone at the foot of the window, above the package page's
+ * sticky Book bar where there is one (`[data-cta-bar]`). Review 2026-11-27 (H1, M4): only on the
+ * pages that list trips (not over the home page's search card), with the page's foot padded by
+ * its height (globals.css) and 32px remove buttons.
  */
+// The listing, a destination, a trip (not its enquiry form) and My trips' saved list.
+const LIST_PAGE = /^\/(packages|destinations)(\/[^/]+)?$|^\/account$/;
 export function CompareTray() {
   const { items, shake } = useCompareTray();
   const path = usePathname();
@@ -27,16 +31,16 @@ export function CompareTray() {
     return () => clearTimeout(t);
   }, [shake]);
 
-  if (items.length === 0 || path === '/compare') return null;
+  if (items.length === 0 || !LIST_PAGE.test(path)) return null;
   const ready = items.length >= 2;
 
   return (
     <section
       aria-label="Compare tray"
       data-compare-tray
-      className={`fixed inset-x-3 bottom-[calc(max(16px,env(safe-area-inset-bottom))+64px)] z-30 mx-auto flex max-w-[640px] items-center gap-2.5 rounded-card border border-line bg-bg/97 p-2.5 shadow-lift backdrop-blur [main:has([data-cta-bar])~&]:bottom-[calc(max(10px,env(safe-area-inset-bottom))+70px)] lg:bottom-6 lg:[main:has([data-cta-bar])~&]:bottom-6 ${shaking ? 'animate-tray-shake' : 'animate-rise'}`}
+      className={`fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[640px] items-center gap-2.5 rounded-card border border-line bg-bg/97 p-2.5 shadow-lift backdrop-blur [main:has([data-cta-bar])~&]:bottom-[calc(max(10px,env(safe-area-inset-bottom))+70px)] lg:bottom-6 lg:[main:has([data-cta-bar])~&]:bottom-6 ${shaking ? 'animate-tray-shake' : 'animate-rise'}`}
     >
-      <ul className="flex min-w-0 gap-1.5">
+      <ul className="flex min-w-0 gap-4 pl-1">
         {Array.from({ length: MAX_COMPARE }, (_, n) => {
           const item = items[n];
           if (!item)
@@ -58,7 +62,7 @@ export function CompareTray() {
                 type="button"
                 onClick={() => removeFromTray(item.slug)}
                 aria-label={`Remove ${item.name} from compare`}
-                className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-ink text-[11px] leading-none font-bold text-white"
+                className="absolute -top-2.5 -right-2.5 grid size-8 place-items-center rounded-full border-2 border-bg bg-ink text-sm leading-none font-bold text-white"
               >
                 ×
               </button>

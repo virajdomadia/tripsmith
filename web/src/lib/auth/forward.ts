@@ -28,6 +28,7 @@ export type AuthPath =
   | `/account/bookings/${string}/review`
   | `/account/bookings/${string}/extras`
   | `/account/bookings/${string}/extras/quote`
+  | `/bookings/${string}/sync`
   | '/account/saved/slugs'
   | '/account/saved/merge'
   | `/account/saved/${string}`;

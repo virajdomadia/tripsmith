@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { Photo } from '@/components/site/Photo';
+import { BookNowButton } from '@/components/site/booking/BookNow';
 import { CompareTick } from '@/components/site/compare/CompareTick';
+import { enquireHref } from '@/lib/enquiry-form-state';
 import { SaveHeart } from '@/components/site/saved/SaveHeart';
 import { Stars } from '@/components/site/Stars';
 import type { components } from '@/lib/api-types';
@@ -10,7 +12,15 @@ import { ShareButtons } from './ShareButtons';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
-export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
+export function PackageHero({
+  pkg,
+  url,
+  bookable = false,
+}: {
+  pkg: PackageDetail;
+  url: string;
+  bookable?: boolean;
+}) {
   return (
     <>
       <nav
@@ -34,10 +44,12 @@ export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
             alt={pkg.cover.alt}
             sizes="(min-width: 1280px) 1220px, 100vw"
             priority
-            className="aspect-[4/5] rounded-card sm:aspect-[21/9]"
+            // Review 2026-11-27 (H3): 320px from `lg`, cropped low (covers are often sky-heavy),
+            // so the facts, the price and Book now reach the first screen.
+            className="aspect-[4/5] rounded-card sm:aspect-[21/9] lg:aspect-auto lg:h-[320px] [&_img]:object-[50%_70%]"
           />
         ) : (
-          <div className="aspect-[4/5] rounded-card bg-bg2 sm:aspect-[21/9]" />
+          <div className="aspect-[4/5] rounded-card bg-bg2 sm:aspect-[21/9] lg:aspect-auto lg:h-[320px]" />
         )}
         <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-4 rounded-b-card bg-gradient-to-t from-[rgb(10_20_30/0.7)] to-transparent p-5 text-white [text-shadow:0_2px_20px_rgb(0_0_0/0.4)] sm:p-8">
           <div className="min-w-0">
@@ -68,6 +80,13 @@ export function PackageHero({ pkg, url }: { pkg: PackageDetail; url: string }) {
               line={`${duration(pkg.nights, pkg.days)} · ${pkg.destination.name}`}
               url={url}
             />
+            {/* Review 2026-11-27 (H3): Book now on the first desktop screen; phones have the bar. */}
+            {bookable && (
+              <BookNowButton
+                fallbackHref={enquireHref(pkg.slug)}
+                className="hidden h-10 items-center rounded-btn bg-action px-4 text-sm font-bold text-ink [text-shadow:none] no-underline transition-colors hover:bg-action-ink lg:inline-flex"
+              />
+            )}
           </div>
         </div>
       </div>

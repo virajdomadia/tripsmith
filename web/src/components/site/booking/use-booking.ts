@@ -30,7 +30,7 @@ import {
   unbookableReason,
 } from '@/lib/booking';
 import type { Deal } from '@/lib/deal';
-import type { EarlyBird } from '@/lib/early-bird';
+import { afterDiscounts, type EarlyBird, tierFor } from '@/lib/early-bird';
 import { formatDate } from '@/lib/format';
 import { type CheckoutSuccess, loadCheckout, openCheckout } from '@/lib/razorpay-checkout';
 import { CLAIM_ENDED, claimLive, type WaitlistClaim } from '@/lib/waitlist';
@@ -281,13 +281,19 @@ export function useBooking(
     }));
   }, [claim, claimDeparture]);
 
-  // Start on the first date this party can book. After a date sold out under the visitor
-  // (`gone`), nothing is picked for them: R14 sends them back to choosing.
+  // Start on the cheapest date this party can book (the earliest of equals). Review 2026-11-27
+  // (H4): the first date could cost more than the "From" price the card and page show. After a
+  // date sold out under the visitor (`gone`), nothing is picked for them: R14 sends them back.
   useEffect(() => {
     if (departureId || gone) return;
-    const first = departures.find((d) => !unbookableReason(d, party, today, rules.leadDays));
-    if (first) setDepartureId(first.id);
-  }, [departures, departureId, gone, party, today, rules.leadDays]);
+    const deal = pkg.deal && pkg.deal.endsOn >= today ? pkg.deal : null;
+    const price = (d: Departure) =>
+      afterDiscounts(d.priceDoublePaise, deal, tierFor(pkg.earlyBird, d.date, today));
+    const cheapest = departures
+      .filter((d) => !unbookableReason(d, party, today, rules.leadDays))
+      .reduce<Departure | null>((best, d) => (best && price(best) <= price(d) ? best : d), null);
+    if (cheapest) setDepartureId(cheapest.id);
+  }, [departures, departureId, gone, party, today, rules.leadDays, pkg.deal, pkg.earlyBird]);
 
   // A chosen date that is no longer on sale at all (a fresh read said so) is unchosen; one that
   // is merely `short` stays, with the warning — the visitor may rather travel fewer.

@@ -50,12 +50,14 @@ export function Gallery({ images }: { images: ImageOut[] }) {
   // "+N photos" counts what the viewer cannot see at their breakpoint (cover excluded).
   const extraDesktop = images.length - 1 - grid.length;
   const extraPhone = images.length - 1 - Math.min(grid.length, GRID_MAX_PHONE);
+  const extraWide = images.length - 1 - Math.min(grid.length, 4); // the one-row strip from `lg`
   const chip = (n: number) => `+ ${n} ${n === 1 ? 'photo' : 'photos'}`;
   const current = index === null ? null : images[index];
 
   return (
     <>
-      <div className="mt-2 grid auto-rows-[110px] grid-cols-2 gap-2 sm:auto-rows-[150px] sm:grid-cols-[2fr_1fr_1fr]">
+      {/* Review 2026-11-27 (H3): one strip of four from `lg`, so the mosaic no longer fills the fold. */}
+      <div className="mt-2 grid auto-rows-[110px] grid-cols-2 gap-2 sm:auto-rows-[150px] sm:grid-cols-[2fr_1fr_1fr] lg:auto-rows-[120px] lg:grid-flow-col lg:grid-cols-none lg:auto-cols-fr">
         {grid.map(({ img, index: i }, cell) => (
           /*
            * The cell, not the button, owns the grid span: the "+N photos" pill sits beside the
@@ -64,9 +66,9 @@ export function Gallery({ images }: { images: ImageOut[] }) {
            */
           <div
             key={img.url}
-            className={`relative min-w-0 ${cell === 0 ? 'col-span-2 sm:col-span-1 sm:row-span-2' : ''} ${
+            className={`relative min-w-0 ${cell === 0 ? 'col-span-2 sm:col-span-1 sm:row-span-2 lg:row-span-1' : ''} ${
               cell >= 3 ? 'hidden sm:block' : ''
-            }`}
+            } ${cell >= 4 ? 'lg:hidden' : ''}`}
           >
             <button
               type="button"
@@ -86,9 +88,17 @@ export function Gallery({ images }: { images: ImageOut[] }) {
               // @theme inline); these counter pills were designed at 8px, so pin the value here.
               <span
                 aria-hidden
-                className="pointer-events-none absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block"
+                className="pointer-events-none absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink sm:block lg:hidden"
               >
                 {chip(extraDesktop)}
+              </span>
+            )}
+            {cell === Math.min(grid.length, 4) - 1 && extraWide > 0 && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute right-2.5 bottom-2.5 hidden rounded-[8px] bg-bg px-2.5 py-1.5 text-xs font-bold text-ink lg:block"
+              >
+                {chip(extraWide)}
               </span>
             )}
             {cell === Math.min(grid.length, GRID_MAX_PHONE) - 1 && extraPhone > 0 && (

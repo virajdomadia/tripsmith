@@ -2,6 +2,7 @@
 and dropping a package's older PDFs on upload. Every failure degrades; nothing here may raise
 into a request."""
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infra.storage import BlobInfo
 from app.models import Departure, Destination, ItineraryDay, Package, PackageImage
 from app.services.catalog.reads import get_package
-from app.services.pdf.service import PdfService
+from app.services.pdf.service import COVER_MAX_BYTES, PdfService
 from scripts.seed import seed
 from tests.pdf_fixture import package
 from tests.settings import fixture_content, make_settings
@@ -127,6 +128,28 @@ async def test_build_ignores_a_cover_that_is_not_an_image_or_too_big() -> None:
         lambda r: httpx.Response(200, content=b"x", headers={"content-length": "99999999"})
     )
     assert (await service(None, huge).build(package())).startswith(b"%PDF-")
+
+
+async def test_a_photo_is_read_only_up_to_the_cap_and_never_off_a_redirect() -> None:
+    """Review 2026-11-27 (L5): the body was buffered whole before the size check, and
+    redirects were followed off the Blob host."""
+    pulled: list[int] = []
+
+    async def endless() -> AsyncIterator[bytes]:
+        for _ in range(100):  # 100 MB if read to the end; no content-length to warn us
+            pulled.append(1)
+            yield b"x" * 1_000_000
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/moved":
+            return httpx.Response(302, headers={"location": "https://elsewhere.test/a.jpg"})
+        return httpx.Response(200, content=endless(), headers={"content-type": "image/jpeg"})
+
+    svc = service(None)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        assert await svc._fetch_image(client, "https://blob.test/big.jpg") is None
+        assert len(pulled) <= COVER_MAX_BYTES // 1_000_000 + 1
+        assert await svc._fetch_image(client, "https://blob.test/moved") is None
 
 
 async def test_put_stores_under_the_key_and_degrades() -> None:

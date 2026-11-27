@@ -24,18 +24,20 @@ env:
 
 jobs:
   api:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'schedule')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { ref: '${{ env.SHA }}' }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version-file: api/.python-version }
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/setup-node@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 24 }
       - run: npm install --global vercel@52.2.1
       - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
@@ -53,12 +55,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { ref: '${{ env.SHA }}' }
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked --directory api
       - name: MCP smoke test (production)
         run: uv run --directory api python scripts/mcp_smoke.py https://tripsmith-api.virajdomadia.com/mcp
+
+  # Review 2026-11-27 (C1/M1): the published demo owner login must be read-only on production.
+  # Signs in with the login /admin/login prints (the web's public NEXT_PUBLIC_DEMO_* values), reads
+  # /auth/session and fails the run unless `readOnly` is true. Needs no secret beyond the token.
+  demo-read-only:
+    needs: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+      API: https://tripsmith-api.virajdomadia.com
+    steps:
+      - run: npm install --global vercel@52.2.1
+      - run: vercel env pull "$RUNNER_TEMP/web.env" --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Demo owner session is read-only
+        run: |
+          set -a; . "$RUNNER_TEMP/web.env"; set +a
+          test -n "$NEXT_PUBLIC_DEMO_EMAIL" || { echo "NEXT_PUBLIC_DEMO_EMAIL is not set on the web"; exit 1; }
+          jar="$RUNNER_TEMP/jar"
+          body=$(jq -n --arg e "$NEXT_PUBLIC_DEMO_EMAIL" --arg p "$NEXT_PUBLIC_DEMO_PASSWORD" '{email: $e, password: $p}')
+          curl --fail --silent --show-error --max-time 30 --retry 3 --retry-all-errors -c "$jar"             -H 'Content-Type: application/json' -d "$body" "$API/auth/login" -o /dev/null
+          session=$(curl --fail --silent --show-error --max-time 30 -b "$jar" "$API/auth/session")
+          curl --silent --max-time 30 -b "$jar" -X POST "$API/auth/logout" -o /dev/null || true
+          echo "$session" | jq '{role: .user.role, readOnly}'
+          test "$(echo "$session" | jq -r '.readOnly')" = true || { echo "::error::The demo owner can write to production"; exit 1; }
 
   web:
     needs: api
@@ -67,10 +94,10 @@ jobs:
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { ref: '${{ env.SHA }}' }
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 24, cache: pnpm }
       - run: npm install --global vercel@52.2.1
       - run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"

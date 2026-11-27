@@ -202,7 +202,7 @@ export function EnquiryForm({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Your name" name="name" error={errors.name}>
+        <Field label="Your name" name="name" error={errors.name} required>
           <input
             id="name"
             name="name"
@@ -214,7 +214,13 @@ export function EnquiryForm({
             {...describe('name')}
           />
         </Field>
-        <Field label="Mobile number" name="phone" error={errors.phone} hint="We call this number">
+        <Field
+          label="Mobile number"
+          name="phone"
+          error={errors.phone}
+          hint="We call this number"
+          required
+        >
           <input
             id="phone"
             name="phone"
@@ -228,7 +234,7 @@ export function EnquiryForm({
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Email" name="email" error={errors.email}>
+        <Field label="Email" name="email" error={errors.email} required>
           <input
             id="email"
             name="email"

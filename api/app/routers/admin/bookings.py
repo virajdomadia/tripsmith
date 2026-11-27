@@ -40,7 +40,7 @@ from app.schemas.extras import RemoveAddonInput
 from app.schemas.moves import MoveOptions, MoveQuote, MoveQuoteRequest, MoveRequest
 from app.schemas.waitlist import DepartureWaitlist
 from app.services.analytics import ist_today
-from app.services.auth.deps import require_owner
+from app.services.auth.deps import is_read_only, require_owner
 from app.services.booking import (
     balance,
     counter,
@@ -436,12 +436,14 @@ async def _waitlist(db: AsyncSession, departure_id: str) -> DepartureWaitlist:
     response_model_by_alias=True,
 )
 async def waitlist_route(
-    id: str, request: Request, response: Response, db: Db
+    id: str, request: Request, response: Response, db: Db, owner: Owner
 ) -> DepartureWaitlist:
     """The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are
-    offered) — the emails that owes go before the answer."""
+    offered) — the emails that owes go before the answer. Not for a read-only owner: a GET
+    that sends offers would let the demo login act (review 2026-11-27, M2)."""
     response.headers.update(NO_STORE)
-    await walk_and_send(db, [id], Notify.of(request.app.state))
+    if not is_read_only(request, owner):
+        await walk_and_send(db, [id], Notify.of(request.app.state))
     return await _waitlist(db, id)
 
 
