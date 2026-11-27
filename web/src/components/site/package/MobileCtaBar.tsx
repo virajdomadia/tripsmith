@@ -1,22 +1,18 @@
 import Link from 'next/link';
 import { BookNowButton } from '@/components/site/booking/BookNow';
-import { SaveHeart } from '@/components/site/saved/SaveHeart';
-import { File, WhatsApp } from '@/components/site/home/icons';
+import { WhatsApp } from '@/components/site/home/icons';
 import type { components } from '@/lib/api-types';
 import { whatsappHref, whatsappInterest } from '@/lib/business';
 import { enquireHref } from '@/lib/enquiry-form-state';
 import { dealEnds } from '@/lib/deal';
 import { inr, priceOrOnRequest } from '@/lib/format';
-import { itineraryPdfHref } from '@/lib/pdf';
 
 type PackageDetail = components['schemas']['PackageDetail'];
 
-const ICON_BTN =
-  'inline-flex h-11 items-center gap-1.5 rounded-btn border-[1.5px] border-line px-3 font-bold text-ink no-underline transition-colors hover:border-ink';
-
 /**
- * Mockup `.cta-mobile` (F12): price · PDF · WhatsApp · Enquire (Book now from B5 when a date is
- * on sale — the enquiry form stays one tap away in the sheet and the page), sticky to the bottom of the
+ * Mockup `.cta-mobile` (F12): price, WhatsApp, Enquire and Book now (B5) when a date is on sale,
+ * else Enquire. Review 2026-11-27 (M4): Enquire, the lower-commitment step, sits beside Book now;
+ * Save is on the hero and the PDF in the itinerary, so they left the bar. Sticky to the bottom of the
  * viewport while the page content is on screen. It is the last child of the page and `sticky`
  * rather than `fixed`, so it scrolls away with the footer and never covers anything. Full-bleed
  * through the Container's 16px gutters; hidden from `lg` where the PriceBox aside takes over.
@@ -57,32 +53,28 @@ export function MobileCtaBar({
           </>
         )}
       </div>
-      <SaveHeart slug={pkg.slug} name={pkg.name} variant="bar" />
-      <a
-        href={itineraryPdfHref(pkg.slug)}
-        target="_blank"
-        rel="noopener"
-        aria-label="Download itinerary (PDF)"
-        className={ICON_BTN}
-      >
-        <File className="size-5 text-primary" />
-        <span className="sr-only sm:not-sr-only">PDF</span>
-      </a>
       <a
         href={whatsappHref(whatsappInterest(pkg.name, url))}
         target="_blank"
         rel="noopener"
         aria-label="Ask about this trip on WhatsApp"
-        className={`${ICON_BTN} border-wa bg-wa text-white hover:border-wa hover:brightness-105`}
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-btn bg-wa text-white no-underline hover:brightness-105"
       >
         <WhatsApp className="size-5" />
-        <span className="sr-only sm:not-sr-only">WhatsApp</span>
       </a>
       {bookable ? (
-        <BookNowButton
-          fallbackHref={enquireHref(pkg.slug)}
-          className="inline-flex h-11 items-center rounded-btn bg-action px-4 font-bold whitespace-nowrap text-ink no-underline transition-colors hover:bg-action-ink"
-        />
+        <>
+          <Link
+            href={enquireHref(pkg.slug)}
+            className="inline-flex h-11 items-center rounded-btn border-[1.5px] border-line px-3 font-bold text-ink no-underline transition-colors hover:border-ink"
+          >
+            Enquire
+          </Link>
+          <BookNowButton
+            fallbackHref={enquireHref(pkg.slug)}
+            className="inline-flex h-11 items-center rounded-btn bg-action px-3.5 font-bold whitespace-nowrap text-ink no-underline transition-colors hover:bg-action-ink"
+          />
+        </>
       ) : (
         <Link
           href={enquireHref(pkg.slug)}
