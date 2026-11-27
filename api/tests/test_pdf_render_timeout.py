@@ -23,7 +23,7 @@ NO_DB = cast(AsyncSession, None)
 def slow_render(monkeypatch: pytest.MonkeyPatch) -> None:
     doc = cast(DocRef, type("Doc", (), {"number": "TS/26-27/0001"})())
 
-    async def issue(_db: Any, _ref: str, _key: str) -> DocRef:
+    async def issue(_db: Any, _ref: str, _key: str, **_: Any) -> DocRef:
         return doc
 
     async def gst_facts(_db: Any, _ref: str, _doc: DocRef) -> Any:

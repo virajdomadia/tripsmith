@@ -1035,7 +1035,8 @@ export interface paths {
         /**
          * Waitlist Route
          * @description The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are
-         *     offered) — the emails that owes go before the answer.
+         *     offered) — the emails that owes go before the answer. Not for a read-only owner: a GET
+         *     that sends offers would let the demo login act (review 2026-11-27, M2).
          */
         get: operations["getDepartureWaitlist"];
         put?: never;

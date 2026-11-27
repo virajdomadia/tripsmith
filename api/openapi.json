@@ -18918,7 +18918,7 @@
     },
     "/admin/departures/{id}/waitlist": {
       "get": {
-        "description": "The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are\noffered) — the emails that owes go before the answer.",
+        "description": "The date's waitlist, walked first (a lapsed offer reads as lapsed, freed seats are\noffered) — the emails that owes go before the answer. Not for a read-only owner: a GET\nthat sends offers would let the demo login act (review 2026-11-27, M2).",
         "operationId": "getDepartureWaitlist",
         "parameters": [
           {
