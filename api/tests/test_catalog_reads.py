@@ -11,6 +11,7 @@ from app.models import Departure, Package
 from app.models.enums import PackageStatus, Theme
 from app.services.catalog.reads import month_bounds, related_order
 from scripts.seed import seed
+from tests.fixture_dates import M5, NGB_DATES, month_key
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 
@@ -114,16 +115,11 @@ async def test_get_package_returns_the_full_detail(
     assert p["cover"] == p["images"][0]
     assert p["images"][0]["url"].endswith("/packages/north-goa-beaches/vagator-palms-1.jpg")
     assert p["images"][0]["width"] > 0 and p["images"][0]["alt"]
-    # Departures: all four are upcoming (seeded 2026-11 to 2027-02), soonest first, seats from the
-    # view, badges by the pricing rules (16 guaranteed / 4 seats, none sold, guaranteed / 16
-    # plain / 12 plain). QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is
+    # Departures: all four are upcoming (seeded over the next four months), soonest first, seats
+    # from the view, badges by the pricing rules (16 guaranteed / 4 seats, none sold, guaranteed /
+    # 16 plain / 12 plain). QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is
     # not filling.
-    assert [d["date"] for d in p["departures"]] == [
-        "2026-11-20",
-        "2026-12-18",
-        "2027-01-15",
-        "2027-02-12",
-    ]
+    assert [d["date"] for d in p["departures"]] == [d.isoformat() for d in NGB_DATES]
     assert [d["seatsLeft"] for d in p["departures"]] == [16, 4, 16, 12]
     assert [d["badge"] for d in p["departures"]] == ["guaranteed", "guaranteed", None, None]
     first = p["departures"][0]
@@ -140,16 +136,14 @@ async def test_get_package_returns_the_full_detail(
 async def test_get_package_hides_past_departures(db: AsyncSession, db_client: AsyncClient) -> None:
     await seeded(db)
     await db.execute(
-        update(Departure)
-        .where(Departure.date == dt.date(2026, 11, 20))
-        .values(date=dt.date(2020, 1, 1))
+        update(Departure).where(Departure.date == NGB_DATES[0]).values(date=dt.date(2020, 1, 1))
     )
     await db.commit()
 
     p = (await db_client.get("/packages/north-goa-beaches")).json()
 
-    assert [d["date"] for d in p["departures"]] == ["2026-12-18", "2027-01-15", "2027-02-12"]
-    assert p["departures"][0]["badge"] == "guaranteed"  # 18 Dec: 4 of 4 free
+    assert [d["date"] for d in p["departures"]] == [d.isoformat() for d in NGB_DATES[1:]]
+    assert p["departures"][0]["badge"] == "guaranteed"  # NGB_DATES[1]: 4 of 4 free
     # QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is not filling.
 
 
@@ -177,17 +171,19 @@ async def test_get_package_404s_for_drafts_and_unknown_slugs(
 async def test_departures_filter_by_month(db: AsyncSession, db_client: AsyncClient) -> None:
     await seeded(db)
 
-    res = await db_client.get("/packages/north-goa-beaches/departures", params={"month": "2026-12"})
+    res = await db_client.get(
+        "/packages/north-goa-beaches/departures", params={"month": month_key(NGB_DATES[1])}
+    )
 
     assert res.status_code == 200
     assert res.headers["cache-control"] == CACHE
     items = res.json()["items"]
-    assert [d["date"] for d in items] == ["2026-12-18"]
+    assert [d["date"] for d in items] == [NGB_DATES[1].isoformat()]
     # QA 2026-11-19: "Filling fast" needs a seat sold; 4 of 4 free is not filling.
     assert items[0]["seatsLeft"] == 4 and items[0]["badge"] == "guaranteed"
 
     empty = await db_client.get(
-        "/packages/north-goa-beaches/departures", params={"month": "2027-06"}
+        "/packages/north-goa-beaches/departures", params={"month": month_key(M5)}
     )
     assert empty.json() == {"items": []}
 
@@ -315,13 +311,15 @@ async def test_card_badge_skips_a_sold_out_first_departure(
     """The badge comes from the next departure a visitor can still book; "Sold out" only when
     every upcoming date is full."""
     await seeded(db)
-    first = dt.date(2026, 11, 20)  # north-goa-beaches: guaranteed, 16 seats; then 18 Dec, 4 seats
+    first = NGB_DATES[0]  # north-goa-beaches: guaranteed, 16 seats; then 4 seats
     # (guaranteed, none sold: "Guaranteed", not "Filling fast", since QA 2026-11-19)
     await db.execute(update(Departure).where(Departure.date == first).values(seats_total=0))
     await db.commit()
 
     cards = {p["slug"]: p for p in (await db_client.get("/destinations/goa")).json()["packages"]}
-    assert cards["north-goa-beaches"]["badge"] == "guaranteed"  # from 18 Dec, not the sold-out
+    assert (
+        cards["north-goa-beaches"]["badge"] == "guaranteed"
+    )  # from the second date, not the sold-out
 
     pid = (
         await db.execute(select(Package.id).where(Package.slug == "north-goa-beaches"))

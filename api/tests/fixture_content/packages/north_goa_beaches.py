@@ -1,6 +1,5 @@
-import datetime as dt
-
 from content._schema import define_package
+from tests.fixture_dates import NGB_DATES
 
 PACKAGE = define_package(
     slug="north-goa-beaches",
@@ -99,7 +98,7 @@ PACKAGE = define_package(
     ],
     departures=[
         {
-            "date": dt.date(2026, 11, 20),
+            "date": NGB_DATES[0],
             "seats_total": 16,
             "guaranteed": True,
             "price_double_inr": 14_999,
@@ -108,7 +107,7 @@ PACKAGE = define_package(
             "single_supplement_inr": 6_000,
         },
         {
-            "date": dt.date(2026, 12, 18),
+            "date": NGB_DATES[1],
             "seats_total": 4,  # demo: "Filling fast"
             "guaranteed": True,
             "price_double_inr": 17_499,
@@ -117,7 +116,7 @@ PACKAGE = define_package(
             "single_supplement_inr": 7_500,
         },
         {
-            "date": dt.date(2027, 1, 15),
+            "date": NGB_DATES[2],
             "seats_total": 16,
             "price_double_inr": 15_499,
             "price_triple_inr": 13_999,
@@ -125,7 +124,7 @@ PACKAGE = define_package(
             "single_supplement_inr": 6_000,
         },
         {
-            "date": dt.date(2027, 2, 12),
+            "date": NGB_DATES[3],
             "seats_total": 12,
             "price_double_inr": 14_499,
             "price_triple_inr": 12_999,

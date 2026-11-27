@@ -9,9 +9,12 @@ seeded database (.github/workflows/ci.yml); 4.0.6 runs it against a preview and 
     uv run python scripts/mcp_smoke.py https://api.example/mcp
 
 Each mode (`legacy`: the `initialize` handshake; `auto`: the 2026-07-28 flow when the server
-offers it) lists the tools and the prompt, gets the prompt, and calls the two read-only tools.
-Four calls a mode, so eight against the 60-an-hour limit; each is logged in `mcp_requests` with
-the User-Agent `tripsmith-mcp-smoke`, so reports can leave the smoke runs out.
+offers it) lists the tools and the prompt, gets the prompt, and calls read-only tools on a
+package it finds at runtime (so it works on production data too): searchPackages, then
+checkAvailability per package until one has an open date, getPackageDetails and quotePrice. At
+least four calls a mode (more when it tries further packages), so eight or more against the
+300-an-hour limit; each is logged in `mcp_requests` with the User-Agent `tripsmith-mcp-smoke`, so
+reports can leave the smoke runs out.
 Nothing books, holds or sends. Exits 1 on the first failed check.
 """
 
@@ -25,7 +28,18 @@ import httpx2
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
 
-TOOLS = {"searchPackages", "checkAvailability", "startBooking", "startEnquiry"}
+TOOLS = [
+    "listDestinations",
+    "searchPackages",
+    "getPackageDetails",
+    "getReviews",
+    "comparePackages",
+    "checkAvailability",
+    "quotePrice",
+    "startBooking",
+    "startEnquiry",
+    "notifyMe",
+]
 PROMPT = "plan-a-trip"
 USER_AGENT = "tripsmith-mcp-smoke/1"
 
@@ -53,6 +67,15 @@ def payload(result: Any) -> dict[str, Any]:
     return json.loads(result.content[0].text)
 
 
+def first_open_date(availability: dict[str, Any]) -> dict[str, Any] | None:
+    """The latest listed departure with seats for two, or None. The latest, because the nearest
+    ones can be too close to book online, which quotePrice rightly refuses."""
+    for departure in reversed(availability.get("departures") or []):
+        if departure["seatsLeft"] >= 2 and departure.get("pricePerPersonPaise") != 0:
+            return departure
+    return None
+
+
 async def run_mode(url: str, mode: str) -> None:
     print(f"{mode}:")
     http = httpx2.AsyncClient(headers={"user-agent": USER_AGENT}, timeout=30.0)
@@ -61,8 +84,16 @@ async def run_mode(url: str, mode: str) -> None:
         info = client.server_info
         check(info is not None and info.name == "tripsmith", "server is tripsmith", info)
 
-        tools = {t.name for t in (await client.list_tools()).tools}
-        check(tools == TOOLS, "exactly the four tools", sorted(tools))
+        listed = (await client.list_tools()).tools
+        check(
+            [t.name for t in listed] == TOOLS,
+            "exactly the ten tools, in order",
+            [t.name for t in listed],
+        )
+        check(
+            all(t.annotations is not None and t.annotations.read_only_hint for t in listed),
+            "every tool is marked read-only",
+        )
 
         prompts = [p.name for p in (await client.list_prompts()).prompts]
         check(prompts == [PROMPT], "the plan-a-trip prompt is listed", prompts)
@@ -75,9 +106,34 @@ async def run_mode(url: str, mode: str) -> None:
         packages = found.get("packages") or []
         check(not search.is_error and bool(packages), "searchPackages finds packages", found)
 
+        # A package may have no open date, or one quotePrice refuses (production data): try each
+        # package until one quotes. The details call is made on the one that does (else the first).
         slug = packages[0]["slug"]
-        dates = await client.call_tool("checkAvailability", {"packageSlug": slug})
-        check(not dates.is_error, f"checkAvailability answers for {slug}", payload(dates))
+        quoted = False
+        for package in packages:
+            candidate = package["slug"]
+            dates = await client.call_tool("checkAvailability", {"packageSlug": candidate})
+            check(not dates.is_error, f"checkAvailability answers for {candidate}", payload(dates))
+            open_date = first_open_date(payload(dates))
+            if open_date is None:
+                continue
+            quote = await client.call_tool(
+                "quotePrice", {"departureId": open_date["departureId"], "adults": 2}
+            )
+            if not quote.is_error:
+                slug, quoted = candidate, True
+                break
+
+        details = await client.call_tool("getPackageDetails", {"packageSlug": slug})
+        check(not details.is_error, f"getPackageDetails answers for {slug}", payload(details))
+        page_url = payload(details).get("pageUrl")
+        check(
+            isinstance(page_url, str) and page_url.startswith(("http://", "https://")),
+            "getPackageDetails links are absolute",
+            page_url,
+        )
+        if not quoted:
+            print("  note  no package has a date quotePrice accepts: quotePrice not checked")
 
 
 async def main(url: str) -> int:

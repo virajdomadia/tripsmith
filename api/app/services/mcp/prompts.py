@@ -1,7 +1,7 @@
 """v4 4.0.5: the `plan-a-trip` prompt (03-requirements-v4 R35).
 
 A prompt is a message the customer picks in their own assistant (Claude Desktop's "+" menu, for
-one) to start planning: what they know so far, then how to use Tripsmith's four tools. It reads
+one) to start planning: what they know so far, then how to use Tripsmith's tools. It reads
 nothing and writes nothing. The assistant does the work through the tools, which carry the rules.
 
 MCP prompt arguments are strings. Each is trimmed, has contact details redacted (the customer
@@ -44,11 +44,14 @@ STEPS = """\
 How to help me:
 1. Use searchPackages to find Tripsmith packages that fit. If nothing fits, say so and show me \
 the nearest options it returns.
-2. Before suggesting dates, use checkAvailability on the package I like.
-3. If you don't know how many adults and children are going, ask me.
-4. When I pick a date, use startBooking and give me its link: I book and pay on Tripsmith's \
+2. Use getPackageDetails on the package I like, for what is included and the itinerary.
+3. Before suggesting dates, use checkAvailability on it.
+4. If you don't know how many adults and children are going, ask me.
+5. Use quotePrice on the date I pick, so I see the price for my party before I book.
+6. When I'm ready, use startBooking and give me its link: I book and pay on Tripsmith's \
 site. Nothing is held until I do.
-5. If I'd rather talk to someone, or nothing online fits, use startEnquiry and give me its link.
+7. If a date is full, or the package has no dates, use notifyMe and give me its link.
+8. If I'd rather talk to someone, or nothing online fits, use startEnquiry and give me its link.
 
 Only quote prices, dates and seats the tools return. Don't ask for my name, phone or email: \
 I'll type those on Tripsmith's site."""

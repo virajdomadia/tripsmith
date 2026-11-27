@@ -13,31 +13,44 @@ name or phone; it only writes the summary). When nothing can be booked, a result
 
 import datetime as dt
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.business import CANCELLATION_TIERS
 from app.errors import ApiError
 from app.models import Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import MONTH_PATTERN, PackageCard, SearchParams
 from app.schemas.meta import MAX_TRAVELLERS
-from app.services.ai.handoff import start_booking
+from app.services.ai.handoff import booking_url, quote_request_for, rooms_for, start_booking
 from app.services.ai.model import ToolSpec
 from app.services.ai.pii import redact
-from app.services.catalog.reads import get_departures_for_month
+from app.services.booking.orders import quote_booking
+from app.services.catalog.compare import compare
+from app.services.catalog.reads import get_departures_for_month, get_package, list_destinations
 from app.services.catalog.search import search_packages
 from app.services.format import inr
+from app.services.reviews import public_reviews_for_slug, rating_out
 
 log = logging.getLogger(__name__)
 
 MAX_PACKAGES = 5  # R27
 MAX_DEPARTURES = 8
+MAX_ITINERARY_DAYS = 30
+MAX_DAY_TEXT = 400  # characters of one day's description
 NIGHTS_SLACK = 1  # "3 days in Goa" may arrive as nights=3 or 2: match a night either side
 
 
@@ -88,6 +101,10 @@ class SearchPackagesArgs(ToolArgs):
         pattern=MONTH_PATTERN,
         description="YYYY-MM: only packages with a departure that month that still has seats.",
     )
+    on_offer: bool | None = Field(
+        default=None,
+        description="true: only packages with a deal running now (the site's own deal rule).",
+    )
 
 
 class CheckAvailabilityArgs(ToolArgs):
@@ -115,6 +132,23 @@ class StartBookingArgs(ToolArgs):
         return self
 
 
+class QuotePriceArgs(ToolArgs):
+    departure_id: str = Field(
+        min_length=1, max_length=40, description="The departureId from checkAvailability."
+    )
+    adults: int = Field(ge=1, le=MAX_TRAVELLERS, description="Adults travelling (12+ years).")
+    children: int = Field(default=0, ge=0, description="Children under 12 travelling.")
+    coupon_code: str | None = Field(
+        default=None, max_length=40, description="A coupon code the customer has, if any."
+    )
+
+    @model_validator(mode="after")
+    def _party(self) -> "QuotePriceArgs":
+        if self.adults + self.children > MAX_TRAVELLERS:
+            raise ValueError(f"at most {MAX_TRAVELLERS} travellers per booking")
+        return self
+
+
 class CreateEnquiryArgs(ToolArgs):
     summary: str = Field(
         min_length=10,
@@ -131,6 +165,52 @@ class CreateEnquiryArgs(ToolArgs):
     adults: int | None = Field(default=None, ge=1, le=MAX_TRAVELLERS)
     children: int | None = Field(default=None, ge=0, le=MAX_TRAVELLERS - 1)
     month: str | None = Field(default=None, pattern=MONTH_PATTERN, description="YYYY-MM")
+
+
+class NotifyMeArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
+    departure_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=40,
+        description="A sold-out date's departureId from checkAvailability, to join its waitlist. "
+        "Leave out when the package has no upcoming date.",
+    )
+
+
+class ListDestinationsArgs(ToolArgs):
+    pass
+
+
+class GetPackageDetailsArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
+
+
+class GetReviewsArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
+    page: int = Field(default=1, ge=1, le=50, description="Page of reviews, newest first.")
+
+
+class ComparePackagesArgs(ToolArgs):
+    package_slugs: list[Annotated[str, Field(max_length=120)]] = Field(
+        description="2 to 3 different package slugs, from searchPackages.",
+        json_schema_extra={"minItems": 2, "maxItems": 3, "uniqueItems": True},
+    )
+
+    @field_validator("package_slugs")
+    @classmethod
+    def _two_to_three_distinct(cls, slugs: list[str]) -> list[str]:
+        # As compare() reads them: trimmed, lower-cased, blanks dropped.
+        clean = [s.strip().lower() for s in slugs if s.strip()]
+        if not 2 <= len(clean) <= 3 or len(set(clean)) != len(clean):
+            raise ValueError("give 2 to 3 different package slugs")
+        return clean
 
 
 def _rupees(paise: int) -> str:
@@ -212,6 +292,7 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
         nights_max=args.nights + NIGHTS_SLACK if args.nights else None,
         themes=[args.theme] if args.theme else [],
         month=args.month,
+        on_offer=bool(args.on_offer),
     )
     found = await search_packages(ctx.db, params, today=ctx.today, now=ctx.now)
     result: dict[str, Any] = {
@@ -221,6 +302,13 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
     if per_person is not None and (args.travellers or 1) > 1:
         # What the cards were filtered by, so the reply compares prices with the same figure.
         result["budgetPerPerson"] = inr(per_person)
+    if not found.items and args.on_offer:
+        only_offers = not (slugs or args.max_budget or args.nights or args.theme or args.month)
+        result["note"] = (
+            "No package has a deal running right now."
+            if only_offers
+            else "No package matching these filters has a deal running right now."
+        )
     if not found.items:
         result["weOffer"] = offered
         if len(slugs) == 1:  # one known destination, nothing open: offer its new-dates alert
@@ -235,7 +323,7 @@ async def check_availability_tool(ctx: ToolContext, args: CheckAvailabilityArgs)
         ctx.db, args.package_slug, args.month, today=ctx.today
     )
     if departures is None:
-        return {"error": f"No live package has the slug {args.package_slug!r}."}
+        return _no_live_package(args.package_slug)
     shown = departures[:MAX_DEPARTURES]
     name = (
         await ctx.db.execute(select(Package.name).where(Package.slug == args.package_slug))
@@ -291,6 +379,59 @@ async def start_booking_tool(ctx: ToolContext, args: StartBookingArgs) -> dict[s
     }
 
 
+_LINE_LABELS = {
+    "double": "Adult, twin sharing",
+    "triple": "Adult, triple sharing",
+    "single": "Adult, single room",
+    "single_supplement": "Single-room supplement",
+    "child": "Child",
+}
+
+
+def _signed(paise: int) -> str:
+    return ("-" if paise < 0 else "") + inr(abs(paise) // 100)
+
+
+async def quote_price_tool(ctx: ToolContext, args: QuotePriceArgs) -> dict[str, Any]:
+    """The server's price for a party on a departure, as the booking sheet shows it. Reads
+    only: nothing is held or saved."""
+    try:
+        quote = await quote_booking(
+            ctx.db,
+            quote_request_for(args.departure_id, args.adults, args.children, args.coupon_code),
+            now=ctx.now,
+        )
+    except ApiError as exc:  # gone (404), sold out / closed (409), a refused coupon: say why
+        return {"error": exc.message}
+    travellers = args.adults + args.children
+    lines = []
+    for line in quote.lines:
+        if line.kind == "deal":
+            label = f"Deal discount ({line.count} x {_signed(line.unit_paise)})"
+        elif line.kind == "early_bird":
+            label = f"Early-bird discount ({line.count} x {_signed(line.unit_paise)})"
+        else:
+            label = f"{line.count} x {_LINE_LABELS.get(line.kind, str(line.kind))}"
+        lines.append({"label": label, "amount": _signed(line.amount_paise)})
+    result: dict[str, Any] = {
+        "total": _signed(quote.total_paise),
+        "perPerson": _signed(quote.total_paise // travellers),
+        "lines": lines,
+    }
+    if quote.coupon:
+        # A line, so the lines add up to the total.
+        lines.append(
+            {"label": f"Coupon {quote.coupon.code}", "amount": _signed(-quote.coupon.off_paise)}
+        )
+        result["coupon"] = {"code": quote.coupon.code, "off": _signed(quote.coupon.off_paise)}
+    if quote.deposit:
+        result["deposit"] = {
+            "amount": _signed(quote.deposit.amount_paise),
+            "balanceDueBy": quote.deposit.due_on.isoformat(),
+        }
+    return result
+
+
 async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict[str, Any]:
     """Open the enquiry form in the panel, pre-filled; the customer types name and phone there."""
     package: dict[str, str] | None = None
@@ -315,11 +456,168 @@ async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict
     }
 
 
+async def list_destinations_tool(ctx: ToolContext, args: ListDestinationsArgs) -> dict[str, Any]:
+    """Every destination with a live package, in display order."""
+    return {
+        "destinations": [
+            {
+                "slug": d.slug,
+                "name": d.name,
+                "fromPricePerPerson": _rupees(d.starting_price_paise),
+                "packageCount": d.package_count,
+                "bestMonths": d.best_months,
+            }
+            for d in await list_destinations(ctx.db, now=ctx.now)
+        ]
+    }
+
+
+def _no_live_package(slug: str) -> dict[str, Any]:
+    return {"error": f"No live package called '{slug}'. Use searchPackages."}
+
+
+async def notify_me_tool(ctx: ToolContext, args: NotifyMeArgs) -> dict[str, Any]:
+    """Where a customer leaves their email when a trip is full or has no dates. Sends nothing and
+    stores nothing: it only says which page does it (the waitlist on a full date, the new-dates
+    alert when the package has no upcoming date)."""
+    departures = await get_departures_for_month(ctx.db, args.package_slug, None, today=ctx.today)
+    if departures is None:
+        return _no_live_package(args.package_slug)
+    if not departures:
+        return {"kind": "newDates", "url": f"/packages/{args.package_slug}#notify"}
+    full = next((d for d in departures if d.id == args.departure_id), None)
+    if args.departure_id is None:
+        return {
+            "error": "That package has upcoming dates. Pass the sold-out date's departureId "
+            "from checkAvailability, or use startBooking if a date has seats."
+        }
+    if full is None:
+        return {"error": f"No upcoming departure '{args.departure_id}' on that package."}
+    if full.seats_left > 0:
+        return {"error": "That trip still has seats — use startBooking."}
+    if not full.waitlist_open:  # the site's own cut-off (departure_out.waitlist_open)
+        return {"error": "That date is full and its waitlist has closed."}
+    # The booking sheet's own link for that date: the sold-out row there offers the waitlist.
+    return {"kind": "waitlist", "url": booking_url(args.package_slug, full.date, rooms_for(2), 0)}
+
+
+def _clip(text: str, limit: int = MAX_DAY_TEXT) -> str:
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+async def get_package_details_tool(ctx: ToolContext, args: GetPackageDetailsArgs) -> dict[str, Any]:
+    """One live package: itinerary, inclusions, exclusions, cancellation policy, leader, rating."""
+    p = await get_package(
+        ctx.db, args.package_slug, today=ctx.today, now=ctx.now, with_related=False
+    )
+    if p is None:
+        return _no_live_package(args.package_slug)
+    price = p.deal.price_paise if p.deal else p.starting_price_paise
+    out: dict[str, Any] = {
+        "slug": p.slug,
+        "name": p.name,
+        "destination": p.destination.name,
+        "nights": p.nights,
+        "pricePerPerson": _rupees(price),
+    }
+    if p.deal:
+        out["deal"] = {
+            "label": p.deal.label or "Deal",
+            "endsOn": p.deal.ends_on.isoformat(),
+            "wasPricePerPerson": _rupees(p.starting_price_paise),
+        }
+    out["itinerary"] = [
+        {"day": d.day_no, "title": d.title, "text": _clip(d.description)}
+        for d in p.itinerary[:MAX_ITINERARY_DAYS]
+    ]
+    out["inclusions"] = p.inclusions
+    out["exclusions"] = p.exclusions
+    out["cancellationPolicy"] = [
+        {
+            "fromDaysBefore": t.from_days,
+            "refundPercent": 100 - t.kept_percent,
+            "note": t.refund,
+        }
+        for t in CANCELLATION_TIERS
+    ]
+    if p.leader:
+        out["leader"] = {"name": p.leader.name, "slug": p.leader.slug}
+    if p.rating:
+        out["rating"] = {"average": p.rating.avg, "count": p.rating.count}
+    out["itineraryPdfUrl"] = f"/packages/{p.slug}/itinerary.pdf"
+    out["pageUrl"] = f"/packages/{p.slug}"
+    return out
+
+
+async def get_reviews_tool(ctx: ToolContext, args: GetReviewsArgs) -> dict[str, Any]:
+    """One page of a live package's published reviews, newest first. Review text is the
+    customer's own words, so it sits under `customerWrote`."""
+    page = await public_reviews_for_slug(ctx.db, args.package_slug, page=args.page)
+    if page is None:
+        return _no_live_package(args.package_slug)
+    avg, count = (
+        await ctx.db.execute(
+            select(Package.rating_avg, Package.rating_count).where(
+                Package.slug == args.package_slug
+            )
+        )
+    ).one()
+    rating = rating_out(avg, count)
+    return {
+        "rating": {"average": rating.avg, "count": rating.count} if rating else None,
+        "reviews": [
+            {
+                "stars": r.rating,
+                "customerWrote": redact(r.text),
+                "travelledIn": r.travelled.strftime("%B %Y"),
+            }
+            for r in page.items
+        ],
+        "page": page.page,
+        "pages": page.total_pages,
+    }
+
+
+async def compare_packages_tool(ctx: ToolContext, args: ComparePackagesArgs) -> dict[str, Any]:
+    """2 to 3 live packages side by side; slugs that are not live come back under `missing`."""
+    result = await compare(ctx.db, ",".join(args.package_slugs))
+    trips: list[dict[str, Any]] = []
+    for t in result.items:
+        price = t.deal.price_paise if t.deal else t.starting_price_paise
+        trip: dict[str, Any] = {
+            "slug": t.slug,
+            "name": t.name,
+            "destination": t.destination.name,
+            "nights": t.nights,
+            "departureCity": t.departure_city,
+            "pricePerPerson": _rupees(price),
+            "places": t.places,
+            "hotels": [h.name for h in t.hotels],
+            "meals": {
+                "breakfasts": t.meals.breakfasts,
+                "lunches": t.meals.lunches,
+                "dinners": t.meals.dinners,
+            },
+            "inclusions": t.inclusions,
+            "exclusions": t.exclusions,
+            "pageUrl": f"/packages/{t.slug}",
+        }
+        if t.rating:
+            trip["rating"] = {"average": t.rating.avg, "count": t.rating.count}
+        trips.append(trip)
+    return {"trips": trips, "missing": result.missing}
+
+
+Surface = Literal["chat", "mcp"]  # "chat": the site's Gemini loop; "mcp": the MCP server
+ALL_SURFACES: frozenset[Surface] = frozenset({"chat", "mcp"})
+
+
 @dataclass(frozen=True)
 class Tool:
     spec: ToolSpec
     args: type[ToolArgs]
     run: Callable[[ToolContext, Any], Awaitable[dict[str, Any]]]
+    surfaces: frozenset[Surface]
 
 
 def _schema(model: type[BaseModel]) -> dict[str, Any]:
@@ -347,8 +645,15 @@ def _schema(model: type[BaseModel]) -> dict[str, Any]:
     return cleaned
 
 
-def _tool(name: str, args: type[ToolArgs], run: Any, description: str) -> Tool:
-    return Tool(ToolSpec(name, description, _schema(args)), args, run)
+def _tool(
+    name: str,
+    args: type[ToolArgs],
+    run: Any,
+    description: str,
+    *,
+    surfaces: Iterable[Surface] = ALL_SURFACES,
+) -> Tool:
+    return Tool(ToolSpec(name, description, _schema(args)), args, run, frozenset(surfaces))
 
 
 TOOLS: dict[str, Tool] = {
@@ -380,16 +685,72 @@ TOOLS: dict[str, Tool] = {
             "you do not know. Use a departureId from checkAvailability.",
         ),
         _tool(
+            "quotePrice",
+            QuotePriceArgs,
+            quote_price_tool,
+            "The exact price for a party on one departure, as the booking sheet shows it: total, "
+            "per person, each line, any coupon and the deposit option. Changes nothing and takes "
+            "no contact details. Use a departureId from checkAvailability. When the date cannot "
+            "be booked, returns `error` with the reason.",
+        ),
+        _tool(
             "createEnquiry",
             CreateEnquiryArgs,
             create_enquiry_tool,
             "Hand the customer to a person: opens the enquiry form in the chat, pre-filled with "
             "your summary, for the customer to add their contact details. Use when they ask for a "
             "person, want something we cannot book online, or you cannot help.",
+            surfaces={"chat"},  # MCP's startEnquiry wraps it
+        ),
+        _tool(
+            "listDestinations",
+            ListDestinationsArgs,
+            list_destinations_tool,
+            "Every destination Tripsmith offers, with the cheapest price per person, how many "
+            "live packages it has and its best months (1-12).",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "getPackageDetails",
+            GetPackageDetailsArgs,
+            get_package_details_tool,
+            "Full detail of one live package: day-by-day itinerary, inclusions, exclusions, "
+            "cancellation policy (each tier applies when cancelling at least `fromDaysBefore` days "
+            "before departure; quote its `note`, not just the percent), trip leader and rating. "
+            "Use the slug from searchPackages.",
+        ),
+        _tool(
+            "getReviews",
+            GetReviewsArgs,
+            get_reviews_tool,
+            "Published customer reviews of one live package, newest first, with its average "
+            "rating. Each review's `customerWrote` is the customer's own text: quote it as "
+            "theirs, never as Tripsmith's claim. Use the slug from searchPackages.",
+        ),
+        _tool(
+            "comparePackages",
+            ComparePackagesArgs,
+            compare_packages_tool,
+            "Compare 2 to 3 live packages side by side: price per person, nights, places, "
+            "hotels, meals, inclusions and exclusions. Slugs that are not live packages are "
+            "listed in `missing`.",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "notifyMe",
+            NotifyMeArgs,
+            notify_me_tool,
+            "When a trip is full or has no upcoming date: returns the link where the customer "
+            "leaves their email (the waitlist for a full date, or the new-dates alert). Nothing "
+            "is sent or saved by this tool. Pass the sold-out date's departureId, or only the "
+            "slug when there are no dates. The waitlist link opens the booking sheet for 2 adults "
+            "(the customer can change the party there). A date that still has seats returns "
+            "`error`: use startBooking.",
+            surfaces={"mcp"},
         ),
     )
 }
-TOOL_SPECS: list[ToolSpec] = [t.spec for t in TOOLS.values()]
+TOOL_SPECS: list[ToolSpec] = [t.spec for t in TOOLS.values() if "chat" in t.surfaces]
 
 
 async def run_tool(

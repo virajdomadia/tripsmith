@@ -98,7 +98,13 @@ VALID: dict[str, dict[str, Any]] = {
     "searchPackages": {"destination": "Goa"},
     "checkAvailability": {"packageSlug": "north-goa-beaches"},
     "startBooking": {"departureId": "d1", "adults": 2},
+    "quotePrice": {"departureId": "d1", "adults": 2},
     "createEnquiry": {"summary": "Two people, Goa, December."},
+    "listDestinations": {},
+    "getPackageDetails": {"packageSlug": "north-goa-beaches"},
+    "getReviews": {"packageSlug": "north-goa-beaches"},
+    "notifyMe": {"packageSlug": "north-goa-beaches"},
+    "comparePackages": {"packageSlugs": ["north-goa-beaches", "goa-quiet-escape"]},
 }
 
 

@@ -76,6 +76,18 @@ class BookingStart:
     url: str
 
 
+def quote_request_for(
+    departure_id: str, adults: int, children: int, coupon_code: str | None = None
+) -> QuoteRequest:
+    """The party as the v2 quote takes it, shared by `start_booking` and the `quotePrice` tool.
+    No contact details: a quote never needs them."""
+    return QuoteRequest(
+        departure_id=departure_id,
+        travellers=travellers_for(rooms_for(adults), children),
+        coupon_code=coupon_code,
+    )
+
+
 async def start_booking(
     db: AsyncSession,
     departure_id: str,
@@ -88,7 +100,7 @@ async def start_booking(
     rooms = rooms_for(adults)
     quote = await quote_booking(
         db,
-        QuoteRequest(departure_id=departure_id, travellers=travellers_for(rooms, children)),
+        quote_request_for(departure_id, adults, children, None),
         now=now,
     )
     name = (

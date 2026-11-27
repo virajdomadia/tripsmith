@@ -1,7 +1,7 @@
 """v4 4.0.4: MCP's per-IP limit, its outage policy and the `mcp_requests` log
 (03-requirements-v4 R36; docs/04-technical-design-v2-v3.md §v4.4).
 
-- `mcp:{ip}` allows 60 tool calls an hour on the server-derived address (`infra/client_ip`).
+- `mcp:{ip}` allows 300 tool calls an hour on the server-derived address (`infra/client_ip`).
 - The limiter **fails closed** for MCP: Upstash unreachable, or a deployment with no Upstash at
   all, refuses calls with a "try again shortly" tool error. The site's limiters still fail open.
 - Every served call writes one `mcp_requests` row with its args redacted. A refused call writes
@@ -70,7 +70,7 @@ def text_of(result: object) -> str:
 # --- the limit ------------------------------------------------------------------------------------
 
 
-async def test_the_61st_call_in_an_hour_is_refused_with_a_clear_tool_error() -> None:
+async def test_the_301st_call_in_an_hour_is_refused_with_a_clear_tool_error() -> None:
     app = mcp_app()
     app.state.rate_limiter = limiter = WindowLimiter()
     async with booted(app) as http, client_for(http) as client:
@@ -81,9 +81,9 @@ async def test_the_61st_call_in_an_hour_is_refused_with_a_clear_tool_error() -> 
     assert refused.is_error
     assert "too many" in text_of(refused).lower()
     assert "30 minutes" in text_of(refused)  # retry_after 1800 s, in words
-    # One key per server-derived address, 60 an hour.
-    assert set(limiter.hits) == {(f"mcp:{IP}", 60, HOUR)}
-    assert (MCP_LIMIT, HOUR) == (60, 3600)
+    # One key per server-derived address, 300 an hour.
+    assert set(limiter.hits) == {(f"mcp:{IP}", 300, HOUR)}
+    assert (MCP_LIMIT, HOUR) == (300, 3600)
 
 
 async def test_listing_the_tools_is_not_counted() -> None:

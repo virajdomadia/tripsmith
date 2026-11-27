@@ -102,6 +102,8 @@ def _walk(node: Any) -> Iterator[dict[str, Any]]:
 def _learn_result(known: Known, result: Any) -> None:
     for d in _walk(result):
         for key, value in d.items():
+            if key == "customerWrote":
+                continue  # a traveller's words are quoted, never a source of prices
             if isinstance(value, str):
                 if key in ("slug", "packageSlug"):
                     known.slugs.add(value)

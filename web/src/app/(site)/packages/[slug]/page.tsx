@@ -180,7 +180,7 @@ export default async function PackagePage({ params }: { params: Promise<Params> 
               <OccupancyPricing departures={pkg.departures} deal={pkg.deal} ages={rules.ages} />
               {pkg.departures.length === 0 && (
                 // v3 C3 (R30): one email when the owner adds dates, then the alert closes.
-                <div className="mt-4">
+                <div id="notify" className="mt-4 scroll-mt-32">
                   <NotifyMe offer={{ target: 'package', slug: pkg.slug, name: pkg.name }} />
                 </div>
               )}

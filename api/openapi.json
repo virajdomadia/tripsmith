@@ -22373,6 +22373,18 @@
             }
           },
           {
+            "description": "Only packages with a deal running now (the card's deal badge)",
+            "in": "query",
+            "name": "onOffer",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only packages with a deal running now (the card's deal badge)",
+              "title": "Onoffer",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "sort",
             "required": false,

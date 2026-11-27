@@ -72,7 +72,7 @@ flowchart LR
 1. **The browser calls the api directly.** It posts to `POST /chat` on the api's domain, not through the web's `/api` rewrite, because the rewrite would hide the visitor's IP from the per-IP limit and could buffer the stream. CORS allows the web origin on `/chat` only, and the CSP's `connect-src` names the api origin.
 2. **Limits run before a model is called.** In order: the chat's own cap, the per-IP limit (Upstash), then the site-wide budget. The budget is a row-locked `chat_budget` row in Postgres, so it still holds if Upstash fails open. A refusal is an ordinary `429 { reason }`, and the panel swaps its message box for the **quick finder**: destination · month · budget, run on the listing's own cached search, with no AI and ₹0 cost.
 3. **Contact details are redacted.** Phone numbers and emails are removed before the message is stored or sent to the model. Names, phones and emails belong in the forms.
-4. **The tool loop.** The model sees a system prompt, the last 20 messages and four tools. Each tool's arguments are a pydantic model that refuses unknown keys, and a bad call goes back to the model as an error. The loop allows at most five model calls, and the last one may not call tools. A 429 or 5xx switches to the fallback model.
+4. **The tool loop.** The model sees a system prompt, the last 20 messages and seven tools. Each tool's arguments are a pydantic model that refuses unknown keys, and a bad call goes back to the model as an error. The loop allows at most five model calls, and the last one may not call tools. A 429 or 5xx switches to the fallback model.
 5. **The guardrail checks the reply as it streams.** The reply may only name packages and ₹ amounts that a tool returned in this conversation. Prices derived from them (× travellers, a deal's saving) and the visitor's own numbers count as known. On a violation, a `replace` event swaps the text for "Let me check that for you" and the last search runs again, with no model call. An invented price never reaches the browser.
 6. **Nothing happens without a person.** `startBooking` opens the Book-now sheet pre-filled; payment stays in Razorpay. `createEnquiry` opens the enquiry form in the panel, and the transcript goes to the owner's inbox.
 7. **Everything is logged for the owner.** Each turn's messages, tool calls, results, tokens and errors are saved, even if the visitor closes the tab mid-answer. `/admin/conversations` shows them with each chat's outcome (booking started, enquiry created, no hand-off).
@@ -82,7 +82,7 @@ flowchart LR
 
 ## Use it from your own AI assistant (v4, MCP)
 
-The same four tools the concierge uses are served as a remote [MCP](https://modelcontextprotocol.io) server, so Claude, ChatGPT, Cursor or any MCP client can plan a Tripsmith trip:
+Ten read-only tools over the same catalogue the concierge uses are served as a remote [MCP](https://modelcontextprotocol.io) server, so Claude, ChatGPT, Cursor or any MCP client can plan a Tripsmith trip:
 
 ```
 https://tripsmith-api.virajdomadia.com/mcp
@@ -90,10 +90,27 @@ https://tripsmith-api.virajdomadia.com/mcp
 
 <!-- v4 R37: the 30-second Claude Desktop GIF ("plan 3 days in Goa" → real packages → a booking link that opens Tripsmith) goes here once recorded on production. -->
 
-- **Tools:** `searchPackages`, `checkAvailability`, `startBooking`, `startEnquiry`, plus the `plan-a-trip` prompt. Setup for each client is on [/developers](https://tripsmith.virajdomadia.com/developers).
+- **Tools** (all ten are marked read-only; plus the `plan-a-trip` prompt). Setup for each client is on [/developers](https://tripsmith.virajdomadia.com/developers).
+
+  | Tool | What it does |
+  |---|---|
+  | `listDestinations` | The destinations we run, with package counts |
+  | `searchPackages` | Find packages by destination, month, budget, length or theme |
+  | `getPackageDetails` | One package: itinerary, inclusions, cancellation tiers |
+  | `getReviews` | Traveller reviews and the rating |
+  | `comparePackages` | Two or three packages side by side |
+  | `checkAvailability` | Upcoming dates with live prices and seats |
+  | `quotePrice` | Exact total for a date and group (nothing is held) |
+  | `startBooking` | Link that opens the Book-now sheet pre-filled |
+  | `startEnquiry` | Link to the enquiry form with month and party filled in |
+  | `notifyMe` | Link to leave an email for a sold-out date or new dates |
+
+- **Connect it:**
+  - **Claude:** Settings → Connectors → Add custom connector → `https://tripsmith-api.virajdomadia.com/mcp`. *Verify by hand after deploy.*
+  - **ChatGPT:** Settings → Apps & Connectors → Advanced → Developer mode → Create → the same URL, authentication "No authentication". *Verify by hand after deploy.*
 - **An adapter, not a second backend.** Every tool runs the chat's own `run_tool` (`api/app/services/mcp/adapter.py`), so prices, seats and rules are the site's. Parity tests compare MCP results with the chat's.
-- **It hands over, it never acts.** `startBooking` and `startEnquiry` return links to the site's own booking sheet and enquiry form. Nothing is paid, held or sent through MCP, and no contact details travel in a link.
-- **Limits that fail closed.** 60 requests an hour per address. If the limiter (Upstash) is down, MCP refuses instead of running unlimited; the site itself still fails open.
+- **It hands over, it never acts.** `startBooking`, `startEnquiry` and `notifyMe` return links to the site's own booking sheet, enquiry form and alert form; the other seven only read. The public MCP creates nothing: nothing is paid, held, saved or sent through it, and no contact details travel in a link.
+- **Limits that fail closed.** 300 requests an hour per address. If the limiter (Upstash) is down, MCP refuses instead of running unlimited; the site itself still fails open.
 - **Logged, without personal data.** One `mcp_requests` row per request, with phone numbers and emails removed from the inputs and a keyed hash of the address.
 - **Tested with a real client.** The SDK's own client, in both the legacy `initialize` and the 2026-07-28 modes, drives a uvicorn server in CI (`api/scripts/mcp_smoke.py`) and the live api after every production deploy.
 

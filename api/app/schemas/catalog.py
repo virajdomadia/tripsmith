@@ -72,6 +72,9 @@ class SearchParams(ApiModel):
         pattern=MONTH_PATTERN,
         description="YYYY-MM: packages with a departure that month that still has seats",
     )
+    on_offer: bool = Field(
+        default=False, description="Only packages with a deal running now (the card's deal badge)"
+    )
     sort: SortOrder = Field(default=SortOrder.PRICE_ASC)
 
     @field_validator("nights_max")
