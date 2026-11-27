@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { POST } from '../src/app/api/bookings/route';
+import { POST as SYNC } from '../src/app/api/bookings/[ref]/sync/route';
 
 /** `POST /api/bookings`: the api's `booking:{ip}` limit only works if the visitor's address
  * reaches it, so the handler forwards it under the shared secret and passes the answer through. */
@@ -56,5 +57,32 @@ describe('POST /api/bookings', () => {
     const res = await POST(post({}));
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe('internal');
+  });
+});
+
+describe('POST /api/bookings/{ref}/sync', () => {
+  const sync = (ref: string) =>
+    SYNC(
+      new Request(`https://web.test/api/bookings/${ref}/sync`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
+        body: JSON.stringify({ orderId: 'order_1' }),
+      }),
+      { params: Promise.resolve({ ref }) },
+    );
+
+  it('forwards the visitor address so the per-address sync limit sees visitors', async () => {
+    fetchMock.mockResolvedValue(Response.json({ status: 'pending' }));
+    const res = await sync('TB-ABC234');
+    expect(res.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/bookings/TB-ABC234/sync');
+    expect(init.body).toBe('{"orderId":"order_1"}');
+    expect(init.headers).toMatchObject({ 'X-Client-Ip': '1.2.3.4', 'X-Internal-Secret': 's3cret' });
+  });
+
+  it('refuses a malformed ref without calling the api', async () => {
+    expect((await sync('../admin')).status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

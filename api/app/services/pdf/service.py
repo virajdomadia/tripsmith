@@ -118,15 +118,21 @@ class PdfService:
         )
 
     async def _fetch_image(self, client: httpx.AsyncClient, url: str) -> bytes | None:
+        """Streamed and capped (review 2026-11-27, L5); no redirects: Blob URLs answer directly."""
         try:
-            res = await client.get(url, follow_redirects=True)
-            if res.status_code != 200:
-                return None
-            if int(res.headers.get("content-length", len(res.content))) > COVER_MAX_BYTES:
-                return None
-            if not res.headers.get("content-type", "").startswith("image/"):
-                return None
-            return res.content
+            async with client.stream("GET", url) as res:
+                if res.status_code != 200:
+                    return None
+                if not res.headers.get("content-type", "").startswith("image/"):
+                    return None
+                if int(res.headers.get("content-length", 0)) > COVER_MAX_BYTES:
+                    return None
+                body = bytearray()
+                async for chunk in res.aiter_bytes():
+                    body += chunk
+                    if len(body) > COVER_MAX_BYTES:
+                        return None
+                return bytes(body)
         except Exception as exc:  # a missing photo is not worth a failed download
             log.warning("Photo fetch failed for %s: %s", url, exc)
             return None

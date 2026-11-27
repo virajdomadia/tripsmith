@@ -8,12 +8,14 @@
   none (the function log has it), so a flood can't fill the table.
 """
 
+import datetime as dt
+
 import httpx
 import pytest
 from fastapi import FastAPI
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.infra.ratelimit import (
@@ -24,8 +26,10 @@ from app.infra.ratelimit import (
 )
 from app.models import McpRequest
 from app.services.enquiries import hash_ip
-from app.services.mcp.log import MAX_TEXT, clean_args
-from app.services.mcp.server import HOUR, MCP_LIMIT
+from app.services.mcp import log as mcp_log
+from app.services.mcp import server as mcp_server
+from app.services.mcp.log import KEEP, MAX_TEXT, clean_args
+from app.services.mcp.server import HOUR, MCP_LIMIT, MCP_SITE_LIMIT
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
@@ -81,9 +85,23 @@ async def test_the_301st_call_in_an_hour_is_refused_with_a_clear_tool_error() ->
     assert refused.is_error
     assert "too many" in text_of(refused).lower()
     assert "30 minutes" in text_of(refused)  # retry_after 1800 s, in words
-    # One key per server-derived address, 300 an hour.
-    assert set(limiter.hits) == {(f"mcp:{IP}", 300, HOUR)}
+    # One key per server-derived address, 300 an hour, and the site-wide ceiling.
+    assert set(limiter.hits) == {(f"mcp:{IP}", 300, HOUR), ("mcp:all", MCP_SITE_LIMIT, HOUR)}
     assert (MCP_LIMIT, HOUR) == (300, 3600)
+
+
+async def test_a_site_wide_ceiling_stops_a_flood_from_many_addresses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review 2026-11-27 (L4): IPv6 rotation or a botnet gets a fresh 300 per address."""
+    monkeypatch.setattr(mcp_server, "MCP_SITE_LIMIT", 2)
+    app = mcp_app()
+    app.state.rate_limiter = WindowLimiter()
+    async with booted(app) as http, client_for(http) as client:
+        for n in range(3):
+            http.headers["x-forwarded-for"] = f"203.0.113.{n}"
+            result = await client.call_tool("searchPackages", {"destination": "Goa"})
+    assert result.is_error and "too many" in text_of(result).lower()
 
 
 async def test_listing_the_tools_is_not_counted() -> None:
@@ -222,3 +240,42 @@ async def test_a_refused_call_writes_no_row(
         result = await client.call_tool("searchPackages", {"destination": "Goa"})
     assert result.is_error
     assert await rows(db) == []
+
+
+@pytest.mark.db
+async def test_rows_older_than_the_keep_window_are_pruned_on_the_next_write(
+    catalog: None, db: AsyncSession, logged_app: FastAPI
+) -> None:
+    """Review 2026-11-27 (L4): with no scheduled jobs, the table would only grow."""
+    async with booted(logged_app) as http, client_for(http) as client:
+        await client.call_tool("searchPackages", {"destination": "Goa"})
+        await db.execute(
+            update(McpRequest).values(created_at=McpRequest.created_at - KEEP - dt.timedelta(1))
+        )
+        await db.commit()
+        await client.call_tool("searchPackages", {"destination": "Kerala"})
+    db.expire_all()
+    assert [r.args for r in await rows(db)] == [{"destination": "Kerala"}]
+
+
+@pytest.mark.db
+async def test_a_failed_prune_keeps_the_new_row(
+    db: AsyncSession, db_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object) -> None:
+        raise RuntimeError("prune failed")
+
+    monkeypatch.setattr(mcp_log, "delete", broken)
+    await mcp_log.record(
+        async_sessionmaker(db_engine, expire_on_commit=False),
+        method="tools/call",
+        name="searchPackages",
+        args={},
+        latency_ms=1,
+        error=None,
+        ip_hash="h",
+        client_name=None,
+        client_version=None,
+        user_agent=None,
+    )
+    assert [r.name for r in await rows(db)] == ["searchPackages"]

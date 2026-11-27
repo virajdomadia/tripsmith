@@ -10,7 +10,8 @@ so `app.main.lifespan` enters it (`app.state.mcp_session_manager`).
 4.0.2: the tools come from `services/mcp/adapter.py` (over the chat's tool registry). Each call
 gets its own database session that is never committed: MCP reads, it never writes.
 
-4.0.4: each call is first counted against `mcp:{ip}` (300 an hour on the server-derived address).
+4.0.4: each call is first counted against `mcp:{ip}` (300 an hour on the server-derived address)
+and, since review 2026-11-27, against `mcp:all` (3,000 an hour site-wide).
 The limiter fails **closed** here: a `degraded` result (Upstash down, or no Upstash on a
 deployment) refuses the call, unlike the site. A served call then writes one `mcp_requests` row
 (`services/mcp/log.py`); a refused one only reaches the function log, so a flood can't fill the
@@ -93,6 +94,7 @@ UNAVAILABLE = "Tripsmith's catalogue is unavailable right now. Try again shortly
 LIMITER_DOWN = "Tripsmith can't take requests right now. Try again shortly."
 REFUSED = -32000  # JSON-RPC server error: a refused prompts/get (tools answer with isError)
 MCP_LIMIT = 300  # tool calls per address per hour (R36)
+MCP_SITE_LIMIT = 3000  # review 2026-11-27 (L4): all addresses together, per hour
 HOUR = 3600
 
 
@@ -228,10 +230,13 @@ class TripsmithServer(MCPServer):
 
 async def _refusal(limiter: RateLimiter, ip: str) -> str | None:
     """Why this call is refused, or None. Fails closed: no real limiter answer, no call."""
-    hit = await limiter.hit(f"mcp:{ip}", limit=MCP_LIMIT, window_seconds=HOUR)
-    if hit.degraded:
-        return LIMITER_DOWN
-    return None if hit.allowed else too_many(hit.retry_after)
+    for key, limit in ((f"mcp:{ip}", MCP_LIMIT), ("mcp:all", MCP_SITE_LIMIT)):
+        hit = await limiter.hit(key, limit=limit, window_seconds=HOUR)
+        if hit.degraded:
+            return LIMITER_DOWN
+        if not hit.allowed:
+            return too_many(hit.retry_after)
+    return None
 
 
 def _http_request(context: Context[Any, Any] | None) -> Request | None:

@@ -10,9 +10,11 @@ from httpx import AsyncClient
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infra.ratelimit import RateLimitResult
 from app.infra.razorpay import ORDERS_URL, RazorpayError
 from app.models import Booking, Payment
 from app.models.enums import BookingStatus, CancelReason, PaymentStatus
+from app.routers.site.bookings import SYNC_IP_LIMIT
 from tests.razorpay_fake import KEY_ID, KEY_SECRET, FakeRazorpay, sign
 from tests.test_booking_orders import seats_left, seeded
 from tests.test_enquiries import CountingLimiter
@@ -77,7 +79,37 @@ async def test_the_sixth_booking_start_and_the_21st_sync_are_429(
     app.state.rate_limiter = CountingLimiter(limit=20)
     syncs = [(await client.post("/bookings/TB-AAAAAA/sync")).status_code for _ in range(21)]
     assert syncs == [503] * 20 + [429]
-    assert (await client.post("/bookings/TB-BBBBBB/sync")).status_code == 503  # its own bucket
+    other = await client.post("/bookings/TB-BBBBBB/sync", headers={"X-Forwarded-For": "8.8.8.8"})
+    assert other.status_code == 503  # its own bucket
+
+
+class WindowLimiter:
+    """Counts per key against the limit each call asks for."""
+
+    def __init__(self) -> None:
+        self.hits: dict[str, int] = {}
+
+    async def hit(self, key: str, *, limit: int, window_seconds: int) -> RateLimitResult:
+        self.hits[key] = self.hits.get(key, 0) + 1
+        return RateLimitResult(allowed=self.hits[key] <= limit, retry_after=60)
+
+
+async def test_one_address_cannot_probe_refs_past_the_per_address_sync_limit(
+    app: FastAPI, client: AsyncClient
+) -> None:
+    """Review 2026-11-27 (L2): every guessed ref had a fresh bucket, so refs could be
+    enumerated as fast as the api answered. One address now gets SYNC_IP_LIMIT checks in all."""
+    app.state.rate_limiter = WindowLimiter()
+    ip = {"X-Forwarded-For": "7.7.7.7"}
+    codes = [
+        (await client.post(f"/bookings/TB-{n:06d}/sync", headers=ip)).status_code
+        for n in range(SYNC_IP_LIMIT + 1)
+    ]
+    assert codes == [503] * SYNC_IP_LIMIT + [429]
+    elsewhere = await client.post(
+        "/bookings/TB-AAAAAA/sync", headers={"X-Forwarded-For": "8.8.8.8"}
+    )
+    assert elsewhere.status_code == 503
 
 
 # --- db ----------------------------------------------------------------------------------------

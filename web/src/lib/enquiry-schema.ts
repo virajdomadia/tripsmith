@@ -24,6 +24,10 @@ export const BUDGET_MESSAGE = `Between ₹${grouped(BUDGET.min)} and ₹${groupe
 export const NAME_MAX = 80;
 
 export const NAME_CONTROL_MESSAGE = 'Enter your name on one line, without special characters';
+/** api `LINK_RE` (review 2026-11-27, L3): our email greets the name, so no link or address. */
+export const NAME_LINK_RE =
+  /[/:@]|www\.|[a-z0-9-]{4,}\.[a-z]{2,}|\.(?:com|net|org|in|co|io)(?![a-z])/i;
+export const NAME_LINK_MESSAGE = 'Enter just your name, without a web or email address';
 
 /** Python's `str.strip()` also drops U+001C–U+001F and U+0085, which JS `trim()` keeps — so a
  * name wrapped in them must not be refused here for a control character the api never sees. */
@@ -55,7 +59,8 @@ export const enquirySchema = z
         .string()
         .min(2, 'Enter your name')
         .max(NAME_MAX, `Keep your name under ${NAME_MAX} characters`)
-        .refine((n) => !CONTROL_RE.test(n), NAME_CONTROL_MESSAGE),
+        .refine((n) => !CONTROL_RE.test(n), NAME_CONTROL_MESSAGE)
+        .refine((n) => !NAME_LINK_RE.test(n), NAME_LINK_MESSAGE),
     ),
     phone: z
       .string()
