@@ -89,9 +89,11 @@ def apply_filters(
     params: SearchParams,
     today: dt.date,
     shown: ColumnElement[int] | None = None,
+    on_offer: ColumnElement[bool] | None = None,
 ) -> Select[tuple[Package]]:
     """The R3 filters, AND-ed; each list is any-of. Pure so a test can read the statement.
-    The budget compares `shown` (default: the starting price) — what the card says."""
+    The budget compares `shown` (default: the starting price) — what the card says.
+    `on_offer` (`deals.running_now`) is what `params.on_offer` filters by."""
     price = Package.starting_price_paise if shown is None else shown
     if params.destination:
         stmt = stmt.join(Destination, Destination.id == Package.destination_id).where(
@@ -100,6 +102,8 @@ def apply_filters(
     if params.max_budget is not None:
         # Rupees on the query, paise in the row; "on request" (0) has no price to compare.
         stmt = stmt.where(price > 0, price <= params.max_budget * 100)
+    if params.on_offer and on_offer is not None:
+        stmt = stmt.where(on_offer)
     if params.nights_min is not None:
         stmt = stmt.where(Package.nights >= params.nights_min)
     if params.nights_max is not None:
@@ -202,7 +206,11 @@ async def search_packages(
     today = today or ist_today(now)
     shown = deals.shown_price(now, today)
     stmt = apply_filters(
-        select(Package).where(Package.status == PackageStatus.LIVE), params, today, shown
+        select(Package).where(Package.status == PackageStatus.LIVE),
+        params,
+        today,
+        shown,
+        deals.running_now(now, today),
     )
     packages = (
         (

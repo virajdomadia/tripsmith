@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Departure, Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import RangeFacet, SearchParams, SortOrder
+from app.services.analytics import ist_today
+from app.services.catalog import deals
 from app.services.catalog.search import budget_range, month_label, search_packages
 from scripts.seed import seed
 from tests.fixture_dates import KER_DATES, M1, M2, M3, M4, M5, month_key
@@ -297,3 +299,46 @@ async def test_search_packages_is_callable_with_params_directly(
     assert [c.slug for c in result.items] == [KER, GQE]
     assert result.total == 2
     assert result.facets.nights == RangeFacet(min=3, max=5)
+
+
+@pytest.mark.db
+async def test_search_on_offer_only_returns_running_deals(catalog: None, db: AsyncSession) -> None:
+    ends = deals.end_of_ist_day(ist_today() + dt.timedelta(days=5))
+    await db.execute(
+        update(Package)
+        .where(Package.slug == KER)
+        .values(deal_price_paise=9_999_00, deal_ends_at=ends)
+    )
+    await db.execute(  # an ended deal is not running
+        update(Package)
+        .where(Package.slug == GQE)
+        .values(deal_price_paise=9_999_00, deal_ends_at=dt.datetime(2020, 1, 1, tzinfo=dt.UTC))
+    )
+    await db.commit()
+
+    everything = await search_packages(db)
+    offers = await search_packages(db, SearchParams.model_validate({"onOffer": True}))
+
+    assert len(everything.items) == 3
+    assert [c.slug for c in offers.items] == [KER]
+    assert offers.items[0].deal is not None
+
+
+@pytest.mark.db
+async def test_search_on_offer_with_no_deals_is_empty_not_an_error(
+    catalog: None, db: AsyncSession, db_client: AsyncClient
+) -> None:
+    result = await search_packages(db, SearchParams(on_offer=True))
+    assert result.items == [] and result.total == 0
+
+    res = await db_client.get("/packages", params={"onOffer": "true"})
+    assert res.status_code == 200 and res.json()["items"] == []
+
+    from app.services.ai.tools import ToolContext, run_tool
+
+    now = dt.datetime.now(dt.UTC)
+    got, _ = await run_tool(
+        ToolContext(db, ist_today(now), now), "searchPackages", {"onOffer": True}
+    )
+    assert got["packages"] == [] and "error" not in got
+    assert "deal" in str(got["note"])

@@ -516,6 +516,7 @@ def test_tool_schemas_are_flat_for_the_model() -> None:
         "nights",
         "theme",
         "month",
+        "onOffer",
     }
     assert "required" not in search
     assert search["properties"]["theme"]["enum"][0] == "beach"

@@ -35,9 +35,10 @@ from app.models import Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import MONTH_PATTERN, PackageCard, SearchParams
 from app.schemas.meta import MAX_TRAVELLERS
-from app.services.ai.handoff import start_booking
+from app.services.ai.handoff import quote_request_for, start_booking
 from app.services.ai.model import ToolSpec
 from app.services.ai.pii import redact
+from app.services.booking.orders import quote_booking
 from app.services.catalog.compare import compare
 from app.services.catalog.reads import get_departures_for_month, get_package, list_destinations
 from app.services.catalog.search import search_packages
@@ -100,6 +101,10 @@ class SearchPackagesArgs(ToolArgs):
         pattern=MONTH_PATTERN,
         description="YYYY-MM: only packages with a departure that month that still has seats.",
     )
+    on_offer: bool | None = Field(
+        default=None,
+        description="true: only packages with a deal running now (the site's own deal rule).",
+    )
 
 
 class CheckAvailabilityArgs(ToolArgs):
@@ -122,6 +127,23 @@ class StartBookingArgs(ToolArgs):
 
     @model_validator(mode="after")
     def _party(self) -> "StartBookingArgs":
+        if self.adults + self.children > MAX_TRAVELLERS:
+            raise ValueError(f"at most {MAX_TRAVELLERS} travellers per booking")
+        return self
+
+
+class QuotePriceArgs(ToolArgs):
+    departure_id: str = Field(
+        min_length=1, max_length=40, description="The departureId from checkAvailability."
+    )
+    adults: int = Field(ge=1, le=MAX_TRAVELLERS, description="Adults travelling (12+ years).")
+    children: int = Field(default=0, ge=0, description="Children under 12 travelling.")
+    coupon_code: str | None = Field(
+        default=None, max_length=40, description="A coupon code the customer has, if any."
+    )
+
+    @model_validator(mode="after")
+    def _party(self) -> "QuotePriceArgs":
         if self.adults + self.children > MAX_TRAVELLERS:
             raise ValueError(f"at most {MAX_TRAVELLERS} travellers per booking")
         return self
@@ -257,6 +279,7 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
         nights_max=args.nights + NIGHTS_SLACK if args.nights else None,
         themes=[args.theme] if args.theme else [],
         month=args.month,
+        on_offer=bool(args.on_offer),
     )
     found = await search_packages(ctx.db, params, today=ctx.today, now=ctx.now)
     result: dict[str, Any] = {
@@ -266,6 +289,8 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
     if per_person is not None and (args.travellers or 1) > 1:
         # What the cards were filtered by, so the reply compares prices with the same figure.
         result["budgetPerPerson"] = inr(per_person)
+    if not found.items and args.on_offer:
+        result["note"] = "No package has a deal running right now."
     if not found.items:
         result["weOffer"] = offered
         if len(slugs) == 1:  # one known destination, nothing open: offer its new-dates alert
@@ -334,6 +359,55 @@ async def start_booking_tool(ctx: ToolContext, args: StartBookingArgs) -> dict[s
         "url": started.url,
         "next": "The site now opens the booking sheet; the customer pays there, not in chat.",
     }
+
+
+_LINE_LABELS = {
+    "double": "Adult, twin sharing",
+    "triple": "Adult, triple sharing",
+    "single": "Adult, single room",
+    "single_supplement": "Single-room supplement",
+    "child": "Child",
+}
+
+
+def _signed(paise: int) -> str:
+    return ("-" if paise < 0 else "") + inr(abs(paise) // 100)
+
+
+async def quote_price_tool(ctx: ToolContext, args: QuotePriceArgs) -> dict[str, Any]:
+    """The server's price for a party on a departure, as the booking sheet shows it. Reads
+    only: nothing is held or saved."""
+    try:
+        quote = await quote_booking(
+            ctx.db,
+            quote_request_for(args.departure_id, args.adults, args.children, args.coupon_code),
+            now=ctx.now,
+        )
+    except ApiError as exc:  # gone (404), sold out / closed (409), a refused coupon: say why
+        return {"error": exc.message}
+    travellers = args.adults + args.children
+    lines = []
+    for line in quote.lines:
+        if line.kind == "deal":
+            label = f"Deal discount ({line.count} x {_signed(line.unit_paise)})"
+        elif line.kind == "early_bird":
+            label = f"Early-bird discount ({line.count} x {_signed(line.unit_paise)})"
+        else:
+            label = f"{line.count} x {_LINE_LABELS.get(line.kind, str(line.kind))}"
+        lines.append({"label": label, "amount": _signed(line.amount_paise)})
+    result: dict[str, Any] = {
+        "total": _signed(quote.total_paise),
+        "perPerson": _signed(quote.total_paise // travellers),
+        "lines": lines,
+    }
+    if quote.coupon:
+        result["coupon"] = {"code": quote.coupon.code, "off": _signed(quote.coupon.off_paise)}
+    if quote.deposit:
+        result["deposit"] = {
+            "amount": _signed(quote.deposit.amount_paise),
+            "balanceDueBy": quote.deposit.due_on.isoformat(),
+        }
+    return result
 
 
 async def create_enquiry_tool(ctx: ToolContext, args: CreateEnquiryArgs) -> dict[str, Any]:
@@ -562,6 +636,16 @@ TOOLS: dict[str, Tool] = {
             "party and opens the booking sheet on the package page with the date and party filled "
             "in. Payment happens there, never in chat. Ask how many adults and children first if "
             "you do not know. Use a departureId from checkAvailability.",
+        ),
+        _tool(
+            "quotePrice",
+            QuotePriceArgs,
+            quote_price_tool,
+            "The exact price for a party on one departure, as the booking sheet shows it: total, "
+            "per person, each line, any coupon and the deposit option. Changes nothing and takes "
+            "no contact details. Use a departureId from checkAvailability. When the date cannot "
+            "be booked, returns `error` with the reason.",
+            surfaces={"mcp"},
         ),
         _tool(
             "createEnquiry",

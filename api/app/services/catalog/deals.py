@@ -85,17 +85,22 @@ async def bases(db: AsyncSession, today: dt.date) -> dict[str, int]:
     return {package_id: int(base) for package_id, base in rows}
 
 
-def shown_price(now: dt.datetime, today: dt.date) -> ColumnElement[int]:
-    """SQL twin of `deal_for(...).price_paise` falling back to the starting price: what the
-    card shows, so search sorts and filters by it. 0 stays 0 ("on request")."""
-    base = base_column(today)
-    active = and_(
+def running_now(now: dt.datetime, today: dt.date) -> ColumnElement[bool]:
+    """SQL twin of `deal_for(...) is not None`: a deal is showing on the package right now."""
+    return and_(
         Package.deal_price_paise.is_not(None),
         Package.deal_ends_at > now,
         Package.starting_price_paise > 0,
         Package.deal_price_paise > 0,
-        Package.deal_price_paise < base,
+        Package.deal_price_paise < base_column(today),
     )
+
+
+def shown_price(now: dt.datetime, today: dt.date) -> ColumnElement[int]:
+    """SQL twin of `deal_for(...).price_paise` falling back to the starting price: what the
+    card shows, so search sorts and filters by it. 0 stays 0 ("on request")."""
+    base = base_column(today)
+    active = running_now(now, today)
     return case(
         (
             active,

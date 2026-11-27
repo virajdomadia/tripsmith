@@ -13597,6 +13597,8 @@ export interface operations {
                 themes?: components["schemas"]["Theme"][];
                 /** @description YYYY-MM: packages with a departure that month that still has seats */
                 month?: string | null;
+                /** @description Only packages with a deal running now (the card's deal badge) */
+                onOffer?: boolean;
                 sort?: components["schemas"]["SortOrder"];
             };
             header?: never;
