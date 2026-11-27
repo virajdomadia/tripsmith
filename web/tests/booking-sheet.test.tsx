@@ -518,11 +518,27 @@ describe('BookingSheet', { timeout: 30_000 }, () => {
     expect(body.travellers).toEqual([{ occupancy: 'single' }, { occupancy: 'single' }]);
   });
 
+  it('starts on the cheapest date, the one the "From" price is (review 2026-11-27, H4)', async () => {
+    api();
+    const pricier = { ...DEP, priceDoublePaise: 17_499_00 };
+    const cheaper = { ...DEC, priceDoublePaise: 14_499_00 };
+    render(
+      <BookingSheet pkg={{ ...PKG, departures: [pricier, cheaper] }} open onOpenChange={() => {}} />,
+      withRules,
+    );
+    const sheet = await screen.findByRole('dialog');
+    await within(sheet).findByText('Live availability · checked just now');
+    const pressed = (name: RegExp) =>
+      within(sheet).getByRole('button', { name }).getAttribute('aria-pressed');
+    await waitFor(() => expect(pressed(/18 Dec 2099/)).toBe('true'));
+    expect(pressed(/20 Nov 2099/)).toBe('false');
+  });
+
   it('warns before Pay that test mode stops at ₹15,000', async () => {
     api();
     render(<BookingSheet pkg={PKG} open onOpenChange={() => {}} />, withRules);
     // ₹29,998 for two: over the cap.
-    expect(await screen.findByText(/this payment will stop at Razorpay/)).toBeTruthy();
+    expect(await screen.findByText(/this one will stop at Razorpay/)).toBeTruthy();
     // …and where a full test payment can finish.
     const link = screen.getByRole('link', { name: 'Kasol Riverside Weekend' });
     expect(link.getAttribute('href')).toBe('/packages/kasol-weekend-camp#book');

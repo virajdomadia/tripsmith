@@ -77,6 +77,13 @@ export function PriceBox({
                 : 'Sold out'}
             </span>
           </span>
+          {/* Review 2026-11-27 (H4): the next date may cost more than "From"; say so here, not
+              at Pay. Before any deal or early-bird saving, which the sheet shows per date. */}
+          {next.priceDoublePaise !== pkg.startingPricePaise && next.priceDoublePaise > 0 && (
+            <span className="num text-[13px] text-mute">
+              {inr(next.priceDoublePaise)} per person on this date
+            </span>
+          )}
         </div>
       )}
       {proof && <ProofLine text={proof} />}

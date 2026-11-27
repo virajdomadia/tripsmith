@@ -482,7 +482,8 @@ function Cell({ row, trip: t }: { row: Row; trip: CompareTrip }): ReactNode {
       return (
         <p>
           {t.deposit
-            ? `Reserve with ${rules.depositPercent} % now, the rest ${rules.balanceDays} days before departure`
+            ? // Review 2026-11-27 (H4): a nearer date is paid in full (the sheet says "Not for this date").
+              `Reserve with ${rules.depositPercent} % now on dates more than ${rules.balanceDays} days away; the rest is due ${rules.balanceDays} days before departure`
             : 'Pay in full when you book'}
         </p>
       );
