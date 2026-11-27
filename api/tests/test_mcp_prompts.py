@@ -1,7 +1,7 @@
 """v4 4.0.5: the `plan-a-trip` prompt (03-requirements-v4 R35; 06 MCP surface).
 
 One guided planning message for the customer's own assistant: what they know so far (all
-optional), then how to use the four tools. Arguments are strings (MCP prompts take strings),
+optional), then how to use the tools. Arguments are strings (MCP prompts take strings),
 bounded, with contact details redacted. Unknown arguments are refused, like the tools'
 `extra="forbid"`. `prompts/get` counts against the same `mcp:{ip}` limit and is logged.
 """

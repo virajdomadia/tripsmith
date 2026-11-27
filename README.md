@@ -105,7 +105,7 @@ https://tripsmith-api.virajdomadia.com/mcp
   | `startEnquiry` | Link to the enquiry form with month and party filled in |
   | `notifyMe` | Link to leave an email for a sold-out date or new dates |
 
-- **Connect it** (the connect steps are *verify by hand after deploy*):
+- **Connect it:**
   - **Claude:** Settings → Connectors → Add custom connector → `https://tripsmith-api.virajdomadia.com/mcp`. *Verify by hand after deploy.*
   - **ChatGPT:** Settings → Apps & Connectors → Advanced → Developer mode → Create → the same URL, authentication "No authentication". *Verify by hand after deploy.*
 - **An adapter, not a second backend.** Every tool runs the chat's own `run_tool` (`api/app/services/mcp/adapter.py`), so prices, seats and rules are the site's. Parity tests compare MCP results with the chat's.

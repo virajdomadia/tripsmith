@@ -172,7 +172,7 @@ The agency lives inside the customer's own assistant. Acceptance criteria in [do
 - **MCP exposes no payment, reservation or lead-creation operation.** Four tools: `searchPackages` and `checkAvailability` read the public catalogue; `startBooking` and `startEnquiry` are **handoff tools** that return a link to Tripsmith's site, where the customer books (Razorpay) or enquires (the existing form) themselves.
 - **The MCP layer is an adapter** over the v3 tool registry (`services/ai/tools.py`, `run_tool`) with no business logic of its own; a parity test per tool pins this.
 - **No contact details pass through MCP.** `startEnquiry` links to the site's enquiry form with the month and party pre-filled; name, phone and the message are typed on the site, and links never carry anything a person wrote.
-- Pydantic validation on every tool; a 60/h limit on the **server-derived IP** (failing closed if Redis is down); sanitised `mcp_requests` logging. Client name/version/User-Agent are recorded as diagnostic metadata only, never trusted as identity.
+- Pydantic validation on every tool; a 300/h limit on the **server-derived IP** (failing closed if Redis is down); sanitised `mcp_requests` logging. Client name/version/User-Agent are recorded as diagnostic metadata only, never trusted as identity.
 - **No tenancy:** Tripsmith is a single agency. MCP OAuth + `myBookings` / `getVoucher` stay a **stretch goal**.
 - **~9 h core** (re-estimated at step 3 from the 6 h prototype target); a planning estimate, not a commitment.
 
@@ -182,7 +182,7 @@ The agency lives inside the customer's own assistant. Acceptance criteria in [do
 | **Tools** | `searchPackages`, `checkAvailability` (v3, unchanged) · `startBooking` (absolute link to the pre-filled Book-now sheet; never pays or holds seats) · `startEnquiry` (link to a pre-filled enquiry form; creates nothing) |
 | **Enquiry pre-fill (web)** | the existing enquiry pages pre-fill their choice fields (month, party) from the link; nothing typed ever travels in a URL |
 | **Prompt** | `plan-a-trip` guided planning prompt (built, core) |
-| **Limits & logging** | catalogue-only rules, 60/h/IP, `mcp_requests` log |
+| **Limits & logging** | catalogue-only rules, 300/h/IP, `mcp_requests` log |
 | **Developer page + proof** | `/developers` with one-line install config; README GIF of Claude Desktop planning a Goa trip on the production endpoint |
 | *Optional* | resources `tripsmith://packages/{slug}`, `tripsmith://destinations/{slug}` (needs a new markdown renderer) · dashboard tile "trips planned via MCP" |
 | **Stretch: authenticated tools** | MCP OAuth (own OAuth 2.1 server over the api's users/sessions) → `myBookings`, `getVoucher` (~3 h) |

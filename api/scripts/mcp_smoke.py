@@ -66,6 +66,15 @@ def payload(result: Any) -> dict[str, Any]:
     return json.loads(result.content[0].text)
 
 
+def first_open_date(availability: dict[str, Any]) -> dict[str, Any] | None:
+    """The latest listed departure with seats for two, or None. The latest, because the nearest
+    ones can be too close to book online, which quotePrice rightly refuses."""
+    for departure in reversed(availability.get("departures") or []):
+        if departure["seatsLeft"] >= 2:
+            return departure
+    return None
+
+
 async def run_mode(url: str, mode: str) -> None:
     print(f"{mode}:")
     http = httpx2.AsyncClient(headers={"user-agent": USER_AGENT}, timeout=30.0)
@@ -96,19 +105,28 @@ async def run_mode(url: str, mode: str) -> None:
         packages = found.get("packages") or []
         check(not search.is_error and bool(packages), "searchPackages finds packages", found)
 
+        # The first package may have no open date on production data: try each until one does.
         slug = packages[0]["slug"]
-        dates = await client.call_tool("checkAvailability", {"packageSlug": slug})
-        check(not dates.is_error, f"checkAvailability answers for {slug}", payload(dates))
-        open_dates = [d for d in payload(dates).get("departures") or [] if d["seatsLeft"] >= 2]
-        check(bool(open_dates), f"{slug} has a date with seats for two", payload(dates))
+        open_date: dict[str, Any] | None = None
+        for package in packages:
+            candidate = package["slug"]
+            dates = await client.call_tool("checkAvailability", {"packageSlug": candidate})
+            check(not dates.is_error, f"checkAvailability answers for {candidate}", payload(dates))
+            open_date = first_open_date(payload(dates))
+            if open_date is not None:
+                slug = candidate
+                break
 
         details = await client.call_tool("getPackageDetails", {"packageSlug": slug})
         check(not details.is_error, f"getPackageDetails answers for {slug}", payload(details))
 
-        quote = await client.call_tool(
-            "quotePrice", {"departureId": open_dates[0]["departureId"], "adults": 2}
-        )
-        check(not quote.is_error, f"quotePrice answers for {slug}", payload(quote))
+        if open_date is None:
+            print("  note  no package has a date with seats for two: quotePrice skipped")
+        else:
+            quote = await client.call_tool(
+                "quotePrice", {"departureId": open_date["departureId"], "adults": 2}
+            )
+            check(not quote.is_error, f"quotePrice answers for {slug}", payload(quote))
 
 
 async def main(url: str) -> int:

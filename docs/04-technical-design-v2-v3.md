@@ -143,7 +143,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 ### 1. SDK, transport, mounting
 - **MCP Python SDK v2**, high-level server **`MCPServer`** (v2 renamed v1's `FastMCP` and removed the old `mcp.server.fastmcp` path with no shim). Confirm the exact import path against the official migration guide when adding the dependency (sources show both `mcp.server` and `mcp.server.mcpserver`). Pin `mcp` in `pyproject.toml` / `uv.lock` (it is not a dependency today).
 - Code in `api/app/services/mcp/` (`server.py` builds the `MCPServer` and registers tools; `adapter.py` holds the thin wrappers). `api/app/main.py` mounts the SDK's **Streamable HTTP ASGI app** at `/mcp` inside the existing FastAPI app, so it gets the same function, region (`bom1`) and env.
-- **Stateless** mode with JSON responses: the four tools are request/response and need no server-to-client channel, so no session store is needed. Verify with real clients that JSON-only responses are accepted; switch to SSE responses only if a target client needs them.
+- **Stateless** mode with JSON responses: the ten tools are request/response and need no server-to-client channel, so no session store is needed. Verify with real clients that JSON-only responses are accepted; switch to SSE responses only if a target client needs them.
 - **Lifespan:** a mounted ASGI app's lifespan does not run, so FastAPI's existing `lifespan` (today it only disposes the DB engine) must also enter the SDK's session manager (`async with mcp.session_manager.run(): ...`, composed with the engine disposal). Otherwise `/mcp` exists but fails on its first request. Covered by a test that boots the app through its lifespan and makes one MCP call.
 - **Protocol versions:** 2026-07-28 clients send protocol version and client info as per-request metadata (no `initialize`); older clients still handshake. Support both; read client info from whichever is present.
 - **Security config:** set the SDK's transport-security Host/Origin allowlist to the production api host (+ preview hosts). Defaults are localhost-oriented, and an unlisted host is expected to be rejected (e.g. `421`). Confirm on preview. Origin is validated (DNS-rebinding protection, as the Streamable HTTP spec requires).
@@ -167,7 +167,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 
 ### 4. Limits, identity, logging
 - **Caller IP** from `infra/client_ip.py` (Vercel forwarded header / the signed internal header; never a client-supplied IP header).
-- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 60 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters. As built: `RateLimitResult.degraded` is set when Upstash fails and by the `NullRateLimiter` built on a deployment without Upstash; `services/mcp/server._refusal` refuses on it. Only `tools/call` is counted (`tools/list` is free).
+- `infra/ratelimit.py` sliding window, key `mcp:{ip}`, 300 calls / hour. **Fails closed** for MCP when Upstash is unreachable (a clear "try again shortly" tool error), unlike the site's fail-open limiters. As built: `RateLimitResult.degraded` is set when Upstash fails and by the `NullRateLimiter` built on a deployment without Upstash; `services/mcp/server._refusal` refuses on it. Only `tools/call` is counted (`tools/list` is free).
 - One `mcp_requests` row per call (`services/mcp/log.py`, written after the response is built): method, name, args with `pii.redact()` on free-text fields, latency ms, ok/error, `ip_hash` (the existing keyed hash), and client name/version/User-Agent **as reported**. These are diagnostic only, never used for limits or trust. As built: `log.clean_args` redacts and bounds every string (300 chars, 20 items, 4 levels deep); the row is written in its own session after the tool's read-only one closes, and a write failure is logged, never raised. Refused calls write no row.
 
 ### 5. Optional (not core)
@@ -180,8 +180,8 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 
 ### 7. Tests & proof
 - Parity per tool: the MCP call and `run_tool` with the same args return the same payload (URL made absolute for `startBooking`).
-- Listing: exactly 4 tools; none pays, reserves, creates a lead or needs auth. `startEnquiry` writes no `enquiries` row.
-- Rate limit (the 61st call is refused); limiter outage means refused; log redaction (no phone/email in `args`).
+- Listing: exactly 10 tools; none pays, reserves, creates a lead or needs auth. `startEnquiry` writes no `enquiries` row.
+- Rate limit (the 301st call is refused); limiter outage means refused; log redaction (no phone/email in `args`).
 - Lifespan boot test (section 1). Pre-fill: allowlist, bounds, contact fields ignored (web unit test).
 - Proof on production: a current-spec client and a legacy client list and call the tools; Claude Desktop GIF for the README. **Not** the v3 Gemini evals through MCP: the client's model is not ours to evaluate, and parity tests prove the tools are the same.
 
@@ -199,7 +199,7 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 | SDK v2 API still moving (import paths, transport options) | pin the version; SDK-client smoke test in CI |
 | Clients split across spec versions | support per-request metadata and `initialize`; test one of each |
 | Spoofed client identity | never used for trust; limits key on the server-derived IP |
-| Abuse | read-only tools, 60/h/IP, fail-closed limiter; nothing can be spammed into the owner's inbox |
+| Abuse | read-only tools, 300/h/IP, fail-closed limiter; nothing can be spammed into the owner's inbox |
 
 ## Add-ons (unique nice-to-haves)
 

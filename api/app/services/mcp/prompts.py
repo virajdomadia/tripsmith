@@ -1,7 +1,7 @@
 """v4 4.0.5: the `plan-a-trip` prompt (03-requirements-v4 R35).
 
 A prompt is a message the customer picks in their own assistant (Claude Desktop's "+" menu, for
-one) to start planning: what they know so far, then how to use Tripsmith's four tools. It reads
+one) to start planning: what they know so far, then how to use Tripsmith's tools. It reads
 nothing and writes nothing. The assistant does the work through the tools, which carry the rules.
 
 MCP prompt arguments are strings. Each is trimmed, has contact details redacted (the customer
