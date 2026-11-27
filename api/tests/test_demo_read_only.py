@@ -127,7 +127,11 @@ async def test_create_owner_adds_a_private_owner_who_can_write(
     password = "a-long-private-passphrase"
 
     assert await create_owner(db, " Real@Owner.in ", "Viraj", password) is True
+    old = await db_client.post("/auth/login", json={"email": "real@owner.in", "password": password})
+    assert old.status_code == 200
     assert await create_owner(db, "real@owner.in", "Viraj", password + "!") is False  # reset
+    # Review 2026-11-27 (L6): a password reset signs that owner out everywhere.
+    assert (await db_client.get("/auth/session")).status_code == 401
 
     res = await db_client.post(
         "/auth/login", json={"email": "real@owner.in", "password": password + "!"}

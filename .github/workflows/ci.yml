@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Review 2026-11-27 (L8, M3): weekly, so a test date that expires or a new advisory turns CI red
+  # before the next merge does. vercel.yml ignores scheduled runs (no deploy).
+  schedule:
+    - cron: '0 3 * * 1' # Mondays 08:30 IST
 
 permissions:
   contents: read
@@ -25,10 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # pnpm's version comes from package.json#packageManager.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -36,6 +40,8 @@ jobs:
       - run: pnpm --filter web lint
       - run: pnpm --filter web typecheck
       - run: pnpm --filter web test
+      # Review 2026-11-27 (M3): restores the dependency gate the lean cleanup dropped (docs/12 V9).
+      - run: pnpm audit --prod --audit-level high
 
   # ---------------------------------------------------------------------------
   # api/ — FastAPI: ruff → pyright → pytest against a throwaway Postgres (S10+)
@@ -63,9 +69,9 @@ jobs:
       # A missing TEST_DATABASE_URL fails the run instead of silently skipping the db tests.
       REQUIRE_DB_TESTS: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Python's version comes from api/.python-version.
-      - uses: astral-sh/setup-uv@v10.3.1
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa # v10.3.1
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -73,6 +79,11 @@ jobs:
       - run: uv run --directory api ruff check .
       - run: uv run --directory api ruff format --check .
       - run: uv run --directory api pyright
+      # Review 2026-11-27 (M3): the locked production dependencies, any known advisory fails.
+      - name: pip-audit (production lock)
+        run: |
+          uv export --directory api --frozen --no-dev --no-hashes --no-emit-project -o "$RUNNER_TEMP/req.txt"
+          uvx pip-audit==2.9.0 -r "$RUNNER_TEMP/req.txt" --disable-pip --no-deps
       - run: uv run --directory api pytest
       # v4 4.0.5: the MCP server under a real ASGI server and real sockets, driven by the SDK's own
       # client (legacy and 2026-07-28 modes), on its own freshly migrated and seeded database.

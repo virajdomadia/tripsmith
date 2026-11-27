@@ -24,12 +24,12 @@ from pathlib import Path
 # Runnable both as `python scripts/create_owner.py` and `python -m scripts.create_owner` from api/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import delete, select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.infra.db import make_engine  # noqa: E402
-from app.models import User  # noqa: E402
+from app.models import Session, User  # noqa: E402
 from app.models.enums import UserRole  # noqa: E402
 from app.schemas.enquiries import EMAIL_RE  # noqa: E402
 from app.services.auth.passwords import hash_password  # noqa: E402
@@ -61,6 +61,8 @@ async def create_owner(db: AsyncSession, email: str, name: str, password: str) -
         db.add(user)
     user.role = UserRole.OWNER
     user.password_hash = hash_password(password)
+    if not created:  # review 2026-11-27 (L6): a new password signs out every old cookie
+        await db.execute(delete(Session).where(Session.user_id == user.id))
     await db.commit()
     return created
 
