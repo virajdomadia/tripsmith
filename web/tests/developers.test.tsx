@@ -13,10 +13,20 @@ afterEach(cleanup);
 
 describe('/developers matches the MCP server (v4 R37)', () => {
   it('lists exactly the tools, the prompt and the limit the api serves', () => {
-    // adapter.py: SEARCH, AVAILABILITY, BOOKING, ENQUIRY = ("searchPackages", ...)
-    const tuple = /SEARCH, AVAILABILITY, BOOKING, ENQUIRY = \(([^)]*)\)/.exec(source('adapter.py'));
-    const served = [...(tuple?.[1] ?? '').matchAll(/"(\w+)"/g)].map((m) => m[1]);
-    expect(MCP_TOOLS.map((t) => t.name)).toEqual(served);
+    // adapter.py lists the ten in MCP_TOOL_NAMES order: the read-only results, then the handoffs.
+    const adapter = source('adapter.py');
+    const names = MCP_TOOLS.map((t) => t.name);
+    expect(names).toHaveLength(10);
+    for (const name of names) expect(adapter).toContain(`"${name}"`);
+    const alias: Record<string, string> = {
+      SEARCH: 'searchPackages',
+      AVAILABILITY: 'checkAvailability',
+    };
+    const body = /_READ_ONLY_RESULTS = \(([^)]*)\)/.exec(adapter)?.[1] ?? '';
+    const readOnly = [...body.matchAll(/"(\w+)"|\b([A-Z]{4,})\b/g)].map(
+      (m) => m[1] ?? alias[m[2] ?? ''] ?? '',
+    );
+    expect(names).toEqual([...readOnly, 'startBooking', 'startEnquiry', 'notifyMe']);
     expect(source('prompts.py')).toContain(`PLAN_A_TRIP = "${MCP_PROMPT.name}"`);
     expect(source('server.py')).toMatch(new RegExp(`^MCP_LIMIT = ${MCP_LIMIT}\\b`, 'm'));
     expect(source('server.py')).toContain('PATH = "/mcp"');

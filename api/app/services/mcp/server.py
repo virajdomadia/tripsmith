@@ -10,7 +10,7 @@ so `app.main.lifespan` enters it (`app.state.mcp_session_manager`).
 4.0.2: the tools come from `services/mcp/adapter.py` (over the chat's tool registry). Each call
 gets its own database session that is never committed: MCP reads, it never writes.
 
-4.0.4: each call is first counted against `mcp:{ip}` (60 an hour on the server-derived address).
+4.0.4: each call is first counted against `mcp:{ip}` (300 an hour on the server-derived address).
 The limiter fails **closed** here: a `degraded` result (Upstash down, or no Upstash on a
 deployment) refuses the call, unlike the site. A served call then writes one `mcp_requests` row
 (`services/mcp/log.py`); a refused one only reaches the function log, so a flood can't fill the
@@ -92,7 +92,7 @@ def allowed_origins(environ: Mapping[str, str]) -> list[str]:
 UNAVAILABLE = "Tripsmith's catalogue is unavailable right now. Try again shortly."
 LIMITER_DOWN = "Tripsmith can't take requests right now. Try again shortly."
 REFUSED = -32000  # JSON-RPC server error: a refused prompts/get (tools answer with isError)
-MCP_LIMIT = 60  # tool calls per address per hour (R36)
+MCP_LIMIT = 300  # tool calls per address per hour (R36)
 HOUR = 3600
 
 

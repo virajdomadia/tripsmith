@@ -82,7 +82,7 @@ flowchart LR
 
 ## Use it from your own AI assistant (v4, MCP)
 
-The same four tools the concierge uses are served as a remote [MCP](https://modelcontextprotocol.io) server, so Claude, ChatGPT, Cursor or any MCP client can plan a Tripsmith trip:
+Ten read-only tools over the same catalogue the concierge uses are served as a remote [MCP](https://modelcontextprotocol.io) server, so Claude, ChatGPT, Cursor or any MCP client can plan a Tripsmith trip:
 
 ```
 https://tripsmith-api.virajdomadia.com/mcp
@@ -90,10 +90,27 @@ https://tripsmith-api.virajdomadia.com/mcp
 
 <!-- v4 R37: the 30-second Claude Desktop GIF ("plan 3 days in Goa" → real packages → a booking link that opens Tripsmith) goes here once recorded on production. -->
 
-- **Tools:** `searchPackages`, `checkAvailability`, `startBooking`, `startEnquiry`, plus the `plan-a-trip` prompt. Setup for each client is on [/developers](https://tripsmith.virajdomadia.com/developers).
+- **Tools** (all ten are marked read-only; plus the `plan-a-trip` prompt). Setup for each client is on [/developers](https://tripsmith.virajdomadia.com/developers).
+
+  | Tool | What it does |
+  |---|---|
+  | `listDestinations` | The destinations we run, with package counts |
+  | `searchPackages` | Find packages by destination, month, budget, length or theme |
+  | `getPackageDetails` | One package: itinerary, inclusions, cancellation tiers |
+  | `getReviews` | Traveller reviews and the rating |
+  | `comparePackages` | Two or three packages side by side |
+  | `checkAvailability` | Upcoming dates with live prices and seats |
+  | `quotePrice` | Exact total for a date and group (nothing is held) |
+  | `startBooking` | Link that opens the Book-now sheet pre-filled |
+  | `startEnquiry` | Link to the enquiry form with month and party filled in |
+  | `notifyMe` | Link to leave an email for a sold-out date or new dates |
+
+- **Connect it** (the connect steps are *verify by hand after deploy*):
+  - **Claude:** Settings → Connectors → Add custom connector → `https://tripsmith-api.virajdomadia.com/mcp`. *Verify by hand after deploy.*
+  - **ChatGPT:** Settings → Apps & Connectors → Advanced → Developer mode → Create → the same URL, authentication "No authentication". *Verify by hand after deploy.*
 - **An adapter, not a second backend.** Every tool runs the chat's own `run_tool` (`api/app/services/mcp/adapter.py`), so prices, seats and rules are the site's. Parity tests compare MCP results with the chat's.
-- **It hands over, it never acts.** `startBooking` and `startEnquiry` return links to the site's own booking sheet and enquiry form. Nothing is paid, held or sent through MCP, and no contact details travel in a link.
-- **Limits that fail closed.** 60 requests an hour per address. If the limiter (Upstash) is down, MCP refuses instead of running unlimited; the site itself still fails open.
+- **It hands over, it never acts.** `startBooking`, `startEnquiry` and `notifyMe` return links to the site's own booking sheet, enquiry form and alert form; the other seven only read. The public MCP creates nothing: nothing is paid, held, saved or sent through it, and no contact details travel in a link.
+- **Limits that fail closed.** 300 requests an hour per address. If the limiter (Upstash) is down, MCP refuses instead of running unlimited; the site itself still fails open.
 - **Logged, without personal data.** One `mcp_requests` row per request, with phone numbers and emails removed from the inputs and a keyed hash of the address.
 - **Tested with a real client.** The SDK's own client, in both the legacy `initialize` and the 2026-07-28 modes, drives a uvicorn server in CI (`api/scripts/mcp_smoke.py`) and the live api after every production deploy.
 

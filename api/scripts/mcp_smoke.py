@@ -9,9 +9,11 @@ seeded database (.github/workflows/ci.yml); 4.0.6 runs it against a preview and 
     uv run python scripts/mcp_smoke.py https://api.example/mcp
 
 Each mode (`legacy`: the `initialize` handshake; `auto`: the 2026-07-28 flow when the server
-offers it) lists the tools and the prompt, gets the prompt, and calls the two read-only tools.
-Four calls a mode, so eight against the 60-an-hour limit; each is logged in `mcp_requests` with
-the User-Agent `tripsmith-mcp-smoke`, so reports can leave the smoke runs out.
+offers it) lists the tools and the prompt, gets the prompt, and calls four read-only tools on a
+package it finds at runtime (so it works on production data too): searchPackages,
+checkAvailability, getPackageDetails and quotePrice. Four calls a mode, so eight against the
+300-an-hour limit; each is logged in `mcp_requests` with the User-Agent `tripsmith-mcp-smoke`, so
+reports can leave the smoke runs out.
 Nothing books, holds or sends. Exits 1 on the first failed check.
 """
 
@@ -25,7 +27,18 @@ import httpx2
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
 
-TOOLS = {"searchPackages", "checkAvailability", "startBooking", "startEnquiry"}
+TOOLS = [
+    "listDestinations",
+    "searchPackages",
+    "getPackageDetails",
+    "getReviews",
+    "comparePackages",
+    "checkAvailability",
+    "quotePrice",
+    "startBooking",
+    "startEnquiry",
+    "notifyMe",
+]
 PROMPT = "plan-a-trip"
 USER_AGENT = "tripsmith-mcp-smoke/1"
 
@@ -61,8 +74,16 @@ async def run_mode(url: str, mode: str) -> None:
         info = client.server_info
         check(info is not None and info.name == "tripsmith", "server is tripsmith", info)
 
-        tools = {t.name for t in (await client.list_tools()).tools}
-        check(tools == TOOLS, "exactly the four tools", sorted(tools))
+        listed = (await client.list_tools()).tools
+        check(
+            [t.name for t in listed] == TOOLS,
+            "exactly the ten tools, in order",
+            [t.name for t in listed],
+        )
+        check(
+            all(t.annotations is not None and t.annotations.read_only_hint for t in listed),
+            "every tool is marked read-only",
+        )
 
         prompts = [p.name for p in (await client.list_prompts()).prompts]
         check(prompts == [PROMPT], "the plan-a-trip prompt is listed", prompts)
@@ -78,6 +99,16 @@ async def run_mode(url: str, mode: str) -> None:
         slug = packages[0]["slug"]
         dates = await client.call_tool("checkAvailability", {"packageSlug": slug})
         check(not dates.is_error, f"checkAvailability answers for {slug}", payload(dates))
+        open_dates = [d for d in payload(dates).get("departures") or [] if d["seatsLeft"] >= 2]
+        check(bool(open_dates), f"{slug} has a date with seats for two", payload(dates))
+
+        details = await client.call_tool("getPackageDetails", {"packageSlug": slug})
+        check(not details.is_error, f"getPackageDetails answers for {slug}", payload(details))
+
+        quote = await client.call_tool(
+            "quotePrice", {"departureId": open_dates[0]["departureId"], "adults": 2}
+        )
+        check(not quote.is_error, f"quotePrice answers for {slug}", payload(quote))
 
 
 async def main(url: str) -> int:
