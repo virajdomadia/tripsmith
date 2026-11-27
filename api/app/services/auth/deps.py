@@ -5,9 +5,10 @@ Every `/admin/*` route depends on `require_owner`, every `/account/*` route on `
 the web's middleware gate is UX only (05 §Auth).
 
 QA 2026-11-19: `require_owner` is also where a read-only owner is stopped — one place, so no
-admin route can forget it. An owner whose email is in `DEMO_READ_ONLY_EMAILS` (the published
-demo login) may read every `/admin/*` page, but any write answers `403 forbidden` with
-`reason: "demo_read_only"`; the web shows a banner for that session (`SessionInfo.readOnly`).
+admin route can forget it (`require_user` does the same for `/account/*`). An owner whose
+email is in `DEMO_READ_ONLY_EMAILS` (the published demo login) may read every `/admin/*` page,
+but any write answers `403 forbidden` with `reason: "demo_read_only"`;
+the web shows a banner for that session (`SessionInfo.readOnly`).
 """
 
 from typing import Annotated
@@ -32,10 +33,15 @@ async def current_session(
 
 
 async def require_user(
+    request: Request,
     session: Annotated[Session | None, Depends(current_session)],
 ) -> User:
     if session is None:
         raise ApiError("unauthorized", "Sign in to continue")
+    # Review 2026-11-27 (L1): the demo email is public, so a booking a visitor made with it must
+    # not be changeable from the demo login either.
+    if request.method in UNSAFE and is_read_only(request, session.user):
+        raise ApiError("forbidden", READ_ONLY_MESSAGE, reason=READ_ONLY_REASON)
     return session.user
 
 

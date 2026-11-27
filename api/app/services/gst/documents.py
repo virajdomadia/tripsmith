@@ -46,6 +46,7 @@ from app.models.enums import (
     RefundStatus,
 )
 from app.schemas.account import GstDocumentOut
+from app.services.auth.deps import READ_ONLY_MESSAGE, READ_ONLY_REASON
 from app.services.booking.locking import lock_booking
 from app.services.email.render import IST
 from app.services.gst.tax import fy_of
@@ -387,10 +388,11 @@ async def _issue_locked(db: AsyncSession, booking: Booking, key: str) -> DocRef:
     )
 
 
-async def issue(db: AsyncSession, ref: str, key: str) -> DocRef:
-    """The document `key` of booking `ref`, numbered — issued now if the event missed it.
-    Commits. An already-numbered document is read without taking the booking lock, so a
-    re-download never queues behind a checkout on the same departure."""
+async def issue(db: AsyncSession, ref: str, key: str, *, may_issue: bool = True) -> DocRef:
+    """The document `key` of booking `ref`, numbered — issued now if the event missed it
+    (refused when `may_issue` is False: a read-only owner, review 2026-11-27 M2). Commits.
+    An already-numbered document is read without taking the booking lock, so a re-download
+    never queues behind a checkout on the same departure."""
     try:
         booking = (await db.execute(select(Booking).where(Booking.ref == ref))).scalar_one_or_none()
         if booking is None:
@@ -399,6 +401,8 @@ async def issue(db: AsyncSession, ref: str, key: str) -> DocRef:
         if found is not None and found.number is not None:
             await db.rollback()
             return found
+        if not may_issue:
+            raise ApiError("forbidden", READ_ONLY_MESSAGE, reason=READ_ONLY_REASON)
         booking, _ = await lock_booking(db, ref)
         doc = await _issue_locked(db, booking, key)
         await db.commit()
