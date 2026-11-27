@@ -44,7 +44,18 @@ async def test_a_client_reaches_the_server_through_the_app_lifespan(mode: str) -
             tools = await client.list_tools()
             assert client.server_info is not None
             assert client.server_info.name == "tripsmith"
-    assert len(tools.tools) == 10  # the ten tools (tests/test_mcp_tools.py)
+    assert [t.name for t in tools.tools] == [  # the ten tools (tests/test_mcp_tools.py)
+        "listDestinations",
+        "searchPackages",
+        "getPackageDetails",
+        "getReviews",
+        "comparePackages",
+        "checkAvailability",
+        "quotePrice",
+        "startBooking",
+        "startEnquiry",
+        "notifyMe",
+    ]
 
 
 async def test_an_unlisted_origin_is_refused() -> None:

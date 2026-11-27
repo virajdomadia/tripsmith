@@ -39,4 +39,4 @@ def test_mcp_listing_is_driven_by_the_surface_flag(monkeypatch) -> None:  # type
 
     chat_only = dataclasses.replace(TOOLS["checkAvailability"], surfaces=frozenset({"chat"}))
     monkeypatch.setitem(TOOLS, "checkAvailability", chat_only)
-    assert "checkAvailability" not in [t.name for t in tool_list()]
+    assert [t.name for t in tool_list()] == [n for n in MCP_TOOL_NAMES if n != "checkAvailability"]

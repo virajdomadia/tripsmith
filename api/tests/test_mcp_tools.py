@@ -1,8 +1,8 @@
-"""v4 4.0.2: the four MCP tools, an adapter over the v3 registry (docs/04-technical-design-v2-v3.md
-§v4.2; 03-requirements-v4 R34).
+"""v4 4.0.2 and 4.1: the ten MCP tools, an adapter over the v3 registry (docs/04-technical-design
+-v2-v3.md §v4.2; 03-requirements-v4 R34).
 
-Two read the catalogue (`searchPackages`, `checkAvailability`); two hand the customer over to the
-site with a link (`startBooking`, `startEnquiry`). Nothing pays, reserves or creates a lead. The
+Some read the catalogue; `startBooking`, `startEnquiry` and `notifyMe` hand the customer over to
+the site with a link. Nothing pays, reserves or creates a lead. The
 parity tests pin that every tool runs the chat's own `run_tool`, so MCP holds no business logic.
 """
 
@@ -326,3 +326,38 @@ async def test_start_enquiry_includes_agency_contact(catalog: None, mcp_db_app: 
         "email": BUSINESS["email"],
         "hours": BUSINESS["hours"],
     }
+
+
+@pytest.mark.db
+async def test_notify_me_closed_waitlist_says_so(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    departure = (
+        await db.execute(select(Departure).where(Departure.id == await _bookable_departure_id(db)))
+    ).scalar_one()
+    departure.seats_total = 0
+    departure.date = ist_today(dt.datetime.now(dt.UTC)) + dt.timedelta(days=1)  # inside cut-off
+    await db.commit()
+    args = {"packageSlug": "north-goa-beaches", "departureId": departure.id}
+
+    got, is_error = await mcp_result(mcp_db_app, "notifyMe", args)
+
+    assert is_error
+    assert got == {"error": "That date is full and its waitlist has closed."}
+
+
+@pytest.mark.db
+async def test_notify_me_slug_only_with_dates_asks_for_the_departure_id(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    package_id = select(Package.id).where(Package.slug == "north-goa-beaches")
+    for d in (
+        await db.execute(select(Departure).where(Departure.package_id.in_(package_id)))
+    ).scalars():
+        d.seats_total = 0  # every upcoming date sold out
+    await db.commit()
+
+    got, is_error = await mcp_result(mcp_db_app, "notifyMe", {"packageSlug": "north-goa-beaches"})
+
+    assert is_error
+    assert "departureId" in str(got["error"]) and "still has seats" not in str(got["error"])

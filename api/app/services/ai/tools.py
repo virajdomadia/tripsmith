@@ -477,15 +477,19 @@ async def notify_me_tool(ctx: ToolContext, args: NotifyMeArgs) -> dict[str, Any]
     if not departures:
         return {"kind": "newDates", "url": f"/packages/{args.package_slug}#notify"}
     full = next((d for d in departures if d.id == args.departure_id), None)
-    if full is not None and full.seats_left == 0:
-        # The booking sheet's own link for that date: the sold-out row there offers the waitlist.
+    if args.departure_id is None:
         return {
-            "kind": "waitlist",
-            "url": booking_url(args.package_slug, full.date, rooms_for(2), 0),
+            "error": "That package has upcoming dates. Pass the sold-out date's departureId "
+            "from checkAvailability, or use startBooking if a date has seats."
         }
-    if args.departure_id is not None and full is None:
+    if full is None:
         return {"error": f"No upcoming departure '{args.departure_id}' on that package."}
-    return {"error": "That trip still has seats — use startBooking."}
+    if full.seats_left > 0:
+        return {"error": "That trip still has seats — use startBooking."}
+    if not full.waitlist_open:  # the site's own cut-off (departure_out.waitlist_open)
+        return {"error": "That date is full and its waitlist has closed."}
+    # The booking sheet's own link for that date: the sold-out row there offers the waitlist.
+    return {"kind": "waitlist", "url": booking_url(args.package_slug, full.date, rooms_for(2), 0)}
 
 
 def _clip(text: str, limit: int = MAX_DAY_TEXT) -> str:
@@ -730,8 +734,9 @@ TOOLS: dict[str, Tool] = {
             "When a trip is full or has no upcoming date: returns the link where the customer "
             "leaves their email (the waitlist for a full date, or the new-dates alert). Nothing "
             "is sent or saved by this tool. Pass the sold-out date's departureId, or only the "
-            "slug when there are no dates. A trip that still has seats returns `error`: use "
-            "startBooking.",
+            "slug when there are no dates. The waitlist link opens the booking sheet for 2 adults "
+            "(the customer can change the party there). A date that still has seats returns "
+            "`error`: use startBooking.",
             surfaces={"mcp"},
         ),
     )
