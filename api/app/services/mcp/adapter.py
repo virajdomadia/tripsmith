@@ -1,4 +1,4 @@
-"""v4 4.0.2: the four MCP tools, a thin adapter over the v3 tool registry (services/ai/tools.py).
+"""v4 4.0.2 and 4.1: the ten MCP tools, a thin adapter over the v3 tool registry (ai/tools.py).
 
 Every call goes through the chat's own `run_tool`, so validation, catalogue rules and errors are
 the chat's. This module only does what a remote client needs and the chat doesn't:
@@ -20,16 +20,33 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
 
+from mcp.types import ToolAnnotations
+
+from app.business import BUSINESS
 from app.services.ai.tools import TOOLS, ToolContext, run_tool
 
-SEARCH, AVAILABILITY, BOOKING, ENQUIRY = (
+SEARCH, AVAILABILITY, BOOKING, ENQUIRY, NOTIFY = (
     "searchPackages",
     "checkAvailability",
     "startBooking",
     "startEnquiry",
+    "notifyMe",
 )
 
-MCP_TOOL_NAMES: tuple[str, ...] = (SEARCH, AVAILABILITY, BOOKING, ENQUIRY)  # the listing order
+# The tools that only read: their result goes straight back (URLs made absolute where they link).
+_READ_ONLY_RESULTS = (
+    "listDestinations",
+    SEARCH,
+    "getPackageDetails",
+    "getReviews",
+    "comparePackages",
+    AVAILABILITY,
+    "quotePrice",
+)
+MCP_TOOL_NAMES: tuple[str, ...] = (*_READ_ONLY_RESULTS, BOOKING, ENQUIRY, NOTIFY)  # listing order
+
+# All ten only read the catalogue or hand over a link: nothing pays, holds, writes or reaches out.
+READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False)
 
 BOOKING_NEXT = (
     "Give the customer this link: Tripsmith's booking sheet opens with the date and party "
@@ -39,6 +56,10 @@ ENQUIRY_NEXT = (
     "Give the customer this link: Tripsmith's enquiry form opens with the month and party filled "
     "in, and they add their name, phone and a message there (suggest `summary` as the message). "
     "Nothing has been sent yet."
+)
+NOTIFY_NEXT = (
+    "Give the customer this link; they leave their email on Tripsmith's site. "
+    "Nothing is sent by this tool."
 )
 # Query fields the site's enquiry form already pre-fills (web enquiry-form-state PUBLIC_FIELDS),
 # from the chat handoff's keys. Choices only: nothing a person typed.
@@ -72,6 +93,7 @@ class McpTool:
     name: str
     description: str
     input_schema: dict[str, Any]
+    annotations: ToolAnnotations
 
 
 def tool_list() -> list[McpTool]:
@@ -84,7 +106,7 @@ def tool_list() -> list[McpTool]:
         if name not in _WRAPPED and "mcp" not in tool.surfaces:
             continue
         description = _MCP_DESCRIPTIONS.get(name, tool.spec.description)
-        listed.append(McpTool(name, description, tool.spec.parameters))
+        listed.append(McpTool(name, description, tool.spec.parameters, READ_ONLY))
     return listed
 
 
@@ -105,7 +127,7 @@ def enquiry_url(site_url: str, handoff: dict[str, Any]) -> str:
 
 async def call(ctx: ToolContext, site_url: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
     """One MCP tool call → its result. A result with `error` is reported as an MCP tool error."""
-    if name in (SEARCH, AVAILABILITY):
+    if name in _READ_ONLY_RESULTS:
         result, _ = await run_tool(ctx, name, args)
         return result
     if name == BOOKING:
@@ -121,6 +143,17 @@ async def call(ctx: ToolContext, site_url: str, name: str, args: dict[str, Any])
             "url": enquiry_url(site_url, handoff),
             "package": handoff.get("package"),
             "summary": handoff.get("summary"),
+            # The agency's public contact (not a customer's), for a customer who prefers a call.
+            "contact": {
+                "phone": BUSINESS["phone_display"],
+                "email": BUSINESS["email"],
+                "hours": BUSINESS["hours"],
+            },
             "next": ENQUIRY_NEXT,
         }
+    if name == NOTIFY:
+        result, _ = await run_tool(ctx, NOTIFY, args)
+        if "error" in result:
+            return result
+        return {**result, "url": absolute_url(site_url, result["url"]), "next": NOTIFY_NEXT}
     return {"error": f"There is no tool called {name!r}."}

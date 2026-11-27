@@ -23,9 +23,9 @@ async def run(db: AsyncSession, args: dict[str, object]) -> dict[str, object]:
     return result
 
 
-def test_quote_price_is_mcp_only_and_takes_no_contact_details() -> None:
+def test_quote_price_is_on_both_surfaces_and_takes_no_contact_details() -> None:
     tool = TOOLS["quotePrice"]
-    assert tool.surfaces == frozenset({"mcp"})
+    assert tool.surfaces == frozenset({"chat", "mcp"})
     assert set(tool.spec.parameters["properties"]) == {
         "departureId",
         "adults",

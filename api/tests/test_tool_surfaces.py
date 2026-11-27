@@ -5,12 +5,15 @@ from app.services.ai.tools import TOOL_SPECS, TOOLS
 from app.services.mcp.adapter import MCP_TOOL_NAMES, tool_list
 
 
-def test_chat_lists_only_chat_tools() -> None:
+def test_chat_lists_seven_tools() -> None:
     assert {s.name for s in TOOL_SPECS} == {
         "searchPackages",
         "checkAvailability",
         "startBooking",
         "createEnquiry",
+        "getPackageDetails",
+        "quotePrice",
+        "getReviews",
     }
 
 
@@ -36,4 +39,4 @@ def test_mcp_listing_is_driven_by_the_surface_flag(monkeypatch) -> None:  # type
 
     chat_only = dataclasses.replace(TOOLS["checkAvailability"], surfaces=frozenset({"chat"}))
     monkeypatch.setitem(TOOLS, "checkAvailability", chat_only)
-    assert [t.name for t in tool_list()] == ["searchPackages", "startBooking", "startEnquiry"]
+    assert "checkAvailability" not in [t.name for t in tool_list()]

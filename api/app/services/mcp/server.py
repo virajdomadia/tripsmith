@@ -106,7 +106,7 @@ def too_many(retry_after: int) -> str:
 
 
 class TripsmithServer(MCPServer):
-    """The SDK server with Tripsmith's four tools, served from `adapter` rather than registered
+    """The SDK server with Tripsmith's ten tools, served from `adapter` rather than registered
     one by one, so their schemas are the chat's and every call goes through `run_tool`."""
 
     def __init__(self, app: FastAPI) -> None:
@@ -115,7 +115,12 @@ class TripsmithServer(MCPServer):
 
     async def list_tools(self) -> list[MCPTool]:
         return [
-            MCPTool(name=t.name, description=t.description, input_schema=t.input_schema)
+            MCPTool(
+                name=t.name,
+                description=t.description,
+                input_schema=t.input_schema,
+                annotations=t.annotations,
+            )
             for t in adapter.tool_list()
         ]
 

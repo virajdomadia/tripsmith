@@ -507,7 +507,15 @@ def test_destination_matching() -> None:
 
 def test_tool_schemas_are_flat_for_the_model() -> None:
     by_name = {t.name: t for t in TOOL_SPECS}
-    assert set(by_name) == {"searchPackages", "checkAvailability", "startBooking", "createEnquiry"}
+    assert set(by_name) == {
+        "searchPackages",
+        "checkAvailability",
+        "startBooking",
+        "createEnquiry",
+        "getPackageDetails",
+        "quotePrice",
+        "getReviews",
+    }
     search = by_name["searchPackages"].parameters
     assert set(search["properties"]) == {
         "destination",

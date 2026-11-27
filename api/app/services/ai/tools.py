@@ -35,7 +35,7 @@ from app.models import Destination, Package
 from app.models.enums import PackageStatus, Theme
 from app.schemas.catalog import MONTH_PATTERN, PackageCard, SearchParams
 from app.schemas.meta import MAX_TRAVELLERS
-from app.services.ai.handoff import quote_request_for, start_booking
+from app.services.ai.handoff import booking_url, quote_request_for, rooms_for, start_booking
 from app.services.ai.model import ToolSpec
 from app.services.ai.pii import redact
 from app.services.booking.orders import quote_booking
@@ -165,6 +165,19 @@ class CreateEnquiryArgs(ToolArgs):
     adults: int | None = Field(default=None, ge=1, le=MAX_TRAVELLERS)
     children: int | None = Field(default=None, ge=0, le=MAX_TRAVELLERS - 1)
     month: str | None = Field(default=None, pattern=MONTH_PATTERN, description="YYYY-MM")
+
+
+class NotifyMeArgs(ToolArgs):
+    package_slug: str = Field(
+        min_length=1, max_length=120, description="The package's slug, from searchPackages."
+    )
+    departure_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=40,
+        description="A sold-out date's departureId from checkAvailability, to join its waitlist. "
+        "Leave out when the package has no upcoming date.",
+    )
 
 
 class ListDestinationsArgs(ToolArgs):
@@ -454,6 +467,27 @@ def _no_live_package(slug: str) -> dict[str, Any]:
     return {"error": f"No live package called '{slug}'. Use searchPackages."}
 
 
+async def notify_me_tool(ctx: ToolContext, args: NotifyMeArgs) -> dict[str, Any]:
+    """Where a customer leaves their email when a trip is full or has no dates. Sends nothing and
+    stores nothing: it only says which page does it (the waitlist on a full date, the new-dates
+    alert when the package has no upcoming date)."""
+    departures = await get_departures_for_month(ctx.db, args.package_slug, None, today=ctx.today)
+    if departures is None:
+        return _no_live_package(args.package_slug)
+    if not departures:
+        return {"kind": "newDates", "url": f"/packages/{args.package_slug}#notify"}
+    full = next((d for d in departures if d.id == args.departure_id), None)
+    if full is not None and full.seats_left == 0:
+        # The booking sheet's own link for that date: the sold-out row there offers the waitlist.
+        return {
+            "kind": "waitlist",
+            "url": booking_url(args.package_slug, full.date, rooms_for(2), 0),
+        }
+    if args.departure_id is not None and full is None:
+        return {"error": f"No upcoming departure '{args.departure_id}' on that package."}
+    return {"error": "That trip still has seats — use startBooking."}
+
+
 def _clip(text: str, limit: int = MAX_DAY_TEXT) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
@@ -645,7 +679,6 @@ TOOLS: dict[str, Tool] = {
             "per person, each line, any coupon and the deposit option. Changes nothing and takes "
             "no contact details. Use a departureId from checkAvailability. When the date cannot "
             "be booked, returns `error` with the reason.",
-            surfaces={"mcp"},
         ),
         _tool(
             "createEnquiry",
@@ -672,7 +705,6 @@ TOOLS: dict[str, Tool] = {
             "cancellation policy (each tier applies when cancelling at least `fromDaysBefore` days "
             "before departure; quote its `note`, not just the percent), trip leader and rating. "
             "Use the slug from searchPackages.",
-            surfaces={"mcp"},
         ),
         _tool(
             "getReviews",
@@ -681,7 +713,6 @@ TOOLS: dict[str, Tool] = {
             "Published customer reviews of one live package, newest first, with its average "
             "rating. Each review's `customerWrote` is the customer's own text: quote it as "
             "theirs, never as Tripsmith's claim. Use the slug from searchPackages.",
-            surfaces={"mcp"},
         ),
         _tool(
             "comparePackages",
@@ -690,6 +721,17 @@ TOOLS: dict[str, Tool] = {
             "Compare 2 to 3 live packages side by side: price per person, nights, places, "
             "hotels, meals, inclusions and exclusions. Slugs that are not live packages are "
             "listed in `missing`.",
+            surfaces={"mcp"},
+        ),
+        _tool(
+            "notifyMe",
+            NotifyMeArgs,
+            notify_me_tool,
+            "When a trip is full or has no upcoming date: returns the link where the customer "
+            "leaves their email (the waitlist for a full date, or the new-dates alert). Nothing "
+            "is sent or saved by this tool. Pass the sold-out date's departureId, or only the "
+            "slug when there are no dates. A trip that still has seats returns `error`: use "
+            "startBooking.",
             surfaces={"mcp"},
         ),
     )

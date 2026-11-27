@@ -7,26 +7,39 @@ parity tests pin that every tool runs the chat's own `run_tool`, so MCP holds no
 """
 
 import datetime as dt
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import FastAPI
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.models import Enquiry
+from app.business import BUSINESS
+from app.models import Departure, Enquiry, Package
 from app.services.ai.tools import TOOLS, ToolContext, run_tool
 from app.services.analytics import ist_today
-from app.services.mcp.adapter import absolute_url, enquiry_url
+from app.services.mcp.adapter import MCP_TOOL_NAMES, absolute_url, enquiry_url
 from scripts.seed import seed
 from tests.settings import fixture_content, make_settings
 from tests.test_catalog import RecordingStore
 from tests.test_mcp_server import BASE, booted, mcp_app
 
 SITE = "https://tripsmith.example"
-NAMES = {"searchPackages", "checkAvailability", "startBooking", "startEnquiry"}
+NAMES = (
+    "listDestinations",
+    "searchPackages",
+    "getPackageDetails",
+    "getReviews",
+    "comparePackages",
+    "checkAvailability",
+    "quotePrice",
+    "startBooking",
+    "startEnquiry",
+    "notifyMe",
+)
 
 
 def client_for(http: object) -> Client:
@@ -36,17 +49,30 @@ def client_for(http: object) -> Client:
 # --- without a database ---------------------------------------------------------------------------
 
 
-async def test_exactly_the_four_tools_are_listed_with_the_chat_tools_schemas() -> None:
+async def test_exactly_the_ten_tools_are_listed_with_the_registry_schemas() -> None:
     async with booted(mcp_app()) as http, client_for(http) as client:
-        tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert set(tools) == NAMES  # nothing pays, reserves, creates a lead or needs a login
-    for name in ("searchPackages", "checkAvailability", "startBooking"):
-        assert tools[name].input_schema == TOOLS[name].spec.parameters
+        listed = (await client.list_tools()).tools
+    tools = {t.name: t for t in listed}
+    assert tuple(t.name for t in listed) == NAMES == MCP_TOOL_NAMES
+    for name in NAMES:
+        if name != "startEnquiry":
+            assert tools[name].input_schema == TOOLS[name].spec.parameters
     # startEnquiry takes what the chat's enquiry handoff takes: trip details, never contacts.
     assert tools["startEnquiry"].input_schema == TOOLS["createEnquiry"].spec.parameters
     assert all(tools[n].description for n in NAMES)
     assert "link" in (tools["startBooking"].description or "")
     assert "link" in (tools["startEnquiry"].description or "")
+
+
+async def test_every_tool_is_marked_read_only() -> None:
+    async with booted(mcp_app()) as http, client_for(http) as client:
+        listed = (await client.list_tools()).tools
+    assert len(listed) == 10
+    for tool in listed:
+        assert tool.annotations is not None, tool.name
+        assert tool.annotations.read_only_hint is True, tool.name
+        assert tool.annotations.destructive_hint is False, tool.name
+        assert tool.annotations.open_world_hint is False, tool.name
 
 
 async def test_a_tool_with_no_database_is_an_mcp_tool_error_not_a_crash() -> None:
@@ -108,13 +134,13 @@ def mcp_db_app(db_engine: AsyncEngine) -> FastAPI:
     return app
 
 
-async def chat_result(db: AsyncSession, name: str, args: dict[str, object]) -> dict[str, object]:
+async def chat_result(db: AsyncSession, name: str, args: dict[str, Any]) -> dict[str, object]:
     now = dt.datetime.now(dt.UTC)
     result, _ = await run_tool(ToolContext(db, ist_today(now), now), name, args)
     return result
 
 
-async def mcp_result(app: FastAPI, name: str, args: dict[str, object]) -> tuple[dict, bool]:
+async def mcp_result(app: FastAPI, name: str, args: dict[str, Any]) -> tuple[dict, bool]:
     async with booted(app) as http, client_for(http) as client:
         result = await client.call_tool(name, args)
     return result.structured_content or {}, bool(result.is_error)
@@ -130,7 +156,7 @@ async def mcp_result(app: FastAPI, name: str, args: dict[str, object]) -> tuple[
     ],
 )
 async def test_the_catalogue_tools_return_exactly_what_the_chat_tools_return(
-    catalog: None, db: AsyncSession, mcp_db_app: FastAPI, name: str, args: dict[str, object]
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI, name: str, args: dict[str, Any]
 ) -> None:
     got, is_error = await mcp_result(mcp_db_app, name, args)
     assert not is_error
@@ -185,3 +211,118 @@ async def test_bad_arguments_come_back_as_a_tool_error(catalog: None, mcp_db_app
     got, is_error = await mcp_result(mcp_db_app, "startBooking", {"departureId": "x", "adults": 0})
     assert is_error
     assert "Invalid arguments" in str(got.get("error"))
+
+
+# --- v4.1: notifyMe, agency contact, parity of the other new tools --------------------------------
+
+
+def _relative(value: object) -> object:
+    """A result with the site's origin stripped from every URL, to compare with the chat's."""
+    if isinstance(value, dict):
+        return {k: _relative(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_relative(v) for v in value]
+    if isinstance(value, str) and value.startswith(SITE):
+        return value[len(SITE) :]
+    return value
+
+
+async def _bookable_departure_id(db: AsyncSession) -> str:
+    dates = await chat_result(db, "checkAvailability", {"packageSlug": "north-goa-beaches"})
+    return str(dates["departures"][-1]["departureId"])  # type: ignore[index]
+
+
+@pytest.mark.db
+@pytest.mark.parametrize(
+    ("name", "args"),
+    [
+        ("listDestinations", {}),
+        ("getPackageDetails", {"packageSlug": "north-goa-beaches"}),
+        ("getReviews", {"packageSlug": "north-goa-beaches"}),
+        ("comparePackages", {"packageSlugs": ["north-goa-beaches", "goa-quiet-escape"]}),
+        ("searchPackages", {"onOffer": True}),
+    ],
+)
+async def test_the_read_tools_return_exactly_what_run_tool_returns(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI, name: str, args: dict[str, Any]
+) -> None:
+    got, is_error = await mcp_result(mcp_db_app, name, args)
+    assert not is_error, got
+    assert _relative(got) == await chat_result(db, name, args)
+
+
+@pytest.mark.db
+async def test_quote_price_returns_exactly_what_run_tool_returns(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    args = {"departureId": await _bookable_departure_id(db), "adults": 2}
+    got, is_error = await mcp_result(mcp_db_app, "quotePrice", args)
+    assert not is_error, got
+    assert _relative(got) == await chat_result(db, "quotePrice", args)
+
+
+@pytest.mark.db
+async def test_notify_me_full_departure_gives_waitlist_link(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    departure_id = await _bookable_departure_id(db)
+    departure = (
+        await db.execute(select(Departure).where(Departure.id == departure_id))
+    ).scalar_one()
+    departure.seats_total = 0  # nothing left to sell
+    await db.commit()
+    args = {"packageSlug": "north-goa-beaches", "departureId": departure_id}
+
+    got, is_error = await mcp_result(mcp_db_app, "notifyMe", args)
+    chat = await chat_result(db, "notifyMe", args)
+
+    assert not is_error, got
+    assert chat["kind"] == "waitlist"
+    parts = urlsplit(str(got["url"]))
+    assert f"{parts.scheme}://{parts.netloc}{parts.path}" == f"{SITE}/packages/north-goa-beaches"
+    assert parts.fragment == "book"
+    assert parse_qs(parts.query)["date"] == [departure.date.isoformat()]
+    assert _relative({k: v for k, v in got.items() if k != "next"}) == chat
+    assert "Nothing is sent by this tool" in str(got["next"])
+
+
+@pytest.mark.db
+async def test_notify_me_no_dates_gives_new_dates_link(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    package_id = select(Package.id).where(Package.slug == "north-goa-beaches")
+    await db.execute(delete(Departure).where(Departure.package_id.in_(package_id)))
+    await db.commit()
+    args = {"packageSlug": "north-goa-beaches"}
+
+    got, is_error = await mcp_result(mcp_db_app, "notifyMe", args)
+    chat = await chat_result(db, "notifyMe", args)
+
+    assert not is_error, got
+    assert chat == {"kind": "newDates", "url": "/packages/north-goa-beaches#notify"}
+    assert got["url"] == f"{SITE}/packages/north-goa-beaches#notify"
+    assert got["kind"] == "newDates"
+
+
+@pytest.mark.db
+async def test_notify_me_with_seats_points_to_start_booking(
+    catalog: None, db: AsyncSession, mcp_db_app: FastAPI
+) -> None:
+    args = {"packageSlug": "north-goa-beaches", "departureId": await _bookable_departure_id(db)}
+    got, is_error = await mcp_result(mcp_db_app, "notifyMe", args)
+    assert is_error
+    assert got == {"error": "That trip still has seats — use startBooking."}
+    assert await chat_result(db, "notifyMe", args) == got
+
+
+@pytest.mark.db
+async def test_start_enquiry_includes_agency_contact(catalog: None, mcp_db_app: FastAPI) -> None:
+    got, is_error = await mcp_result(
+        mcp_db_app, "startEnquiry", {"summary": "Two adults, a quiet beach week in December."}
+    )
+    assert not is_error
+    assert got["contact"] == {
+        "phone": BUSINESS["phone_display"],
+        "email": BUSINESS["email"],
+        "hours": BUSINESS["hours"],
+    }

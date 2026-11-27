@@ -34,9 +34,9 @@ async def run(db: AsyncSession, name: str, args: dict[str, object]) -> dict[str,
     return result
 
 
-def test_both_tools_are_mcp_only() -> None:
-    for name in ("getReviews", "comparePackages"):
-        assert TOOLS[name].surfaces == frozenset({"mcp"})
+def test_surfaces_of_the_two_tools() -> None:
+    assert TOOLS["getReviews"].surfaces == frozenset({"chat", "mcp"})
+    assert TOOLS["comparePackages"].surfaces == frozenset({"mcp"})
 
 
 async def test_reviews_are_labelled_customer_text(db: AsyncSession) -> None:

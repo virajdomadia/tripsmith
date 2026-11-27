@@ -33,9 +33,9 @@ async def run(db: AsyncSession, name: str, args: dict[str, object]) -> dict[str,
     return result
 
 
-def test_both_tools_are_mcp_only_for_now() -> None:
-    for name in ("listDestinations", "getPackageDetails"):
-        assert TOOLS[name].surfaces == frozenset({"mcp"})
+def test_surfaces_of_the_two_catalogue_tools() -> None:
+    assert TOOLS["listDestinations"].surfaces == frozenset({"mcp"})
+    assert TOOLS["getPackageDetails"].surfaces == frozenset({"chat", "mcp"})
 
 
 async def test_list_destinations_matches_the_service(catalog: None, db: AsyncSession) -> None:
