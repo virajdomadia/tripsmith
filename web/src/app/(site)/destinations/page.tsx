@@ -62,7 +62,7 @@ export default async function DestinationsPage() {
         <h1 className="text-[clamp(30px,3.6vw,44px)]">Places we know like the back of our hand.</h1>
         <p className="num mt-1.5 max-w-[60ch] text-base text-mute">
           {plural(trips, 'trip', 'trips')} across{' '}
-          {plural(items.length, 'destination', 'destinations')} — every one run by us, with
+          {plural(items.length, 'destination', 'destinations')}, every one run by us, with
           departures you can count on.
         </p>
       </header>
