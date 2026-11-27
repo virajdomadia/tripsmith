@@ -79,6 +79,15 @@ describe('token pairs meet WCAG AA', () => {
     expect(ratio(token('ink2'), token('line'))).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('draws form control borders at 3:1 or more (WCAG 1.4.11, review 2026-11-27 M2)', () => {
+    const field = readFileSync(
+      resolve(__dirname, '../src/components/site/enquiry/Field.tsx'),
+      'utf8',
+    );
+    expect(field).toContain('border-field-border');
+    expect(ratio(token('field-border'), token('bg'))).toBeGreaterThanOrEqual(3);
+  });
+
   it('gives enquiry placeholders the full mute token, not a faded one', () => {
     const field = readFileSync(
       resolve(__dirname, '../src/components/site/enquiry/Field.tsx'),
