@@ -21,7 +21,15 @@ from tests.settings import make_settings
 from tests.test_mcp_limits import IP, WindowLimiter, down_upstash
 from tests.test_mcp_server import BASE, booted, mcp_app
 
-TOOLS = ("searchPackages", "checkAvailability", "startBooking", "startEnquiry")
+TOOLS = (
+    "searchPackages",
+    "getPackageDetails",
+    "checkAvailability",
+    "quotePrice",
+    "startBooking",
+    "notifyMe",
+    "startEnquiry",
+)
 
 
 def client_for(http: object, mode: str = "auto") -> Client:
@@ -46,7 +54,7 @@ async def test_a_client_lists_and_gets_the_prompt(mode: str) -> None:
     assert "Goa" in text and "2 adults" in text
 
 
-def test_the_message_walks_through_the_four_tools_and_keeps_contacts_out() -> None:
+def test_the_message_walks_through_the_tools_and_keeps_contacts_out() -> None:
     text = render({})
     for tool in TOOLS:
         assert tool in text

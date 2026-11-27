@@ -4,7 +4,7 @@ The frozen catalog used fixed calendar dates; they aged into the past and turned
 date is now a day in one of the months after the current one, which keeps the shape the tests
 rely on (which month a departure falls in, who departs first) whatever day the suite runs. The
 first month is always the next calendar month, so every date is in the future and `M1` day 20 is
-never less than three weeks away.
+always at least 20 days away.
 """
 
 import datetime as dt

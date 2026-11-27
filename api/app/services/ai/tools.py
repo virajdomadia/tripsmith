@@ -303,7 +303,12 @@ async def search_packages_tool(ctx: ToolContext, args: SearchPackagesArgs) -> di
         # What the cards were filtered by, so the reply compares prices with the same figure.
         result["budgetPerPerson"] = inr(per_person)
     if not found.items and args.on_offer:
-        result["note"] = "No package has a deal running right now."
+        only_offers = not (slugs or args.max_budget or args.nights or args.theme or args.month)
+        result["note"] = (
+            "No package has a deal running right now."
+            if only_offers
+            else "No package matching these filters has a deal running right now."
+        )
     if not found.items:
         result["weOffer"] = offered
         if len(slugs) == 1:  # one known destination, nothing open: offer its new-dates alert
@@ -318,7 +323,7 @@ async def check_availability_tool(ctx: ToolContext, args: CheckAvailabilityArgs)
         ctx.db, args.package_slug, args.month, today=ctx.today
     )
     if departures is None:
-        return {"error": f"No live package has the slug {args.package_slug!r}."}
+        return _no_live_package(args.package_slug)
     shown = departures[:MAX_DEPARTURES]
     name = (
         await ctx.db.execute(select(Package.name).where(Package.slug == args.package_slug))
@@ -414,6 +419,10 @@ async def quote_price_tool(ctx: ToolContext, args: QuotePriceArgs) -> dict[str, 
         "lines": lines,
     }
     if quote.coupon:
+        # A line, so the lines add up to the total.
+        lines.append(
+            {"label": f"Coupon {quote.coupon.code}", "amount": _signed(-quote.coupon.off_paise)}
+        )
         result["coupon"] = {"code": quote.coupon.code, "off": _signed(quote.coupon.off_paise)}
     if quote.deposit:
         result["deposit"] = {

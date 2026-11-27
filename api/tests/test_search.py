@@ -341,4 +341,9 @@ async def test_search_on_offer_with_no_deals_is_empty_not_an_error(
         ToolContext(db, ist_today(now), now), "searchPackages", {"onOffer": True}
     )
     assert got["packages"] == [] and "error" not in got
-    assert "deal" in str(got["note"])
+    assert got["note"] == "No package has a deal running right now."
+
+    narrowed, _ = await run_tool(
+        ToolContext(db, ist_today(now), now), "searchPackages", {"onOffer": True, "nights": 4}
+    )
+    assert narrowed["note"] == "No package matching these filters has a deal running right now."

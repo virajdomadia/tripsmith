@@ -152,10 +152,16 @@ The chat **never takes payment**: `startBooking` hands off to the v2 sheet and R
 ### 2. Tools (adapter over the v3 registry)
 | MCP tool | Calls | Adapter adds |
 |---|---|---|
+| `listDestinations` | `run_tool("listDestinations", ...)` | links made absolute (none today) |
 | `searchPackages` | `run_tool("searchPackages", ...)` | nothing |
+| `getPackageDetails` | `run_tool("getPackageDetails", ...)` | `pageUrl`, `itineraryPdfUrl` made absolute |
+| `getReviews` | `run_tool("getReviews", ...)` | nothing (review text sits under `customerWrote`) |
+| `comparePackages` | `run_tool("comparePackages", ...)` | each trip's `pageUrl` made absolute |
 | `checkAvailability` | `run_tool("checkAvailability", ...)` | nothing |
+| `quotePrice` | `run_tool("quotePrice", ...)` (the booking quote route's price, read-only) | nothing |
 | `startBooking` | `run_tool("startBooking", ...)` (existing booking quote; returns `/packages/{slug}?...#book`) | absolute URL: `WEB_URL` + path |
 | `startEnquiry` | the same live-package lookup `create_enquiry_tool` uses | runs `createEnquiry` and builds `/packages/{slug}/enquire?travelMonth=…&adults=…&children=…`, or `/contact?…#enquire` without a live package, `urlencode`d; the redacted summary is returned, never put in the link. **Creates nothing.** |
+| `notifyMe` | `run_tool("notifyMe", ...)` (sends and stores nothing) | absolute link to the waitlist (full date) or new-dates alert (no dates) |
 
 - `ToolContext` for MCP: DB session, `now`, the server-derived client IP; no conversation id.
 - `ToolArgs` reused as-is (`extra="forbid"`). `startEnquiry` gets its own small args model with the same bounds as the v3 enquiry args, minus contact fields.

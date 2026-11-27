@@ -9,9 +9,10 @@ seeded database (.github/workflows/ci.yml); 4.0.6 runs it against a preview and 
     uv run python scripts/mcp_smoke.py https://api.example/mcp
 
 Each mode (`legacy`: the `initialize` handshake; `auto`: the 2026-07-28 flow when the server
-offers it) lists the tools and the prompt, gets the prompt, and calls four read-only tools on a
-package it finds at runtime (so it works on production data too): searchPackages,
-checkAvailability, getPackageDetails and quotePrice. Four calls a mode, so eight against the
+offers it) lists the tools and the prompt, gets the prompt, and calls read-only tools on a
+package it finds at runtime (so it works on production data too): searchPackages, then
+checkAvailability per package until one has an open date, getPackageDetails and quotePrice. At
+least four calls a mode (more when it tries further packages), so eight or more against the
 300-an-hour limit; each is logged in `mcp_requests` with the User-Agent `tripsmith-mcp-smoke`, so
 reports can leave the smoke runs out.
 Nothing books, holds or sends. Exits 1 on the first failed check.
@@ -70,7 +71,7 @@ def first_open_date(availability: dict[str, Any]) -> dict[str, Any] | None:
     """The latest listed departure with seats for two, or None. The latest, because the nearest
     ones can be too close to book online, which quotePrice rightly refuses."""
     for departure in reversed(availability.get("departures") or []):
-        if departure["seatsLeft"] >= 2:
+        if departure["seatsLeft"] >= 2 and departure.get("pricePerPersonPaise") != 0:
             return departure
     return None
 
@@ -105,28 +106,34 @@ async def run_mode(url: str, mode: str) -> None:
         packages = found.get("packages") or []
         check(not search.is_error and bool(packages), "searchPackages finds packages", found)
 
-        # The first package may have no open date on production data: try each until one does.
+        # A package may have no open date, or one quotePrice refuses (production data): try each
+        # package until one quotes. The details call is made on the one that does (else the first).
         slug = packages[0]["slug"]
-        open_date: dict[str, Any] | None = None
+        quoted = False
         for package in packages:
             candidate = package["slug"]
             dates = await client.call_tool("checkAvailability", {"packageSlug": candidate})
             check(not dates.is_error, f"checkAvailability answers for {candidate}", payload(dates))
             open_date = first_open_date(payload(dates))
-            if open_date is not None:
-                slug = candidate
+            if open_date is None:
+                continue
+            quote = await client.call_tool(
+                "quotePrice", {"departureId": open_date["departureId"], "adults": 2}
+            )
+            if not quote.is_error:
+                slug, quoted = candidate, True
                 break
 
         details = await client.call_tool("getPackageDetails", {"packageSlug": slug})
         check(not details.is_error, f"getPackageDetails answers for {slug}", payload(details))
-
-        if open_date is None:
-            print("  note  no package has a date with seats for two: quotePrice skipped")
-        else:
-            quote = await client.call_tool(
-                "quotePrice", {"departureId": open_date["departureId"], "adults": 2}
-            )
-            check(not quote.is_error, f"quotePrice answers for {slug}", payload(quote))
+        page_url = payload(details).get("pageUrl")
+        check(
+            isinstance(page_url, str) and page_url.startswith(("http://", "https://")),
+            "getPackageDetails links are absolute",
+            page_url,
+        )
+        if not quoted:
+            print("  note  no package has a date quotePrice accepts: quotePrice not checked")
 
 
 async def main(url: str) -> int:

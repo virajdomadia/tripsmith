@@ -114,6 +114,21 @@ def absolute_url(site_url: str, path: str) -> str:
     return site_url.rstrip("/") + path
 
 
+def _absolutise(site_url: str, node: Any) -> Any:
+    """A read-only result with every `...Url` field that is a site path made absolute: the chat
+    opens relative paths on the site it is on, a remote client has no such site."""
+    if isinstance(node, dict):
+        return {
+            k: absolute_url(site_url, v)
+            if k.endswith("Url") and isinstance(v, str) and v.startswith("/")
+            else _absolutise(site_url, v)
+            for k, v in node.items()
+        }
+    if isinstance(node, list):
+        return [_absolutise(site_url, v) for v in node]
+    return node
+
+
 def enquiry_url(site_url: str, handoff: dict[str, Any]) -> str:
     """The site's enquiry form for the chat's `createEnquiry` result: the package's own enquiry
     page when a live package was named, else the contact page's form. Trip choices only (R34a)."""
@@ -129,7 +144,7 @@ async def call(ctx: ToolContext, site_url: str, name: str, args: dict[str, Any])
     """One MCP tool call → its result. A result with `error` is reported as an MCP tool error."""
     if name in _READ_ONLY_RESULTS:
         result, _ = await run_tool(ctx, name, args)
-        return result
+        return _absolutise(site_url, result)
     if name == BOOKING:
         result, _ = await run_tool(ctx, BOOKING, args)
         if "error" in result:

@@ -216,8 +216,26 @@ async def test_bad_arguments_come_back_as_a_tool_error(catalog: None, mcp_db_app
 # --- v4.1: notifyMe, agency contact, parity of the other new tools --------------------------------
 
 
+def _urls(value: object) -> list[tuple[str, object]]:
+    """Every `...Url` field in a result, however deep."""
+    found: list[tuple[str, object]] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k.endswith("Url") or k == "url":
+                found.append((k, v))
+            found.extend(_urls(v))
+    elif isinstance(value, list):
+        for v in value:
+            found.extend(_urls(v))
+    return found
+
+
 def _relative(value: object) -> object:
-    """A result with the site's origin stripped from every URL, to compare with the chat's."""
+    """A result with the site's origin stripped from every URL, to compare with the chat's.
+    Every `...Url` field must carry the origin first: a relative link is useless to a remote
+    client, and stripping would otherwise hide it."""
+    for key, url in _urls(value):
+        assert isinstance(url, str) and url.startswith(f"{SITE}/"), (key, url)
     if isinstance(value, dict):
         return {k: _relative(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -249,6 +267,30 @@ async def test_the_read_tools_return_exactly_what_run_tool_returns(
     got, is_error = await mcp_result(mcp_db_app, name, args)
     assert not is_error, got
     assert _relative(got) == await chat_result(db, name, args)
+
+
+@pytest.mark.db
+async def test_page_and_pdf_links_are_absolute_for_a_remote_client(
+    catalog: None, mcp_db_app: FastAPI
+) -> None:
+    details, is_error = await mcp_result(
+        mcp_db_app, "getPackageDetails", {"packageSlug": "north-goa-beaches"}
+    )
+    assert not is_error, details
+    assert details["pageUrl"] == f"{SITE}/packages/north-goa-beaches"
+    assert details["itineraryPdfUrl"] == f"{SITE}/packages/north-goa-beaches/itinerary.pdf"
+
+
+@pytest.mark.db
+async def test_compare_links_are_absolute_for_a_remote_client(
+    catalog: None, mcp_db_app: FastAPI
+) -> None:
+    compared, is_error = await mcp_result(
+        mcp_db_app, "comparePackages", {"packageSlugs": ["north-goa-beaches", "goa-quiet-escape"]}
+    )
+    assert not is_error, compared
+    urls = [t["pageUrl"] for t in compared["trips"]]  # type: ignore[index, union-attr]
+    assert urls and all(u.startswith(f"{SITE}/packages/") for u in urls)
 
 
 @pytest.mark.db

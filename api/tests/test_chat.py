@@ -42,7 +42,7 @@ from tests.test_catalog import RecordingStore
 NGB, GQE = "north-goa-beaches", "goa-quiet-escape"
 SITE = "http://localhost:3000"
 TODAY = ist_today()  # every fixture departure is later (tests/fixture_dates.py)
-NOW = dt.datetime(2026, 11, 12, 6, 30, tzinfo=dt.UTC)
+NOW = dt.datetime.now(dt.UTC)  # same day as TODAY
 
 Step = list[ModelEvent] | Exception
 

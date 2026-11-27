@@ -63,6 +63,7 @@ async def test_quote_with_a_coupon_names_its_code_and_saving(db: AsyncSession) -
 
     assert got["coupon"] == {"code": DEMO_COUPON, "off": "₹1,000"}
     assert got["total"] == "₹39,000"
+    assert got["lines"][-1] == {"label": f"Coupon {DEMO_COUPON}", "amount": "-₹1,000"}  # type: ignore[index]
 
 
 async def test_quote_full_departure_returns_the_service_reason(db: AsyncSession) -> None:
